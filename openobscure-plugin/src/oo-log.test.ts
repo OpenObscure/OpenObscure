@@ -5,17 +5,17 @@ import * as path from "path";
 import * as os from "os";
 
 import {
-  cgLog,
-  cgInfo,
-  cgWarn,
-  cgError,
-  cgDebug,
-  cgAudit,
-  cgLogInit,
-  cgLogShutdown,
-  CG_MODULES,
-  type CgLogLevel,
-} from "./cg-log";
+  ooLog,
+  ooInfo,
+  ooWarn,
+  ooError,
+  ooDebug,
+  ooAudit,
+  ooLogInit,
+  ooLogShutdown,
+  OO_MODULES,
+  type OoLogLevel,
+} from "./oo-log";
 
 // ── Test helpers ──
 
@@ -39,19 +39,19 @@ function captureConsole(
 
 // ── Tests ──
 
-describe("cgLog", () => {
+describe("ooLog", () => {
   beforeEach(() => {
     // Reset to defaults
-    cgLogInit({ level: "info", jsonOutput: false });
+    ooLogInit({ level: "info", jsonOutput: false });
   });
 
   afterEach(() => {
-    cgLogShutdown();
+    ooLogShutdown();
   });
 
   it("logs info messages with module prefix", () => {
     const output = captureConsole("log", () => {
-      cgInfo(CG_MODULES.REDACTOR, "Redacted PII", { count: 3 });
+      ooInfo(OO_MODULES.REDACTOR, "Redacted PII", { count: 3 });
     });
     assert.equal(output.length, 1);
     assert.ok(output[0].includes("[OpenObscure L1] [redactor]"));
@@ -61,7 +61,7 @@ describe("cgLog", () => {
 
   it("logs warn messages via console.warn", () => {
     const output = captureConsole("warn", () => {
-      cgWarn(CG_MODULES.HEARTBEAT, "Proxy not responding", { failures: 2 });
+      ooWarn(OO_MODULES.HEARTBEAT, "Proxy not responding", { failures: 2 });
     });
     assert.equal(output.length, 1);
     assert.ok(output[0].includes("[heartbeat]"));
@@ -70,7 +70,7 @@ describe("cgLog", () => {
 
   it("logs error messages via console.error", () => {
     const output = captureConsole("error", () => {
-      cgError(CG_MODULES.PLUGIN, "Registration failed");
+      ooError(OO_MODULES.PLUGIN, "Registration failed");
     });
     assert.equal(output.length, 1);
     assert.ok(output[0].includes("[plugin]"));
@@ -78,12 +78,12 @@ describe("cgLog", () => {
   });
 
   it("respects log level filtering", () => {
-    cgLogInit({ level: "warn" });
+    ooLogInit({ level: "warn" });
     const infoOutput = captureConsole("log", () => {
-      cgInfo(CG_MODULES.REDACTOR, "This should be filtered");
+      ooInfo(OO_MODULES.REDACTOR, "This should be filtered");
     });
     const warnOutput = captureConsole("warn", () => {
-      cgWarn(CG_MODULES.REDACTOR, "This should appear");
+      ooWarn(OO_MODULES.REDACTOR, "This should appear");
     });
     assert.equal(infoOutput.length, 0);
     assert.equal(warnOutput.length, 1);
@@ -91,24 +91,24 @@ describe("cgLog", () => {
 
   it("debug level filtered at info default", () => {
     const output = captureConsole("log", () => {
-      cgDebug(CG_MODULES.CONSENT, "Debug detail");
+      ooDebug(OO_MODULES.CONSENT, "Debug detail");
     });
     assert.equal(output.length, 0);
   });
 
   it("debug level passes when level set to debug", () => {
-    cgLogInit({ level: "debug" });
+    ooLogInit({ level: "debug" });
     const output = captureConsole("log", () => {
-      cgDebug(CG_MODULES.CONSENT, "Debug detail");
+      ooDebug(OO_MODULES.CONSENT, "Debug detail");
     });
     assert.equal(output.length, 1);
     assert.ok(output[0].includes("Debug detail"));
   });
 
   it("produces JSON output when configured", () => {
-    cgLogInit({ jsonOutput: true });
+    ooLogInit({ jsonOutput: true });
     const output = captureConsole("log", () => {
-      cgInfo(CG_MODULES.REDACTOR, "PII found", { tool: "web_search", count: 2 });
+      ooInfo(OO_MODULES.REDACTOR, "PII found", { tool: "web_search", count: 2 });
     });
     assert.equal(output.length, 1);
     const parsed = JSON.parse(output[0]);
@@ -122,7 +122,7 @@ describe("cgLog", () => {
 
   it("handles missing fields gracefully", () => {
     const output = captureConsole("log", () => {
-      cgInfo(CG_MODULES.PLUGIN, "Simple message");
+      ooInfo(OO_MODULES.PLUGIN, "Simple message");
     });
     assert.equal(output.length, 1);
     assert.ok(output[0].includes("Simple message"));
@@ -133,12 +133,12 @@ describe("cgLog", () => {
 
 describe("PII scrubbing", () => {
   beforeEach(() => {
-    cgLogInit({ level: "info", jsonOutput: false });
+    ooLogInit({ level: "info", jsonOutput: false });
   });
 
   it("scrubs SSN from message", () => {
     const output = captureConsole("log", () => {
-      cgInfo(CG_MODULES.REDACTOR, "Found SSN: 123-45-6789 in text");
+      ooInfo(OO_MODULES.REDACTOR, "Found SSN: 123-45-6789 in text");
     });
     assert.equal(output.length, 1);
     assert.ok(!output[0].includes("123-45-6789"));
@@ -147,7 +147,7 @@ describe("PII scrubbing", () => {
 
   it("scrubs email from fields", () => {
     const output = captureConsole("log", () => {
-      cgInfo(CG_MODULES.REDACTOR, "User data", { email: "user@example.com" });
+      ooInfo(OO_MODULES.REDACTOR, "User data", { email: "user@example.com" });
     });
     assert.equal(output.length, 1);
     assert.ok(!output[0].includes("user@example.com"));
@@ -156,7 +156,7 @@ describe("PII scrubbing", () => {
 
   it("scrubs credit card from message", () => {
     const output = captureConsole("log", () => {
-      cgInfo(CG_MODULES.REDACTOR, "Card: 4111-1111-1111-1111");
+      ooInfo(OO_MODULES.REDACTOR, "Card: 4111-1111-1111-1111");
     });
     assert.equal(output.length, 1);
     assert.ok(!output[0].includes("4111-1111-1111-1111"));
@@ -164,9 +164,9 @@ describe("PII scrubbing", () => {
   });
 
   it("scrubs PII in JSON output mode too", () => {
-    cgLogInit({ jsonOutput: true });
+    ooLogInit({ jsonOutput: true });
     const output = captureConsole("log", () => {
-      cgInfo(CG_MODULES.REDACTOR, "SSN: 123-45-6789", { phone: "+1-555-123-4567" });
+      ooInfo(OO_MODULES.REDACTOR, "SSN: 123-45-6789", { phone: "+1-555-123-4567" });
     });
     const parsed = JSON.parse(output[0]);
     assert.ok(!parsed.msg.includes("123-45-6789"));
@@ -178,7 +178,7 @@ describe("PII scrubbing", () => {
 
   it("leaves non-PII fields unchanged", () => {
     const output = captureConsole("log", () => {
-      cgInfo(CG_MODULES.REDACTOR, "Stats", { pii_total: 3, tool: "web_search" });
+      ooInfo(OO_MODULES.REDACTOR, "Stats", { pii_total: 3, tool: "web_search" });
     });
     assert.ok(output[0].includes("pii_total=3"));
     assert.ok(output[0].includes("tool=web_search"));
@@ -190,13 +190,13 @@ describe("GDPR audit log", () => {
   let auditPath: string;
 
   beforeEach(() => {
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cg-log-test-"));
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "oo-log-test-"));
     auditPath = path.join(tmpDir, "audit.jsonl");
-    cgLogInit({ level: "info", auditLogPath: auditPath });
+    ooLogInit({ level: "info", auditLogPath: auditPath });
   });
 
   afterEach(() => {
-    cgLogShutdown();
+    ooLogShutdown();
     try {
       fs.rmSync(tmpDir, { recursive: true });
     } catch {
@@ -207,7 +207,7 @@ describe("GDPR audit log", () => {
   it("writes audit entries to file", () => {
     // Capture console to avoid test noise
     captureConsole("log", () => {
-      cgAudit(CG_MODULES.CONSENT, "grant", {
+      ooAudit(OO_MODULES.CONSENT, "grant", {
         user_id: "u123",
         consent_type: "processing",
       });
@@ -224,8 +224,8 @@ describe("GDPR audit log", () => {
 
   it("appends multiple audit entries", () => {
     captureConsole("log", () => {
-      cgAudit(CG_MODULES.REDACTOR, "redact", { pii_count: 2 });
-      cgAudit(CG_MODULES.CONSENT, "revoke", { user_id: "u456" });
+      ooAudit(OO_MODULES.REDACTOR, "redact", { pii_count: 2 });
+      ooAudit(OO_MODULES.CONSENT, "revoke", { user_id: "u456" });
     });
 
     const lines = fs.readFileSync(auditPath, "utf-8").trim().split("\n");
@@ -236,20 +236,20 @@ describe("GDPR audit log", () => {
 
   it("also logs audit events to console at info level", () => {
     const output = captureConsole("log", () => {
-      cgAudit(CG_MODULES.CONSENT, "export", { format: "json" });
+      ooAudit(OO_MODULES.CONSENT, "export", { format: "json" });
     });
     assert.equal(output.length, 1);
     assert.ok(output[0].includes("audit: export"));
   });
 });
 
-describe("CG_MODULES constants", () => {
+describe("OO_MODULES constants", () => {
   it("all module constants are defined", () => {
-    assert.equal(CG_MODULES.REDACTOR, "redactor");
-    assert.equal(CG_MODULES.FILE_GUARD, "file-guard");
-    assert.equal(CG_MODULES.CONSENT, "consent");
-    assert.equal(CG_MODULES.PRIVACY, "privacy");
-    assert.equal(CG_MODULES.HEARTBEAT, "heartbeat");
-    assert.equal(CG_MODULES.PLUGIN, "plugin");
+    assert.equal(OO_MODULES.REDACTOR, "redactor");
+    assert.equal(OO_MODULES.FILE_GUARD, "file-guard");
+    assert.equal(OO_MODULES.CONSENT, "consent");
+    assert.equal(OO_MODULES.PRIVACY, "privacy");
+    assert.equal(OO_MODULES.HEARTBEAT, "heartbeat");
+    assert.equal(OO_MODULES.PLUGIN, "plugin");
   });
 });

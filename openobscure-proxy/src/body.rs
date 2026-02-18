@@ -73,7 +73,7 @@ pub fn process_request_body(
                     replacements.push(result);
                 }
                 Err(e) => {
-                    cg_warn!(crate::cg_log::modules::BODY, "FPE encryption failed for PII match, skipping",
+                    oo_warn!(crate::oo_log::modules::BODY, "FPE encryption failed for PII match, skipping",
                         pii_type = ?m.pii_type,
                         json_path = ?m.json_path,
                         error = %e);
@@ -156,7 +156,7 @@ fn walk_json_for_images(
                             }
                             Err(e) => {
                                 // Fail-open: leave original image
-                                cg_warn!(crate::cg_log::modules::IMAGE,
+                                oo_warn!(crate::oo_log::modules::IMAGE,
                                     "Image processing failed (fail-open)", error = %e);
                             }
                         }

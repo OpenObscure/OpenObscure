@@ -85,7 +85,7 @@ impl NerScanner {
             .commit_from_file(&model_path)
             .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
 
-        cg_info!(crate::cg_log::modules::NER, "NER scanner loaded",
+        oo_info!(crate::oo_log::modules::NER, "NER scanner loaded",
             model = %model_path.display(),
             vocab_size = tokenizer.vocab_size(),
             num_labels = num_labels);

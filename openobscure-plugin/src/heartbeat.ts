@@ -9,7 +9,7 @@
  */
 
 import * as http from "http";
-import { cgInfo, cgWarn, CG_MODULES } from "./cg-log";
+import { ooInfo, ooWarn, OO_MODULES } from "./oo-log";
 
 export type ProxyState = "active" | "degraded" | "recovering" | "disabled";
 
@@ -190,13 +190,13 @@ function defaultStateChangeHandler(
 ): void {
   switch (state) {
     case "degraded":
-      cgWarn(CG_MODULES.HEARTBEAT, message);
+      ooWarn(OO_MODULES.HEARTBEAT, message);
       break;
     case "recovering":
-      cgInfo(CG_MODULES.HEARTBEAT, message);
+      ooInfo(OO_MODULES.HEARTBEAT, message);
       break;
     case "disabled":
-      cgWarn(CG_MODULES.HEARTBEAT, message);
+      ooWarn(OO_MODULES.HEARTBEAT, message);
       break;
     default:
       break; // active = silent

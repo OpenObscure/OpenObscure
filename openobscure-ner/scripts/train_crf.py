@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Train a linear-chain CRF for NER on Priv4Claw's custom label schema.
+Train a linear-chain CRF for NER on OpenObscure's custom label schema.
 
 Produces a `crf_model.json` file compatible with the Rust CRF scanner
-(priv4claw-proxy/src/crf_scanner.rs). The model uses hand-crafted features
+(openobscure-proxy/src/crf_scanner.rs). The model uses hand-crafted features
 (word shape, prefix/suffix, capitalization, gazetteers, context window)
 and learns state feature weights + transition weights via L-BFGS.
 
@@ -57,7 +57,7 @@ CHILD_TERMS = {
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Train CRF NER model for Priv4Claw")
+    parser = argparse.ArgumentParser(description="Train CRF NER model for OpenObscure")
     parser.add_argument(
         "--train_data",
         type=str,
@@ -333,7 +333,7 @@ def main():
     output_path = export_model(crf, args.output_dir)
 
     logger.info("=== CRF model ready at %s ===", args.output_dir)
-    logger.info("Configure in priv4claw.toml: scanner.crf_model_dir = \"%s\"", args.output_dir)
+    logger.info("Configure in openobscure.toml: scanner.crf_model_dir = \"%s\"", args.output_dir)
 
 
 if __name__ == "__main__":

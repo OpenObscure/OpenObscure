@@ -62,7 +62,7 @@ src/
 │   ── Infrastructure ──
 ├── vault.rs             OS keychain + env var bridge (FPE key + API keys)
 ├── health.rs            Health endpoint, HealthStats, crash marker, image + cross-border counters
-├── cg_log.rs            Unified logging macros (cg_info!, cg_warn!, cg_audit!) + module constants
+├── oo_log.rs            Unified logging macros (oo_info!, oo_warn!, oo_audit!) + module constants
 ├── pii_scrub_layer.rs   PII scrub filter for log output (tracing MakeWriter wrapper)
 ├── crash_buffer.rs      mmap ring buffer for crash diagnostics (survives SIGKILL/OOM)
 ├── error.rs             Unified error types

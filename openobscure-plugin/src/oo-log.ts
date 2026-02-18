@@ -1,7 +1,7 @@
 /**
  * OpenObscure Unified Logging API — TypeScript (L1 Plugin).
  *
- * Every L1 module calls cgInfo/cgWarn/cgError/cgDebug/cgAudit instead of
+ * Every L1 module calls ooInfo/ooWarn/ooError/ooDebug/ooAudit instead of
  * console.* directly. The wrapper handles:
  * - PII scrubbing via redactPii() before any output
  * - Structured JSON output (optional, for Docker/SIEM)
@@ -14,11 +14,11 @@ import * as fs from "fs";
 
 // ── Types ──
 
-export type CgLogLevel = "error" | "warn" | "info" | "debug" | "trace";
+export type OoLogLevel = "error" | "warn" | "info" | "debug" | "trace";
 
-export interface CgLogConfig {
+export interface OoLogConfig {
   /** Minimum log level (default: "info"). */
-  level?: CgLogLevel;
+  level?: OoLogLevel;
   /** Emit structured JSON instead of human-readable text (default: false). */
   jsonOutput?: boolean;
   /** File path for GDPR audit log. If unset, audit events are logged but not persisted. */
@@ -27,7 +27,7 @@ export interface CgLogConfig {
 
 // ── Module constants — use these instead of string literals ──
 
-export const CG_MODULES = {
+export const OO_MODULES = {
   REDACTOR: "redactor",
   FILE_GUARD: "file-guard",
   CONSENT: "consent",
@@ -38,7 +38,7 @@ export const CG_MODULES = {
 
 // ── Internal state ──
 
-const LEVEL_PRIORITY: Record<CgLogLevel, number> = {
+const LEVEL_PRIORITY: Record<OoLogLevel, number> = {
   error: 0,
   warn: 1,
   info: 2,
@@ -46,14 +46,14 @@ const LEVEL_PRIORITY: Record<CgLogLevel, number> = {
   trace: 4,
 };
 
-let _level: CgLogLevel = "info";
+let _level: OoLogLevel = "info";
 let _jsonOutput = false;
 let _auditFd: number | null = null;
 
 // ── Initialization ──
 
 /** Initialize the logging subsystem. Called once from plugin register(). */
-export function cgLogInit(config: CgLogConfig): void {
+export function ooLogInit(config: OoLogConfig): void {
   if (config.level) _level = config.level;
   if (config.jsonOutput !== undefined) _jsonOutput = config.jsonOutput;
 
@@ -63,14 +63,14 @@ export function cgLogInit(config: CgLogConfig): void {
     } catch {
       // Can't open audit file — log warning and continue
       console.warn(
-        `[OpenObscure L1] [cg-log] Failed to open audit log: ${config.auditLogPath}`
+        `[OpenObscure L1] [oo-log] Failed to open audit log: ${config.auditLogPath}`
       );
     }
   }
 }
 
 /** Shutdown: close audit file descriptor if open. */
-export function cgLogShutdown(): void {
+export function ooLogShutdown(): void {
   if (_auditFd !== null) {
     try {
       fs.closeSync(_auditFd);
@@ -84,9 +84,9 @@ export function cgLogShutdown(): void {
 // ── Core logging function ──
 
 /** Core logging function. All level-specific functions delegate here. */
-export function cgLog(
+export function ooLog(
   module: string,
-  level: CgLogLevel,
+  level: OoLogLevel,
   message: string,
   fields?: Record<string, unknown>
 ): void {
@@ -113,42 +113,42 @@ export function cgLog(
 
 // ── Level-specific convenience functions ──
 
-export function cgError(
+export function ooError(
   module: string,
   message: string,
   fields?: Record<string, unknown>
 ): void {
-  cgLog(module, "error", message, fields);
+  ooLog(module, "error", message, fields);
 }
 
-export function cgWarn(
+export function ooWarn(
   module: string,
   message: string,
   fields?: Record<string, unknown>
 ): void {
-  cgLog(module, "warn", message, fields);
+  ooLog(module, "warn", message, fields);
 }
 
-export function cgInfo(
+export function ooInfo(
   module: string,
   message: string,
   fields?: Record<string, unknown>
 ): void {
-  cgLog(module, "info", message, fields);
+  ooLog(module, "info", message, fields);
 }
 
-export function cgDebug(
+export function ooDebug(
   module: string,
   message: string,
   fields?: Record<string, unknown>
 ): void {
-  cgLog(module, "debug", message, fields);
+  ooLog(module, "debug", message, fields);
 }
 
 // ── GDPR audit log ──
 
 /** GDPR audit log — appended to audit file if configured, and also logged at info level. */
-export function cgAudit(
+export function ooAudit(
   module: string,
   operation: string,
   fields?: Record<string, unknown>
@@ -170,12 +170,12 @@ export function cgAudit(
   }
 
   // Also log at info level for visibility
-  cgLog(module, "info", `audit: ${operation}`, fields);
+  ooLog(module, "info", `audit: ${operation}`, fields);
 }
 
 // ── Internal helpers ──
 
-function dispatch(level: CgLogLevel, message: string): void {
+function dispatch(level: OoLogLevel, message: string): void {
   switch (level) {
     case "error":
       console.error(message);

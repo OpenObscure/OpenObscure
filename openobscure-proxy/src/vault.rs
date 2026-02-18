@@ -50,7 +50,7 @@ impl Vault {
         }
         let mut key = [0u8; 32];
         key.copy_from_slice(&decoded);
-        cg_info!(crate::cg_log::modules::VAULT, "FPE key loaded from OPENOBSCURE_MASTER_KEY environment variable");
+        oo_info!(crate::oo_log::modules::VAULT, "FPE key loaded from OPENOBSCURE_MASTER_KEY environment variable");
         Ok(key)
     }
 
@@ -84,7 +84,7 @@ impl Vault {
             Entry::new(&self.service, "fpe-master-key").map_err(VaultError::Keyring)?;
         entry.set_secret(&key).map_err(VaultError::Keyring)?;
         key.fill(0);
-        cg_info!(crate::cg_log::modules::VAULT, "FPE master key initialized in OS keychain");
+        oo_info!(crate::oo_log::modules::VAULT, "FPE master key initialized in OS keychain");
         Ok(())
     }
 
@@ -181,7 +181,7 @@ impl Vault {
             println!("OPENOBSCURE_MASTER_KEY_V{}={}", version, hex::encode(key));
         }
 
-        cg_info!(crate::cg_log::modules::VAULT, "Stored FPE key version in keychain", version = version);
+        oo_info!(crate::oo_log::modules::VAULT, "Stored FPE key version in keychain", version = version);
         Ok(())
     }
 
@@ -189,7 +189,7 @@ impl Vault {
     pub fn set_current_version(&self, version: u32) -> Result<(), VaultError> {
         let entry = Entry::new(&self.service, "fpe-key-current").map_err(VaultError::Keyring)?;
         entry.set_password(&version.to_string()).map_err(VaultError::Keyring)?;
-        cg_info!(crate::cg_log::modules::VAULT, "Set current FPE key version", version = version);
+        oo_info!(crate::oo_log::modules::VAULT, "Set current FPE key version", version = version);
         Ok(())
     }
 

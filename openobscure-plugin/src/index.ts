@@ -23,7 +23,7 @@ import { handlePrivacyCommand } from "./privacy-commands";
 import { MemoryGovernor } from "./memory-governance";
 import * as fs from "fs";
 import { HeartbeatMonitor } from "./heartbeat";
-import { cgInfo, CG_MODULES } from "./cg-log";
+import { ooInfo, OO_MODULES } from "./oo-log";
 
 export interface OpenObscurePluginConfig {
   /** Enable PII redaction in tool results (default: true). */
@@ -81,7 +81,7 @@ function readAuthToken(): string | undefined {
     const tokenPath = resolveDefaultPath(".auth-token");
     const token = fs.readFileSync(tokenPath, "utf-8").trim();
     if (token) {
-      cgInfo(CG_MODULES.PLUGIN, "Auth token loaded", { path: tokenPath });
+      ooInfo(OO_MODULES.PLUGIN, "Auth token loaded", { path: tokenPath });
       return token;
     }
   } catch {
@@ -108,7 +108,7 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
         const typeBreakdown = Object.entries(redacted.types)
           .map(([type, count]) => `${type}=${count}`)
           .join(", ");
-        cgInfo(CG_MODULES.REDACTOR, "Redacted PII in tool result", {
+        ooInfo(OO_MODULES.REDACTOR, "Redacted PII in tool result", {
           count: redacted.count,
           tool: result.tool_name,
           types: typeBreakdown,
@@ -173,18 +173,18 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
       setInterval(() => {
         const result = governor.enforce();
         if (result.promoted > 0 || result.pruned > 0) {
-          cgInfo(CG_MODULES.CONSENT, "Retention enforcement ran", {
+          ooInfo(OO_MODULES.CONSENT, "Retention enforcement ran", {
             promoted: result.promoted,
             pruned: result.pruned,
           });
         }
       }, cfg.retentionIntervalMs);
-      cgInfo(CG_MODULES.CONSENT, "Memory governance enabled", {
+      ooInfo(OO_MODULES.CONSENT, "Memory governance enabled", {
         interval: cfg.retentionIntervalMs,
       });
     }
 
-    cgInfo(CG_MODULES.CONSENT, "Consent manager initialized", { db: dbPath });
+    ooInfo(OO_MODULES.CONSENT, "Consent manager initialized", { db: dbPath });
   }
 
   // 4. Start L1 heartbeat monitor for L0 proxy health
@@ -196,13 +196,13 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
       authToken,
     });
     monitor.start();
-    cgInfo(CG_MODULES.HEARTBEAT, "Heartbeat monitor started", {
+    ooInfo(OO_MODULES.HEARTBEAT, "Heartbeat monitor started", {
       proxy: cfg.proxyUrl,
       interval: cfg.heartbeatIntervalMs,
     });
   }
 
-  cgInfo(CG_MODULES.PLUGIN, "Plugin registered", {
+  ooInfo(OO_MODULES.PLUGIN, "Plugin registered", {
     redactor: cfg.redactToolResults,
     fileGuard: cfg.fileGuard,
     consent: cfg.consentManager,

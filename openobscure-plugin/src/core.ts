@@ -46,7 +46,7 @@ export type { ProxyState, HealthResponse, HeartbeatConfig } from "./heartbeat";
 
 // Logging
 export {
-  cgInfo, cgWarn, cgError, cgDebug, cgAudit,
-  CG_MODULES, cgLogInit, cgLogShutdown,
-} from "./cg-log";
-export type { CgLogLevel, CgLogConfig } from "./cg-log";
+  ooInfo, ooWarn, ooError, ooDebug, ooAudit,
+  OO_MODULES, ooLogInit, ooLogShutdown,
+} from "./oo-log";
+export type { OoLogLevel, OoLogConfig } from "./oo-log";

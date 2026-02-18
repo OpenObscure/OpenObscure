@@ -2,7 +2,7 @@
 
 > **Status: DRAFT** — The BIS notification and self-classification process have not yet been completed. This notice documents the cryptographic functionality for planning purposes. Binary distribution must not begin until the EAR process is finalized.
 
-**Priv4Claw** includes cryptographic software subject to the United States Export Administration Regulations (EAR).
+**OpenObscure** includes cryptographic software subject to the United States Export Administration Regulations (EAR).
 
 ## Cryptographic Functionality
 

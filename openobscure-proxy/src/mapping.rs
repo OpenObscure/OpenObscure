@@ -99,7 +99,7 @@ impl MappingStore {
             store.retain(|_, mappings| now.duration_since(mappings.created_at) < self.ttl);
             let evicted = before - store.len();
             if evicted > 0 {
-                cg_debug!(crate::cg_log::modules::MAPPING, "Evicted expired mappings", evicted, remaining = store.len());
+                oo_debug!(crate::oo_log::modules::MAPPING, "Evicted expired mappings", evicted, remaining = store.len());
             }
         }
     }

@@ -118,7 +118,7 @@ impl OcrDetector {
             .commit_from_file(&model_path)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        cg_info!(crate::cg_log::modules::OCR, "OCR detector loaded",
+        oo_info!(crate::oo_log::modules::OCR, "OCR detector loaded",
             model = %model_path.display());
 
         Ok(Self { session })
@@ -199,7 +199,7 @@ impl OcrRecognizer {
             .commit_from_file(&model_path)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        cg_info!(crate::cg_log::modules::OCR, "OCR recognizer loaded",
+        oo_info!(crate::oo_log::modules::OCR, "OCR recognizer loaded",
             model = %model_path.display(),
             dict_size = dictionary.len());
 

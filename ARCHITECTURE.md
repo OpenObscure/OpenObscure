@@ -115,7 +115,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). Versioned keys (`fpe-master-key-v{N}`) with 30s dual-key overlap during rotation. CLI `key-rotate` for offline rotation. |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
 | **Fail mode** | Configurable fail-open (default) or fail-closed. Vault unavailable always blocks (503) |
-| **Logging** | Unified `cg_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, GDPR audit log, platform logging (OSLog/journald) |
+| **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, GDPR audit log, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, keyring 3, clap 4 (CLI) |
 | **Resource** | ~12MB RAM (regex-only), ~67MB with NER model loaded, ~224MB peak during image processing; 2.7MB binary |
 | **Tests** | 306 (284 unit + 13 integration + 9 accuracy) |
@@ -127,15 +127,15 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Provides file access guard, GDPR consent manager (SQLite), L0 heartbeat monitor with auth token validation, memory governance (4-tier retention lifecycle), and unified logging API (`cgInfo`/`cgWarn`/`cgAudit`). |
+| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Provides file access guard, GDPR consent manager (SQLite), L0 heartbeat monitor with auth token validation, memory governance (4-tier retention lifecycle), and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
 | **PII handling** | Redaction (`[REDACTED]`), not FPE — tool results are internal, don't need format preservation |
 | **File guard** | 15+ deny patterns (.env, SSH keys, AWS creds, databases, etc.) with configurable allow/deny |
 | **Heartbeat** | Pings L0 `/_openobscure/health` every 30s with `X-OpenObscure-Token` auth header. Warns user when L0 is down, logs recovery. |
 | **Hook model** | Synchronous — must not return a Promise. OpenClaw-specific: OpenClaw silently skips async hooks. |
-| **Logging** | Unified `cgInfo/cgWarn/cgError/cgDebug/cgAudit` API with PII scrubbing, JSON output, GDPR audit log |
+| **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output, GDPR audit log |
 | **Stack** | TypeScript 5.4, CommonJS, better-sqlite3 (consent DB) |
 | **Resource** | ~25MB RAM (within the host agent's process), ~3MB storage |
-| **Tests** | 96 (9 redactor + 11 file-guard + 17 consent + 10 privacy-commands + 1 disclosure + 12 heartbeat + 2 state-messages + 17 cg-log + 17 memory-governance) |
+| **Tests** | 96 (9 redactor + 11 file-guard + 17 consent + 10 privacy-commands + 1 disclosure + 12 heartbeat + 2 state-messages + 17 oo-log + 17 memory-governance) |
 | **Docs** | [openobscure-plugin/ARCHITECTURE.md](openobscure-plugin/ARCHITECTURE.md) |
 
 ### L2 — Encryption Layer (`openobscure-crypto/`)
@@ -383,7 +383,7 @@ OpenObscure/
 ├── openobscure-plugin/            L1: Gateway plugin
 │   ├── ARCHITECTURE.md          L1 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
-│   └── src/                     TypeScript source (redactor, file-guard, consent, heartbeat, cg-log, memory-governance)
+│   └── src/                     TypeScript source (redactor, file-guard, consent, heartbeat, oo-log, memory-governance)
 └── project-plan/
     ├── MASTER_PLAN.md           Full design reference (single source of truth)
     ├── PHASE1_PLAN.md           Phase 1 plan (COMPLETE — 75 tests)
@@ -519,13 +519,13 @@ All logging across both L0 (Rust) and L1 (TypeScript) uses a **unified facade AP
 
 ```mermaid
 flowchart TB
-    macros["cg_info! · cg_warn! · cg_error! · cg_debug! · cg_audit!"]
+    macros["oo_info! · oo_warn! · oo_error! · oo_debug! · oo_audit!"]
     subscriber["tracing subscriber (layered)"]
     macros --> subscriber
 
     stderr["Stderr\nJSON or plain"]
     filelog["File\ndaily rotation\nPII scrub"]
-    audit["Audit Log\nFilterFn: cg_audit\nevents → JSONL"]
+    audit["Audit Log\nFilterFn: oo_audit\nevents → JSONL"]
     crash["Crash Buffer\nmmap ring\nsurvives SIGKILL/OOM"]
 
     subscriber --> stderr
@@ -546,7 +546,7 @@ flowchart TB
 | **Stderr** | Primary output, JSON or human-readable | `logging.json_output` |
 | **PII scrub** | Regex-based scrub of SSN, CC, email, phone, API keys in log text | `logging.pii_scrub` (default: true) |
 | **File rotation** | Daily rolling log files | `logging.file_path`, `max_file_size`, `max_files` |
-| **Audit log** | GDPR audit trail — only `cg_audit!` events routed to separate JSONL | `logging.audit_log_path` |
+| **Audit log** | GDPR audit trail — only `oo_audit!` events routed to separate JSONL | `logging.audit_log_path` |
 | **Crash buffer** | mmap ring buffer (default 2MB) — kernel flushes pages even on hard crash | `logging.crash_buffer`, `crash_buffer_size` |
 
 **Module tagging:** Every log line includes a `module` field (PROXY, SCANNER, HYBRID, FPE, VAULT, HEALTH, CONFIG, NER, CRF, BODY, SERVER, MAPPING) for structured filtering.
@@ -555,8 +555,8 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    funcs["cgInfo · cgWarn · cgError · cgDebug · cgAudit"]
-    facade["cgLog() facade"]
+    funcs["ooInfo · ooWarn · ooError · ooDebug · ooAudit"]
+    facade["ooLog() facade"]
     funcs --> facade
 
     console["console.*\nJSON or plain\nPII-scrubbed"]

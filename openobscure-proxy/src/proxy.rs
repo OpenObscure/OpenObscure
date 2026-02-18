@@ -61,7 +61,7 @@ pub async fn proxy_handler(
 
     state.health.record_request();
 
-    cg_info!(crate::cg_log::modules::PROXY, "Incoming request",
+    oo_info!(crate::oo_log::modules::PROXY, "Incoming request",
         request_id = %request_id,
         method = %method,
         uri = %uri);
@@ -69,11 +69,11 @@ pub async fn proxy_handler(
     // 1. Resolve provider by path prefix
     let (provider_name, provider) = resolve_provider(&state.config, &uri)
         .ok_or_else(|| {
-            cg_warn!(crate::cg_log::modules::PROXY, "No provider matched", path = %uri.path());
+            oo_warn!(crate::oo_log::modules::PROXY, "No provider matched", path = %uri.path());
             StatusCode::NOT_FOUND
         })?;
 
-    cg_debug!(crate::cg_log::modules::PROXY, "Matched provider", request_id = %request_id, provider = %provider_name);
+    oo_debug!(crate::oo_log::modules::PROXY, "Matched provider", request_id = %request_id, provider = %provider_name);
 
     // 2. Buffer the request body
     let body_bytes = buffer_body(req, state.config.proxy.max_body_bytes).await?;
@@ -85,7 +85,7 @@ pub async fn proxy_handler(
         && is_json_content(&original_headers);
 
     if !body_bytes.is_empty() && !is_json_content(&original_headers) {
-        cg_debug!(crate::cg_log::modules::PROXY, "Non-JSON body, passing through without scanning",
+        oo_debug!(crate::oo_log::modules::PROXY, "Non-JSON body, passing through without scanning",
             request_id = %request_id,
             content_type = ?original_headers.get(header::CONTENT_TYPE).map(|v| v.to_str().unwrap_or("<invalid>")));
     }
@@ -122,13 +122,13 @@ pub async fn proxy_handler(
                 state.health.scan_latency.record(scan_start.elapsed());
                 match state.config.proxy.fail_mode {
                     FailMode::Open => {
-                        cg_warn!(crate::cg_log::modules::PROXY, "Body processing failed (fail-open), forwarding original",
+                        oo_warn!(crate::oo_log::modules::PROXY, "Body processing failed (fail-open), forwarding original",
                             request_id = %request_id,
                             error = %e);
                         (body_bytes.clone(), crate::mapping::RequestMappings::new(request_id))
                     }
                     FailMode::Closed => {
-                        cg_error!(crate::cg_log::modules::PROXY, "Body processing failed (fail-closed), rejecting request",
+                        oo_error!(crate::oo_log::modules::PROXY, "Body processing failed (fail-closed), rejecting request",
                             request_id = %request_id,
                             error = %e);
                         return Err(StatusCode::BAD_GATEWAY);
@@ -166,14 +166,14 @@ pub async fn proxy_handler(
         if !cb_result.flags.is_empty() {
             state.health.record_cross_border_flags(cb_result.flags.len() as u64);
             let jurisdictions: Vec<String> = cb_result.flags.iter().map(|f| f.jurisdiction.to_string()).collect();
-            cg_audit!(crate::cg_log::modules::CROSS_BORDER, "jurisdiction_flags",
+            oo_audit!(crate::oo_log::modules::CROSS_BORDER, "jurisdiction_flags",
                 request_id = %request_id,
                 flags = cb_result.flags.len(),
                 jurisdictions = %jurisdictions.join(","),
                 action = %cb_result.action);
         }
         if cb_result.action == PolicyAction::Block {
-            cg_warn!(crate::cg_log::modules::CROSS_BORDER, "Request blocked by cross-border policy",
+            oo_warn!(crate::oo_log::modules::CROSS_BORDER, "Request blocked by cross-border policy",
                 request_id = %request_id);
             return Err(StatusCode::FORBIDDEN);
         }
@@ -190,7 +190,7 @@ pub async fn proxy_handler(
         &state.vault,
     )
     .map_err(|e| {
-        cg_error!(crate::cg_log::modules::PROXY, "Failed to build upstream request", request_id = %request_id, error = %e);
+        oo_error!(crate::oo_log::modules::PROXY, "Failed to build upstream request", request_id = %request_id, error = %e);
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -200,7 +200,7 @@ pub async fn proxy_handler(
         .request(upstream_req)
         .await
         .map_err(|e| {
-            cg_error!(crate::cg_log::modules::PROXY, "Upstream request failed", request_id = %request_id, error = %e);
+            oo_error!(crate::oo_log::modules::PROXY, "Upstream request failed", request_id = %request_id, error = %e);
             StatusCode::BAD_GATEWAY
         })?;
 
@@ -210,7 +210,7 @@ pub async fn proxy_handler(
 
     if is_sse && has_mappings {
         // 7a. SSE streaming path: stream through with per-chunk decryption
-        cg_debug!(crate::cg_log::modules::PROXY, "SSE response detected, streaming with per-chunk decryption",
+        oo_debug!(crate::oo_log::modules::PROXY, "SSE response detected, streaming with per-chunk decryption",
             request_id = %request_id);
 
         let mappings = state.mapping_store.get(&request_id).await;
@@ -266,7 +266,7 @@ pub async fn proxy_handler(
         }
 
         state.health.request_latency.record(request_start.elapsed());
-        cg_info!(crate::cg_log::modules::PROXY, "SSE response streaming",
+        oo_info!(crate::oo_log::modules::PROXY, "SSE response streaming",
             request_id = %request_id,
             status = %response.status());
 
@@ -278,7 +278,7 @@ pub async fn proxy_handler(
         .collect()
         .await
         .map_err(|e| {
-            cg_error!(crate::cg_log::modules::PROXY, "Failed to read upstream response", request_id = %request_id, error = %e);
+            oo_error!(crate::oo_log::modules::PROXY, "Failed to read upstream response", request_id = %request_id, error = %e);
             StatusCode::BAD_GATEWAY
         })?
         .to_bytes();
@@ -313,7 +313,7 @@ pub async fn proxy_handler(
     );
 
     state.health.request_latency.record(request_start.elapsed());
-    cg_info!(crate::cg_log::modules::PROXY, "Response sent",
+    oo_info!(crate::oo_log::modules::PROXY, "Response sent",
         request_id = %request_id,
         status = %response.status());
 
@@ -440,10 +440,10 @@ fn build_upstream_request(
                     HeaderValue::from_str(&header_value)
                         .map_err(|e| format!("Invalid auth header value: {}", e))?,
                 );
-                cg_debug!(crate::cg_log::modules::PROXY, "Auth header overridden from vault", provider = %provider_name);
+                oo_debug!(crate::oo_log::modules::PROXY, "Auth header overridden from vault", provider = %provider_name);
             }
             Err(e) => {
-                cg_warn!(crate::cg_log::modules::PROXY, "override_auth enabled but vault key not found, using passthrough auth",
+                oo_warn!(crate::oo_log::modules::PROXY, "override_auth enabled but vault key not found, using passthrough auth",
                     provider = %provider_name,
                     error = %e);
             }
@@ -491,7 +491,7 @@ fn log_pii_stats(request_id: &uuid::Uuid, mappings: &crate::mapping::RequestMapp
         .map(|(pii_type, count)| format!("{}={}", pii_type, count))
         .collect();
 
-    cg_info!(crate::cg_log::modules::PROXY, "PII encrypted in request",
+    oo_info!(crate::oo_log::modules::PROXY, "PII encrypted in request",
         request_id = %request_id,
         pii_total = total,
         pii_breakdown = %breakdown.join(", "));
@@ -501,12 +501,12 @@ fn log_pii_stats(request_id: &uuid::Uuid, mappings: &crate::mapping::RequestMapp
 async fn buffer_body(req: Request<Body>, max_bytes: usize) -> Result<Bytes, StatusCode> {
     let body = req.into_body();
     let collected = body.collect().await.map_err(|e| {
-        cg_error!(crate::cg_log::modules::PROXY, "Failed to read request body", error = %e);
+        oo_error!(crate::oo_log::modules::PROXY, "Failed to read request body", error = %e);
         StatusCode::BAD_REQUEST
     })?;
     let bytes = collected.to_bytes();
     if bytes.len() > max_bytes {
-        cg_warn!(crate::cg_log::modules::PROXY, "Request body exceeds size limit",
+        oo_warn!(crate::oo_log::modules::PROXY, "Request body exceeds size limit",
             size = bytes.len(),
             limit = max_bytes);
         return Err(StatusCode::PAYLOAD_TOO_LARGE);

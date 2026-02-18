@@ -201,9 +201,9 @@ pub fn parse_audit_log(
 
         let module = obj
             .get("fields")
-            .and_then(|f| f.get("cg_module"))
+            .and_then(|f| f.get("oo_module"))
             .and_then(|v| v.as_str())
-            .or_else(|| obj.get("cg_module").and_then(|v| v.as_str()))
+            .or_else(|| obj.get("oo_module").and_then(|v| v.as_str()))
             .unwrap_or_default()
             .to_string();
 
@@ -851,9 +851,9 @@ mod tests {
     use super::*;
 
     fn sample_audit_jsonl() -> String {
-        r#"{"timestamp":"2026-02-17T10:00:00Z","fields":{"cg_module":"scanner","operation":"scan","pii_total":3,"pii_breakdown":"ssn=1, email=2","request_id":"abc-123"}}
-{"timestamp":"2026-02-17T10:05:00Z","fields":{"cg_module":"fpe","operation":"encrypt","pii_total":2,"pii_breakdown":"ssn=1, cc=1","request_id":"def-456"}}
-{"timestamp":"2026-02-17T11:00:00Z","fields":{"cg_module":"scanner","operation":"scan","pii_total":1,"pii_breakdown":"phone=1","request_id":"ghi-789"}}
+        r#"{"timestamp":"2026-02-17T10:00:00Z","fields":{"oo_module":"scanner","operation":"scan","pii_total":3,"pii_breakdown":"ssn=1, email=2","request_id":"abc-123"}}
+{"timestamp":"2026-02-17T10:05:00Z","fields":{"oo_module":"fpe","operation":"encrypt","pii_total":2,"pii_breakdown":"ssn=1, cc=1","request_id":"def-456"}}
+{"timestamp":"2026-02-17T11:00:00Z","fields":{"oo_module":"scanner","operation":"scan","pii_total":1,"pii_breakdown":"phone=1","request_id":"ghi-789"}}
 "#
         .to_string()
     }
@@ -924,7 +924,7 @@ mod tests {
         let path = dir.path().join("audit.jsonl");
         std::fs::write(
             &path,
-            "not json\n{\"timestamp\":\"2026-01-01T00:00:00Z\",\"fields\":{\"cg_module\":\"test\",\"operation\":\"scan\"}}\nbroken{",
+            "not json\n{\"timestamp\":\"2026-01-01T00:00:00Z\",\"fields\":{\"oo_module\":\"test\",\"operation\":\"scan\"}}\nbroken{",
         )
         .unwrap();
 

@@ -4,7 +4,7 @@ Export fine-tuned TinyBERT NER model to ONNX + INT8 quantization.
 
 Takes a trained PyTorch model directory and produces:
   1. model.onnx         — FP32 ONNX export
-  2. model_int8.onnx    — INT8 quantized (the artifact shipped with Priv4Claw)
+  2. model_int8.onnx    — INT8 quantized (the artifact shipped with OpenObscure)
   3. label_map.json     — Label ID ↔ name mapping
   4. tokenizer files    — WordPiece vocab for inference
 
@@ -200,7 +200,7 @@ def copy_inference_artifacts(model_dir: str, output_dir: str):
 def main():
     args = parse_args()
 
-    logger.info("=== Priv4Claw NER ONNX Export ===")
+    logger.info("=== OpenObscure NER ONNX Export ===")
     logger.info("Model: %s", args.model_dir)
     logger.info("Output: %s", args.output_dir)
 

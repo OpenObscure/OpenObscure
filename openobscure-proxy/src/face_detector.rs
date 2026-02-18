@@ -64,7 +64,7 @@ impl FaceDetector {
             generate_short_range_anchors()
         };
 
-        cg_info!(crate::cg_log::modules::FACE, "BlazeFace loaded",
+        oo_info!(crate::oo_log::modules::FACE, "BlazeFace loaded",
             model = %model_path.display(),
             anchors = anchors.len(),
             confidence = confidence_threshold);

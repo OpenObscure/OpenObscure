@@ -137,21 +137,21 @@ impl ImageModelManager {
         let mut face = self.face_detector.lock().unwrap_or_else(|e| e.into_inner());
         if face.is_some() {
             *face = None;
-            cg_info!(crate::cg_log::modules::IMAGE, "Face model evicted (idle timeout)");
+            oo_info!(crate::oo_log::modules::IMAGE, "Face model evicted (idle timeout)");
         }
         drop(face);
 
         let mut det = self.ocr_detector.lock().unwrap_or_else(|e| e.into_inner());
         if det.is_some() {
             *det = None;
-            cg_info!(crate::cg_log::modules::IMAGE, "OCR detector evicted (idle timeout)");
+            oo_info!(crate::oo_log::modules::IMAGE, "OCR detector evicted (idle timeout)");
         }
         drop(det);
 
         let mut rec = self.ocr_recognizer.lock().unwrap_or_else(|e| e.into_inner());
         if rec.is_some() {
             *rec = None;
-            cg_info!(crate::cg_log::modules::IMAGE, "OCR recognizer evicted (idle timeout)");
+            oo_info!(crate::oo_log::modules::IMAGE, "OCR recognizer evicted (idle timeout)");
         }
     }
 
@@ -180,7 +180,7 @@ impl ImageModelManager {
                     match FaceDetector::load(Path::new(dir), 0.75) {
                         Ok(detector) => *guard = Some(detector),
                         Err(e) => {
-                            cg_warn!(crate::cg_log::modules::FACE, "Face model load failed (fail-open)", error = %e);
+                            oo_warn!(crate::oo_log::modules::FACE, "Face model load failed (fail-open)", error = %e);
                         }
                     }
                 }
@@ -196,13 +196,13 @@ impl ImageModelManager {
                             }
                             stats.faces_blurred = faces.len() as u32;
                             if !faces.is_empty() {
-                                cg_debug!(crate::cg_log::modules::FACE, "Faces blurred", count = faces.len());
+                                oo_debug!(crate::oo_log::modules::FACE, "Faces blurred", count = faces.len());
                                 // Update DynamicImage from blurred RGB for OCR phase
                                 dyn_img = DynamicImage::ImageRgb8(rgb.clone());
                             }
                         }
                         Err(e) => {
-                            cg_warn!(crate::cg_log::modules::FACE, "Face detection failed (fail-open)", error = %e);
+                            oo_warn!(crate::oo_log::modules::FACE, "Face detection failed (fail-open)", error = %e);
                         }
                     }
                 }
@@ -222,7 +222,7 @@ impl ImageModelManager {
                     match OcrDetector::load(Path::new(dir)) {
                         Ok(det) => *det_guard = Some(det),
                         Err(e) => {
-                            cg_warn!(crate::cg_log::modules::OCR, "OCR detector load failed (fail-open)", error = %e);
+                            oo_warn!(crate::oo_log::modules::OCR, "OCR detector load failed (fail-open)", error = %e);
                         }
                     }
                 }
@@ -254,7 +254,7 @@ impl ImageModelManager {
                                         match OcrRecognizer::load(Path::new(dir)) {
                                             Ok(rec) => *rec_guard = Some(rec),
                                             Err(e) => {
-                                                cg_warn!(crate::cg_log::modules::OCR,
+                                                oo_warn!(crate::oo_log::modules::OCR,
                                                     "OCR recognizer load failed (fail-open)", error = %e);
                                             }
                                         }
@@ -271,7 +271,7 @@ impl ImageModelManager {
                                                 }
                                             }
                                             Err(e) => {
-                                                cg_warn!(crate::cg_log::modules::OCR,
+                                                oo_warn!(crate::oo_log::modules::OCR,
                                                     "OCR recognition failed (fail-open)", error = %e);
                                             }
                                         }
@@ -283,7 +283,7 @@ impl ImageModelManager {
                             }
                         }
                         Err(e) => {
-                            cg_warn!(crate::cg_log::modules::OCR, "OCR detection failed (fail-open)", error = %e);
+                            oo_warn!(crate::oo_log::modules::OCR, "OCR detection failed (fail-open)", error = %e);
                         }
                     }
                 }

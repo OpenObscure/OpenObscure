@@ -67,7 +67,7 @@ impl CrfScanner {
         let gazetteer_health = dict.health_terms_clone();
         let gazetteer_child = dict.child_terms_clone();
 
-        cg_info!(crate::cg_log::modules::CRF, "CRF model loaded",
+        oo_info!(crate::oo_log::modules::CRF, "CRF model loaded",
             features = model.state_features.len(),
             labels = model.num_labels);
 

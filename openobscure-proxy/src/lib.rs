@@ -2,7 +2,7 @@
 // The main binary crate is in main.rs and owns all modules independently.
 
 #[macro_use]
-pub mod cg_log;
+pub mod oo_log;
 pub mod pii_types;
 pub mod scanner;
 pub mod fpe_engine;

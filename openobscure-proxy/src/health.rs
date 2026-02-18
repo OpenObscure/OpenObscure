@@ -274,11 +274,11 @@ pub fn check_crash_marker() {
         if marker_path.exists() {
             match std::fs::read_to_string(&marker_path) {
                 Ok(content) => {
-                    cg_warn!(crate::cg_log::modules::HEALTH, "Recovered from previous crash",
+                    oo_warn!(crate::oo_log::modules::HEALTH, "Recovered from previous crash",
                         crash_info = %content.trim());
                 }
                 Err(_) => {
-                    cg_warn!(crate::cg_log::modules::HEALTH, "Recovered from previous crash (marker unreadable)");
+                    oo_warn!(crate::oo_log::modules::HEALTH, "Recovered from previous crash (marker unreadable)");
                 }
             }
             let _ = std::fs::remove_file(&marker_path);

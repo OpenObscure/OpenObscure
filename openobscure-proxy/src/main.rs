@@ -1,5 +1,5 @@
 #[macro_use]
-mod cg_log;
+mod oo_log;
 mod body;
 mod breach_detect;
 mod compliance;
@@ -120,13 +120,13 @@ async fn main() -> anyhow::Result<()> {
     if cli.init_key {
         let vault = Vault::new(&config.fpe.keychain_service);
         if vault.fpe_key_exists() {
-            cg_warn!(crate::cg_log::modules::VAULT, "FPE key already exists in keychain. Delete it first to regenerate.");
+            oo_warn!(crate::oo_log::modules::VAULT, "FPE key already exists in keychain. Delete it first to regenerate.");
             return Ok(());
         }
         vault
             .init_fpe_key()
             .map_err(|e| anyhow::anyhow!("Failed to initialize FPE key: {}", e))?;
-        cg_info!(crate::cg_log::modules::VAULT, "FPE master key generated and stored in OS keychain");
+        oo_info!(crate::oo_log::modules::VAULT, "FPE master key generated and stored in OS keychain");
         return Ok(());
     }
 
@@ -184,7 +184,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
     // Check for crash marker from previous run
     health::check_crash_marker();
 
-    cg_info!(crate::cg_log::modules::CONFIG, "Configuration loaded",
+    oo_info!(crate::oo_log::modules::CONFIG, "Configuration loaded",
         providers = config.providers.len());
 
     // Initialize vault and key manager
@@ -193,7 +193,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to initialize KeyManager: {}", e))?;
     let key_version = key_manager.current_version().await;
 
-    cg_info!(crate::cg_log::modules::FPE, "FPE engine initialized (FF1, AES-256)",
+    oo_info!(crate::oo_log::modules::FPE, "FPE engine initialized (FF1, AES-256)",
         key_version = key_version);
 
     // Build HTTPS client for upstream connections
@@ -210,14 +210,14 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
 
     // Build hybrid scanner (regex + keywords + semantic backend)
     let scanner = build_scanner(&config);
-    cg_info!(crate::cg_log::modules::SCANNER, "Hybrid scanner initialized",
+    oo_info!(crate::oo_log::modules::SCANNER, "Hybrid scanner initialized",
         keywords = scanner.keywords_enabled(),
         semantic = scanner.semantic_backend_name());
 
     // Initialize image model manager if image processing is enabled
     let image_models = if config.image.enabled {
         let models = Arc::new(ImageModelManager::new(config.image.clone()));
-        cg_info!(crate::cg_log::modules::IMAGE, "Image pipeline enabled",
+        oo_info!(crate::oo_log::modules::IMAGE, "Image pipeline enabled",
             face_detection = config.image.face_detection,
             ocr_enabled = config.image.ocr_enabled,
             ocr_tier = %config.image.ocr_tier,
@@ -235,7 +235,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
 
         Some(models)
     } else {
-        cg_info!(crate::cg_log::modules::IMAGE, "Image pipeline disabled");
+        oo_info!(crate::oo_log::modules::IMAGE, "Image pipeline disabled");
         None
     };
 
@@ -350,7 +350,7 @@ fn init_tracing(
                         .with_target(false)
                         .with_writer(non_blocking)
                         .with_filter(tracing_subscriber::filter::FilterFn::new(|metadata| {
-                            metadata.fields().field("cg_audit").is_some()
+                            metadata.fields().field("oo_audit").is_some()
                         })),
                 )
             }
@@ -467,20 +467,20 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
 
     let mut scanner = match config.scanner.scanner_mode.as_str() {
         "regex" => {
-            cg_info!(crate::cg_log::modules::SCANNER, "Scanner mode: regex-only (no semantic backend)");
+            oo_info!(crate::oo_log::modules::SCANNER, "Scanner mode: regex-only (no semantic backend)");
             HybridScanner::new(kw, None)
         }
         "ner" => {
             let ner = try_load_ner(config, threshold);
             if ner.is_none() {
-                cg_warn!(crate::cg_log::modules::SCANNER, "Scanner mode 'ner' requested but model unavailable, using regex+keywords");
+                oo_warn!(crate::oo_log::modules::SCANNER, "Scanner mode 'ner' requested but model unavailable, using regex+keywords");
             }
             HybridScanner::new(kw, ner)
         }
         "crf" => {
             let crf = try_load_crf(config, threshold);
             if crf.is_none() {
-                cg_warn!(crate::cg_log::modules::SCANNER, "Scanner mode 'crf' requested but model unavailable, using regex+keywords");
+                oo_warn!(crate::oo_log::modules::SCANNER, "Scanner mode 'crf' requested but model unavailable, using regex+keywords");
             }
             HybridScanner::with_crf(kw, crf)
         }
@@ -490,7 +490,7 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
             let threshold_mb = config.scanner.ram_threshold_mb;
 
             if let Some(ram) = ram_mb {
-                cg_info!(crate::cg_log::modules::SCANNER, "Device profiler", available_ram_mb = ram, threshold_mb = threshold_mb);
+                oo_info!(crate::oo_log::modules::SCANNER, "Device profiler", available_ram_mb = ram, threshold_mb = threshold_mb);
             }
 
             let use_ner = ram_mb.map_or(true, |ram| ram >= threshold_mb);
@@ -500,20 +500,20 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
                 if let Some(ner) = try_load_ner(config, threshold) {
                     HybridScanner::new(kw, Some(ner))
                 } else if let Some(crf) = try_load_crf(config, threshold) {
-                    cg_info!(crate::cg_log::modules::SCANNER, "NER model unavailable, using CRF fallback");
+                    oo_info!(crate::oo_log::modules::SCANNER, "NER model unavailable, using CRF fallback");
                     HybridScanner::with_crf(kw, Some(crf))
                 } else {
-                    cg_info!(crate::cg_log::modules::SCANNER, "No semantic model available, using regex+keywords only");
+                    oo_info!(crate::oo_log::modules::SCANNER, "No semantic model available, using regex+keywords only");
                     HybridScanner::new(kw, None)
                 }
             } else {
                 // Low RAM: prefer CRF
-                cg_info!(crate::cg_log::modules::SCANNER, "Low RAM detected, preferring CRF over NER",
+                oo_info!(crate::oo_log::modules::SCANNER, "Low RAM detected, preferring CRF over NER",
                     available_ram_mb = ram_mb.unwrap_or(0));
                 if let Some(crf) = try_load_crf(config, threshold) {
                     HybridScanner::with_crf(kw, Some(crf))
                 } else {
-                    cg_info!(crate::cg_log::modules::SCANNER, "CRF model unavailable, using regex+keywords only");
+                    oo_info!(crate::oo_log::modules::SCANNER, "CRF model unavailable, using regex+keywords only");
                     HybridScanner::new(kw, None)
                 }
             }
@@ -535,11 +535,11 @@ fn try_load_ner(
     let model_path = std::path::Path::new(model_dir);
     match ner_scanner::NerScanner::load(model_path, threshold) {
         Ok(ner) => {
-            cg_info!(crate::cg_log::modules::NER, "NER scanner loaded", model_dir = %model_dir);
+            oo_info!(crate::oo_log::modules::NER, "NER scanner loaded", model_dir = %model_dir);
             Some(ner)
         }
         Err(e) => {
-            cg_warn!(crate::cg_log::modules::NER, "NER scanner failed to load", error = %e);
+            oo_warn!(crate::oo_log::modules::NER, "NER scanner failed to load", error = %e);
             None
         }
     }
@@ -553,11 +553,11 @@ fn try_load_crf(
     let model_path = std::path::Path::new(model_dir);
     match crf_scanner::CrfScanner::load(model_path, threshold) {
         Ok(crf) => {
-            cg_info!(crate::cg_log::modules::CRF, "CRF scanner loaded", model_dir = %model_dir);
+            oo_info!(crate::oo_log::modules::CRF, "CRF scanner loaded", model_dir = %model_dir);
             Some(crf)
         }
         Err(e) => {
-            cg_warn!(crate::cg_log::modules::CRF, "CRF scanner failed to load", error = %e);
+            oo_warn!(crate::oo_log::modules::CRF, "CRF scanner failed to load", error = %e);
             None
         }
     }
@@ -574,7 +574,7 @@ fn resolve_auth_token() -> Option<String> {
     if let Ok(token) = std::env::var("OPENOBSCURE_AUTH_TOKEN") {
         let token = token.trim().to_string();
         if !token.is_empty() {
-            cg_info!(crate::cg_log::modules::SERVER, "Auth token loaded from OPENOBSCURE_AUTH_TOKEN env var");
+            oo_info!(crate::oo_log::modules::SERVER, "Auth token loaded from OPENOBSCURE_AUTH_TOKEN env var");
             return Some(token);
         }
     }
@@ -587,7 +587,7 @@ fn resolve_auth_token() -> Option<String> {
         if let Ok(token) = std::fs::read_to_string(&token_path) {
             let token = token.trim().to_string();
             if !token.is_empty() {
-                cg_info!(crate::cg_log::modules::SERVER, "Auth token loaded from file", path = %token_path.display());
+                oo_info!(crate::oo_log::modules::SERVER, "Auth token loaded from file", path = %token_path.display());
                 return Some(token);
             }
         }
@@ -612,10 +612,10 @@ fn resolve_auth_token() -> Option<String> {
                         std::fs::Permissions::from_mode(0o600),
                     );
                 }
-                cg_info!(crate::cg_log::modules::SERVER, "Auth token generated and saved", path = %token_path.display());
+                oo_info!(crate::oo_log::modules::SERVER, "Auth token generated and saved", path = %token_path.display());
             }
             Err(e) => {
-                cg_warn!(crate::cg_log::modules::SERVER, "Failed to write auth token file", error = %e);
+                oo_warn!(crate::oo_log::modules::SERVER, "Failed to write auth token file", error = %e);
             }
         }
     }

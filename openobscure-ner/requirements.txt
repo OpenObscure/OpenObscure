@@ -1,4 +1,4 @@
-# Priv4Claw NER training pipeline — not shipped, dev/training only
+# OpenObscure NER training pipeline — not shipped, dev/training only
 # Python >= 3.10 required
 
 # Core ML

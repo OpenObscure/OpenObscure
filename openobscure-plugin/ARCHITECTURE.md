@@ -41,14 +41,14 @@ src/
 ├── privacy-commands.ts     /privacy slash command handler (status, consent, export, delete, disclosure, retention)
 ├── memory-governance.ts    Memory Governor — 4-tier retention lifecycle (hot→warm→cold→expired)
 ├── heartbeat.ts            L1 Heartbeat Monitor — pings L0 health endpoint with auth token
-├── cg-log.ts               Unified logging API — cgInfo/cgWarn/cgError/cgDebug/cgAudit + PII scrub
+├── oo-log.ts               Unified logging API — ooInfo/ooWarn/ooError/ooDebug/ooAudit + PII scrub
 ├── types.ts                OpenClaw plugin API type definitions
 ├── redactor.test.ts        Redactor tests (9 cases)
 ├── file-guard.test.ts      File guard tests (11 cases)
 ├── consent-manager.test.ts Consent + DSAR + privacy command tests (28 cases)
 ├── memory-governance.test.ts Memory governance + retention command tests (17 cases)
 ├── heartbeat.test.ts       Heartbeat monitor + auth token tests (12 cases)
-└── cg-log.test.ts          Logging API tests (17 cases)
+└── oo-log.test.ts          Logging API tests (17 cases)
 ```
 
 ## Components
@@ -143,17 +143,17 @@ Pings L0's `/_openobscure/health` endpoint to detect outages.
 
 **Auth token:** Reads `~/.openobscure/.auth-token` (written by L0 on startup) and sends it as `X-OpenObscure-Token` header with every health check. Without a valid token, L0 returns 401 and the monitor transitions to `degraded`.
 
-### Unified Logging API (cg-log.ts)
+### Unified Logging API (oo-log.ts)
 
 All logging goes through a unified facade — no direct `console.*` calls outside this module. Every log line passes through PII scrubbing before output.
 
 | Function | Level | Purpose |
 |----------|-------|---------|
-| `cgInfo(module, message, data?)` | INFO | General operational messages |
-| `cgWarn(module, message, data?)` | WARN | Non-fatal issues (L0 unreachable, config fallback) |
-| `cgError(module, message, data?)` | ERROR | Failures requiring attention |
-| `cgDebug(module, message, data?)` | DEBUG | Detailed diagnostic output |
-| `cgAudit(module, message, data?)` | AUDIT | GDPR audit trail (routed to separate JSONL file) |
+| `ooInfo(module, message, data?)` | INFO | General operational messages |
+| `ooWarn(module, message, data?)` | WARN | Non-fatal issues (L0 unreachable, config fallback) |
+| `ooError(module, message, data?)` | ERROR | Failures requiring attention |
+| `ooDebug(module, message, data?)` | DEBUG | Detailed diagnostic output |
+| `ooAudit(module, message, data?)` | AUDIT | GDPR audit trail (routed to separate JSONL file) |
 
 **Module constants:** `REDACTOR`, `FILE_GUARD`, `CONSENT`, `PRIVACY`, `HEARTBEAT`, `PLUGIN` — prevent typos in log module tags.
 
@@ -230,7 +230,7 @@ Tool executes → tool_result_persist fires → PII Redactor scans → redacted 
 | `memory-governance` | 17 | Tier promotions (hot→warm→cold→expired), pruning, retention summary, custom policy, privacy retention commands, idempotent enforce |
 | `heartbeat` | 12 | Initial state, healthy check, degraded transition, consecutive failures, recovery flow, stop/disabled, non-200 status, auth token sent, missing auth → 401/degraded, lastHealth preservation |
 | `state-messages` | 2 | Message content for each state, active silence |
-| `cg-log` | 17 | Logging facade, PII scrubbing in logs, JSON/plain output, audit routing, module constants |
+| `oo-log` | 17 | Logging facade, PII scrubbing in logs, JSON/plain output, audit routing, module constants |
 | **Total** | **96** | |
 
 ## Resource Budget

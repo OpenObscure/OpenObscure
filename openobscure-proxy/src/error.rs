@@ -26,7 +26,7 @@ pub enum ProxyError {
 
 impl IntoResponse for ProxyError {
     fn into_response(self) -> Response {
-        cg_error!(crate::cg_log::modules::PROXY, "Proxy error", error = %self);
+        oo_error!(crate::oo_log::modules::PROXY, "Proxy error", error = %self);
 
         let status = match &self {
             ProxyError::Config(_) => StatusCode::INTERNAL_SERVER_ERROR,

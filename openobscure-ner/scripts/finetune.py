@@ -294,7 +294,7 @@ def build_compute_metrics(seqeval_metric):
 def main():
     args = parse_args()
 
-    logger.info("=== Priv4Claw NER Fine-Tuning ===")
+    logger.info("=== OpenObscure NER Fine-Tuning ===")
     logger.info("Base model: %s", args.base_model)
     logger.info("Output: %s", args.output_dir)
     logger.info("Labels: %s", LABEL_LIST)

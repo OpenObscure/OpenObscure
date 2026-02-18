@@ -138,7 +138,7 @@ impl HybridScanner {
                         match ner.scan_text(&effective_text) {
                             Ok(matches) => matches,
                             Err(e) => {
-                                cg_warn!(crate::cg_log::modules::HYBRID, "NER inference failed, skipping", error = %e);
+                                oo_warn!(crate::oo_log::modules::HYBRID, "NER inference failed, skipping", error = %e);
                                 Vec::new()
                             }
                         }

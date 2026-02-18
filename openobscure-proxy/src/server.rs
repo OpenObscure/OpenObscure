@@ -50,7 +50,7 @@ pub async fn run(state: AppState, auth_token: Option<String>) -> anyhow::Result<
         config.proxy.port,
     );
 
-    cg_info!(crate::cg_log::modules::SERVER, "OpenObscure proxy starting", addr = %addr);
+    oo_info!(crate::oo_log::modules::SERVER, "OpenObscure proxy starting", addr = %addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
@@ -64,7 +64,7 @@ pub async fn run(state: AppState, auth_token: Option<String>) -> anyhow::Result<
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    cg_info!(crate::cg_log::modules::SERVER, "OpenObscure proxy shut down gracefully");
+    oo_info!(crate::oo_log::modules::SERVER, "OpenObscure proxy shut down gracefully");
     Ok(())
 }
 
@@ -72,5 +72,5 @@ async fn shutdown_signal() {
     tokio::signal::ctrl_c()
         .await
         .expect("failed to install Ctrl+C handler");
-    cg_info!(crate::cg_log::modules::SERVER, "Shutdown signal received");
+    oo_info!(crate::oo_log::modules::SERVER, "Shutdown signal received");
 }

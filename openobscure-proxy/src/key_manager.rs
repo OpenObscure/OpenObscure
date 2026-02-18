@@ -40,7 +40,7 @@ impl KeyManager {
             .map_err(KeyManagerError::Vault)?;
         let engine = FpeEngine::new(&key).map_err(KeyManagerError::Fpe)?;
 
-        cg_info!(crate::cg_log::modules::FPE, "KeyManager initialized",
+        oo_info!(crate::oo_log::modules::FPE, "KeyManager initialized",
             version = version, overlap_secs = overlap_secs);
 
         Ok(Self {
@@ -95,7 +95,7 @@ impl KeyManager {
                 let mut prev_write = self.previous.write().await;
                 if let Some(ref pw) = *prev_write {
                     if Instant::now() >= pw.expires_at {
-                        cg_debug!(crate::cg_log::modules::FPE, "Overlap window expired, clearing previous key",
+                        oo_debug!(crate::oo_log::modules::FPE, "Overlap window expired, clearing previous key",
                             version = pw.engine.version);
                         *prev_write = None;
                     }
@@ -153,7 +153,7 @@ impl KeyManager {
             });
         }
 
-        cg_info!(crate::cg_log::modules::FPE, "Key rotated",
+        oo_info!(crate::oo_log::modules::FPE, "Key rotated",
             old_version = old_version,
             new_version = new_version,
             overlap_secs = self.overlap_secs);

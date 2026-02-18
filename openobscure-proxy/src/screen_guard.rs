@@ -251,7 +251,7 @@ pub fn detect_screenshot(raw_bytes: &[u8], img: &DynamicImage) -> ScreenGuardRes
     let is_screenshot = has_exif_software_match || reasons.len() >= 2;
 
     if is_screenshot {
-        cg_info!(crate::cg_log::modules::SCREEN, "Screenshot detected",
+        oo_info!(crate::oo_log::modules::SCREEN, "Screenshot detected",
             width = width, height = height,
             reasons = reasons.len());
     }
