@@ -16,15 +16,35 @@ OpenObscure is an open-source security sidecar that intercepts, sanitizes, and e
 OpenObscure is not a monolithic app. It uses a **Sidecar + Plugin** hybrid architecture to provide Defense-in-Depth:
 
 ```mermaid
-graph TD
-    User[User Device]
-    subgraph Localhost
-        Gateway[AI Agent Gateway] -->|Tool Results| L1[L1 Plugin - TS]
-        L1 -->|Redacted Text| Storage[(Local Storage)]
-        Gateway -->|HTTP Request| L0[L0 Proxy - Rust]
-        L0 -->|FPE Encryption| L0
+flowchart LR
+    subgraph device ["🖥️ User's Device"]
+        direction TB
+        subgraph agent ["AI Agent (e.g. OpenClaw)"]
+            tools["🔧 Agent Tools\nweb · file · API · bash"]
+            L1["🛡️ L1 — Gateway Plugin\n(TypeScript)\nPII redact · file guard\nconsent · retention"]
+            tools -- "tool results" --> L1
+        end
+        subgraph proxy ["L0 — PII Proxy (Rust)"]
+            scanner["🔍 Hybrid Scanner\nregex · NER/CRF · keywords"]
+            fpe["🔐 FF1 FPE Encrypt"]
+            img["📷 Image Pipeline\nface blur · OCR blur · EXIF strip"]
+            scanner --> fpe
+            scanner --> img
+        end
+        subgraph storage ["L2 — Crypto Store"]
+            crypt[("🗄️ AES-256-GCM\nArgon2id KDF\nEncrypted Transcripts")]
+        end
+        agent -- "HTTP (localhost)" --> proxy
+        L1 -. "redacted text" .-> crypt
     end
-    L0 -->|Encrypted JSON| Cloud[LLM Provider]
+    proxy -- "sanitized request\n(PII encrypted)" --> llm["☁️ LLM Providers\nAnthropic · OpenAI\nOllama · etc."]
+    llm -- "response\n(ciphertexts)" --> proxy
+
+    style device fill:#1a1a2e,stroke:#16213e,color:#e0e0e0
+    style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style proxy fill:#533483,stroke:#e94560,color:#e0e0e0
+    style storage fill:#16213e,stroke:#0f3460,color:#e0e0e0
+    style llm fill:#e94560,stroke:#e94560,color:#fff
 ```
 
 | Layer | Language | What it does |
@@ -165,11 +185,19 @@ cd openobscure-plugin && npm test
 
 OpenObscure uses **Format-Preserving Encryption (FF1)** to replace PII with realistic-looking ciphertext. The LLM sees plausible data, preserving conversational context, while the real values never leave your device.
 
-```
-Original:    "My card is 4111-1111-1111-1111"
-Encrypted:   "My card is 8714-3927-6051-2483"  ← sent to LLM
-LLM reply:   "The card ending in 2483..."
-Decrypted:   "The card ending in 1111..."       ← returned to user
+```mermaid
+sequenceDiagram
+    participant U as 👤 User
+    participant P as 🔐 OpenObscure Proxy
+    participant L as ☁️ LLM Provider
+
+    U->>P: "My card is 4111-1111-1111-1111"
+    Note over P: FF1 encrypt → 8714-3927-6051-2483
+    P->>L: "My card is 8714-3927-6051-2483"
+    Note over L: LLM sees plausible data,<br/>never the real card number
+    L->>P: "The card ending in 2483..."
+    Note over P: FF1 decrypt → 1111
+    P->>U: "The card ending in 1111..."
 ```
 
 PII detection uses a hybrid approach:

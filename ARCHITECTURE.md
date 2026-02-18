@@ -17,23 +17,23 @@ OpenObscure runs **entirely on the same device** as the AI agent it protects —
 
 OpenObscure is not a single monolithic process. It's a **sidecar + plugin hybrid**:
 
-```
-┌─────────────────────────────────────────────────────┐
-│  User's Device                                       │
-│                                                      │
-│  ┌────────────────────────────────────────────────┐  │
-│  │  AI Agent Gateway (e.g., OpenClaw)               │  │
-│  │    └── L1 Plugin (in-process, no separate PID)  │  │
-│  └──────────────────┬─────────────────────────────┘  │
-│                     │ HTTP (localhost)                │
-│  ┌──────────────────▼─────────────────────────────┐  │
-│  │  L0 Proxy (standalone Rust process)             │  │
-│  │    └── L2 Crypto (linked library, same process) │  │
-│  └──────────────────┬─────────────────────────────┘  │
-│                     │ HTTPS                          │
-└─────────────────────┼────────────────────────────────┘
-                      ▼
-              LLM Providers (external)
+```mermaid
+flowchart TB
+    subgraph device ["User's Device"]
+        subgraph gateway ["AI Agent Gateway (e.g. OpenClaw)"]
+            L1["L1 Plugin\n(in-process, no separate PID)"]
+        end
+        subgraph l0proc ["L0 Proxy (standalone Rust process)"]
+            L2["L2 Crypto\n(linked library, same process)"]
+        end
+        gateway -- "HTTP (localhost)" --> l0proc
+    end
+    l0proc -- "HTTPS" --> llm(["LLM Providers (external)"])
+
+    style device fill:#1a1a2e,stroke:#533483,color:#e0e0e0
+    style gateway fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style l0proc fill:#533483,stroke:#e94560,color:#e0e0e0
+    style llm fill:#e94560,stroke:#e94560,color:#fff
 ```
 
 | Component | Process | How it runs |
@@ -59,47 +59,46 @@ The only network activity OpenObscure produces is forwarding the host agent's ex
 
 ## Three-Layer Defense-in-Depth
 
-```
-                              ┌──────────────────────────────────────┐
-                              │    AI Agent Gateway (e.g., OpenClaw) │
-                              │                                      │
-┌─────────────┐  tool results │  ┌──────────────────────────────┐   │
-│  Agent Tools │──────────────┼─►│  L1  Gateway Plugin (TS)     │   │
-│  (web, file, │              │  │  · PII Redactor (regex)      │   │
-│   API, bash) │              │  │  · File Access Guard         │   │
-└─────────────┘              │  │  · Consent Manager (GDPR)    │   │
-                              │  │  · Heartbeat Monitor         │   │
-                              │  └──────────────────────────────┘   │
-                              │                                      │
-                              │         HTTP API calls               │
-                              └──────────────┬───────────────────────┘
-                                             │
-                                             ▼
-                              ┌──────────────────────────────────────┐
-                              │  L0  Rust PII Proxy                  │
-                              │  127.0.0.1:18790                     │
-                              │                                      │
-                              │  Request:  scan JSON → FPE encrypt   │
-                              │  Response: FPE decrypt → return      │
-                              │                                      │
-                              │  · Hybrid scanner (regex + NER/CRF   │
-                              │    + keyword dict)                   │
-                              │  · FF1 FPE (format-preserving)       │
-                              │  · Nested JSON + code fence aware    │
-                              │  · Image pipeline: face blur +       │
-                              │    OCR text blur + EXIF strip         │
-                              └──────────────┬───────────────────────┘
-                                             │ HTTPS
-                                             ▼
-                              ┌──────────────────────────────────────┐
-                              │  LLM Providers                       │
-                              │  (Anthropic, OpenAI, Ollama, ...)    │
-                              └──────────────────────────────────────┘
+```mermaid
+flowchart TB
+    tools["🔧 Agent Tools\nweb · file · API · bash"]
 
-┌──────────────────────────────────────────────────────────────────────┐
-│  L2  Encryption Layer                                                │
-│  AES-256-GCM transcripts · Argon2id KDF · OS keychain (FPE keys)    │
-└──────────────────────────────────────────────────────────────────────┘
+    subgraph gateway ["AI Agent Gateway (e.g. OpenClaw)"]
+        direction TB
+        subgraph l1box ["L1 — Gateway Plugin (TypeScript)"]
+            redact["PII Redactor (regex)"]
+            guard["File Access Guard"]
+            consent["Consent Manager (GDPR)"]
+            heartbeat["Heartbeat Monitor"]
+        end
+    end
+
+    subgraph l0box ["L0 — Rust PII Proxy · 127.0.0.1:18790"]
+        direction TB
+        req["Request: scan JSON → FPE encrypt"]
+        res["Response: FPE decrypt → return"]
+        hybrid["Hybrid Scanner\nregex + NER/CRF + keyword dict"]
+        ff1["FF1 FPE (format-preserving)"]
+        nested["Nested JSON + code fence aware"]
+        imgpipe["Image Pipeline\nface blur + OCR text blur + EXIF strip"]
+    end
+
+    llm(["☁️ LLM Providers\nAnthropic · OpenAI · Ollama"])
+
+    subgraph l2box ["L2 — Encryption Layer"]
+        crypto["AES-256-GCM transcripts · Argon2id KDF · OS keychain (FPE keys)"]
+    end
+
+    tools -- "tool results" --> gateway
+    gateway -- "HTTP API calls" --> l0box
+    l0box -- "HTTPS" --> llm
+
+    style gateway fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style l1box fill:#1a1a4e,stroke:#533483,color:#e0e0e0
+    style l0box fill:#533483,stroke:#e94560,color:#e0e0e0
+    style l2box fill:#16213e,stroke:#0f3460,color:#e0e0e0
+    style llm fill:#e94560,stroke:#e94560,color:#fff
+    style tools fill:#2a2a4a,stroke:#533483,color:#e0e0e0
 ```
 
 ## Layer Details
@@ -192,20 +191,25 @@ Compliance tooling runs on-demand within existing L0/L1 processes — no separat
 
 Format-Preserving Encryption transforms plaintext into ciphertext of **identical format**. The LLM sees plausible-looking data instead of `[REDACTED]`, preserving conversational context.
 
-```
-Original:    "My card is 4111-1111-1111-1111 and SSN 123-45-6789"
-                          │                          │
-                     FF1 encrypt                FF1 encrypt
-                          │                          │
-Encrypted:   "My card is 8714-3927-6051-2483 and SSN 847-29-3651"
-                          │                          │
-               (sent to LLM provider)     (sent to LLM provider)
-                          │                          │
-LLM response: "The card ending in 2483..."   "SSN 847-29-3651 is..."
-                          │                          │
-                     FF1 decrypt                FF1 decrypt
-                          │                          │
-Returned:    "The card ending in 1111..."   "SSN 123-45-6789 is..."
+```mermaid
+sequenceDiagram
+    participant U as 👤 User / Agent
+    participant P as 🔐 L0 Proxy (FF1)
+    participant L as ☁️ LLM Provider
+
+    U->>P: "My card is 4111-1111-1111-1111<br/>and SSN 123-45-6789"
+
+    Note over P: FF1 encrypt each match<br/>CC → 8714-3927-6051-2483<br/>SSN → 847-29-3651
+
+    P->>L: "My card is 8714-3927-6051-2483<br/>and SSN 847-29-3651"
+
+    Note over L: LLM processes plausible<br/>data — never sees real PII
+
+    L->>P: "The card ending in 2483...<br/>SSN 847-29-3651 is..."
+
+    Note over P: FF1 decrypt each match<br/>2483 → 1111<br/>847-29-3651 → 123-45-6789
+
+    P->>U: "The card ending in 1111...<br/>SSN 123-45-6789 is..."
 ```
 
 | PII Type | Radix | Encrypted Part | Preserved |
@@ -238,46 +242,65 @@ Neither layer alone is sufficient:
 
 ### Outbound (user → LLM)
 
-```
-1. User sends message via channel (WhatsApp, CLI, web, etc.)
-2. The agent receives message
-3. Agent runtime decides to call LLM
-4. HTTP request sent to OpenObscure proxy (L0)
-5. Proxy scans JSON body for PII (regex + post-validation)
-6. PII matches encrypted with FF1 FPE (per-record tweaks)
-7. Modified request forwarded to LLM provider over HTTPS
-8. LLM never sees real PII values
+```mermaid
+flowchart LR
+    user["👤 User\n(WhatsApp, CLI, web)"] --> agent["🤖 Agent\nreceives message"]
+    agent --> l0["🔐 L0 Proxy\nscan JSON for PII"]
+    l0 --> fpe["FF1 FPE encrypt\n(per-record tweaks)"]
+    fpe --> llm["☁️ LLM Provider\n(never sees real PII)"]
+
+    style user fill:#1a1a2e,stroke:#533483,color:#e0e0e0
+    style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style l0 fill:#533483,stroke:#e94560,color:#e0e0e0
+    style fpe fill:#533483,stroke:#e94560,color:#e0e0e0
+    style llm fill:#e94560,stroke:#e94560,color:#fff
 ```
 
 ### Inbound (LLM → user)
 
-```
-1. LLM response received by proxy
-2. Proxy string-replaces FPE ciphertexts with original plaintext
-3. Decrypted response returned to the host agent
-4. User sees original values transparently
+```mermaid
+flowchart RL
+    llm["☁️ LLM Provider"] --> proxy["🔐 L0 Proxy\nstring-replace FPE\nciphertexts → plaintext"]
+    proxy --> agent["🤖 Host Agent"]
+    agent --> user["👤 User\n(sees original values)"]
+
+    style llm fill:#e94560,stroke:#e94560,color:#fff
+    style proxy fill:#533483,stroke:#e94560,color:#e0e0e0
+    style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style user fill:#1a1a2e,stroke:#533483,color:#e0e0e0
 ```
 
 ### Tool Results (agent tools → persistence)
 
-```
-1. Agent tool executes (file_read, web_fetch, bash, etc.)
-2. Tool produces result text
-3. L1 plugin's tool_result_persist hook fires (synchronous)
-4. PII Redactor scans result text (same patterns as L0)
-5. Matches replaced with [REDACTED]
-6. Redacted result persisted to transcript
+```mermaid
+flowchart LR
+    tool["🔧 Agent Tool\nfile_read · web_fetch\nbash · API"]
+    tool --> result["Tool result text"]
+    result --> hook["L1 hook\ntool_result_persist\n(synchronous)"]
+    hook --> redact["PII Redactor\nmatches → [REDACTED]"]
+    redact --> persist[("📝 Transcript\n(redacted)")]
+
+    style tool fill:#1a1a2e,stroke:#533483,color:#e0e0e0
+    style result fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style hook fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style redact fill:#533483,stroke:#e94560,color:#e0e0e0
+    style persist fill:#16213e,stroke:#0f3460,color:#e0e0e0
 ```
 
 **Important:** OpenObscure never reads local files itself. The agent's tools perform all file I/O and produce text results. OpenObscure only sees the resulting text *after* the agent has already read and extracted it. L1 operates on text strings from tool outputs, not on files directly.
 
 ### File Access (agent → local files)
 
-```
-1. Agent decides to read a file
-2. openobscure_file_check tool evaluates path against deny patterns
-3. Sensitive files (.env, SSH keys, credentials) → blocked
-4. Regular files → allowed
+```mermaid
+flowchart LR
+    agent["🤖 Agent\nwants to read file"] --> check["🛡️ File Guard\nevaluate path vs\ndeny patterns"]
+    check -->|".env, SSH keys,\ncredentials"| blocked["🚫 Blocked"]
+    check -->|"regular files"| allowed["✅ Allowed"]
+
+    style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style check fill:#533483,stroke:#e94560,color:#e0e0e0
+    style blocked fill:#e94560,stroke:#e94560,color:#fff
+    style allowed fill:#16a34a,stroke:#16a34a,color:#fff
 ```
 
 The File Access Guard is a **gate, not a parser** — it checks the file path before the agent reads the file, but the actual file I/O is always performed by the agent's tools.
@@ -286,12 +309,15 @@ The File Access Guard is a **gate, not a parser** — it checks the file path be
 
 **Passthrough-first** — OpenObscure is transparent to API authentication:
 
-```
-Host Agent (has API keys)   OpenObscure Proxy          LLM Provider
-       │                         │                        │
-       │  Authorization: sk-...  │  Authorization: sk-... │
-       │────────────────────────►│───────────────────────►│
-       │  (headers pass through) │  (unmodified)          │
+```mermaid
+sequenceDiagram
+    participant A as 🤖 Host Agent<br/>(has API keys)
+    participant P as 🔐 OpenObscure Proxy
+    participant L as ☁️ LLM Provider
+
+    A->>P: Authorization: sk-...<br/>(+ all request headers)
+    Note over P: Headers pass through<br/>unmodified
+    P->>L: Authorization: sk-...<br/>(identical — transparent proxy)
 ```
 
 - All original request headers forwarded (except hop-by-hop per RFC 7230)
@@ -432,40 +458,44 @@ OpenObscure must be **invisible when working, clear when not**. Users should nev
 
 ### Health Monitoring Architecture
 
-```
-L0 Proxy                                    L1 Plugin
-┌────────────────────┐                      ┌──────────────────────────┐
-│ GET /_openobscure/   │◄─── HTTP (30s) ──────│  Heartbeat Monitor       │
-│     health         │     + X-OpenObscure-   │                          │
-│                    │       Token header   │  L0 down? → warn user    │
-│ Auth: validates    │                      │  L0 back? → log recovery │
-│   X-OpenObscure-     │                      │  401? → "degraded"       │
-│   Token header     │                      └──────────────────────────┘
-│                    │
-│ Response:          │     Auth token shared via:
-│ {                  │     ~/.openobscure/.auth-token (0600)
-│   status: "ok",   │     (L0 writes, L1 reads)
-│   version: "0.1", │
-│   uptime_secs: N,  │
-│   pii_total: N,    │
-│   images_processed │
-│     _total: N,     │
-│   faces_blurred    │
-│     _total: N,     │
-│   text_regions     │
-│     _total: N,     │
-│   cross_border     │
-│     _flags_total:N,│
-│   fpe_key_version: │
-│     N,             │
-│   scan_latency     │
-│     _p50/p95/p99   │
-│ }                  │
-└────────────────────┘
+```mermaid
+flowchart LR
+    subgraph l1side ["L1 Plugin"]
+        hb["Heartbeat Monitor"]
+        down["L0 down? → warn user"]
+        back["L0 back? → log recovery"]
+        auth_fail["401? → degraded"]
+    end
 
-Crash path:
-  panic hook → write ~/.openobscure/.crashed → abort
-  next startup → detect .crashed → log "recovered from crash" → delete marker
+    subgraph l0side ["L0 Proxy"]
+        endpoint["GET /_openobscure/health"]
+        auth_check["Auth: validate\nX-OpenObscure-Token"]
+        response["Response JSON:\nstatus · version · uptime\npii_total · images_processed\nfaces_blurred · text_regions\ncross_border_flags\nfpe_key_version\nscan_latency p50/p95/p99"]
+    end
+
+    token[("~/.openobscure/\n.auth-token\n(0600)")]
+
+    hb -- "HTTP every 30s\n+ X-OpenObscure-Token" --> endpoint
+    endpoint --> auth_check --> response
+    token -. "L0 writes" .-> l0side
+    token -. "L1 reads" .-> l1side
+
+    style l0side fill:#533483,stroke:#e94560,color:#e0e0e0
+    style l1side fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style token fill:#16213e,stroke:#0f3460,color:#e0e0e0
+```
+
+**Crash path:**
+
+```mermaid
+flowchart LR
+    panic["panic hook"] --> write["Write\n~/.openobscure/.crashed"] --> abort["abort"]
+    restart["Next startup"] --> detect["Detect .crashed"] --> log["Log: recovered\nfrom crash"] --> delete["Delete marker"]
+
+    style panic fill:#e94560,stroke:#e94560,color:#fff
+    style abort fill:#e94560,stroke:#e94560,color:#fff
+    style restart fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style log fill:#533483,stroke:#e94560,color:#e0e0e0
 ```
 
 **Auth token handshake:** L0 generates a random 32-byte hex token on first startup, writes to `~/.openobscure/.auth-token` (file permissions 0600 on Unix). L1 reads this file and sends it as the `X-OpenObscure-Token` header with every health check. If the token is missing or wrong, L0 returns 401 Unauthorized. This prevents other localhost processes from querying or impersonating the health endpoint.
@@ -487,20 +517,28 @@ All logging across both L0 (Rust) and L1 (TypeScript) uses a **unified facade AP
 
 ### L0 Logging Stack
 
-```
-cg_info! / cg_warn! / cg_error! / cg_debug! / cg_audit!
-         │
-         ▼
-   tracing subscriber (layered)
-         │
-    ┌────┼────────────────────────────────────┐
-    │    │                                     │
-    ▼    ▼              ▼              ▼       ▼
- stderr  file       audit log     crash buffer
- (json   (daily     (FilterFn:    (mmap ring,
-  or     rotation,   cg_audit     survives
-  plain) PII scrub)  events →     SIGKILL/OOM)
-                     JSONL)
+```mermaid
+flowchart TB
+    macros["cg_info! · cg_warn! · cg_error! · cg_debug! · cg_audit!"]
+    subscriber["tracing subscriber (layered)"]
+    macros --> subscriber
+
+    stderr["Stderr\nJSON or plain"]
+    filelog["File\ndaily rotation\nPII scrub"]
+    audit["Audit Log\nFilterFn: cg_audit\nevents → JSONL"]
+    crash["Crash Buffer\nmmap ring\nsurvives SIGKILL/OOM"]
+
+    subscriber --> stderr
+    subscriber --> filelog
+    subscriber --> audit
+    subscriber --> crash
+
+    style macros fill:#533483,stroke:#e94560,color:#e0e0e0
+    style subscriber fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style stderr fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
+    style filelog fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
+    style audit fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
+    style crash fill:#1a1a2e,stroke:#e94560,color:#e0e0e0
 ```
 
 | Layer | Purpose | Config |
@@ -515,18 +553,22 @@ cg_info! / cg_warn! / cg_error! / cg_debug! / cg_audit!
 
 ### L1 Logging Stack
 
-```
-cgInfo / cgWarn / cgError / cgDebug / cgAudit
-         │
-         ▼
-   cgLog() facade
-         │
-    ┌────┼──────────────┐
-    │    │               │
-    ▼    ▼               ▼
- console.*          audit log
- (JSON or plain,    (append-only
-  PII-scrubbed)      JSONL file)
+```mermaid
+flowchart TB
+    funcs["cgInfo · cgWarn · cgError · cgDebug · cgAudit"]
+    facade["cgLog() facade"]
+    funcs --> facade
+
+    console["console.*\nJSON or plain\nPII-scrubbed"]
+    auditlog["Audit Log\nappend-only\nJSONL file"]
+
+    facade --> console
+    facade --> auditlog
+
+    style funcs fill:#533483,stroke:#e94560,color:#e0e0e0
+    style facade fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style console fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
+    style auditlog fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
 ```
 
 Module constants: REDACTOR, FILE_GUARD, CONSENT, PRIVACY, HEARTBEAT, PLUGIN, RETENTION.
@@ -539,17 +581,33 @@ All string fields are run through `redactPii()` before output — defense-in-dep
 
 L0 detects base64-encoded images in JSON request bodies (both Anthropic and OpenAI formats) and processes them before text PII scanning.
 
-```
-process_request_body (body.rs)
-  │
-  ├─ Pass 1: Image processing
-  │   Walk JSON tree → detect image content blocks →
-  │   decode base64 → EXIF strip → resize (960px) →
-  │   face blur (BlazeFace) → OCR text blur (PaddleOCR) →
-  │   encode → replace in JSON
-  │
-  └─ Pass 2: Text PII scanning (existing)
-      scan_json → regex/keywords/NER → FPE encrypt → replace in JSON
+```mermaid
+flowchart TB
+    entry["process_request_body\n(body.rs)"]
+
+    subgraph pass1 ["Pass 1 — Image Processing"]
+        direction LR
+        walk["Walk JSON tree"] --> detect["Detect image\ncontent blocks"]
+        detect --> decode["Decode base64"]
+        decode --> exif["EXIF strip"]
+        exif --> resize["Resize (960px)"]
+        resize --> face["Face blur\n(BlazeFace)"]
+        face --> ocr["OCR text blur\n(PaddleOCR)"]
+        ocr --> encode["Re-encode\n→ replace in JSON"]
+    end
+
+    subgraph pass2 ["Pass 2 — Text PII Scanning"]
+        direction LR
+        scan["scan_json"] --> match["Regex + Keywords\n+ NER/CRF"]
+        match --> encrypt["FF1 FPE encrypt\n→ replace in JSON"]
+    end
+
+    entry --> pass1
+    pass1 --> pass2
+
+    style entry fill:#533483,stroke:#e94560,color:#e0e0e0
+    style pass1 fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style pass2 fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
 ```
 
 **Provider formats:**
