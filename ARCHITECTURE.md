@@ -80,7 +80,7 @@ flowchart TB
         hybrid["Hybrid Scanner\nregex + NER/CRF + keyword dict"]
         ff1["FF1 FPE (format-preserving)"]
         nested["Nested JSON + code fence aware"]
-        imgpipe["Image Pipeline\nface blur + OCR text blur + EXIF strip"]
+        imgpipe["Image Pipeline\nNSFW + face blur + OCR text blur + EXIF strip"]
     end
 
     llm(["☁️ LLM Providers\nAnthropic · OpenAI · Ollama"])
@@ -110,7 +110,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | Aspect | Detail |
 |--------|--------|
 | **What it does** | Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE (versioned keys with rotation support), decrypts ciphertexts in responses (SSE streaming supported). Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. Cross-border jurisdiction classification + policy enforcement. CLI compliance tooling (ROPA, DPIA, breach detection, SIEM export). |
-| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: faces in photos (BlazeFace ONNX), text in screenshots/images (PaddleOCR ONNX). Cross-border: jurisdiction flags from phone country codes, email TLDs, SSN format. |
+| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: nudity (NudeNet ONNX), faces in photos (BlazeFace ONNX), text in screenshots/images (PaddleOCR ONNX). Cross-border: jurisdiction flags from phone country codes, email TLDs, SSN format. |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged. Optional `override_auth` per provider for vault-sourced keys |
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). Versioned keys (`fpe-master-key-v{N}`) with 30s dual-key overlap during rotation. CLI `key-rotate` for offline rotation. |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
@@ -597,9 +597,12 @@ flowchart TB
         detect --> decode["Decode base64"]
         decode --> exif["EXIF strip"]
         exif --> resize["Resize (960px)"]
-        resize --> face["Face blur\n(BlazeFace)"]
+        resize --> nsfw["NSFW check\n(NudeNet)"]
+        nsfw -->|"safe"| face["Face blur\n(BlazeFace)"]
+        nsfw -->|"nudity"| fullblur["Full-image blur"]
         face --> ocr["OCR text blur\n(PaddleOCR)"]
         ocr --> encode["Re-encode\n→ replace in JSON"]
+        fullblur --> encode
     end
 
     subgraph pass2 ["Pass 2 — Text PII Scanning"]
@@ -622,7 +625,10 @@ flowchart TB
 
 **Key properties:**
 - Images processed BEFORE text so byte offsets remain correct
-- Sequential model loading: face model loaded/used/dropped, then OCR model loaded/used/dropped (never both in RAM)
+- **Three-phase pipeline:** Phase 0 (NSFW check) → Phase 1 (face detection + blur) → Phase 2 (OCR text detection + blur)
+- NSFW detection: if nudity found, blur entire image with heavy sigma=30 and skip face/OCR phases
+- Face blur: if face occupies >80% of image area, blur entire image; otherwise selective blur with 15% padding
+- Sequential model loading: models loaded/used/dropped one at a time (never multiple in RAM)
 - EXIF metadata stripped implicitly — `image` crate loads pixels only, discarding all metadata
 - Fail-open: corrupt base64, unsupported format, or model failure → forward original image unchanged
 - Screenshot detection (EXIF software tags, screen resolution, status bar uniformity) flags images for aggressive text blur
@@ -631,6 +637,7 @@ flowchart TB
 
 | Model | Size | RAM | Purpose |
 |-------|------|-----|---------|
+| NudeNet 320n | ~12MB | ~20MB | NSFW/nudity detection (YOLOv8n, 320x320 input) |
 | BlazeFace short-range | ~408KB | ~8MB | Face detection (128x128 input, NMS) |
 | PaddleOCR det | ~2.4MB | ~15MB | Text region detection |
 | PaddleOCR rec | ~7.8MB | ~20MB | Character recognition (Tier 2 only) |
@@ -650,7 +657,7 @@ OpenObscure is designed for open-source distribution. Security follows **Kerckho
 | Threat | Protection | Layer |
 |--------|-----------|-------|
 | PII leaking to LLM providers in API requests | FF1 FPE encryption of structured PII before request leaves device | L0 |
-| Visual PII in images (faces, text, EXIF) | Face blur, OCR text blur, EXIF metadata stripping on base64 images | L0 |
+| Visual PII in images (faces, text, EXIF) | NSFW full-image blur, face blur, OCR text blur, EXIF metadata stripping on base64 images | L0 |
 | PII persisted in tool result transcripts | Regex redaction of PII in tool outputs before persistence | L1 |
 | Agent reading sensitive local files (.env, SSH keys) | File path deny-list blocking before read | L1 |
 | Transcript exposure from storage compromise | AES-256-GCM encryption at rest with Argon2id KDF | L2 |

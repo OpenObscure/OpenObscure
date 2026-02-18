@@ -69,8 +69,14 @@ pub fn blur_quad_region(img: &mut RgbImage, points: &[(f32, f32); 4], sigma: f32
     let x_max = points.iter().map(|p| p.0).fold(f32::NEG_INFINITY, f32::max);
     let y_max = points.iter().map(|p| p.1).fold(f32::NEG_INFINITY, f32::max);
 
+    // Expand vertically by 50% of text height for thicker blur coverage
+    let text_h = y_max - y_min;
+    let pad = text_h * 0.5;
+    let y_min = (y_min - pad).max(0.0);
+    let y_max = (y_max + pad).min(img.height() as f32);
+
     let x = x_min.max(0.0) as u32;
-    let y = y_min.max(0.0) as u32;
+    let y = y_min as u32;
     let w = (x_max - x_min).max(0.0) as u32;
     let h = (y_max - y_min).max(0.0) as u32;
 

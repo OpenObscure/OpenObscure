@@ -79,6 +79,7 @@ fn main() {
     // Configure pipeline
     let face_dir = args.models_dir.join("blazeface");
     let ocr_dir = args.models_dir.join("paddleocr");
+    let nsfw_dir = args.models_dir.join("nudenet");
 
     let config = ImageConfig {
         enabled: true,
@@ -87,7 +88,7 @@ fn main() {
         ocr_tier: "detect_and_blur".to_string(),
         max_dimension: 960,
         face_blur_sigma: 25.0,
-        text_blur_sigma: 15.0,
+        text_blur_sigma: 20.0,
         model_idle_timeout_secs: 300,
         face_model_dir: if face_dir.exists() {
             Some(face_dir.to_string_lossy().into_owned())
@@ -103,13 +104,21 @@ fn main() {
         },
         screen_guard: true,
         exif_strip: true,
+        nsfw_detection: nsfw_dir.exists(),
+        nsfw_model_dir: if nsfw_dir.exists() {
+            Some(nsfw_dir.to_string_lossy().into_owned())
+        } else {
+            println!("Note:   NudeNet models not found at {}", nsfw_dir.display());
+            None
+        },
+        nsfw_threshold: 0.45,
     };
 
     // Process
     let manager = ImageModelManager::new(config);
     let start = Instant::now();
 
-    let (result_img, stats) = manager.process_image(img).unwrap_or_else(|e| {
+    let (result_img, stats, _meta) = manager.process_image(img).unwrap_or_else(|e| {
         eprintln!("Pipeline error: {}", e);
         std::process::exit(1);
     });
@@ -137,6 +146,7 @@ fn main() {
 
     println!("");
     println!("=== Results ===");
+    println!("NSFW detected:      {}", stats.nsfw_detected);
     println!("Faces blurred:      {}", stats.faces_blurred);
     println!("Text regions found: {}", stats.text_regions_found);
     println!("Screenshot:         {}", stats.is_screenshot);

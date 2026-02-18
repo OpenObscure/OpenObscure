@@ -304,6 +304,15 @@ pub struct ImageConfig {
     /// Strip EXIF metadata from images (default: true).
     #[serde(default = "default_true")]
     pub exif_strip: bool,
+    /// Enable NSFW/nudity detection (default: true).
+    #[serde(default = "default_true")]
+    pub nsfw_detection: bool,
+    /// Path to NudeNet ONNX model directory.
+    #[serde(default)]
+    pub nsfw_model_dir: Option<String>,
+    /// NSFW detection confidence threshold (default: 0.45).
+    #[serde(default = "default_nsfw_threshold")]
+    pub nsfw_threshold: f32,
 }
 
 impl Default for ImageConfig {
@@ -321,6 +330,9 @@ impl Default for ImageConfig {
             ocr_model_dir: None,
             screen_guard: true,
             exif_strip: true,
+            nsfw_detection: true,
+            nsfw_model_dir: None,
+            nsfw_threshold: default_nsfw_threshold(),
         }
     }
 }
@@ -400,7 +412,10 @@ fn default_face_blur_sigma() -> f32 {
     25.0
 }
 fn default_text_blur_sigma() -> f32 {
-    15.0
+    20.0
+}
+fn default_nsfw_threshold() -> f32 {
+    0.45
 }
 fn default_model_idle_timeout() -> u64 {
     300

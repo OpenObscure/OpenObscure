@@ -475,3 +475,94 @@ fn test_hybrid_confidence_present() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// PII detection structural sanity tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_pii_match_spans_valid() {
+    let corpus = load_corpus();
+    let scanner = HybridScanner::new(true, None);
+
+    for (idx, entry) in corpus.iter().enumerate() {
+        let detected = scanner.scan_text(&entry.text);
+        for d in &detected {
+            assert!(
+                d.start < d.end,
+                "Entry {}: match {:?} '{}' has start {} >= end {}",
+                idx, d.pii_type, d.raw_value, d.start, d.end
+            );
+            assert!(
+                d.end <= entry.text.len(),
+                "Entry {}: match {:?} '{}' end {} exceeds text length {}",
+                idx, d.pii_type, d.raw_value, d.end, entry.text.len()
+            );
+        }
+    }
+}
+
+#[test]
+fn test_pii_match_no_overlaps() {
+    let corpus = load_corpus();
+    let scanner = HybridScanner::new(true, None);
+
+    for (idx, entry) in corpus.iter().enumerate() {
+        let mut detected = scanner.scan_text(&entry.text);
+        detected.sort_by_key(|d| d.start);
+
+        for window in detected.windows(2) {
+            assert!(
+                window[0].end <= window[1].start,
+                "Entry {}: overlapping matches {:?}[{}..{}] and {:?}[{}..{}]",
+                idx,
+                window[0].pii_type, window[0].start, window[0].end,
+                window[1].pii_type, window[1].start, window[1].end,
+            );
+        }
+    }
+}
+
+#[test]
+fn test_pii_confidence_range() {
+    let corpus = load_corpus();
+    let scanner = HybridScanner::new(true, None);
+
+    for (idx, entry) in corpus.iter().enumerate() {
+        let detected = scanner.scan_text(&entry.text);
+        for d in &detected {
+            assert!(
+                d.confidence > 0.0 && d.confidence <= 1.0,
+                "Entry {}: match {:?} '{}' confidence {} not in (0, 1]",
+                idx, d.pii_type, d.raw_value, d.confidence
+            );
+        }
+    }
+}
+
+#[test]
+fn test_pii_types_are_known() {
+    let corpus = load_corpus();
+    let scanner = HybridScanner::new(true, None);
+
+    let known_types = [
+        PiiType::CreditCard,
+        PiiType::Ssn,
+        PiiType::PhoneNumber,
+        PiiType::Email,
+        PiiType::ApiKey,
+        PiiType::HealthKeyword,
+        PiiType::ChildKeyword,
+    ];
+
+    for (idx, entry) in corpus.iter().enumerate() {
+        let detected = scanner.scan_text(&entry.text);
+        for d in &detected {
+            assert!(
+                known_types.contains(&d.pii_type),
+                "Entry {}: unknown PiiType {:?} for match '{}'",
+                idx, d.pii_type, d.raw_value
+            );
+        }
+    }
+}

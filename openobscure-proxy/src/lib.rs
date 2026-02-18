@@ -17,5 +17,10 @@ pub mod config;
 pub mod image_pipeline;
 pub mod image_blur;
 pub mod face_detector;
+pub mod nsfw_detector;
 pub mod ocr_engine;
 pub mod screen_guard;
+
+// Detection verification framework
+pub mod detection_meta;
+pub mod detection_validators;

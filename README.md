@@ -27,7 +27,7 @@ flowchart LR
         subgraph proxy ["L0 — PII Proxy (Rust)"]
             scanner["🔍 Hybrid Scanner\nregex · NER/CRF · keywords"]
             fpe["🔐 FF1 FPE Encrypt"]
-            img["📷 Image Pipeline\nface blur · OCR blur · EXIF strip"]
+            img["📷 Image Pipeline\nNSFW · face blur · OCR blur · EXIF strip"]
             scanner --> fpe
             scanner --> img
         end
@@ -222,8 +222,9 @@ sequenceDiagram
 
     U->>P: Send photo (base64 in JSON)
     Note over P: 1. Detect base64 image<br/>2. Decode + EXIF strip<br/>3. Resize (max 960px)
-    Note over P: 4. BlazeFace: detect faces<br/>5. Gaussian blur face regions
-    Note over P: 6. PaddleOCR: detect text<br/>7. Gaussian blur text regions
+    Note over P: 4. NudeNet: NSFW check<br/>(if nudity → blur all, stop)
+    Note over P: 5. BlazeFace: detect faces<br/>6. Gaussian blur face regions
+    Note over P: 7. PaddleOCR: detect text<br/>8. Gaussian blur text regions
     P->>L: Sanitized image (faces + text blurred)
     Note over L: LLM sees the image<br/>but PII is obscured
     L->>P: Response about image
@@ -245,18 +246,24 @@ cargo run --example demo_image_pipeline -- \
 
 | Scenario | Before | After |
 |----------|--------|-------|
-| **Face Detection + Blur** — BlazeFace detects faces and applies Gaussian blur to prevent identification | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face blurred](docs/examples/images/face-blurred.jpg) |
+| **Face Detection + Blur** — BlazeFace detects faces and applies selective Gaussian blur to the face bounding box | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face blurred](docs/examples/images/face-blurred.jpg) |
+| **Child Face Privacy** — Automatically detects and blurs children's faces to protect minors' privacy | ![Original child photo](docs/examples/images/child-original.jpg) | ![Child face blurred](docs/examples/images/child-blurred.jpg) |
 | **OCR Text Blur** — PaddleOCR detects text in documents/photos and blurs readable content | ![Original document](docs/examples/images/text-original.jpg) | ![Text blurred](docs/examples/images/text-blurred.jpg) |
 | **Screenshot PII Blur** — Detects and blurs PII text in screenshots (names, SSNs, phone numbers, addresses) | ![Original screenshot](docs/examples/images/screenshot-original.png) | ![Screenshot blurred](docs/examples/images/screenshot-blurred.png) |
 
 ### Pipeline Details
 
-- **Face detection**: BlazeFace short-range ONNX (~408KB), 128x128 input, 896 anchors, Gaussian blur sigma=25
-- **Text detection**: PaddleOCR v3 ONNX (~2.4MB), detects text regions, Gaussian blur sigma=15
+The image pipeline processes images in three phases:
+
+1. **NSFW detection** (Phase 0): NudeNet 320n ONNX (~12MB) checks for nudity. If detected, the entire image is blurred with heavy sigma=30 and subsequent phases are skipped.
+2. **Face detection** (Phase 1): BlazeFace short-range ONNX (~408KB), 128x128 input, 896 anchors. Faces occupying >80% of the image trigger full-image blur; otherwise, selective Gaussian blur (sigma=25) is applied to the face bounding box with 15% padding.
+3. **Text detection** (Phase 2): PaddleOCR v3 ONNX (~2.4MB), detects text regions, applies Gaussian blur (sigma=20) with vertical padding for complete coverage.
+
+Additional features:
 - **EXIF stripping**: Automatically removes GPS coordinates, camera model, timestamps from photos
 - **Fail-open**: If a model fails to load, the pipeline skips that step and forwards the image as-is
 - **Lazy loading**: Models are loaded on first use and evicted after idle timeout (default: 5 minutes)
-- **Memory ceiling**: Models are loaded sequentially (never both in RAM) to stay within 275MB budget
+- **Memory ceiling**: Models are loaded sequentially (never all in RAM) to stay within 275MB budget
 
 ---
 

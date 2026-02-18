@@ -14,8 +14,10 @@ use std::time::Instant;
 use image::{DynamicImage, ImageFormat, GenericImageView};
 
 use crate::config::ImageConfig;
+use crate::detection_meta::{NsfwMeta, PipelineMeta};
 use crate::face_detector::FaceDetector;
 use crate::image_blur;
+use crate::nsfw_detector::NsfwDetector;
 use crate::ocr_engine::{OcrDetector, OcrRecognizer, OcrTier};
 
 /// Errors from image processing operations.
@@ -102,6 +104,7 @@ pub struct ImageStats {
     pub faces_blurred: u32,
     pub text_regions_found: u32,
     pub is_screenshot: bool,
+    pub nsfw_detected: bool,
     pub processing_ms: u64,
 }
 
@@ -110,6 +113,7 @@ pub struct ImageStats {
 /// Loads face detection and OCR models lazily, keeps them in memory until idle timeout.
 /// Models are loaded sequentially (never both at once) to stay within RAM budget.
 pub struct ImageModelManager {
+    nsfw_detector: Mutex<Option<NsfwDetector>>,
     face_detector: Mutex<Option<FaceDetector>>,
     ocr_detector: Mutex<Option<OcrDetector>>,
     ocr_recognizer: Mutex<Option<OcrRecognizer>>,
@@ -120,6 +124,7 @@ pub struct ImageModelManager {
 impl ImageModelManager {
     pub fn new(config: ImageConfig) -> Self {
         Self {
+            nsfw_detector: Mutex::new(None),
             face_detector: Mutex::new(None),
             ocr_detector: Mutex::new(None),
             ocr_recognizer: Mutex::new(None),
@@ -134,6 +139,13 @@ impl ImageModelManager {
         if last.elapsed().as_secs() < self.config.model_idle_timeout_secs {
             return;
         }
+        let mut nsfw = self.nsfw_detector.lock().unwrap_or_else(|e| e.into_inner());
+        if nsfw.is_some() {
+            *nsfw = None;
+            oo_info!(crate::oo_log::modules::IMAGE, "NSFW model evicted (idle timeout)");
+        }
+        drop(nsfw);
+
         let mut face = self.face_detector.lock().unwrap_or_else(|e| e.into_inner());
         if face.is_some() {
             *face = None;
@@ -157,11 +169,20 @@ impl ImageModelManager {
 
     /// Process a single image through the full pipeline.
     ///
-    /// Steps: face detection → blur faces → OCR detection → blur/recognize text → return modified image.
+    /// Steps: NSFW check → face detection → blur faces → OCR detection → blur/recognize text.
+    /// If NSFW content detected, blur entire image and skip face/OCR phases.
     /// Models are loaded on demand and released between phases to minimize RAM.
-    pub fn process_image(&self, img: DynamicImage) -> Result<(DynamicImage, ImageStats), ImageError> {
+    ///
+    /// Returns `(processed_image, stats, pipeline_meta)` where `pipeline_meta` contains
+    /// all detection metadata for verification.
+    pub fn process_image(&self, img: DynamicImage) -> Result<(DynamicImage, ImageStats, PipelineMeta), ImageError> {
         let start = Instant::now();
         let mut stats = ImageStats::default();
+        let (orig_w, orig_h) = img.dimensions();
+        let mut meta = PipelineMeta {
+            image_size: (orig_w, orig_h),
+            ..PipelineMeta::default()
+        };
         // Convert to RgbImage for blur operations, keep DynamicImage for model inference
         let mut rgb = img.to_rgb8();
         let mut dyn_img = img;
@@ -169,6 +190,53 @@ impl ImageModelManager {
         // Update last-use timestamp
         if let Ok(mut last) = self.last_use.lock() {
             *last = Instant::now();
+        }
+
+        // Phase 0: NSFW detection — if nudity found, blur entire image and skip other phases
+        if self.config.nsfw_detection {
+            if let Some(ref dir) = self.config.nsfw_model_dir {
+                let mut guard = self.nsfw_detector.lock().unwrap_or_else(|e| e.into_inner());
+                if guard.is_none() {
+                    match NsfwDetector::load(Path::new(dir), self.config.nsfw_threshold) {
+                        Ok(detector) => *guard = Some(detector),
+                        Err(e) => {
+                            oo_warn!(crate::oo_log::modules::IMAGE, "NSFW model load failed (fail-open)", error = %e);
+                        }
+                    }
+                }
+                if let Some(ref mut detector) = *guard {
+                    match detector.detect(&dyn_img) {
+                        Ok(result) => {
+                            // Collect NSFW metadata for verification
+                            meta.nsfw = Some(NsfwMeta {
+                                is_nsfw: result.is_nsfw,
+                                confidence: result.confidence,
+                                threshold: self.config.nsfw_threshold,
+                                category: result.category.clone(),
+                                exposed_scores: Vec::new(), // populated at detection level
+                            });
+
+                            if result.is_nsfw {
+                                stats.nsfw_detected = true;
+                                oo_info!(crate::oo_log::modules::IMAGE, "NSFW content detected — blurring entire image",
+                                    confidence = result.confidence,
+                                    category = ?result.category);
+                                // Blur entire image with heavy sigma
+                                let (rw, rh) = (rgb.width(), rgb.height());
+                                image_blur::blur_region(&mut rgb, 0, 0, rw, rh, 30.0);
+                                // Skip face/OCR — image is already fully blurred
+                                drop(guard);
+                                stats.processing_ms = start.elapsed().as_millis() as u64;
+                                return Ok((DynamicImage::ImageRgb8(rgb), stats, meta));
+                            }
+                        }
+                        Err(e) => {
+                            oo_warn!(crate::oo_log::modules::IMAGE, "NSFW detection failed (fail-open)", error = %e);
+                        }
+                    }
+                }
+                drop(guard);
+            }
         }
 
         // Phase 1: Face detection + blur
@@ -187,12 +255,32 @@ impl ImageModelManager {
                 if let Some(ref mut detector) = *guard {
                     match detector.detect(&dyn_img) {
                         Ok(faces) => {
+                            let (img_w, img_h) = (rgb.width(), rgb.height());
+                            let img_area = (img_w * img_h) as f32;
+
+                            // Collect face metadata for verification
+                            meta.faces = faces.iter()
+                                .map(|f| f.to_bbox_meta(img_w, img_h))
+                                .collect();
+
                             for face in &faces {
-                                let x = face.x_min as u32;
-                                let y = face.y_min as u32;
-                                let w = (face.x_max - face.x_min) as u32;
-                                let h = (face.y_max - face.y_min) as u32;
-                                image_blur::blur_region(&mut rgb, x, y, w, h, self.config.face_blur_sigma);
+                                let face_w = face.x_max - face.x_min;
+                                let face_h = face.y_max - face.y_min;
+                                let face_area = face_w * face_h;
+                                if face_area / img_area > 0.8 {
+                                    // Face dominates image — blur everything
+                                    image_blur::blur_region(
+                                        &mut rgb, 0, 0, img_w, img_h,
+                                        self.config.face_blur_sigma,
+                                    );
+                                } else {
+                                    // Selective face blur with 15% padding
+                                    let (x, y, w, h) = image_blur::expand_bbox(
+                                        face.x_min, face.y_min, face.x_max, face.y_max,
+                                        0.15, img_w, img_h,
+                                    );
+                                    image_blur::blur_region(&mut rgb, x, y, w, h, self.config.face_blur_sigma);
+                                }
                             }
                             stats.faces_blurred = faces.len() as u32;
                             if !faces.is_empty() {
@@ -231,6 +319,12 @@ impl ImageModelManager {
                     match detector.detect(&dyn_img) {
                         Ok(regions) => {
                             stats.text_regions_found = regions.len() as u32;
+
+                            // Collect text region metadata for verification
+                            let (img_w, img_h) = (rgb.width(), rgb.height());
+                            meta.text_regions = regions.iter()
+                                .map(|r| r.to_bbox_meta(img_w, img_h))
+                                .collect();
 
                             match tier {
                                 OcrTier::DetectAndBlur => {
@@ -278,7 +372,7 @@ impl ImageModelManager {
                                     }
                                     // Early return to avoid double-drop of det_guard
                                     stats.processing_ms = start.elapsed().as_millis() as u64;
-                                    return Ok((DynamicImage::ImageRgb8(rgb), stats));
+                                    return Ok((DynamicImage::ImageRgb8(rgb), stats, meta));
                                 }
                             }
                         }
@@ -291,7 +385,7 @@ impl ImageModelManager {
         }
 
         stats.processing_ms = start.elapsed().as_millis() as u64;
-        Ok((DynamicImage::ImageRgb8(rgb), stats))
+        Ok((DynamicImage::ImageRgb8(rgb), stats, meta))
     }
 
     /// Get a reference to the config.
@@ -435,7 +529,7 @@ mod tests {
         };
         let manager = ImageModelManager::new(config);
         let img = make_test_image(100, 100);
-        let (result, stats) = manager.process_image(img).unwrap();
+        let (result, stats, _meta) = manager.process_image(img).unwrap();
         assert_eq!(result.width(), 100);
         assert_eq!(result.height(), 100);
         assert_eq!(stats.faces_blurred, 0);
@@ -462,7 +556,7 @@ mod tests {
         };
         let manager = ImageModelManager::new(config);
         let img = make_test_image(50, 50);
-        let (result, stats) = manager.process_image(img).unwrap();
+        let (result, stats, _meta) = manager.process_image(img).unwrap();
         assert_eq!(result.width(), 50);
         assert_eq!(stats.faces_blurred, 0);
         assert_eq!(stats.text_regions_found, 0);

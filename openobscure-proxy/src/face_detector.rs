@@ -44,6 +44,22 @@ pub struct FaceDetection {
     pub confidence: f32,
 }
 
+impl FaceDetection {
+    /// Convert to generic `BboxMeta` for validation.
+    pub fn to_bbox_meta(&self, img_width: u32, img_height: u32) -> crate::detection_meta::BboxMeta {
+        crate::detection_meta::BboxMeta {
+            x_min: self.x_min,
+            y_min: self.y_min,
+            x_max: self.x_max,
+            y_max: self.y_max,
+            confidence: self.confidence,
+            img_width,
+            img_height,
+            label: "face".to_string(),
+        }
+    }
+}
+
 impl FaceDetector {
     /// Load BlazeFace ONNX model and anchor definitions from a directory.
     pub fn load(model_dir: &Path, confidence_threshold: f32) -> Result<Self, ImageError> {
@@ -123,11 +139,13 @@ impl FaceDetector {
             let anchor = &self.anchors[i];
             let reg_offset = i * reg_cols;
 
-            // Decode bounding box from anchor-relative offsets
-            let cx = anchor.cx + reg_data.get(reg_offset).copied().unwrap_or(0.0);
-            let cy = anchor.cy + reg_data.get(reg_offset + 1).copied().unwrap_or(0.0);
-            let w = reg_data.get(reg_offset + 2).copied().unwrap_or(0.0);
-            let h = reg_data.get(reg_offset + 3).copied().unwrap_or(0.0);
+            // Decode bounding box from anchor-relative offsets.
+            // BlazeFace regression values are in input pixel space (0–128),
+            // divide by INPUT_SIZE to normalize to [0, 1] before scaling to original image coords.
+            let cx = anchor.cx + reg_data.get(reg_offset).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
+            let cy = anchor.cy + reg_data.get(reg_offset + 1).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
+            let w = reg_data.get(reg_offset + 2).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
+            let h = reg_data.get(reg_offset + 3).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
 
             // Convert from center-format [0..1] to corner-format in original image coords
             let x_min = ((cx - w / 2.0) * orig_w as f32).max(0.0);

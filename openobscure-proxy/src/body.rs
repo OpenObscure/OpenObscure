@@ -206,7 +206,7 @@ fn process_single_image(
     let img = image_pipeline::resize_if_needed(img, models.config().max_dimension);
 
     // Run face detection + OCR blur
-    let (processed, mut stats) = models.process_image(img)?;
+    let (processed, mut stats, _meta) = models.process_image(img)?;
 
     // Mark screenshot status
     if let Some((_, ref sg)) = screen_result {

@@ -88,6 +88,21 @@ impl TextRegion {
         let (_, y_min, _, y_max) = self.bbox();
         y_max - y_min
     }
+
+    /// Convert to generic `BboxMeta` for validation.
+    pub fn to_bbox_meta(&self, img_width: u32, img_height: u32) -> crate::detection_meta::BboxMeta {
+        let (x_min, y_min, x_max, y_max) = self.bbox();
+        crate::detection_meta::BboxMeta {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+            confidence: self.score,
+            img_width,
+            img_height,
+            label: "text".to_string(),
+        }
+    }
 }
 
 /// Recognized text from a single region.
