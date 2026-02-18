@@ -1,0 +1,182 @@
+//! OpenObscure Unified Logging API — `cg_log!` macros.
+//!
+//! Every module calls these macros instead of `tracing::*` directly.
+//! Benefits:
+//! - Auto-injects `cg_module` field for per-module filtering
+//! - All events route through the PII scrub subscriber layer
+//! - `cg_audit!` events are tagged for the GDPR audit log layer
+//! - Module name constants prevent typos
+//!
+//! Usage:
+//!   cg_info!(modules::SCANNER, "PII encrypted", pii_total = 3);
+//!   cg_warn!(modules::HEALTH, "Proxy degraded", error = %e);
+//!   cg_audit!(modules::CONSENT, "grant", user_id = "u123");
+
+/// Module name constants — use these instead of string literals.
+pub mod modules {
+    pub const PROXY: &str = "proxy";
+    pub const SCANNER: &str = "scanner";
+    pub const HYBRID: &str = "hybrid_scanner";
+    pub const FPE: &str = "fpe";
+    pub const VAULT: &str = "vault";
+    pub const HEALTH: &str = "health";
+    pub const CONFIG: &str = "config";
+    pub const NER: &str = "ner";
+    pub const CRF: &str = "crf";
+    pub const BODY: &str = "body";
+    pub const SERVER: &str = "server";
+    pub const MAPPING: &str = "mapping";
+    pub const IMAGE: &str = "image_pipeline";
+    pub const FACE: &str = "face_detector";
+    pub const OCR: &str = "ocr_engine";
+    pub const SCREEN: &str = "screen_guard";
+    pub const COMPLIANCE: &str = "compliance";
+    pub const CROSS_BORDER: &str = "cross_border";
+    pub const BREACH: &str = "breach";
+    pub const WATCHDOG: &str = "watchdog";
+}
+
+// Macro design: the message is the SECOND argument (for readability at call sites),
+// but tracing requires it LAST. The "with fields" arm captures remaining tokens as
+// raw `tt` to pass through tracing's `%`/`?` sigils unchanged, then appends the
+// message at the end.
+
+/// Log at ERROR level with module tag.
+#[macro_export]
+macro_rules! cg_error {
+    ($module:expr, $msg:expr, $($rest:tt)+) => {
+        tracing::error!(cg_module = $module, $($rest)+, $msg)
+    };
+    ($module:expr, $msg:expr) => {
+        tracing::error!(cg_module = $module, $msg)
+    };
+}
+
+/// Log at WARN level with module tag.
+#[macro_export]
+macro_rules! cg_warn {
+    ($module:expr, $msg:expr, $($rest:tt)+) => {
+        tracing::warn!(cg_module = $module, $($rest)+, $msg)
+    };
+    ($module:expr, $msg:expr) => {
+        tracing::warn!(cg_module = $module, $msg)
+    };
+}
+
+/// Log at INFO level with module tag.
+#[macro_export]
+macro_rules! cg_info {
+    ($module:expr, $msg:expr, $($rest:tt)+) => {
+        tracing::info!(cg_module = $module, $($rest)+, $msg)
+    };
+    ($module:expr, $msg:expr) => {
+        tracing::info!(cg_module = $module, $msg)
+    };
+}
+
+/// Log at DEBUG level with module tag.
+#[macro_export]
+macro_rules! cg_debug {
+    ($module:expr, $msg:expr, $($rest:tt)+) => {
+        tracing::debug!(cg_module = $module, $($rest)+, $msg)
+    };
+    ($module:expr, $msg:expr) => {
+        tracing::debug!(cg_module = $module, $msg)
+    };
+}
+
+/// Log at TRACE level with module tag.
+#[macro_export]
+macro_rules! cg_trace {
+    ($module:expr, $msg:expr, $($rest:tt)+) => {
+        tracing::trace!(cg_module = $module, $($rest)+, $msg)
+    };
+    ($module:expr, $msg:expr) => {
+        tracing::trace!(cg_module = $module, $msg)
+    };
+}
+
+/// GDPR audit log entry — tagged with `cg_audit = true` so only
+/// the audit log Layer captures it.
+#[macro_export]
+macro_rules! cg_audit {
+    ($module:expr, $op:expr, $($rest:tt)+) => {
+        tracing::info!(cg_module = $module, cg_audit = true, operation = $op, $($rest)+, "audit")
+    };
+    ($module:expr, $op:expr) => {
+        tracing::info!(cg_module = $module, cg_audit = true, operation = $op, "audit")
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::modules;
+
+    #[test]
+    fn test_cg_info_no_fields() {
+        cg_info!(modules::CONFIG, "Config loaded");
+    }
+
+    #[test]
+    fn test_cg_info_with_fields() {
+        cg_info!(modules::SCANNER, "PII encrypted", pii_total = 3, breakdown = "ssn=1");
+    }
+
+    #[test]
+    fn test_cg_warn_with_display_field() {
+        let err = "connection refused";
+        cg_warn!(modules::HEALTH, "Proxy degraded", error = %err, failures = 2);
+    }
+
+    #[test]
+    fn test_cg_error_with_debug_field() {
+        let details = vec!["a", "b"];
+        cg_error!(modules::PROXY, "Request failed", details = ?details);
+    }
+
+    #[test]
+    fn test_cg_debug_no_fields() {
+        cg_debug!(modules::FPE, "FF1 encrypt cycle");
+    }
+
+    #[test]
+    fn test_cg_audit_with_fields() {
+        cg_audit!(modules::VAULT, "encrypt", transcript_id = "t456");
+    }
+
+    #[test]
+    fn test_cg_audit_multiple_fields() {
+        cg_audit!(modules::SCANNER, "scan", pii_count = 3, types = "ssn=1, email=2");
+    }
+
+    #[test]
+    fn test_cg_audit_no_fields() {
+        cg_audit!(modules::HEALTH, "check");
+    }
+
+    #[test]
+    fn test_all_modules_exist() {
+        let _mods = [
+            modules::PROXY,
+            modules::SCANNER,
+            modules::HYBRID,
+            modules::FPE,
+            modules::VAULT,
+            modules::HEALTH,
+            modules::CONFIG,
+            modules::NER,
+            modules::CRF,
+            modules::BODY,
+            modules::SERVER,
+            modules::MAPPING,
+            modules::IMAGE,
+            modules::FACE,
+            modules::OCR,
+            modules::SCREEN,
+            modules::COMPLIANCE,
+            modules::CROSS_BORDER,
+            modules::BREACH,
+            modules::WATCHDOG,
+        ];
+    }
+}

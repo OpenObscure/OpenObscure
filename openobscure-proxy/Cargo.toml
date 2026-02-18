@@ -1,0 +1,97 @@
+[package]
+name = "openobscure-proxy"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "OpenObscure PII privacy proxy with FF1 format-preserving encryption"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# HTTP stack
+axum = { version = "0.8", features = ["json", "macros"] }
+hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["client-legacy", "http1", "http2", "tokio"] }
+http-body-util = "0.1"
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["util", "timeout"] }
+tower-http = { version = "0.6", features = ["trace", "timeout"] }
+
+# TLS for upstream HTTPS
+hyper-rustls = { version = "0.27", features = ["http1", "http2", "ring", "webpki-tokio"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+
+# FPE (FF1 only — FF3 is NIST-withdrawn)
+fpe = "0.6"
+aes = "0.8"
+
+# PII scanning
+regex = "1"
+
+# NER (ONNX Runtime for TinyBERT inference)
+ort = { version = "=2.0.0-rc.11", features = ["download-binaries"] }
+ndarray = "0.17"
+
+# Config + serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# OS keychain
+keyring = { version = "3", features = ["apple-native"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+memmap2 = "0.9"
+
+# System info (device profiler for CRF/NER selection)
+libc = "0.2"
+
+# Image processing (Phase 3 — visual PII)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+base64 = "0.22"
+kamadak-exif = "0.5"
+
+# SSE streaming
+futures-util = "0.3"
+
+# Utilities
+bytes = "1"
+uuid = { version = "1", features = ["v4"] }
+rand = "0.8"
+thiserror = "2"
+anyhow = "1"
+sha2 = "0.10"
+hex = "0.4"
+
+# Platform-specific logging
+[target.'cfg(target_os = "macos")'.dependencies]
+tracing-oslog = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tracing-journald = "0.3"
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"
+wiremock = "0.6"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "scanner_bench"
+harness = false
+
+[[bench]]
+name = "fpe_bench"
+harness = false
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

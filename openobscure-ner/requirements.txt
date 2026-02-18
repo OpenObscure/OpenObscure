@@ -1,0 +1,19 @@
+# Priv4Claw NER training pipeline — not shipped, dev/training only
+# Python >= 3.10 required
+
+# Core ML
+torch>=2.1.0,<3.0
+transformers>=4.36.0,<5.0
+datasets>=2.16.0,<3.0
+accelerate>=0.25.0,<1.0
+evaluate>=0.4.0,<1.0
+seqeval>=1.2.2,<2.0
+
+# ONNX export + quantization
+onnx>=1.15.0,<2.0
+onnxruntime>=1.17.0,<2.0
+optimum[onnxruntime]>=1.16.0,<2.0
+
+# Utilities
+numpy>=1.24.0,<2.0
+tqdm>=4.65.0

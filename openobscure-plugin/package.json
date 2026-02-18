@@ -1,0 +1,26 @@
+{
+  "name": "openobscure-plugin",
+  "version": "0.1.0",
+  "description": "OpenObscure Gateway Plugin — PII redaction and privacy controls for AI agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./core": "./dist/core.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "node --import tsx --test 'src/**/*.test.ts'",
+    "lint": "tsc --noEmit"
+  },
+  "license": "MIT OR Apache-2.0",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.2.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.4"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
+  }
+}

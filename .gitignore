@@ -1,0 +1,16 @@
+# Build artifacts
+**/target/
+**/node_modules/
+**/dist/
+
+# OS
+.DS_Store
+
+# Local Claude Code config
+.claude/
+
+# Local reference (not committed)
+project-plan/
+review-notes/
+session-notes/
+session-notes.backup/

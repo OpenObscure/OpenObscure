@@ -1,0 +1,44 @@
+/**
+ * Agent Plugin Adapter types — generic interface for AI agent integration.
+ *
+ * Implements a hook-based plugin architecture (used by OpenClaw and compatible agents):
+ * - Plugins export a register(api) function
+ * - tool_result_persist hook is synchronous (Promise causes silent skip in some frameworks)
+ * - registerTool injects tools into the agent's decision flow
+ */
+
+/** Tool result before transcript persistence. */
+export interface ToolResult {
+  /** Tool name that produced this result. */
+  tool_name: string;
+  /** The result content (may contain PII). */
+  content: string;
+  /** Whether this result was an error. */
+  is_error?: boolean;
+  /** Optional metadata. */
+  metadata?: Record<string, unknown>;
+}
+
+/** Tool definition for registerTool. */
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters?: Record<string, ParameterDef>;
+  handler: (params: Record<string, unknown>) => Promise<string>;
+}
+
+export interface ParameterDef {
+  type: string;
+  description: string;
+  required?: boolean;
+}
+
+/** The plugin API provided to register(). */
+export interface PluginAPI {
+  hooks: {
+    /** Modify tool results synchronously before transcript persistence. */
+    tool_result_persist: (handler: (result: ToolResult) => ToolResult) => void;
+  };
+  /** Register a custom tool the agent can call. */
+  registerTool: (tool: ToolDefinition) => void;
+}

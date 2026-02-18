@@ -1,0 +1,102 @@
+# OpenObscure PII Privacy Proxy Configuration
+# See project-plan/MASTER_PLAN.md for full documentation.
+
+[proxy]
+listen_addr = "127.0.0.1"
+port = 18790
+request_timeout_secs = 120
+max_body_bytes = 16777216   # 16MB
+# "open" (default): forward original body on processing errors (never block AI)
+# "closed": reject request with 502 if body processing fails (strict privacy)
+fail_mode = "open"
+
+[fpe]
+enabled = true
+keychain_service = "openobscure"
+keychain_user = "fpe-master-key"
+
+# Per-type overrides: set to false to disable FPE for specific PII types
+# [fpe.type_overrides]
+# credit_card = true
+# ssn = true
+# phone = true
+# email = true
+# api_key = true
+
+[scanner]
+enabled = true
+skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
+
+# Custom regex patterns (in addition to built-in CC, SSN, phone, email, API key)
+# [scanner.custom_patterns.my_pattern]
+# regex = "CUSTOM-[A-Z]{4}-[0-9]{8}"
+# radix = 36
+# alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+[logging]
+level = "info"
+json_output = false
+# file_path = "/var/log/openobscure/proxy.log"  # Uncomment to log to file
+# max_file_size = 10485760   # 10MB per file before rotation
+# max_files = 3              # Keep 3 rotated log files
+# audit_log_path = "/var/log/openobscure/audit.jsonl"  # GDPR audit trail
+pii_scrub = true             # Scrub PII from log output (defense-in-depth)
+# crash_buffer = false       # mmap crash buffer for post-mortem debugging
+# crash_buffer_size = 2097152  # 2MB crash buffer
+
+# --- Compliance (GDPR Art. 30/33/35) ---
+# [compliance]
+# organization_name = "Your Organization"
+# dpo_email = "dpo@example.com"
+# dpa_contact = "authority@gdpr.eu"
+# reports_dir = "~/.openobscure/reports"
+# retention_days = 365
+
+# --- Cross-Border Routing ---
+# [cross_border]
+# enabled = false
+# mode = "log"                    # "log" (default), "warn", "block"
+# allowed_jurisdictions = []      # e.g. ["EU", "US", "UK"] — empty = all allowed
+# blocked_jurisdictions = []      # Overrides allowed list
+
+# --- Provider Definitions ---
+#
+# AUTH STRATEGY (passthrough-first):
+#   By default, OpenObscure forwards all auth headers from the host agent to upstream
+#   providers unchanged. This means you configure API keys once in the host agent —
+#   no duplicate key management.
+#
+#   If you need OpenObscure to use DIFFERENT keys than the host agent (e.g., a separate
+#   billing account for privacy-proxied traffic), set override_auth = true and
+#   store the key in the OS keychain:
+#     cargo run -- --set-api-key <provider> <key>
+#
+# Fields:
+#   upstream_url     — The provider's base URL
+#   route_prefix     — Local path prefix that maps to this provider
+#   override_auth    — false (default): passthrough the host agent's auth headers
+#                      true: inject auth from OpenObscure's vault
+#   vault_key_name   — Vault entry name (defaults to provider name)
+#   auth_header_name — Header for the API key (defaults to "authorization")
+#                      Use "x-api-key" for Anthropic, "api-key" for Azure
+#   strip_headers    — Headers to remove before forwarding
+
+[providers.anthropic]
+upstream_url = "https://api.anthropic.com"
+route_prefix = "/anthropic"
+override_auth = false            # Uses the host agent's x-api-key header by default
+# auth_header_name = "x-api-key" # Only needed if override_auth = true
+strip_headers = ["x-openobscure-internal"]
+
+[providers.openai]
+upstream_url = "https://api.openai.com"
+route_prefix = "/openai"
+override_auth = false            # Uses the host agent's Authorization header by default
+# auth_header_name = "authorization"
+strip_headers = ["x-openobscure-internal"]
+
+[providers.ollama]
+upstream_url = "http://127.0.0.1:11434"
+route_prefix = "/ollama"
+override_auth = false            # Ollama is local, typically no auth needed
+strip_headers = []
