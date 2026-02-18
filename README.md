@@ -188,16 +188,19 @@ OpenObscure uses **Format-Preserving Encryption (FF1)** to replace PII with real
 ```mermaid
 sequenceDiagram
     participant U as 👤 User
+    participant A as 🤖 AI Agent
     participant P as 🔐 OpenObscure Proxy
     participant L as ☁️ LLM Provider
 
-    U->>P: "My card is 4111-1111-1111-1111"
+    U->>A: "My card is 4111-1111-1111-1111"
+    A->>P: Agent sends LLM request
     Note over P: FF1 encrypt → 8714-3927-6051-2483
     P->>L: "My card is 8714-3927-6051-2483"
     Note over L: LLM sees plausible data,<br/>never the real card number
     L->>P: "The card ending in 2483..."
     Note over P: FF1 decrypt → 1111
-    P->>U: "The card ending in 1111..."
+    P->>A: "The card ending in 1111..."
+    A->>U: "The card ending in 1111..."
 ```
 
 PII detection uses a hybrid approach:
@@ -217,10 +220,12 @@ OpenObscure doesn't just protect text — it also processes **images** for visua
 ```mermaid
 sequenceDiagram
     participant U as 👤 User
+    participant A as 🤖 AI Agent
     participant P as 🔐 OpenObscure Proxy
     participant L as ☁️ LLM Provider
 
-    U->>P: Send photo (base64 in JSON)
+    U->>A: Send photo via agent
+    A->>P: Photo (base64 in JSON)
     Note over P: 1. Detect base64 image<br/>2. Decode + EXIF strip<br/>3. Resize (max 960px)
     Note over P: 4. NudeNet: NSFW check<br/>(if nudity → blur all, stop)
     Note over P: 5. BlazeFace: detect faces<br/>6. Gaussian blur face regions
@@ -228,7 +233,8 @@ sequenceDiagram
     P->>L: Sanitized image (faces + text blurred)
     Note over L: LLM sees the image<br/>but PII is obscured
     L->>P: Response about image
-    P->>U: Response forwarded
+    P->>A: Response forwarded
+    A->>U: Agent presents response
 ```
 
 ### Before / After Examples
