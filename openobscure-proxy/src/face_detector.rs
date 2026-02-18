@@ -94,8 +94,9 @@ impl FaceDetector {
         let input_val = ort::value::Value::from_array(input)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        // Run inference
-        let outputs = self.session.run(ort::inputs!["input" => input_val])
+        // Run inference — use dynamic input name to support different BlazeFace ONNX exports
+        let input_name = self.session.inputs()[0].name().to_string();
+        let outputs = self.session.run(ort::inputs![input_name.as_str() => input_val])
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         // Decode outputs — BlazeFace produces two tensors:

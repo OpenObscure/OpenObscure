@@ -89,6 +89,9 @@ harness = false
 name = "fpe_bench"
 harness = false
 
+[[example]]
+name = "demo_image_pipeline"
+
 [profile.release]
 opt-level = "s"
 lto = true

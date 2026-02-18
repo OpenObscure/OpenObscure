@@ -9,6 +9,10 @@
 # Local Claude Code config
 .claude/
 
+# ONNX models (download via scripts/download_models.sh)
+openobscure-proxy/models/
+!openobscure-ner/models/mock/
+
 # Local reference (not committed)
 project-plan/
 review-notes/

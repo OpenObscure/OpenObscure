@@ -369,10 +369,16 @@ Storage ceiling: **62MB** (including all models, ONNX Runtime, config).
 OpenObscure/
 ├── ARCHITECTURE.md              ← this file (system-level architecture)
 ├── session-notes/               Per-session implementation logs
+├── scripts/
+│   ├── download_models.sh       Download ONNX models for image pipeline
+│   └── generate_screenshot.py   Generate synthetic PII screenshot for demos
+├── docs/examples/images/        Before/after visual PII examples
 ├── openobscure-proxy/             L0: Rust PII proxy
 │   ├── ARCHITECTURE.md          L0 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
 │   ├── src/                     Rust source (30 modules + integration tests)
+│   ├── examples/                Demo binaries (demo_image_pipeline)
+│   ├── models/                  ONNX models (git-ignored, download via script)
 │   ├── config/openobscure.toml    Default configuration
 │   └── install/                 Process watchdog templates (launchd, systemd)
 ├── openobscure-crypto/            L2: Encryption layer
@@ -579,7 +585,7 @@ All string fields are run through `redactPii()` before output — defense-in-dep
 
 ## Image Pipeline (Phase 3)
 
-L0 detects base64-encoded images in JSON request bodies (both Anthropic and OpenAI formats) and processes them before text PII scanning.
+L0 detects base64-encoded images in JSON request bodies (both Anthropic and OpenAI formats) and processes them before text PII scanning. For before/after visual examples of the pipeline in action, see [README.md — Visual PII Protection](README.md#visual-pii-protection).
 
 ```mermaid
 flowchart TB
@@ -625,9 +631,9 @@ flowchart TB
 
 | Model | Size | RAM | Purpose |
 |-------|------|-----|---------|
-| BlazeFace short-range | ~230KB | ~8MB | Face detection (128x128 input, NMS) |
-| PaddleOCR det | ~1.1MB | ~15MB | Text region detection |
-| PaddleOCR rec | ~4.5MB | ~20MB | Character recognition (Tier 2 only) |
+| BlazeFace short-range | ~408KB | ~8MB | Face detection (128x128 input, NMS) |
+| PaddleOCR det | ~2.4MB | ~15MB | Text region detection |
+| PaddleOCR rec | ~7.8MB | ~20MB | Character recognition (Tier 2 only) |
 
 **Two OCR tiers:**
 - **Tier 1 (default):** Detect text regions → blur all. No recognition model needed.
