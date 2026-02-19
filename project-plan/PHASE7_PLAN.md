@@ -1,6 +1,36 @@
 # Phase 7: Cross-Platform Support — Windows, Linux ARM, iOS, Android
 
-**Status: PLANNED**
+**Status: COMPLETE (2026-02-18)**
+
+**Test count: 431** (319 Rust proxy + 16 crypto + 96 TypeScript)
+
+### What Was Implemented
+
+**Phase 7A — Gateway-Side Cross-Platform:**
+- Windows RAM detection via `GlobalMemoryStatusEx` (`crf_scanner.rs`)
+- Windows platform dep: `windows` crate v0.62 with `Win32_System_SystemInformation` feature
+- Updated fallback `#[cfg]` branches to include `target_os = "windows"`
+- Keyring `apple-native` feature confirmed safe on all platforms (Cargo auto-skips platform-gated deps)
+- ETW logging deferred — generic return type incompatible with current `init_platform_log_layer()` pattern; Windows uses file+stderr logging
+
+**Phase 7B — Mobile Embedded Library:**
+- `Cargo.toml`: Added `[lib]` section with `crate-type = ["lib", "staticlib", "cdylib"]`, `[[bin]]` section, `mobile` feature flag, `uniffi` optional dep
+- `lib_mobile.rs` (483 lines): `OpenObscureMobile` struct with `sanitize_text()`, `restore_text()`, `sanitize_image()`, `stats()`, `MobileConfig`, `SanitizeResult`, `MobileError`, 13 tests
+- `uniffi_bindings.rs` (160 lines): UniFFI exports behind `#[cfg(feature = "mobile")]`, FFI-safe types
+- `lib.rs`: Wired `lib_mobile` + `uniffi_bindings` module exports
+- `scripts/build_ios.sh`: iOS build for device + simulator, optional `--xcframework`
+- `scripts/build_android.sh`: Android NDK build via `cargo-ndk`, default ARM64, optional `--all-abis`
+- FPE fail-open falls back to redaction labels (`[email]`, `[person]`, etc.) when domain too small
+
+### What Was Deferred to Phase 8
+- CI/CD GitHub Actions cross-platform matrix
+- Linux ARM64 cross-compilation verification (no Docker on current machine)
+- ONNX Runtime mobile: pre-built ORT for iOS (CoreML EP) and Android (NNAPI EP)
+- UniFFI binding generation automation in CI
+- L1 Rust rewrite for mobile governance
+- iOS/Android test apps (Xcode + Android Studio integration)
+
+---
 
 ## Context
 

@@ -66,7 +66,11 @@ src/
 ├── pii_scrub_layer.rs   PII scrub filter for log output (tracing MakeWriter wrapper)
 ├── crash_buffer.rs      mmap ring buffer for crash diagnostics (survives SIGKILL/OOM)
 ├── error.rs             Unified error types
-└── integration_tests.rs E2E tests (wiremock + tower::oneshot)
+├── integration_tests.rs E2E tests (wiremock + tower::oneshot)
+│
+│   ── Mobile Library (Phase 7, Embedded Model) ──
+├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats)
+└── uniffi_bindings.rs   UniFFI interface definitions for Swift/Kotlin (feature-gated: "mobile")
 ```
 
 ## Request Flow
@@ -274,7 +278,7 @@ Longest prefix match wins when multiple providers overlap.
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **264** (252 unit + 12 integration) |
+| Test count | — | **319** (297 unit + 13 integration + 9 accuracy) |
 
 ## Technology Stack
 
@@ -367,10 +371,22 @@ openobscure compliance export        # SIEM export (--format cef|leef)
 
 Backward compatibility: `openobscure` with no subcommand still starts the proxy server via clap's `Option<Commands>` pattern.
 
+## Deployment Modes
+
+The proxy crate produces both a **binary** and a **library**:
+
+| Output | Cargo Target | Use Case |
+|--------|-------------|----------|
+| `openobscure-proxy` | `[[bin]]` | Gateway Model: standalone HTTP proxy |
+| `libopenobscure_proxy.a` | `[lib]` staticlib | Embedded Model: iOS static library |
+| `libopenobscure_proxy.so` | `[lib]` cdylib | Embedded Model: Android shared library |
+| `libopenobscure_proxy` | `[lib]` lib | Rust tests + integration crate |
+
+The `mobile` feature flag enables UniFFI bindings. The binary target always compiles the full server; the library target can exclude server deps via feature flags.
+
 ## Future Work
 
-- **FPE key rotation:** Vault key versioning, re-encryption of active mappings
-- **SSE streaming:** Process `text/event-stream` responses event-by-event instead of buffering
 - **SCRFD upgrade:** SCRFD-2.5GF for multi-scale face detection on screenshots with mixed-size faces
-- **Production benchmarks:** p50/p95/p99 latency profiling under realistic load
+- **ONNX mobile EPs:** CoreML (iOS) and NNAPI (Android) execution providers for hardware-accelerated inference
+- **L1 Rust port:** Consent manager + file access guard rewritten in Rust for Embedded Model
 - **Real-time breach monitoring:** Rolling window anomaly detection in proxy (batch CLI sufficient for v1)

@@ -5,15 +5,72 @@
 
 **The Endpoint Privacy Firewall for AI Agents.**
 
-OpenObscure is an open-source security sidecar that intercepts, sanitizes, and encrypts PII (Personally Identifiable Information) *before* it leaves your device. It is designed to work with any AI agent. Includes first-class [OpenClaw](https://github.com/openclaw/openclaw) integration.
+OpenObscure is an open-source privacy firewall that intercepts, sanitizes, and encrypts PII (Personally Identifiable Information) *before* it leaves your device. It works with any AI agent, on any platform. Includes first-class [OpenClaw](https://github.com/openclaw/openclaw) integration.
 
-> **Verify, Don't Trust.** OpenObscure runs entirely on `localhost`. No remote servers, no telemetry, no cloud dependencies.
+> **Verify, Don't Trust.** OpenObscure runs entirely on your device. No remote servers, no telemetry, no cloud dependencies.
+
+---
+
+## Two Deployment Models
+
+OpenObscure can protect AI agents in two ways, depending on where the agent runs:
+
+### Gateway Model (Desktop / Server)
+
+The proxy runs as a **sidecar process** on the same host as the AI agent. All LLM API traffic routes through it. This is the full-featured deployment with all three layers active.
+
+```mermaid
+flowchart LR
+    agent["🤖 AI Agent"] -- "HTTP" --> proxy["🔐 OpenObscure Proxy\n(localhost:18790)"]
+    proxy -- "HTTPS" --> llm["☁️ LLM Provider"]
+    llm -- "response" --> proxy
+    proxy -- "decrypted" --> agent
+
+    style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style proxy fill:#533483,stroke:#e94560,color:#e0e0e0
+    style llm fill:#e94560,stroke:#e94560,color:#fff
+```
+
+- **Platforms:** macOS, Linux (x64 + ARM64), Windows
+- **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin) + L2 (crypto storage)
+- **Features:** Full PII scanning (regex + NER/CRF + keywords), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), GDPR compliance CLI, consent manager, memory governance, key rotation, SSE streaming
+- **Use case:** Desktop apps, servers, VPS, Raspberry Pi — anywhere the agent's Gateway runs
+
+### Embedded Model (Mobile / Library)
+
+OpenObscure is compiled as a **native library** and linked directly into the host application. Called via UniFFI-generated Swift/Kotlin bindings. No HTTP server, no sockets — just function calls.
+
+```mermaid
+flowchart LR
+    app["📱 Mobile App"] -- "function call" --> lib["🔐 OpenObscure lib\n(in-process)"]
+    lib -- "sanitized" --> app
+    app -- "WebSocket" --> gw["🌐 Gateway"]
+
+    style app fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style lib fill:#533483,stroke:#e94560,color:#e0e0e0
+    style gw fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
+```
+
+- **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
+- **Layers:** L0 only (PII scan + FPE) — L1 governance deferred to Phase 8
+- **Features:** Text PII scanning (regex + keywords), FPE encryption, image pipeline (optional), restore/decrypt for responses
+- **Use case:** Mobile companion apps that sanitize PII on-device *before* data reaches the Gateway over WebSocket — defense in depth
+
+### When to Use Which
+
+| Scenario | Model | Why |
+|----------|-------|-----|
+| Desktop AI agent (e.g. OpenClaw Gateway) | Gateway | Full feature set, all three layers |
+| Server / VPS deployment | Gateway | Same binary, headless key management |
+| iOS / Android companion app | Embedded | On-device PII protection, native bindings |
+| Custom Rust application | Embedded | Link as a library crate, call directly |
+| Edge device (Raspberry Pi) | Gateway | Full features, runs on ARM Linux |
 
 ---
 
 ## Architecture
 
-OpenObscure is not a monolithic app. It uses a **Sidecar + Plugin** hybrid architecture to provide Defense-in-Depth:
+OpenObscure uses a **Sidecar + Plugin** hybrid architecture (Gateway Model) to provide Defense-in-Depth:
 
 ```mermaid
 flowchart LR
@@ -167,7 +224,7 @@ See `config/openobscure.toml` for all available options.
 ## Running Tests
 
 ```bash
-# L0 Proxy (306 tests)
+# L0 Proxy (319 tests)
 cd openobscure-proxy && cargo test
 
 # L2 Crypto (16 tests)
@@ -177,7 +234,7 @@ cd openobscure-crypto && cargo test
 cd openobscure-plugin && npm test
 ```
 
-**Total: 418 tests** across all components.
+**Total: 431 tests** across all components.
 
 ---
 
@@ -273,6 +330,50 @@ Additional features:
 
 ---
 
+## Mobile Library (Embedded Model)
+
+For iOS and Android apps, OpenObscure compiles as a native library with a simple API:
+
+```rust
+// Initialize with FPE key from host app's secure storage
+let mobile = OpenObscureMobile::new(config, fpe_key)?;
+
+// Sanitize text before sending to Gateway
+let result = mobile.sanitize_text("My card is 4111-1111-1111-1111")?;
+// result.sanitized_text = "My card is 8714-3927-6051-2483"
+// result.mapping_json = ... (save for response decryption)
+
+// Restore original values in responses
+let restored = mobile.restore_text(&response, &result.mapping_json);
+```
+
+**Swift (iOS)** and **Kotlin (Android)** bindings are auto-generated by [UniFFI](https://github.com/mozilla/uniffi-rs). Build scripts provided:
+
+```bash
+# iOS (device + simulator, optional XCFramework)
+./scripts/build_ios.sh --release --xcframework
+
+# Android (ARM64, optional all ABIs)
+./scripts/build_android.sh --release --all-abis
+```
+
+See [ARCHITECTURE.md — Embedded Model](ARCHITECTURE.md#embedded-model-mobile--library) for integration details.
+
+---
+
+## Supported Platforms
+
+| Platform | Model | Binary | Status |
+|----------|-------|--------|--------|
+| macOS (Apple Silicon) | Gateway | `openobscure-proxy` | Full support |
+| Linux x86_64 | Gateway | `openobscure-proxy` | Full support |
+| Linux ARM64 | Gateway | `openobscure-proxy` | Build verified |
+| Windows x86_64 | Gateway | `openobscure-proxy.exe` | Build support (RAM detection, keyring) |
+| iOS (aarch64) | Embedded | `libopenobscure_proxy.a` | Library + UniFFI bindings |
+| Android (arm64-v8a) | Embedded | `libopenobscure_proxy.so` | Library + UniFFI bindings |
+
+---
+
 ## Security
 
 OpenObscure follows **Kerckhoffs's principle** — security depends on the secrecy of keys, not code. All algorithms (FF1, AES-256-GCM, Argon2id) are public NIST/OWASP standards. Publishing source code does not weaken the system.
@@ -306,6 +407,7 @@ This software contains cryptographic functionality (AES-256-GCM, FF1, Argon2id, 
 | Phase 4 — Compliance CLI + Hardening | Complete | 97% |
 | Phase 5 — Key Rotation + Benchmarks | Complete | 97% |
 | Phase 6 — Ensemble Recall + Cleanup | Complete | 97% |
+| Phase 7 — Cross-Platform + Mobile Library | Complete | 97% |
 
 ---
 

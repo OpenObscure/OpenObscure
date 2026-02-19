@@ -1,7 +1,7 @@
 # OpenObscure — System Architecture
 
 > Privacy firewall for AI agents. Primary integration: [OpenClaw](https://github.com/openclaw/openclaw), the open-source AI assistant.
-> Last updated: 2026-02-17 (Phase 6 — ensemble voting + architecture cleanup, 418 tests)
+> Last updated: 2026-02-18 (Phase 7 — cross-platform support + mobile library, 431 tests)
 
 ---
 
@@ -9,13 +9,13 @@
 
 Every message, tool result, and file a user shares with an AI agent gets sent to third-party LLM APIs in plaintext — credit cards, health discussions, API keys, children's information, photos. OpenObscure prevents this by intercepting data at multiple layers, encrypting or redacting PII before it leaves the device.
 
-## Deployment Model
+## Deployment Models
 
-OpenObscure runs **entirely on the same device** as the AI agent it protects — laptop, phone, Raspberry Pi, VPS, or any device with 2GB+ free RAM. There are no remote servers, no cloud components, and no separate infrastructure. The only outbound connections are the same LLM API calls the agent would normally make, just routed through the local proxy first.
+OpenObscure runs **entirely on the user's device** — no remote servers, no cloud components, no separate infrastructure. It supports two deployment models depending on where the AI agent runs.
 
-### Process Model
+### Gateway Model (Desktop / Server)
 
-OpenObscure is not a single monolithic process. It's a **sidecar + plugin hybrid**:
+The full-featured deployment. OpenObscure runs as a **sidecar HTTP proxy** on the same host as the AI agent's Gateway. All three layers are active.
 
 ```mermaid
 flowchart TB
@@ -42,20 +42,87 @@ flowchart TB
 | **L1** (TS plugin) | In-process | Loaded into the host agent's runtime (e.g., OpenClaw's Node.js via plugin SDK) or used as a library. Includes `/privacy` commands. |
 | **L2** (Rust crypto) | Library | Linked into L0's binary, not a separate process |
 
-### Activation
+**Supported platforms:** macOS (Apple Silicon), Linux (x64 + ARM64), Windows (x64).
 
-OpenObscure can be enabled in two ways:
-
+**Activation:**
 1. **At install time** — The host agent's bundler includes OpenObscure and activates it during setup (if user opts in). OpenClaw supports this via its plugin SDK.
 2. **Post-install** — User enables OpenObscure by configuring the host agent to route API traffic through `127.0.0.1:18790` instead of directly to LLM providers, and installs the L1 plugin into the agent's extensions directory (e.g., OpenClaw's `extensions/`)
 
 When disabled, the host agent operates normally with direct LLM connections — OpenObscure adds zero overhead when not active.
 
+### Embedded Model (Mobile / Library)
+
+For mobile apps and custom integrations, OpenObscure compiles as a **native library** (`.a` for iOS, `.so` for Android) linked directly into the host application. No HTTP server, no sockets — just function calls via UniFFI-generated Swift/Kotlin bindings.
+
+```mermaid
+flowchart TB
+    subgraph mobile ["📱 Mobile Device"]
+        subgraph app ["Host App (e.g. OpenClaw iOS/Android)"]
+            ui["UI Layer\n(Swift / Kotlin)"]
+            lib["🔐 OpenObscure lib\n(linked Rust library)"]
+            ui -- "sanitize_text()" --> lib
+            lib -- "SanitizeResult" --> ui
+        end
+    end
+    app -- "WebSocket\n(sanitized data)" --> gw["🌐 Gateway\n(remote host)"]
+    gw -- "HTTP" --> llm(["☁️ LLM Provider"])
+
+    style mobile fill:#1a1a2e,stroke:#533483,color:#e0e0e0
+    style app fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style lib fill:#533483,stroke:#e94560,color:#e0e0e0
+    style gw fill:#16213e,stroke:#0f3460,color:#e0e0e0
+    style llm fill:#e94560,stroke:#e94560,color:#fff
+```
+
+| Component | What | How it runs |
+|-----------|------|-------------|
+| **L0** (Rust library) | `OpenObscureMobile` API | Linked into host app binary. PII scan + FPE encrypt/decrypt + image pipeline. |
+| **L1** (consent/governance) | Not available on mobile | Deferred to Phase 8 (Rust rewrite of TypeScript plugin). Gateway-side L1 still protects when data passes through. |
+| **L2** (crypto) | Not applicable | FPE key provided by host app's native secure storage (iOS Keychain / Android Keystore). |
+
+**Supported platforms:** iOS (aarch64 device + simulator), Android (arm64-v8a, armeabi-v7a, x86_64, x86).
+
+**API surface:**
+
+| Function | What it does |
+|----------|-------------|
+| `OpenObscureMobile::new(config, fpe_key)` | Initialize scanner + FPE engine with host-provided key |
+| `sanitize_text(text)` | Scan for PII, encrypt with FPE, return sanitized text + mapping |
+| `restore_text(text, mapping)` | Decrypt FPE values in response text using saved mapping |
+| `sanitize_image(bytes)` | Face blur + OCR text blur + EXIF strip (optional, adds ~20MB) |
+| `stats()` | PII counts, scanner mode, image pipeline status |
+
+**Key differences from Gateway Model:**
+- No HTTP server (axum/tokio not compiled in)
+- FPE key passed from host app (no OS keychain access on mobile)
+- CRF scanner used by default (NER requires ~55MB RAM, not recommended on mobile)
+- L1 governance not available — rely on Gateway-side L1 when data passes through
+- Image pipeline optional via feature flag (`mobile` = text only, `mobile` + `image-pipeline` = full)
+
+### Defense in Depth: Both Models Together
+
+In the OpenClaw architecture, **both models can run simultaneously**. The mobile app sanitizes PII before it reaches the Gateway (Embedded Model), and the Gateway sanitizes again before forwarding to LLM providers (Gateway Model). Double protection for mobile-originated data:
+
+```mermaid
+flowchart LR
+    phone["📱 Mobile App\n+ OpenObscure lib"] -- "WS (sanitized)" --> gw["🌐 Gateway\n+ L1 Plugin"]
+    gw -- "HTTP" --> proxy["🔐 OpenObscure Proxy\n(Gateway host)"]
+    proxy -- "HTTPS (double-sanitized)" --> llm["☁️ LLM Provider"]
+
+    style phone fill:#0f3460,stroke:#533483,color:#e0e0e0
+    style gw fill:#16213e,stroke:#0f3460,color:#e0e0e0
+    style proxy fill:#533483,stroke:#e94560,color:#e0e0e0
+    style llm fill:#e94560,stroke:#e94560,color:#fff
+```
+
 ### API Keys & External Connections
 
-OpenObscure does **not** have its own LLM credentials and does **not** initiate its own API calls. It exclusively uses the host agent's API keys via passthrough. The optional `override_auth` feature (for separate billing accounts) still uses keys the user explicitly places in the OS keychain — OpenObscure never provisions or generates API keys.
+OpenObscure does **not** have its own LLM credentials and does **not** initiate its own API calls.
 
-The only network activity OpenObscure produces is forwarding the host agent's existing LLM requests through the local proxy. No telemetry, no phone-home, no external dependencies at runtime.
+- **Gateway Model:** Passthrough-first — forwards the host agent's API keys unchanged. The optional `override_auth` feature uses keys the user explicitly places in the OS keychain.
+- **Embedded Model:** No API calls at all — the library sanitizes text/images and returns results. The host app handles all networking.
+
+The only network activity OpenObscure produces (Gateway Model only) is forwarding the host agent's existing LLM requests through the local proxy. No telemetry, no phone-home, no external dependencies at runtime.
 
 ## Three-Layer Defense-in-Depth
 
@@ -118,7 +185,8 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, GDPR audit log, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, keyring 3, clap 4 (CLI) |
 | **Resource** | ~12MB RAM (regex-only), ~67MB with NER model loaded, ~224MB peak during image processing; 2.7MB binary |
-| **Tests** | 306 (284 unit + 13 integration + 9 accuracy) |
+| **Tests** | 319 (297 unit + 13 integration + 9 accuracy) |
+| **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
 ### L1 — Gateway Plugin (`openobscure-plugin/`)
@@ -362,6 +430,7 @@ Storage ceiling: **62MB** (including all models, ONNX Runtime, config).
 | **Phase 4** (complete) | **97%** | Cross-border routing, memory governance, breach detection, compliance CLI |
 | **Phase 5** (complete) | **97%** | FPE key rotation, SSE streaming, PII benchmark corpus (~400 samples, 100% recall), production benchmarks (criterion) |
 | **Phase 6** (complete) | **97%** | Ensemble confidence voting (cluster-based overlap resolution + agreement bonus), architecture cleanup (3-layer) |
+| **Phase 7** (complete) | **97%** | Cross-platform support (Windows, Linux ARM64), mobile library API (iOS + Android via UniFFI), Embedded deployment model |
 
 ## Project Layout
 
@@ -371,12 +440,14 @@ OpenObscure/
 ├── session-notes/               Per-session implementation logs
 ├── scripts/
 │   ├── download_models.sh       Download ONNX models for image pipeline
-│   └── generate_screenshot.py   Generate synthetic PII screenshot for demos
+│   ├── generate_screenshot.py   Generate synthetic PII screenshot for demos
+│   ├── build_ios.sh             Build iOS static library + XCFramework
+│   └── build_android.sh         Build Android shared library via cargo-ndk
 ├── docs/examples/images/        Before/after visual PII examples
 ├── openobscure-proxy/             L0: Rust PII proxy
 │   ├── ARCHITECTURE.md          L0 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
-│   ├── src/                     Rust source (30 modules + integration tests)
+│   ├── src/                     Rust source (32 modules + integration tests)
 │   ├── examples/                Demo binaries (demo_image_pipeline)
 │   ├── models/                  ONNX models (git-ignored, download via script)
 │   ├── config/openobscure.toml    Default configuration
@@ -397,6 +468,9 @@ OpenObscure/
     ├── PHASE3_PLAN.md           Phase 3 plan (COMPLETE — 319 tests)
     ├── PHASE4_PLAN.md           Phase 4 plan (COMPLETE — 376 tests)
     ├── PHASE5_PLAN.md           Phase 5 plan (COMPLETE — 399 tests)
+    ├── PHASE6_PLAN.md           Phase 6 plan (COMPLETE — 418 tests)
+    ├── PHASE7_PLAN.md           Phase 7 plan (COMPLETE — 431 tests)
+    ├── PHASE8_PLAN.md           Phase 8 plan (future work)
     └── LOGGING_STRATEGY.md      Platform-specific logging strategy
 ```
 
@@ -438,7 +512,7 @@ cd openobscure-proxy && cargo run -- --init-key
 cargo run -- -c config/openobscure.toml
 
 # Run all tests
-cd openobscure-proxy && cargo test          # 306 tests
+cd openobscure-proxy && cargo test          # 319 tests
 cd openobscure-crypto && cargo test         # 16 tests
 cd openobscure-plugin && npm test           # 96 tests
 ```
@@ -745,9 +819,15 @@ If L0 is not running, the host agent can't reach LLM providers (traffic is confi
 
 ## Future Architecture Changes
 
+Planned (Phase 8):
+- **L1 Rust rewrite** — port consent manager, file access guard, and memory governance from TypeScript to Rust so the Embedded Model gets full governance on mobile
+- **CI/CD matrix** — GitHub Actions cross-platform build verification (macOS, Linux, Windows, iOS sim, Android NDK)
+- **ONNX Runtime mobile** — pre-built ORT for iOS (CoreML EP) and Android (NNAPI EP), `.ort` format models
+- **UniFFI binding generation** — automated Swift/Kotlin binding generation in CI
+- **SCRFD upgrade** — SCRFD-2.5GF for multi-scale face detection on screenshots with mixed-size faces
+
 Potential future enhancements (not scheduled):
 - FastText language detection for multilingual PII
 - GLiNER NER upgrade for 16GB+ devices
 - Real-time breach monitoring (rolling window in proxy, vs current batch CLI)
 - Voice anonymization (~200MB model, high-resource devices only)
-- iOS support via `staticlib` + C FFI (requires removing axum/tokio from library target)
