@@ -19,19 +19,19 @@ The full-featured deployment. OpenObscure runs as a **sidecar HTTP proxy** on th
 ```mermaid
 flowchart TB
     subgraph device ["User's Device"]
-        subgraph gateway ["AI Agent Gateway (e.g. OpenClaw)"]
-            L1["L1 Plugin<br>(in-process, no separate PID)"]
+        subgraph gateway ["AI Agent Gateway"]
+            L1["L1 Plugin\n(in-process)"]
         end
-        subgraph l0proc ["L0 Proxy (standalone Rust process)"]
+        subgraph l0proc ["L0 Proxy (Rust)"]
         end
-        gateway -- "HTTP (localhost)" --> l0proc
+        gateway -- "HTTP\n(localhost)" --> l0proc
     end
-    l0proc -- "HTTPS" --> llm(["LLM Providers (external)"])
+    l0proc -- "HTTPS" --> llm(["LLM Providers"])
 
-    style device fill:#2f2f45,stroke:#4a4a6e,color:#d0d0e0
-    style gateway fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style l0proc fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
+    style device fill:#e8e8e8,stroke:#aaa,color:#333
+    style gateway fill:#d0d0d0,stroke:#999,color:#333
+    style l0proc fill:#d0d0d0,stroke:#999,color:#333
+    style llm fill:#333,stroke:#111,color:#fff
 ```
 
 | Component | Process | How it runs |
@@ -53,30 +53,30 @@ For mobile apps and custom integrations, OpenObscure compiles as a **native libr
 
 ```mermaid
 flowchart TB
-    subgraph mobile ["Mobile Device (iOS / Android)"]
-        subgraph app ["Host App (e.g. OpenClaw iOS/Android)"]
-            ui["UI Layer (Swift / Kotlin)"]
-            lib["OpenObscure lib<br>(linked Rust library)"]
+    subgraph mobile ["Mobile Device"]
+        subgraph app ["Host App"]
+            ui["UI Layer\n(Swift / Kotlin)"]
+            lib["OpenObscure lib\n(Rust)"]
             ui -- "sanitize_text()" --> lib
-            lib -- "SanitizeResult + mapping" --> ui
+            lib -- "SanitizeResult\n+ mapping" --> ui
             ui -. "restore_text()" .-> lib
         end
     end
 
-    app -- "WebSocket (PII encrypted)" --> gw
+    app -- "WebSocket\n(PII encrypted)" --> gw
     gw -- "response" --> app
 
-    subgraph desktop ["External Computer (macOS / Linux / Windows)"]
-        gw["Gateway (Node.js 22+)"]
+    subgraph desktop ["External Computer"]
+        gw["Gateway"]
         gw -- "HTTP" --> llm(["LLM Provider"])
     end
 
-    style mobile fill:#2f2f45,stroke:#4a4a6e,color:#d0d0e0
-    style app fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style lib fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style desktop fill:#2f2f45,stroke:#4a4a6e,color:#d0d0e0
-    style gw fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
-    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
+    style mobile fill:#e8e8e8,stroke:#aaa,color:#333
+    style app fill:#d0d0d0,stroke:#999,color:#333
+    style lib fill:#555,stroke:#333,color:#fff
+    style desktop fill:#e8e8e8,stroke:#aaa,color:#333
+    style gw fill:#888,stroke:#666,color:#fff
+    style llm fill:#333,stroke:#111,color:#fff
 ```
 
 | Component | What | How it runs |
@@ -107,14 +107,14 @@ In the OpenClaw architecture, **both models can run simultaneously**. The mobile
 
 ```mermaid
 flowchart LR
-    phone["Mobile App<br>+ OpenObscure lib<br>(FPE encrypt on-device)"] -- "WS (PII encrypted)" --> gw["Gateway + L1 Plugin<br>(redacts tool results)"]
-    gw -- "HTTP" --> proxy["OpenObscure Proxy<br>(Gateway host)<br>(FPE encrypt again)"]
-    proxy -- "HTTPS (encrypted twice)" --> llm["LLM Provider"]
+    phone["Mobile App\n+ OpenObscure lib"] -- "WS\n(PII encrypted)" --> gw["Gateway\n+ L1 Plugin"]
+    gw -- "HTTP" --> proxy["OpenObscure Proxy\n(FPE encrypt)"]
+    proxy -- "HTTPS\n(encrypted twice)" --> llm["LLM Provider"]
 
-    style phone fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style gw fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
-    style proxy fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
+    style phone fill:#888,stroke:#666,color:#fff
+    style gw fill:#999,stroke:#777,color:#111
+    style proxy fill:#555,stroke:#333,color:#fff
+    style llm fill:#333,stroke:#111,color:#fff
 ```
 
 ### API Keys & External Connections
@@ -130,41 +130,41 @@ The only network activity OpenObscure produces (Gateway Model only) is forwardin
 
 ```mermaid
 flowchart TB
-    tools["Agent Tools<br>web · file · API · bash"]
+    tools["Agent Tools"]
 
-    subgraph gateway ["AI Agent Gateway (e.g. OpenClaw)"]
-        subgraph l1box ["L1 — Gateway Plugin (TypeScript)"]
-            redact["PII Redactor<br>(regex → redaction)"]
-            heartbeat["Heartbeat Monitor<br>(pings L0 every 30s)"]
+    subgraph gateway ["AI Agent Gateway"]
+        subgraph l1box ["L1 Plugin"]
+            redact["PII Redactor"]
+            heartbeat["Heartbeat Monitor"]
         end
     end
 
-    subgraph l0box ["L0 — Rust PII Proxy · 127.0.0.1:18790"]
+    subgraph l0box ["L0 Proxy — 127.0.0.1:18790"]
         subgraph reqpath ["Request Path"]
-            nested["Parse nested JSON<br>+ mask code fences"] --> hybrid["Hybrid Scanner<br>regex + NER/CRF + keywords"]
-            hybrid --> imgpipe["Image Pipeline<br>NSFW · face · OCR · EXIF"]
-            imgpipe --> ff1["FF1 FPE encrypt"]
+            nested["Parse JSON\n+ code fences"] --> hybrid["Hybrid Scanner"]
+            hybrid --> imgpipe["Image Pipeline"]
+            imgpipe --> ff1["FPE Encrypt"]
         end
         subgraph respath ["Response Path"]
-            decrypt["FPE decrypt<br>ciphertexts → plaintext"]
+            decrypt["FPE Decrypt"]
         end
     end
 
-    llm(["LLM Providers<br>Anthropic · OpenAI · Ollama"])
+    llm(["LLM Providers"])
 
     tools -- "tool results" --> gateway
-    gateway -- "HTTP API calls" --> reqpath
-    ff1 -- "sanitized HTTPS" --> llm
+    gateway -- "HTTP" --> reqpath
+    ff1 -- "sanitized\nHTTPS" --> llm
     llm -- "response" --> decrypt
-    decrypt -- "decrypted response" --> gateway
+    decrypt -- "decrypted" --> gateway
 
-    style gateway fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style l1box fill:#3a5580,stroke:#5a75a0,color:#f0f0f0
-    style l0box fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style reqpath fill:#6a5aaa,stroke:#8a7aca,color:#f0f0f0
-    style respath fill:#6a5aaa,stroke:#8a7aca,color:#f0f0f0
-    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
-    style tools fill:#6a6a85,stroke:#8a8aa5,color:#f0f0f0
+    style gateway fill:#d0d0d0,stroke:#999,color:#333
+    style l1box fill:#bbb,stroke:#888,color:#222
+    style l0box fill:#999,stroke:#777,color:#111
+    style reqpath fill:#bbb,stroke:#888,color:#222
+    style respath fill:#bbb,stroke:#888,color:#222
+    style llm fill:#333,stroke:#111,color:#fff
+    style tools fill:#888,stroke:#666,color:#fff
 ```
 
 ## Layer Details
@@ -215,22 +215,22 @@ Format-Preserving Encryption transforms plaintext into ciphertext of **identical
 ```mermaid
 sequenceDiagram
     participant U as User / Agent
-    participant P as L0 Proxy (FF1)
+    participant P as L0 Proxy
     participant L as LLM Provider
 
-    U->>P: "My card is 4111-1111-1111-1111<br/>and SSN 123-45-6789"
+    U->>P: "Card 4111-1111-1111-1111,<br/>SSN 123-45-6789"
 
-    Note over P: FF1 encrypt each match<br/>CC → 8714-3927-6051-2483<br/>SSN → 847-29-3651
+    Note over P: FF1 encrypt each match
 
-    P->>L: "My card is 8714-3927-6051-2483<br/>and SSN 847-29-3651"
+    P->>L: "Card 8714-3927-6051-2483,<br/>SSN 847-29-3651"
 
-    Note over L: LLM processes plausible<br/>data — never sees real PII
+    Note over L: LLM sees plausible data
 
-    L->>P: "The card ending in 2483...<br/>SSN 847-29-3651 is..."
+    L->>P: "Card ending in 2483..."
 
-    Note over P: FF1 decrypt each match<br/>2483 → 1111<br/>847-29-3651 → 123-45-6789
+    Note over P: FF1 decrypt each match
 
-    P->>U: "The card ending in 1111...<br/>SSN 123-45-6789 is..."
+    P->>U: "Card ending in 1111..."
 ```
 
 | PII Type | Radix | Encrypted Part | Preserved |
@@ -269,45 +269,45 @@ Neither layer alone is sufficient:
 
 ```mermaid
 flowchart LR
-    user["User<br>(WhatsApp, CLI, web)"] --> agent["Agent<br>receives message"]
-    agent --> l0["L0 Proxy<br>scan JSON → FPE encrypt<br>(per-record tweaks)"]
-    l0 --> llm["LLM Provider<br>(never sees real PII)"]
+    user["User"] --> agent["Agent"]
+    agent --> l0["L0 Proxy\nFPE encrypt"]
+    l0 --> llm["LLM Provider"]
 
-    style user fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
-    style agent fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style l0 fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
+    style user fill:#bbb,stroke:#888,color:#111
+    style agent fill:#888,stroke:#666,color:#fff
+    style l0 fill:#555,stroke:#333,color:#fff
+    style llm fill:#333,stroke:#111,color:#fff
 ```
 
 ### Inbound (LLM → user)
 
 ```mermaid
 flowchart RL
-    llm["LLM Provider"] --> proxy["L0 Proxy<br>FPE decrypt<br>ciphertexts → plaintext"]
+    llm["LLM Provider"] --> proxy["L0 Proxy\nFPE decrypt"]
     proxy --> agent["Host Agent"]
-    agent --> user["User<br>(sees original values)"]
+    agent --> user["User"]
 
-    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
-    style proxy fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style agent fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style user fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
+    style llm fill:#333,stroke:#111,color:#fff
+    style proxy fill:#555,stroke:#333,color:#fff
+    style agent fill:#888,stroke:#666,color:#fff
+    style user fill:#bbb,stroke:#888,color:#111
 ```
 
 ### Tool Results (agent tools → persistence)
 
 ```mermaid
 flowchart LR
-    tool["Agent Tool<br>file_read · web_fetch<br>bash · API"]
-    tool --> result["Tool result text"]
-    result --> hook["L1 hook<br>tool_result_persist<br>(synchronous)"]
-    hook --> redact["PII Redactor<br>matches → REDACTED"]
-    redact --> persist[("Transcript<br>(redacted)")]
+    tool["Agent Tool"]
+    tool --> result["Tool result"]
+    result --> hook["L1 hook\n(synchronous)"]
+    hook --> redact["PII Redactor"]
+    redact --> persist[("Transcript\n(redacted)")]
 
-    style tool fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
-    style result fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style hook fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style redact fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style persist fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
+    style tool fill:#bbb,stroke:#888,color:#111
+    style result fill:#999,stroke:#777,color:#111
+    style hook fill:#888,stroke:#666,color:#fff
+    style redact fill:#555,stroke:#333,color:#fff
+    style persist fill:#bbb,stroke:#888,color:#111
 ```
 
 **Important:** OpenObscure never reads local files itself. The agent's tools perform all file I/O and produce text results. OpenObscure only sees the resulting text *after* the agent has already read and extracted it. L1 operates on text strings from tool outputs, not on files directly.
@@ -318,14 +318,14 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-    participant A as Host Agent (has API keys)
+    participant A as Host Agent
     participant P as OpenObscure Proxy
     participant L as LLM Provider
 
-    A->>P: Authorization: sk-... (+ all headers)
+    A->>P: Authorization: sk-... (all headers)
     Note over P: Headers pass through unmodified
     P->>L: Authorization: sk-... (identical)
-    Note over L: Transparent proxy —<br/>provider sees original keys
+    Note over L: Provider sees original keys
 ```
 
 - All original request headers forwarded (except hop-by-hop per RFC 7230)
@@ -501,28 +501,28 @@ OpenObscure must be **invisible when working, clear when not**. Users should nev
 ```mermaid
 flowchart LR
     subgraph l1side ["L1 Plugin"]
-        hb["Heartbeat Monitor<br>(every 30s)"]
-        hb --> down["Down? → warn user"]
-        hb --> back["Recovered? → log"]
-        hb --> auth_fail["401? → degraded"]
+        hb["Heartbeat\n(every 30s)"]
+        hb --> down["Warn user"]
+        hb --> back["Log recovery"]
+        hb --> auth_fail["401 degraded"]
     end
 
     subgraph l0side ["L0 Proxy"]
-        endpoint["GET /_openobscure/health"]
-        auth_check["Validate<br>X-OpenObscure-Token"]
-        response["Status JSON<br>(stats + version + uptime)"]
+        endpoint["GET /health"]
+        auth_check["Validate token"]
+        response["Status JSON"]
         endpoint --> auth_check --> response
     end
 
-    token[("~/.openobscure/.auth-token<br>(0600)")]
+    token[(".auth-token\n(0600)")]
 
-    hb -- "HTTP + auth token" --> endpoint
-    token -. "written by L0 at startup" .-> l0side
-    token -. "read by L1 for auth" .-> l1side
+    hb -- "HTTP +\nauth token" --> endpoint
+    token -. "written by L0" .-> l0side
+    token -. "read by L1" .-> l1side
 
-    style l0side fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style l1side fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style token fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
+    style l0side fill:#999,stroke:#777,color:#111
+    style l1side fill:#d0d0d0,stroke:#999,color:#333
+    style token fill:#bbb,stroke:#888,color:#111
 ```
 
 **Crash path:**
@@ -530,18 +530,18 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph crash ["Crash (immediate)"]
-        panic["panic hook"] --> write["Write<br>~/.openobscure/.crashed"] --> abort["abort"]
+        panic["panic hook"] --> write["Write\n.crashed"] --> abort["abort"]
     end
     subgraph recovery ["Recovery (next startup)"]
-        restart["Startup"] --> detect["Detect .crashed"] --> log["Log: recovered<br>from crash"] --> delete["Delete marker"]
+        restart["Startup"] --> detect["Detect\n.crashed"] --> log["Log recovery"] --> delete["Delete marker"]
     end
 
-    style crash fill:#3a2a2a,stroke:#d9556a,color:#f0f0f0
-    style recovery fill:#2a3a2a,stroke:#3d8a55,color:#f0f0f0
-    style panic fill:#d9556a,stroke:#e97585,color:#f0f0f0
-    style abort fill:#d9556a,stroke:#e97585,color:#f0f0f0
-    style restart fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style log fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
+    style crash fill:#666,stroke:#444,color:#fff
+    style recovery fill:#bbb,stroke:#888,color:#111
+    style panic fill:#555,stroke:#333,color:#fff
+    style abort fill:#555,stroke:#333,color:#fff
+    style restart fill:#888,stroke:#666,color:#fff
+    style log fill:#999,stroke:#777,color:#111
 ```
 
 **Auth token handshake:** L0 generates a random 32-byte hex token on first startup, writes to `~/.openobscure/.auth-token` (file permissions 0600 on Unix). L1 reads this file and sends it as the `X-OpenObscure-Token` header with every health check. If the token is missing or wrong, L0 returns 401 Unauthorized. This prevents other localhost processes from querying or impersonating the health endpoint.
@@ -565,26 +565,26 @@ All logging across both L0 (Rust) and L1 (TypeScript) uses a **unified facade AP
 
 ```mermaid
 flowchart TB
-    macros["oo_info! · oo_warn! · oo_error! · oo_debug! · oo_audit!"]
-    subscriber["tracing subscriber (layered)"]
+    macros["oo_info! / oo_warn! / oo_error!\noo_debug! / oo_audit!"]
+    subscriber["tracing subscriber\n(layered)"]
     macros --> subscriber
 
-    stderr["Stderr<br>JSON or plain"]
-    filelog["File<br>daily rotation, PII scrub"]
-    audit["Audit Log<br>oo_audit events → JSONL"]
-    crash["Crash Buffer<br>mmap ring<br>survives SIGKILL/OOM"]
+    stderr["Stderr"]
+    filelog["File rotation"]
+    audit["Audit Log"]
+    crash["Crash Buffer\n(mmap ring)"]
 
     subscriber --> stderr
     subscriber --> filelog
     subscriber --> audit
     subscriber --> crash
 
-    style macros fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style subscriber fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style stderr fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
-    style filelog fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
-    style audit fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
-    style crash fill:#4a6a8a,stroke:#d9556a,color:#f0f0f0
+    style macros fill:#555,stroke:#333,color:#fff
+    style subscriber fill:#888,stroke:#666,color:#fff
+    style stderr fill:#bbb,stroke:#888,color:#111
+    style filelog fill:#bbb,stroke:#888,color:#111
+    style audit fill:#bbb,stroke:#888,color:#111
+    style crash fill:#999,stroke:#666,color:#111
 ```
 
 | Layer | Purpose | Config |
@@ -601,20 +601,20 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    funcs["ooInfo · ooWarn · ooError · ooDebug · ooAudit"]
+    funcs["ooInfo / ooWarn / ooError\nooDebug / ooAudit"]
     facade["ooLog() facade"]
     funcs --> facade
 
-    console["console.*<br>JSON or plain, PII-scrubbed"]
-    auditlog["Audit Log<br>append-only JSONL file"]
+    console["console.*\n(PII-scrubbed)"]
+    auditlog["Audit Log\n(JSONL)"]
 
     facade --> console
     facade --> auditlog
 
-    style funcs fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style facade fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style console fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
-    style auditlog fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
+    style funcs fill:#555,stroke:#333,color:#fff
+    style facade fill:#888,stroke:#666,color:#fff
+    style console fill:#bbb,stroke:#888,color:#111
+    style auditlog fill:#bbb,stroke:#888,color:#111
 ```
 
 Module constants: REDACTOR, HEARTBEAT, PLUGIN.
@@ -629,34 +629,34 @@ L0 detects base64-encoded images in JSON request bodies (both Anthropic and Open
 
 ```mermaid
 flowchart TB
-    entry["process_request_body (body.rs)"]
+    entry["process_request_body"]
 
     subgraph pass1 ["Pass 1 — Image Processing"]
         direction LR
-        walk["Walk JSON tree"] --> detect["Detect image<br>content blocks"]
+        walk["Walk JSON"] --> detect["Detect images"]
         detect --> decode["Decode base64"]
         decode --> exif["EXIF strip"]
-        exif --> resize["Resize (960px)"]
-        resize --> nsfw["NSFW check<br>(NudeNet)"]
-        nsfw -->|"safe"| face["Face blur<br>(BlazeFace)"]
-        nsfw -->|"nudity"| fullblur["Full-image blur"]
-        face --> ocr["OCR text blur<br>(PaddleOCR)"]
-        ocr --> encode["Re-encode<br>→ replace in JSON"]
+        exif --> resize["Resize"]
+        resize --> nsfw["NSFW check"]
+        nsfw -->|"safe"| face["Face blur"]
+        nsfw -->|"nudity"| fullblur["Full blur"]
+        face --> ocr["OCR blur"]
+        ocr --> encode["Re-encode"]
         fullblur --> encode
     end
 
     subgraph pass2 ["Pass 2 — Text PII Scanning"]
         direction LR
-        scan["scan_json"] --> match["Regex + Keywords<br>+ NER/CRF"]
-        match --> encrypt["FF1 FPE encrypt<br>→ replace in JSON"]
+        scan["scan_json"] --> match["Hybrid Scanner"]
+        match --> encrypt["FPE encrypt"]
     end
 
     entry --> pass1
     pass1 --> pass2
 
-    style entry fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style pass1 fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style pass2 fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
+    style entry fill:#555,stroke:#333,color:#fff
+    style pass1 fill:#d0d0d0,stroke:#999,color:#333
+    style pass2 fill:#e8e8e8,stroke:#aaa,color:#333
 ```
 
 **Provider formats:**

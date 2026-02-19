@@ -21,14 +21,14 @@ The proxy runs as a **sidecar process** on the same host as the AI agent. All LL
 
 ```mermaid
 flowchart LR
-    agent["🤖 AI Agent"] -- "HTTP request" --> proxy["🔐 OpenObscure Proxy<br>(localhost:18790)"]
-    proxy -- "HTTPS (PII encrypted)" --> llm["☁️ LLM Provider"]
-    llm -- "response (ciphertexts)" --> proxy
-    proxy -- "response (PII decrypted)" --> agent
+    agent["AI Agent"] -- "HTTP request" --> proxy["OpenObscure Proxy\n(localhost:18790)"]
+    proxy -- "HTTPS\n(PII encrypted)" --> llm["LLM Provider"]
+    llm -- "response\n(ciphertexts)" --> proxy
+    proxy -- "response\n(PII decrypted)" --> agent
 
-    style agent fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style proxy fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
+    style agent fill:#888,stroke:#666,color:#fff
+    style proxy fill:#555,stroke:#333,color:#fff
+    style llm fill:#333,stroke:#111,color:#fff
 ```
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
@@ -42,26 +42,26 @@ OpenObscure is compiled as a **native library** and linked directly into the hos
 
 ```mermaid
 flowchart TB
-    subgraph phone ["📱 Mobile Device"]
-        app["Mobile App<br>(Swift / Kotlin)"]
-        lib["🔐 OpenObscure lib<br>(in-process)"]
+    subgraph phone ["Mobile Device"]
+        app["Mobile App\n(Swift / Kotlin)"]
+        lib["OpenObscure lib\n(in-process)"]
         app -- "sanitize_text()" --> lib
-        lib -- "SanitizeResult + mapping" --> app
+        lib -- "SanitizeResult\n+ mapping" --> app
     end
 
-    app -- "WebSocket (PII encrypted)" --> gw
+    app -- "WebSocket\n(PII encrypted)" --> gw
     gw -- "response" --> app
     app -. "restore_text()" .-> lib
 
-    subgraph remote ["🖥️ External Computer"]
-        gw["🌐 Gateway"]
+    subgraph remote ["External Computer"]
+        gw["Gateway"]
     end
 
-    style phone fill:#2f2f45,stroke:#4a4a6e,color:#d0d0e0
-    style app fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style lib fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style remote fill:#2f2f45,stroke:#4a4a6e,color:#d0d0e0
-    style gw fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
+    style phone fill:#e8e8e8,stroke:#aaa,color:#333
+    style app fill:#888,stroke:#666,color:#fff
+    style lib fill:#555,stroke:#333,color:#fff
+    style remote fill:#e8e8e8,stroke:#aaa,color:#333
+    style gw fill:#888,stroke:#666,color:#fff
 ```
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
@@ -152,29 +152,29 @@ OpenObscure uses a **Sidecar + Plugin** hybrid architecture (Gateway Model) to p
 
 ```mermaid
 flowchart LR
-    subgraph device ["🖥️ User's Device"]
+    subgraph device ["User's Device"]
         direction TB
-        subgraph agent ["AI Agent (e.g. OpenClaw)"]
-            tools["🔧 Agent Tools<br>web · file · API · bash"]
-            L1["🛡️ L1 Gateway Plugin<br>(TypeScript)<br>PII redact"]
+        subgraph agent ["AI Agent"]
+            tools["Agent Tools"]
+            L1["L1 Plugin\nPII redact"]
             tools -- "tool results" --> L1
         end
-        subgraph proxy ["L0 — PII Proxy (Rust process)"]
-            scanner["🔍 Hybrid Scanner<br>regex · NER/CRF · keywords"]
-            fpe["🔐 FF1 FPE Encrypt"]
-            img["📷 Image Pipeline<br>NSFW · face · OCR · EXIF"]
+        subgraph proxy ["L0 Proxy (Rust)"]
+            scanner["Hybrid Scanner"]
+            fpe["FPE Encrypt"]
+            img["Image Pipeline"]
             scanner --> fpe
             scanner --> img
         end
-        agent -- "HTTP (localhost)" --> proxy
+        agent -- "HTTP\n(localhost)" --> proxy
     end
-    proxy -- "sanitized (PII encrypted)" --> llm["☁️ LLM Providers<br>Anthropic · OpenAI · Ollama"]
-    llm -- "response (ciphertexts)" --> proxy
+    proxy -- "sanitized\n(PII encrypted)" --> llm["LLM Providers"]
+    llm -- "response\n(ciphertexts)" --> proxy
 
-    style device fill:#2f2f45,stroke:#3f3f5e,color:#d0d0e0
-    style agent fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style proxy fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
+    style device fill:#e8e8e8,stroke:#aaa,color:#333
+    style agent fill:#d0d0d0,stroke:#999,color:#333
+    style proxy fill:#d0d0d0,stroke:#999,color:#333
+    style llm fill:#333,stroke:#111,color:#fff
 ```
 
 | Layer | Language | What it does |
@@ -307,10 +307,10 @@ OpenObscure uses **Format-Preserving Encryption (FF1)** to replace PII with real
 
 ```mermaid
 sequenceDiagram
-    participant U as 👤 User
-    participant A as 🤖 AI Agent
-    participant P as 🔐 OpenObscure Proxy
-    participant L as ☁️ LLM Provider
+    participant U as User
+    participant A as AI Agent
+    participant P as OpenObscure Proxy
+    participant L as LLM Provider
 
     U->>A: "My card is 4111-1111-1111-1111"
     A->>P: Agent sends LLM request
@@ -340,18 +340,16 @@ OpenObscure doesn't just protect text — it also processes **images** for visua
 
 ```mermaid
 sequenceDiagram
-    participant U as 👤 User
-    participant A as 🤖 AI Agent
-    participant P as 🔐 OpenObscure Proxy
-    participant L as ☁️ LLM Provider
+    participant U as User
+    participant A as AI Agent
+    participant P as OpenObscure Proxy
+    participant L as LLM Provider
 
     U->>A: Send photo via agent
     A->>P: Photo (base64 in JSON)
     Note over P: 1. Detect base64 image<br/>2. Decode + EXIF strip<br/>3. Resize (max 960px)
-    Note over P: 4. NudeNet: NSFW check<br/>(if nudity → blur all, stop)
-    Note over P: 5. BlazeFace: detect faces<br/>6. Gaussian blur face regions
-    Note over P: 7. PaddleOCR: detect text<br/>8. Gaussian blur text regions
-    P->>L: Sanitized image (faces + text blurred)
+    Note over P: 4. NSFW check<br/>5. Face detect + blur<br/>6. OCR detect + blur
+    P->>L: Sanitized image
     Note over L: LLM sees the image<br/>but PII is obscured
     L->>P: Response about image
     P->>A: Response forwarded

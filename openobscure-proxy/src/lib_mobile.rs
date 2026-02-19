@@ -168,54 +168,51 @@ impl OpenObscureMobile {
         let fpe = FpeEngine::new(&fpe_key)?;
 
         // Determine scanner and tier via auto-detection or explicit mode
-        let (scanner, effective_mode, device_tier, idle_timeout) =
-            if config.auto_detect && config.scanner_mode == "auto" {
-                let profile = crate::device_profile::detect(true);
-                let tier = crate::device_profile::tier_for_profile(&profile);
-                let budget = crate::device_profile::budget_for_tier(tier, &profile);
+        let (scanner, effective_mode, device_tier, idle_timeout) = if config.auto_detect
+            && config.scanner_mode == "auto"
+        {
+            let profile = crate::device_profile::detect(true);
+            let tier = crate::device_profile::tier_for_profile(&profile);
+            let budget = crate::device_profile::budget_for_tier(tier, &profile);
 
-                let (scan, mode) = Self::build_scanner_from_budget(&config, &budget);
-                (scan, mode, tier.to_string(), budget.model_idle_timeout_secs)
-            } else {
-                // Explicit mode — honor scanner_mode literally
-                let scanner = match config.scanner_mode.as_str() {
-                    "crf" => {
-                        if let Some(ref dir) = config.crf_model_dir {
-                            match crate::crf_scanner::CrfScanner::load(
-                                std::path::Path::new(dir),
-                                0.5,
-                            ) {
-                                Ok(crf) => {
-                                    HybridScanner::with_crf(config.keywords_enabled, Some(crf))
-                                }
-                                Err(_) => HybridScanner::new(config.keywords_enabled, None),
-                            }
-                        } else {
-                            HybridScanner::new(config.keywords_enabled, None)
+            let (scan, mode) = Self::build_scanner_from_budget(&config, &budget);
+            (scan, mode, tier.to_string(), budget.model_idle_timeout_secs)
+        } else {
+            // Explicit mode — honor scanner_mode literally
+            let scanner = match config.scanner_mode.as_str() {
+                "crf" => {
+                    if let Some(ref dir) = config.crf_model_dir {
+                        match crate::crf_scanner::CrfScanner::load(std::path::Path::new(dir), 0.5) {
+                            Ok(crf) => HybridScanner::with_crf(config.keywords_enabled, Some(crf)),
+                            Err(_) => HybridScanner::new(config.keywords_enabled, None),
                         }
-                    }
-                    "ner" => {
-                        if let Some(ref dir) = config.ner_model_dir {
-                            match crate::ner_scanner::NerScanner::load(
-                                std::path::Path::new(dir),
-                                0.85,
-                            ) {
-                                Ok(ner) => {
-                                    HybridScanner::new(config.keywords_enabled, Some(ner))
-                                }
-                                Err(_) => HybridScanner::new(config.keywords_enabled, None),
-                            }
-                        } else {
-                            HybridScanner::new(config.keywords_enabled, None)
-                        }
-                    }
-                    _ => {
-                        // "regex" or unknown — regex+keywords only
+                    } else {
                         HybridScanner::new(config.keywords_enabled, None)
                     }
-                };
-                (scanner, config.scanner_mode.clone(), "manual".to_string(), 300u64)
+                }
+                "ner" => {
+                    if let Some(ref dir) = config.ner_model_dir {
+                        match crate::ner_scanner::NerScanner::load(std::path::Path::new(dir), 0.85)
+                        {
+                            Ok(ner) => HybridScanner::new(config.keywords_enabled, Some(ner)),
+                            Err(_) => HybridScanner::new(config.keywords_enabled, None),
+                        }
+                    } else {
+                        HybridScanner::new(config.keywords_enabled, None)
+                    }
+                }
+                _ => {
+                    // "regex" or unknown — regex+keywords only
+                    HybridScanner::new(config.keywords_enabled, None)
+                }
             };
+            (
+                scanner,
+                config.scanner_mode.clone(),
+                "manual".to_string(),
+                300u64,
+            )
+        };
 
         // Build image pipeline if enabled and model paths provided
         let image_manager = if config.image_enabled {
@@ -261,10 +258,9 @@ impl OpenObscureMobile {
     ) -> (HybridScanner, String) {
         if budget.ner_enabled {
             if let Some(ref dir) = config.ner_model_dir {
-                if let Ok(ner) = crate::ner_scanner::NerScanner::load(
-                    std::path::Path::new(dir),
-                    0.85,
-                ) {
+                if let Ok(ner) =
+                    crate::ner_scanner::NerScanner::load(std::path::Path::new(dir), 0.85)
+                {
                     return (
                         HybridScanner::new(config.keywords_enabled, Some(ner)),
                         "ner".to_string(),
@@ -274,10 +270,9 @@ impl OpenObscureMobile {
         }
         if budget.crf_enabled {
             if let Some(ref dir) = config.crf_model_dir {
-                if let Ok(crf) = crate::crf_scanner::CrfScanner::load(
-                    std::path::Path::new(dir),
-                    0.5,
-                ) {
+                if let Ok(crf) =
+                    crate::crf_scanner::CrfScanner::load(std::path::Path::new(dir), 0.5)
+                {
                     return (
                         HybridScanner::with_crf(config.keywords_enabled, Some(crf)),
                         "crf".to_string(),

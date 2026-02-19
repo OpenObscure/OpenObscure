@@ -310,7 +310,10 @@ mod tests {
         // Should work on macOS/Linux CI; may return None on exotic platforms
         let ram = total_ram_mb();
         if cfg!(any(target_os = "macos", target_os = "linux")) {
-            assert!(ram.is_some(), "total_ram_mb() should succeed on this platform");
+            assert!(
+                ram.is_some(),
+                "total_ram_mb() should succeed on this platform"
+            );
             assert!(ram.unwrap() > 0);
         }
     }
@@ -319,7 +322,10 @@ mod tests {
     fn test_available_ram_returns_some() {
         let ram = available_ram_mb();
         if cfg!(any(target_os = "macos", target_os = "linux")) {
-            assert!(ram.is_some(), "available_ram_mb() should succeed on this platform");
+            assert!(
+                ram.is_some(),
+                "available_ram_mb() should succeed on this platform"
+            );
             assert!(ram.unwrap() > 0);
         }
     }
