@@ -6,6 +6,20 @@ rust-version = "1.75"
 description = "OpenObscure PII privacy proxy with FF1 format-preserving encryption"
 license = "MIT OR Apache-2.0"
 
+[lib]
+name = "openobscure_proxy"
+path = "src/lib.rs"
+# lib = Rust tests/benchmarks, staticlib = iOS (.a), cdylib = Android (.so)
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[[bin]]
+name = "openobscure-proxy"
+path = "src/main.rs"
+
+[features]
+default = []
+mobile = ["uniffi"]
+
 [dependencies]
 # HTTP stack
 axum = { version = "0.8", features = ["json", "macros"] }
@@ -59,6 +73,9 @@ kamadak-exif = "0.5"
 # SSE streaming
 futures-util = "0.3"
 
+# Mobile FFI bindings (optional — enabled by `mobile` feature)
+uniffi = { version = "0.29", optional = true }
+
 # Utilities
 bytes = "1"
 uuid = { version = "1", features = ["v4"] }
@@ -74,6 +91,9 @@ tracing-oslog = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tracing-journald = "0.3"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = ["Win32_System_SystemInformation"] }
 
 [dev-dependencies]
 tokio-test = "0.4"

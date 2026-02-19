@@ -31,6 +31,8 @@ mod screen_guard;
 mod server;
 mod vault;
 mod wordpiece;
+#[allow(dead_code)]
+mod lib_mobile;
 
 #[cfg(test)]
 mod integration_tests;
@@ -420,7 +422,7 @@ fn init_tracing(
 ///
 /// - macOS: tracing-oslog (sends to unified logging / Console.app)
 /// - Linux: tracing-journald (sends to systemd journal)
-/// - Other: None
+/// - Windows/Other: None (uses file + stderr logging only)
 #[cfg(target_os = "macos")]
 fn init_platform_log_layer() -> Option<tracing_oslog::OsLogger> {
     let layer = tracing_oslog::OsLogger::new("com.openobscure.proxy", "default");

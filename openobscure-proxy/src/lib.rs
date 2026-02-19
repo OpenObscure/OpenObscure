@@ -24,3 +24,8 @@ pub mod screen_guard;
 // Detection verification framework
 pub mod detection_meta;
 pub mod detection_validators;
+
+// Mobile library API
+pub mod lib_mobile;
+#[cfg(feature = "mobile")]
+pub mod uniffi_bindings;
