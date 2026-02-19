@@ -21,10 +21,10 @@ The proxy runs as a **sidecar process** on the same host as the AI agent. All LL
 
 ```mermaid
 flowchart LR
-    agent["🤖 AI Agent"] -- "HTTP" --> proxy["🔐 OpenObscure Proxy\n(localhost:18790)"]
-    proxy -- "HTTPS" --> llm["☁️ LLM Provider"]
-    llm -- "response" --> proxy
-    proxy -- "decrypted" --> agent
+    agent["🤖 AI Agent"] -- "HTTP request" --> proxy["🔐 OpenObscure Proxy\n(localhost:18790)"]
+    proxy -- "HTTPS\n(PII encrypted)" --> llm["☁️ LLM Provider"]
+    llm -- "response\n(with ciphertexts)" --> proxy
+    proxy -- "response\n(PII decrypted)" --> agent
 
     style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
     style proxy fill:#533483,stroke:#e94560,color:#e0e0e0
@@ -42,12 +42,25 @@ OpenObscure is compiled as a **native library** and linked directly into the hos
 
 ```mermaid
 flowchart LR
-    app["📱 Mobile App"] -- "function call" --> lib["🔐 OpenObscure lib\n(in-process)"]
-    lib -- "sanitized" --> app
-    app -- "WebSocket" --> gw["🌐 Gateway"]
+    subgraph phone ["📱 Mobile Device"]
+        app["Mobile App\n(Swift / Kotlin)"]
+        lib["🔐 OpenObscure lib\n(in-process)"]
+        app -- "sanitize_text()" --> lib
+        lib -- "SanitizeResult\n+ mapping" --> app
+    end
 
+    subgraph remote ["🖥️ External Computer"]
+        gw["🌐 Gateway\n(macOS / Linux / Windows)"]
+    end
+
+    app -- "WebSocket\n(PII already encrypted)" --> gw
+    gw -- "response" --> app
+    app -. "restore_text()" .-> lib
+
+    style phone fill:#1a1a2e,stroke:#533483,color:#e0e0e0
     style app fill:#0f3460,stroke:#533483,color:#e0e0e0
     style lib fill:#533483,stroke:#e94560,color:#e0e0e0
+    style remote fill:#16213e,stroke:#0f3460,color:#e0e0e0
     style gw fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
 ```
 
@@ -81,26 +94,23 @@ flowchart LR
             L1["🛡️ L1 — Gateway Plugin\n(TypeScript)\nPII redact · file guard\nconsent · retention"]
             tools -- "tool results" --> L1
         end
-        subgraph proxy ["L0 — PII Proxy (Rust)"]
+        subgraph proxy ["L0 — PII Proxy (Rust process)"]
             scanner["🔍 Hybrid Scanner\nregex · NER/CRF · keywords"]
             fpe["🔐 FF1 FPE Encrypt"]
             img["📷 Image Pipeline\nNSFW · face blur · OCR blur · EXIF strip"]
+            crypt[("🗄️ L2 — Crypto Store\nAES-256-GCM · Argon2id\nEncrypted Transcripts")]
             scanner --> fpe
             scanner --> img
         end
-        subgraph storage ["L2 — Crypto Store"]
-            crypt[("🗄️ AES-256-GCM\nArgon2id KDF\nEncrypted Transcripts")]
-        end
         agent -- "HTTP (localhost)" --> proxy
-        L1 -. "redacted text" .-> crypt
+        L1 -. "redacted transcripts" .-> crypt
     end
     proxy -- "sanitized request\n(PII encrypted)" --> llm["☁️ LLM Providers\nAnthropic · OpenAI\nOllama · etc."]
-    llm -- "response\n(ciphertexts)" --> proxy
+    llm -- "response\n(with ciphertexts)" --> proxy
 
     style device fill:#1a1a2e,stroke:#16213e,color:#e0e0e0
     style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
     style proxy fill:#533483,stroke:#e94560,color:#e0e0e0
-    style storage fill:#16213e,stroke:#0f3460,color:#e0e0e0
     style llm fill:#e94560,stroke:#e94560,color:#fff
 ```
 
