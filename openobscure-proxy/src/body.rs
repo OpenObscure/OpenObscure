@@ -274,20 +274,18 @@ fn apply_replacements_to_json(json: &mut Value, replacements: &[FpeResult]) {
 
     // For each path, navigate to the string value and apply replacements
     for (path, path_replacements) in &by_path {
-        if let Some(value) = navigate_json_mut(json, path) {
-            if let Value::String(s) = value {
-                let mut result = s.clone();
-                // Apply replacements in reverse offset order to preserve positions
-                let mut sorted_replacements = path_replacements.clone();
-                sorted_replacements.sort_by(|a, b| b.original.start.cmp(&a.original.start));
-                for r in sorted_replacements {
-                    // Replace by byte offset for precision
-                    if r.original.start <= result.len() && r.original.end <= result.len() {
-                        result.replace_range(r.original.start..r.original.end, &r.encrypted);
-                    }
+        if let Some(Value::String(s)) = navigate_json_mut(json, path) {
+            let mut result = s.clone();
+            // Apply replacements in reverse offset order to preserve positions
+            let mut sorted_replacements = path_replacements.clone();
+            sorted_replacements.sort_by(|a, b| b.original.start.cmp(&a.original.start));
+            for r in sorted_replacements {
+                // Replace by byte offset for precision
+                if r.original.start <= result.len() && r.original.end <= result.len() {
+                    result.replace_range(r.original.start..r.original.end, &r.encrypted);
                 }
-                *s = result;
             }
+            *s = result;
         }
     }
 }

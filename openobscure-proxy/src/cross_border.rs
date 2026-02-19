@@ -66,7 +66,7 @@ pub fn classify_and_enforce(matches: &[PiiMatch], config: &CrossBorderConfig) ->
         if let Some(jurisdiction) = classify_match(m) {
             let hint = truncate_value(&m.raw_value, 6);
             flags.push(JurisdictionFlag {
-                pii_type: m.pii_type.clone(),
+                pii_type: m.pii_type,
                 jurisdiction,
                 value_hint: hint,
             });

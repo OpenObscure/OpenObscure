@@ -37,3 +37,7 @@ pub mod governance;
 pub mod lib_mobile;
 #[cfg(feature = "mobile")]
 pub mod uniffi_bindings;
+
+// UniFFI scaffolding — must be at crate root for derive macros to find UniFfiTag
+#[cfg(feature = "mobile")]
+uniffi::setup_scaffolding!();

@@ -195,7 +195,7 @@ pub async fn proxy_handler(
     let upstream_req = build_upstream_request(
         method,
         &uri,
-        &provider,
+        provider,
         &provider_name,
         &original_headers,
         &modified_body,

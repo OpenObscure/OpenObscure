@@ -25,6 +25,12 @@ pub struct PiiScanner {
     patterns: Vec<(PiiType, Regex)>,
 }
 
+impl Default for PiiScanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PiiScanner {
     pub fn new() -> Self {
         let pattern_defs: Vec<(PiiType, &str)> = vec![

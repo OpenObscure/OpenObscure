@@ -63,22 +63,14 @@ impl EncryptedStore {
     }
 
     /// Read and decrypt a transcript.
-    pub fn read(
-        &self,
-        session_id: &str,
-        passphrase: &str,
-    ) -> Result<Vec<u8>, CryptoError> {
+    pub fn read(&self, session_id: &str, passphrase: &str) -> Result<Vec<u8>, CryptoError> {
         let filename = format!("{}.enc.json", session_id);
         let path = self.dir.join(&filename);
         self.read_file(&path, passphrase)
     }
 
     /// Read and decrypt a transcript from a specific file path.
-    pub fn read_file(
-        &self,
-        path: &Path,
-        passphrase: &str,
-    ) -> Result<Vec<u8>, CryptoError> {
+    pub fn read_file(&self, path: &Path, passphrase: &str) -> Result<Vec<u8>, CryptoError> {
         let json = std::fs::read_to_string(path)?;
         let transcript: EncryptedTranscript = serde_json::from_str(&json)?;
 
@@ -145,7 +137,16 @@ fn chrono_now() -> String {
     let month_days = [
         31,
         if leap { 29 } else { 28 },
-        31, 30, 31, 30, 31, 31, 30, 31, 30, 31,
+        31,
+        30,
+        31,
+        30,
+        31,
+        31,
+        30,
+        31,
+        30,
+        31,
     ];
     let mut m = 0;
     for (i, &d) in month_days.iter().enumerate() {
@@ -245,8 +246,8 @@ mod tests {
         let store = EncryptedStore::new(tmp.path()).unwrap();
 
         // Simulate a long chat session (~100KB)
-        let plaintext = "User: Tell me about privacy.\nAssistant: Privacy is important.\n"
-            .repeat(1000);
+        let plaintext =
+            "User: Tell me about privacy.\nAssistant: Privacy is important.\n".repeat(1000);
 
         store
             .write("large-session", plaintext.as_bytes(), "pass")

@@ -52,6 +52,7 @@ impl ConsentType {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GovernanceError> {
         match s {
             "processing" => Ok(Self::Processing),
@@ -109,6 +110,7 @@ impl ProcessingAction {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GovernanceError> {
         match s {
             "scan" => Ok(Self::Scan),
@@ -139,6 +141,7 @@ impl DsarType {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GovernanceError> {
         match s {
             "access" => Ok(Self::Access),
@@ -187,6 +190,7 @@ impl RetentionTier {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Result<Self, GovernanceError> {
         match s {
             "hot" => Ok(Self::Hot),
@@ -689,17 +693,15 @@ impl ConsentStore {
         let rows = stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?))
         })?;
-        for row in rows {
-            if let Ok((tier, count)) = row {
-                match tier.as_str() {
-                    "hot" => summary.hot = count,
-                    "warm" => summary.warm = count,
-                    "cold" => summary.cold = count,
-                    "expired" => summary.expired = count,
-                    _ => {}
-                }
-                summary.total += count;
+        for (tier, count) in rows.flatten() {
+            match tier.as_str() {
+                "hot" => summary.hot = count,
+                "warm" => summary.warm = count,
+                "cold" => summary.cold = count,
+                "expired" => summary.expired = count,
+                _ => {}
             }
+            summary.total += count;
         }
         Ok(summary)
     }
@@ -847,18 +849,10 @@ const DEFAULT_DENY_PATTERNS: &[&str] = &[
     r"openobscure.*\.enc\.json$",
 ];
 
+#[derive(Default)]
 pub struct FileGuardConfig {
     pub extra_deny: Vec<String>,
     pub allow: Vec<String>,
-}
-
-impl Default for FileGuardConfig {
-    fn default() -> Self {
-        Self {
-            extra_deny: Vec::new(),
-            allow: Vec::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -1056,6 +1050,7 @@ pub struct GovernanceEngine {
 }
 
 impl GovernanceEngine {
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn new(
         db_path: &str,
         file_guard_config: Option<FileGuardConfig>,

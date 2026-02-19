@@ -273,12 +273,10 @@ pub const API_KEY_PREFIXES: &[&str] = &[
 
 /// Find the known prefix of an API key, if any.
 pub fn find_api_key_prefix(raw: &str) -> Option<&str> {
-    for prefix in API_KEY_PREFIXES {
-        if raw.starts_with(prefix) {
-            return Some(prefix);
-        }
-    }
-    None
+    API_KEY_PREFIXES
+        .iter()
+        .find(|&prefix| raw.starts_with(prefix))
+        .map(|v| v as _)
 }
 
 #[cfg(test)]

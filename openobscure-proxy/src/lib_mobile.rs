@@ -215,7 +215,7 @@ impl OpenObscureMobile {
         let scanner = match config.scanner_mode.as_str() {
             "crf" => {
                 if let Some(ref dir) = config.crf_model_dir {
-                    match crate::crf_scanner::CrfScanner::load(&std::path::Path::new(dir), 0.5) {
+                    match crate::crf_scanner::CrfScanner::load(std::path::Path::new(dir), 0.5) {
                         Ok(crf) => HybridScanner::with_crf(config.keywords_enabled, Some(crf)),
                         Err(_) => HybridScanner::new(config.keywords_enabled, None),
                     }

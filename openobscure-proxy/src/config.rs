@@ -6,16 +6,11 @@ use std::path::Path;
 /// Controls proxy behavior when body processing (JSON parse, FPE) fails.
 /// - Open: forward original body unmodified (default — never block AI functionality)
 /// - Closed: reject the request with 502 (strict privacy — no unscanned traffic)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FailMode {
+    #[default]
     Open,
     Closed,
-}
-
-impl Default for FailMode {
-    fn default() -> Self {
-        FailMode::Open
-    }
 }
 
 impl fmt::Display for FailMode {

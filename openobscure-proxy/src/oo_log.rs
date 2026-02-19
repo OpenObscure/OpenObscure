@@ -30,9 +30,12 @@ pub mod modules {
     pub const FACE: &str = "face_detector";
     pub const OCR: &str = "ocr_engine";
     pub const SCREEN: &str = "screen_guard";
+    #[allow(dead_code)]
     pub const COMPLIANCE: &str = "compliance";
     pub const CROSS_BORDER: &str = "cross_border";
+    #[allow(dead_code)]
     pub const BREACH: &str = "breach";
+    #[allow(dead_code)]
     pub const WATCHDOG: &str = "watchdog";
 }
 

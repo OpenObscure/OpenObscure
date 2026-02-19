@@ -370,8 +370,8 @@ fn cmd_audit_log(audit_path: Option<&str>, filter: &AuditFilter) -> anyhow::Resu
     }
 
     println!(
-        "{:<24} {:<16} {:<12} {:<8} {}",
-        "TIMESTAMP", "MODULE", "OPERATION", "PII", "REQUEST_ID"
+        "{:<24} {:<16} {:<12} {:<8} REQUEST_ID",
+        "TIMESTAMP", "MODULE", "OPERATION", "PII"
     );
     println!("{}", "-".repeat(76));
     for entry in &entries {
@@ -419,8 +419,8 @@ fn cmd_breach_check(
     if !assessment.anomalies.is_empty() {
         println!("\nAnomalous Periods:");
         println!(
-            "{:<20} {:<10} {:<10} {:<10} {}",
-            "HOUR", "PII_COUNT", "EXPECTED", "SIGMA", "TYPES"
+            "{:<20} {:<10} {:<10} {:<10} TYPES",
+            "HOUR", "PII_COUNT", "EXPECTED", "SIGMA"
         );
         for anomaly in &assessment.anomalies {
             println!(
@@ -498,7 +498,7 @@ fn generate_ropa_markdown(entries: &[AuditEntry], config: &AppConfig) -> String 
     md.push_str(&format!("**Data Protection Officer:** {}\n\n", dpo));
 
     md.push_str("## 1. Controller Information\n\n");
-    md.push_str(&format!("| Field | Value |\n|-------|-------|\n"));
+    md.push_str("| Field | Value |\n|-------|-------|\n");
     md.push_str(&format!("| Organization | {} |\n", org));
     md.push_str(&format!("| DPO Contact | {} |\n", dpo));
     if let Some(ref dpa) = config.compliance.dpa_contact {
@@ -525,7 +525,7 @@ fn generate_ropa_markdown(entries: &[AuditEntry], config: &AppConfig) -> String 
             "| Image processing | Legitimate interest | Photos, screenshots | Processed locally | Not retained |\n",
         );
     }
-    md.push_str("\n");
+    md.push('\n');
 
     md.push_str("## 3. PII Statistics (from audit log)\n\n");
     md.push_str(&format!("- Total audit log entries: {}\n", entries.len()));
@@ -536,7 +536,7 @@ fn generate_ropa_markdown(entries: &[AuditEntry], config: &AppConfig) -> String 
             md.push_str(&format!("  - {}: {}\n", pii_type, count));
         }
     }
-    md.push_str("\n");
+    md.push('\n');
 
     md.push_str("## 4. Technical Safeguards\n\n");
     md.push_str("- FF1 format-preserving encryption (AES-256) for structured PII\n");
@@ -553,7 +553,7 @@ fn generate_ropa_markdown(entries: &[AuditEntry], config: &AppConfig) -> String 
         md.push_str("- OCR text detection (PaddleOCR) for text in images\n");
         md.push_str("- EXIF metadata stripping from all processed images\n");
     }
-    md.push_str("\n");
+    md.push('\n');
 
     md.push_str("## 5. Data Transfers\n\n");
     md.push_str(
@@ -639,7 +639,7 @@ fn generate_dpia_markdown(entries: &[AuditEntry], config: &AppConfig) -> String 
         md.push_str("- Detecting and blurring text regions in images (OCR)\n");
         md.push_str("- Stripping EXIF metadata from images\n");
     }
-    md.push_str("\n");
+    md.push('\n');
 
     md.push_str("## 2. Necessity and Proportionality\n\n");
     md.push_str(

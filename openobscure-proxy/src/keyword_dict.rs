@@ -13,6 +13,12 @@ pub struct KeywordDict {
     child_terms: HashSet<String>,
 }
 
+impl Default for KeywordDict {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeywordDict {
     /// Build the keyword dictionary with all built-in terms.
     pub fn new() -> Self {

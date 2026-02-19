@@ -23,6 +23,7 @@ const INPUT_SIZE: u32 = 320;
 const NUM_CANDIDATES: usize = 2100;
 
 /// Number of values per candidate: 4 bbox + 18 class scores.
+#[allow(dead_code)] // Used in tests; documents model output format
 const CANDIDATE_SIZE: usize = 22;
 
 /// Number of class scores per candidate.

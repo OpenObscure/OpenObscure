@@ -1,3 +1,7 @@
+// Many modules export pub items for the library API, benchmarks, and tests
+// that are not used directly by the server binary.
+#![allow(dead_code)]
+
 #[macro_use]
 mod oo_log;
 mod body;
@@ -21,7 +25,6 @@ mod image_detect;
 mod image_pipeline;
 mod key_manager;
 mod keyword_dict;
-#[allow(dead_code)]
 mod lib_mobile;
 mod mapping;
 mod ner_scanner;
@@ -547,7 +550,7 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
             }
             HybridScanner::with_crf(kw, crf)
         }
-        "auto" | _ => {
+        _ => {
             // Auto: check available RAM to decide NER vs CRF
             let ram_mb = crf_scanner::available_ram_mb();
             let threshold_mb = config.scanner.ram_threshold_mb;

@@ -22,6 +22,7 @@ struct CorpusEntry {
 }
 
 #[derive(serde::Deserialize, Debug, Clone)]
+#[allow(dead_code)]
 struct ExpectedMatch {
     #[serde(rename = "type")]
     pii_type: String,

@@ -68,7 +68,7 @@ pub struct NsfwMeta {
 }
 
 /// Screenshot detection metadata.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ScreenshotMeta {
     pub is_screenshot: bool,
     pub resolution_match: bool,
@@ -77,36 +77,12 @@ pub struct ScreenshotMeta {
     pub reason_count: usize,
 }
 
-impl Default for ScreenshotMeta {
-    fn default() -> Self {
-        Self {
-            is_screenshot: false,
-            resolution_match: false,
-            status_bar_variance: None,
-            exif_software: None,
-            reason_count: 0,
-        }
-    }
-}
-
 /// Aggregate metadata from a full pipeline run.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PipelineMeta {
     pub image_size: (u32, u32),
     pub nsfw: Option<NsfwMeta>,
     pub faces: Vec<BboxMeta>,
     pub text_regions: Vec<BboxMeta>,
     pub screenshot: ScreenshotMeta,
-}
-
-impl Default for PipelineMeta {
-    fn default() -> Self {
-        Self {
-            image_size: (0, 0),
-            nsfw: None,
-            faces: Vec::new(),
-            text_regions: Vec::new(),
-            screenshot: ScreenshotMeta::default(),
-        }
-    }
 }

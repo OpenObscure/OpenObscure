@@ -141,6 +141,7 @@ impl FaceDetector {
 
         let mut detections = Vec::new();
 
+        #[allow(clippy::needless_range_loop)]
         for i in 0..num_anchors {
             let score = sigmoid(score_data[i]);
             if score < self.confidence_threshold {
@@ -187,7 +188,7 @@ fn sigmoid(x: f32) -> f32 {
 }
 
 /// Non-maximum suppression: remove overlapping detections, keep highest confidence.
-pub fn nms(detections: &mut Vec<FaceDetection>, iou_threshold: f32) -> Vec<FaceDetection> {
+pub fn nms(detections: &mut [FaceDetection], iou_threshold: f32) -> Vec<FaceDetection> {
     detections.sort_by(|a, b| {
         b.confidence
             .partial_cmp(&a.confidence)
@@ -258,7 +259,7 @@ fn load_anchors(path: &Path) -> Result<Vec<Anchor>, ImageError> {
     Ok(raw
         .into_iter()
         .map(|a| Anchor {
-            cx: a.get(0).copied().unwrap_or(0.0),
+            cx: a.first().copied().unwrap_or(0.0),
             cy: a.get(1).copied().unwrap_or(0.0),
         })
         .collect())

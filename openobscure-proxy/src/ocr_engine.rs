@@ -251,7 +251,7 @@ impl OcrRecognizer {
 
             // Resize to rec input height, preserving aspect ratio
             let scale = REC_HEIGHT as f32 / h as f32;
-            let rec_w = ((w as f32 * scale) as u32).min(REC_MAX_WIDTH).max(1);
+            let rec_w = ((w as f32 * scale) as u32).clamp(1, REC_MAX_WIDTH);
             let resized =
                 cropped.resize_exact(rec_w, REC_HEIGHT, image::imageops::FilterType::Triangle);
             let rgb = resized.to_rgb8();
@@ -325,8 +325,8 @@ fn detection_input_size(orig_w: u32, orig_h: u32) -> (u32, u32) {
     let mut h = (orig_h as f32 * ratio) as u32;
 
     // Round up to nearest multiple of DET_STRIDE
-    w = ((w + DET_STRIDE - 1) / DET_STRIDE) * DET_STRIDE;
-    h = ((h + DET_STRIDE - 1) / DET_STRIDE) * DET_STRIDE;
+    w = w.div_ceil(DET_STRIDE) * DET_STRIDE;
+    h = h.div_ceil(DET_STRIDE) * DET_STRIDE;
 
     (w.max(DET_STRIDE), h.max(DET_STRIDE))
 }

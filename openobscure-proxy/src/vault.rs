@@ -79,7 +79,7 @@ impl Vault {
 
         // In headless mode, print the key so the user can capture it
         if std::env::var("OPENOBSCURE_HEADLESS").is_ok() {
-            println!("OPENOBSCURE_MASTER_KEY={}", hex::encode(&key));
+            println!("OPENOBSCURE_MASTER_KEY={}", hex::encode(key));
         }
 
         let entry = Entry::new(&self.service, "fpe-master-key").map_err(VaultError::Keyring)?;

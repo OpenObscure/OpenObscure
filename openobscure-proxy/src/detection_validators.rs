@@ -165,7 +165,7 @@ pub fn validate_face_detections(
 
         // Face aspect ratio: 0.3 < w/h < 3.0
         let ar = face.aspect_ratio();
-        if ar > 0.0 && (ar < 0.3 || ar > 3.0) {
+        if ar > 0.0 && !(0.3..=3.0).contains(&ar) {
             issues.push(ValidationIssue {
                 severity: Severity::Warning,
                 check: "face_aspect_ratio",

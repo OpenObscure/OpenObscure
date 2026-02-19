@@ -6,6 +6,7 @@ use crate::pii_types::PiiType;
 use crate::scanner::PiiMatch;
 
 /// BIO label indices — same schema as NER scanner.
+#[allow(dead_code)] // Used in tests; documents BIO label set
 const LABEL_O: usize = 0;
 const LABEL_B_PER: usize = 1;
 const LABEL_I_PER: usize = 2;
@@ -18,6 +19,7 @@ const LABEL_I_HEALTH: usize = 8;
 const LABEL_B_CHILD: usize = 9;
 const LABEL_I_CHILD: usize = 10;
 
+#[allow(dead_code)] // Used in tests; documents model schema
 const NUM_LABELS: usize = 11;
 
 /// CRF-based NER scanner — lightweight fallback for <200MB RAM devices.
@@ -116,7 +118,7 @@ impl CrfScanner {
         feats.push(format!("shape={}", word_shape(&token.text)));
 
         // Prefix/suffix features (1-3 chars)
-        if word.len() >= 1 {
+        if !word.is_empty() {
             feats.push(format!("p1={}", &word[..1]));
             feats.push(format!("s1={}", &word[word.len() - 1..]));
         }
@@ -133,11 +135,7 @@ impl CrfScanner {
         if token.text.chars().all(|c| c.is_uppercase()) {
             feats.push("isupper".to_string());
         }
-        if token
-            .text
-            .chars()
-            .next()
-            .map_or(false, |c| c.is_uppercase())
+        if token.text.chars().next().is_some_and(|c| c.is_uppercase())
             && token.text.chars().skip(1).all(|c| c.is_lowercase())
         {
             feats.push("istitle".to_string());
@@ -187,6 +185,7 @@ impl CrfScanner {
 
     /// Viterbi decoding over the feature sequence.
     /// Returns (best_labels, marginal_scores) for each token.
+    #[allow(clippy::needless_range_loop)]
     fn viterbi(&self, features: &[Vec<String>]) -> (Vec<usize>, Vec<f64>) {
         let n = features.len();
         let nl = self.model.num_labels;
@@ -197,9 +196,7 @@ impl CrfScanner {
 
         // Compute state scores for first token
         let state_scores_0 = self.compute_state_scores(&features[0]);
-        for j in 0..nl {
-            viterbi_scores[0][j] = state_scores_0[j];
-        }
+        viterbi_scores[0][..nl].copy_from_slice(&state_scores_0[..nl]);
 
         // Forward pass
         for t in 1..n {
@@ -277,7 +274,7 @@ impl CrfScanner {
                     if let Some((pt, ts, te, total, count)) = current.take() {
                         self.push_entity(
                             &mut entities,
-                            &tokens,
+                            tokens,
                             pt,
                             ts,
                             te,
@@ -302,7 +299,7 @@ impl CrfScanner {
                     if let Some((pt, ts, te, total, count)) = current.take() {
                         self.push_entity(
                             &mut entities,
-                            &tokens,
+                            tokens,
                             pt,
                             ts,
                             te,
@@ -319,7 +316,7 @@ impl CrfScanner {
                     if let Some((pt, ts, te, total, count)) = current.take() {
                         self.push_entity(
                             &mut entities,
-                            &tokens,
+                            tokens,
                             pt,
                             ts,
                             te,
@@ -335,7 +332,7 @@ impl CrfScanner {
         if let Some((pt, ts, te, total, count)) = current.take() {
             self.push_entity(
                 &mut entities,
-                &tokens,
+                tokens,
                 pt,
                 ts,
                 te,
@@ -347,6 +344,7 @@ impl CrfScanner {
         entities
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn push_entity(
         &self,
         entities: &mut Vec<PiiMatch>,
@@ -431,21 +429,19 @@ fn tokenize_for_crf(text: &str) -> Vec<CrfToken> {
             if start.is_none() {
                 start = Some(i);
             }
-        } else {
-            if let Some(s) = start {
-                let word = &text[s..i];
-                let trimmed = word.trim_matches(|c: char| c == '-' || c == '\'');
-                if !trimmed.is_empty() {
-                    let trim_offset = word.find(trimmed).unwrap_or(0);
-                    tokens.push(CrfToken {
-                        text: text[s + trim_offset..s + trim_offset + trimmed.len()].to_string(),
-                        lower: trimmed.to_lowercase(),
-                        byte_start: s + trim_offset,
-                        byte_end: s + trim_offset + trimmed.len(),
-                    });
-                }
-                start = None;
+        } else if let Some(s) = start {
+            let word = &text[s..i];
+            let trimmed = word.trim_matches(|c: char| c == '-' || c == '\'');
+            if !trimmed.is_empty() {
+                let trim_offset = word.find(trimmed).unwrap_or(0);
+                tokens.push(CrfToken {
+                    text: text[s + trim_offset..s + trim_offset + trimmed.len()].to_string(),
+                    lower: trimmed.to_lowercase(),
+                    byte_start: s + trim_offset,
+                    byte_end: s + trim_offset + trimmed.len(),
+                });
             }
+            start = None;
         }
     }
 

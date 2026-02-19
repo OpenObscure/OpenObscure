@@ -23,11 +23,7 @@
 use std::sync::Arc;
 
 #[cfg(feature = "mobile")]
-use crate::lib_mobile::{MobileConfig, MobileError, OpenObscureMobile};
-
-// Re-export for UniFFI scaffolding
-#[cfg(feature = "mobile")]
-uniffi::setup_scaffolding!();
+use crate::lib_mobile::{MobileConfig, OpenObscureMobile};
 
 /// Create a new OpenObscure mobile instance.
 ///

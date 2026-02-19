@@ -370,7 +370,7 @@ fn resolve_cluster(
     let mut best_idx = 0;
     let mut best_score = f32::NEG_INFINITY;
 
-    for (_, (match_idx, confidence, sources)) in &type_groups {
+    for (match_idx, confidence, sources) in type_groups.values() {
         let adjusted = if sources.len() >= 2 {
             (*confidence + agreement_bonus).min(1.0)
         } else {
@@ -400,6 +400,7 @@ fn overlaps_any(matches: &[PiiMatch], start: usize, end: usize) -> bool {
 
 /// Mask content inside markdown code fences and inline code backticks.
 /// Replaces fenced/inline code content with spaces to preserve byte offsets.
+#[allow(clippy::needless_range_loop)]
 fn mask_code_fences(text: &str) -> String {
     let bytes = text.as_bytes();
     let len = bytes.len();
