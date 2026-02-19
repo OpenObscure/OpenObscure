@@ -21,14 +21,41 @@ The proxy runs as a **sidecar process** on the same host as the AI agent. All LL
 
 ```mermaid
 flowchart LR
-    agent["AI Agent"] -- "HTTP request" --> proxy["OpenObscure Proxy (localhost:18790)"]
-    proxy -- "HTTPS (PII encrypted)" --> llm["LLM Provider"]
-    llm -- "response (ciphertexts)" --> proxy
-    proxy -- "response (PII decrypted)" --> agent
+    %% Direction and Grouping
+    subgraph LocalEnv [" Local Machine / VPC "]
+        direction LR
+        agent["<b>AI Agent</b><br/>(Client Application)"]
+        proxy["<b>OpenObscure Proxy</b><br/>(localhost:18790)"]
+    end
 
-    style agent fill:#888,stroke:#666,color:#fff
-    style proxy fill:#555,stroke:#333,color:#fff
-    style llm fill:#333,stroke:#111,color:#fff
+    subgraph External [" Public Cloud "]
+        llm["<b>LLM Provider</b><br/>(External API)"]
+    end
+
+    %% Solid lines for outward requests
+    agent -- "1. HTTP Request" --> proxy
+    proxy == "2. HTTPS (PII Encrypted)" ==> llm
+    
+    %% Dashed lines for returning responses
+    llm -. "3. Response (Ciphertexts)" .-> proxy
+    proxy -. "4. Response (PII Decrypted)" .-> agent
+
+    %% --- AWS STYLE STYLING ---
+    
+    %% Local/Compute Styling (AWS Blue)
+    style LocalEnv fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
+    style agent fill:#3b48cc,stroke:#232F3E,stroke-width:2px,color:#fff
+    
+    %% Proxy/Security Styling (AWS Slate/Grey)
+    style proxy fill:#545b64,stroke:#232F3E,stroke-width:2px,color:#fff
+
+    %% External Provider Styling (AWS Orange)
+    style External fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+
+    %% Link Styling
+    linkStyle 0,3 stroke:#545b64,stroke-width:2px
+    linkStyle 1,2 stroke:#ff9900,stroke-width:3px
 ```
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
@@ -42,26 +69,44 @@ OpenObscure is compiled as a **native library** and linked directly into the hos
 
 ```mermaid
 flowchart TB
-    subgraph phone ["Mobile Device"]
-        app["Mobile App (Swift / Kotlin)"]
-        lib["OpenObscure lib (in-process)"]
-        app -- "sanitize_text()" --> lib
-        lib -- "SanitizeResult + mapping" --> app
+    %% Direction and Layout
+    direction TB
+
+    subgraph UserDevice [" User Device (Mobile) "]
+        direction TB
+        app["<b>Mobile App</b><br/>(Swift / Kotlin)"]
+        lib["<b>OpenObscure Lib</b><br/>(In-Process)"]
+        
+        %% Internal logic
+        app -- "1. sanitize_text()" --> lib
+        lib -- "2. Result + Mapping" --> app
     end
 
-    app -- "WebSocket (PII encrypted)" --> gw
-    gw -- "response" --> app
-    app -. "restore_text()" .-> lib
-
-    subgraph remote ["External Computer"]
-        gw["Gateway"]
+    subgraph Cloud [" External Computer / Cloud "]
+        gw["<b>Gateway</b><br/>(WebSocket Entry)"]
     end
 
-    style phone fill:#e8e8e8,stroke:#aaa,color:#333
-    style app fill:#888,stroke:#666,color:#fff
-    style lib fill:#555,stroke:#333,color:#fff
-    style remote fill:#e8e8e8,stroke:#aaa,color:#333
-    style gw fill:#888,stroke:#666,color:#fff
+    %% Network Connections
+    app == "3. Secure WebSocket<br/>(PII Encrypted)" ==> gw
+    gw -. "4. Response" .-> app
+    
+    %% Final local step
+    app -. "5. restore_text()" .-> lib
+
+    %% --- AWS STYLE STYLING ---
+    
+    %% Device Styling (AWS Blue/Grey tones)
+    style UserDevice fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
+    style app fill:#3b48cc,stroke:#232F3E,stroke-width:2px,color:#fff
+    style lib fill:#545b64,stroke:#232F3E,stroke-width:2px,color:#fff
+
+    %% Cloud Styling (AWS Orange tones)
+    style Cloud fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
+    style gw fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+
+    %% Link Styling
+    linkStyle 0,1,4 stroke:#545b64,stroke-width:2px
+    linkStyle 2,3 stroke:#ff9900,stroke-width:3px
 ```
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
@@ -152,29 +197,70 @@ OpenObscure uses a **Sidecar + Plugin** hybrid architecture (Gateway Model) to p
 
 ```mermaid
 flowchart LR
-    subgraph device ["User's Device"]
-        direction TB
-        subgraph agent ["AI Agent"]
-            tools["Agent Tools"]
-            L1["L1 Plugin PII redact"]
+    %% Direction and Grouping
+    subgraph Device [" User Device Boundary "]
+        direction LR
+        
+        subgraph Agent [" AI Agent Environment "]
+            direction TB
+            tools["<b>Agent Tools</b>"]
+            L1["<b>L1 Plugin</b><br/>(PII Redact)"]
+            
+            %% Spacing internal to Agent
             tools -- "tool results" --> L1
         end
-        subgraph proxy ["L0 Proxy (Rust)"]
-            scanner["Hybrid Scanner"]
-            fpe["FPE Encrypt"]
-            img["Image Pipeline"]
+
+        subgraph Proxy [" L0 Proxy Layer (Rust) "]
+            direction TB
+            scanner["<b>Hybrid Scanner</b>"]
+            
+            subgraph Processing [" Transformation "]
+                direction LR
+                fpe["<b>FPE Encrypt</b>"]
+                img["<b>Image Pipeline</b>"]
+            end
+            
             scanner --> fpe
             scanner --> img
         end
-        agent -- "HTTP (localhost)" --> proxy
+        
+        %% Connect Subgraphs
+        Agent == "HTTP (Localhost)" ==> Proxy
     end
-    proxy -- "sanitized (PII encrypted)" --> llm["LLM Providers"]
-    llm -- "response (ciphertexts)" --> proxy
 
-    style device fill:#e8e8e8,stroke:#aaa,color:#333
-    style agent fill:#d0d0d0,stroke:#999,color:#333
-    style proxy fill:#d0d0d0,stroke:#999,color:#333
-    style llm fill:#333,stroke:#111,color:#fff
+    subgraph External [" Public Cloud / SaaS "]
+        llm["<b>LLM Providers</b><br/>(External API)"]
+    end
+
+    %% Network Connections
+    Proxy == "HTTPS (PII Encrypted)" ==> llm
+    llm -. "Response (Ciphertexts)" .-> Proxy
+
+    %% --- AWS STYLE STYLING ---
+    
+    %% Main Boundary
+    style Device fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
+    
+    %% Internal Subnets
+    style Agent fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
+    style Proxy fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
+    style Processing fill:#ffffff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
+
+    %% Node Styling
+    style tools fill:#3F4756,stroke:#545b64,color:#fff
+    style L1 fill:#9D7BED,stroke:#232F3E,color:#fff
+    style scanner fill:#545b64,stroke:#232F3E,color:#fff
+    style fpe fill:#545b64,stroke:#232F3E,color:#fff
+    style img fill:#545b64,stroke:#232F3E,color:#fff
+
+    %% External Provider Styling
+    style External fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+
+    %% Link Styling
+    linkStyle 2 stroke:#3b48cc,stroke-width:3px
+    linkStyle 3 stroke:#ff9900,stroke-width:3px
+    linkStyle 4 stroke:#ff9900,stroke-width:3px
 ```
 
 | Layer | Language | What it does |

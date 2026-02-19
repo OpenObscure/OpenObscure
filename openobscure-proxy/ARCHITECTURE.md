@@ -8,21 +8,63 @@
 
 The Rust PII proxy is the **hard enforcement** layer. It sits between the AI agent and LLM providers as an HTTP reverse proxy. Every API request passes through it — there is no bypass path.
 
-```
-┌──────────────┐         ┌──────────────────┐         ┌──────────────┐
-│   AI Agent   │  HTTP   │  OpenObscure Proxy  │  HTTPS  │ LLM Provider │
-│  (Host)      │ ──────► │  (127.0.0.1:18790)│ ──────► │ (Anthropic,  │
-│              │ ◄────── │                    │ ◄────── │  OpenAI...)  │
-└──────────────┘         └──────────────────┘         └──────────────┘
-                          │                  │
-                          │  Request path:   │
-                          │  Scan → FPE      │
-                          │  encrypt PII     │
-                          │                  │
-                          │  Response path:  │
-                          │  FPE decrypt     │
-                          │  ciphertexts     │
-                          └──────────────────┘
+```mermaid
+flowchart LR
+    %% Direction and Grouping
+    subgraph LocalHost [" Local Host Environment "]
+        direction LR
+        
+        subgraph Agent [" Compute "]
+            A["<b>AI Agent</b><br/>(Local App)"]
+        end
+
+        subgraph Proxy [" OpenObscure Proxy "]
+            direction TB
+            IP["<b>Endpoint</b><br/>127.0.0.1:18790"]
+            
+            subgraph Logic [" Security Operations "]
+                direction TB
+                req["<b>Request Path</b><br/>Scan → FPE Encrypt PII"]
+                res["<b>Response Path</b><br/>FPE Decrypt ciphertexts"]
+            end
+            
+            IP --- Logic
+        end
+        
+        %% Local Handshake
+        A <== "HTTP" ==> IP
+    end
+
+    subgraph Cloud [" External Cloud "]
+        LLM["<b>LLM Provider</b><br/>(Anthropic, OpenAI...)"]
+    end
+
+    %% Network Connections
+    Logic <== "HTTPS" ==> LLM
+
+    %% --- AWS STYLE STYLING ---
+    
+    %% Main Host Boundary
+    style LocalHost fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
+    
+    %% Internal Logic
+    style Agent fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
+    style Proxy fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
+    style Logic fill:#ffffff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
+    
+    %% Node Styling
+    style A fill:#3b48cc,stroke:#232F3E,color:#fff
+    style IP fill:#ffffff,stroke:#545b64,color:#232F3E
+    style req fill:#545b64,stroke:#232F3E,color:#fff
+    style res fill:#545b64,stroke:#232F3E,color:#fff
+
+    %% External Provider
+    style Cloud fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
+    style LLM fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+
+    %% Link Styling
+    linkStyle 1 stroke:#3b48cc,stroke-width:3px
+    linkStyle 2 stroke:#ff9900,stroke-width:3px
 ```
 
 ## Module Map
@@ -157,13 +199,25 @@ src/
 
 OpenObscure reuses the host agent's API keys by default — **no duplicate key management**. The proxy forwards all auth headers from the host agent to upstream providers untouched:
 
-```
-Host Agent (has API keys)           OpenObscure Proxy              LLM Provider
-       │                                │                            │
-       │  Authorization: Bearer sk-...  │  Authorization: Bearer sk-...  │
-       │ ──────────────────────────────►│ ──────────────────────────────►│
-       │  x-api-key: sk-ant-...        │  x-api-key: sk-ant-...        │
-       │ ──────────────────────────────►│ ──────────────────────────────►│
+```mermaid
+graph LR
+    subgraph Infrastructure [" "]
+        direction LR
+        HostAgent("Host Agent (API Keys)")
+        Proxy("OpenObscure Proxy")
+        LLM("LLM Provider")
+    end
+
+    HostAgent -- "Authorization: Bearer sk-..." --> Proxy
+    HostAgent -- "x-api-key: sk-ant-..." --> Proxy
+
+    Proxy -- "Authorization: Bearer sk-..." --> LLM
+    Proxy -- "x-api-key: sk-ant-..." --> LLM
+
+    style Infrastructure fill:none,stroke:#D5DBDB,stroke-dasharray: 5 5
+    style HostAgent fill:#3b48cc,stroke:#232F3E,stroke-width:2px,color:#fff
+    style Proxy fill:#545b64,stroke:#232F3E,stroke-width:2px,color:#fff
+    style LLM fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 ```
 
 All original request headers are forwarded except:

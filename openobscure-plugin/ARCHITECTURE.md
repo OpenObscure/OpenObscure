@@ -8,18 +8,23 @@
 
 The gateway plugin is the **second line of defense**. While L0 (Rust proxy) handles outbound PII encryption, L1 catches PII that enters through **tool results** — web scraping, file reads, API responses, and other agent tool outputs that bypass the proxy entirely.
 
-```
-┌──────────────────────────────────────────────────────────────┐
-│  AI Agent Gateway (e.g., OpenClaw) (Node.js)                  │
-│                                                              │
-│   ┌─────────────┐    ┌──────────────────────────────┐       │
-│   │  Agent Tool  │───►│  tool_result_persist hook     │       │
-│   │  (web, file, │    │  ┌─────────────────────────┐ │       │
-│   │   API, etc.) │    │  │  OpenObscure PII Redactor  │ │       │
-│   └─────────────┘    │  │  (regex + Luhn + SSN)    │ │       │
-│                       │  └─────────────────────────┘ │       │
-│                       └──────────────────────────────┘       │
-└──────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    subgraph Gateway ["AI Agent Gateway (Node.js)"]
+        direction TB
+        AgentTool["Agent Tool (Web, File, API)"]
+        subgraph HookContainer ["tool_result_persist hook"]
+            direction TB
+            Redactor["OpenObscure PII Redactor (Regex + Luhn + SSN)"]
+        end
+    end
+
+    AgentTool ==> HookContainer
+
+    style Gateway fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
+    style HookContainer fill:#e6f3f7,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
+    style AgentTool fill:#3F4756,stroke:#545b64,color:#fff
+    style Redactor fill:#9D7BED,stroke:#232F3E,color:#fff
 ```
 
 ## Module Map

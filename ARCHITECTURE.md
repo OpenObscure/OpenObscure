@@ -28,10 +28,11 @@ flowchart TB
     end
     l0proc -- "HTTPS" --> llm(["LLM Providers"])
 
-    style device fill:#e8e8e8,stroke:#aaa,color:#333
-    style gateway fill:#d0d0d0,stroke:#999,color:#333
-    style l0proc fill:#d0d0d0,stroke:#999,color:#333
-    style llm fill:#333,stroke:#111,color:#fff
+    style device fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
+    style gateway fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
+    style l0proc fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
+    style L1 fill:#9D7BED,stroke:#232F3E,color:#fff
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 ```
 
 | Component | Process | How it runs |
@@ -71,12 +72,13 @@ flowchart TB
         gw -- "HTTP" --> llm(["LLM Provider"])
     end
 
-    style mobile fill:#e8e8e8,stroke:#aaa,color:#333
-    style app fill:#d0d0d0,stroke:#999,color:#333
-    style lib fill:#555,stroke:#333,color:#fff
-    style desktop fill:#e8e8e8,stroke:#aaa,color:#333
-    style gw fill:#888,stroke:#666,color:#fff
-    style llm fill:#333,stroke:#111,color:#fff
+    style mobile fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
+    style app fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
+    style ui fill:#3b48cc,stroke:#232F3E,color:#fff
+    style lib fill:#545b64,stroke:#232F3E,color:#fff
+    style desktop fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
+    style gw fill:#3b48cc,stroke:#232F3E,color:#fff
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 ```
 
 | Component | What | How it runs |
@@ -111,10 +113,10 @@ flowchart LR
     gw -- "HTTP" --> proxy["OpenObscure Proxy (FPE encrypt)"]
     proxy -- "HTTPS (encrypted twice)" --> llm["LLM Provider"]
 
-    style phone fill:#888,stroke:#666,color:#fff
-    style gw fill:#999,stroke:#777,color:#111
-    style proxy fill:#555,stroke:#333,color:#fff
-    style llm fill:#333,stroke:#111,color:#fff
+    style phone fill:#3b48cc,stroke:#232F3E,color:#fff
+    style gw fill:#3b48cc,stroke:#232F3E,color:#fff
+    style proxy fill:#545b64,stroke:#232F3E,color:#fff
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 ```
 
 ### API Keys & External Connections
@@ -158,13 +160,20 @@ flowchart TB
     llm -- "response" --> decrypt
     decrypt -- "decrypted" --> gateway
 
-    style gateway fill:#d0d0d0,stroke:#999,color:#333
-    style l1box fill:#bbb,stroke:#888,color:#222
-    style l0box fill:#999,stroke:#777,color:#111
-    style reqpath fill:#bbb,stroke:#888,color:#222
-    style respath fill:#bbb,stroke:#888,color:#222
-    style llm fill:#333,stroke:#111,color:#fff
-    style tools fill:#888,stroke:#666,color:#fff
+    style gateway fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
+    style l1box fill:#f0ebfa,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
+    style l0box fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
+    style reqpath fill:#fff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
+    style respath fill:#fff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    style tools fill:#3F4756,stroke:#545b64,color:#fff
+    style redact fill:#9D7BED,stroke:#232F3E,color:#fff
+    style heartbeat fill:#9D7BED,stroke:#232F3E,color:#fff
+    style nested fill:#545b64,stroke:#232F3E,color:#fff
+    style hybrid fill:#545b64,stroke:#232F3E,color:#fff
+    style imgpipe fill:#545b64,stroke:#232F3E,color:#fff
+    style ff1 fill:#545b64,stroke:#232F3E,color:#fff
+    style decrypt fill:#545b64,stroke:#232F3E,color:#fff
 ```
 
 ## Layer Details
@@ -273,10 +282,10 @@ flowchart LR
     agent --> l0["L0 Proxy FPE encrypt"]
     l0 --> llm["LLM Provider"]
 
-    style user fill:#bbb,stroke:#888,color:#111
-    style agent fill:#888,stroke:#666,color:#fff
-    style l0 fill:#555,stroke:#333,color:#fff
-    style llm fill:#333,stroke:#111,color:#fff
+    style user fill:#232F3E,stroke:#545b64,color:#fff
+    style agent fill:#3b48cc,stroke:#232F3E,color:#fff
+    style l0 fill:#545b64,stroke:#232F3E,color:#fff
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 ```
 
 ### Inbound (LLM → user)
@@ -287,10 +296,10 @@ flowchart RL
     proxy --> agent["Host Agent"]
     agent --> user["User"]
 
-    style llm fill:#333,stroke:#111,color:#fff
-    style proxy fill:#555,stroke:#333,color:#fff
-    style agent fill:#888,stroke:#666,color:#fff
-    style user fill:#bbb,stroke:#888,color:#111
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    style proxy fill:#545b64,stroke:#232F3E,color:#fff
+    style agent fill:#3b48cc,stroke:#232F3E,color:#fff
+    style user fill:#232F3E,stroke:#545b64,color:#fff
 ```
 
 ### Tool Results (agent tools → persistence)
@@ -303,11 +312,11 @@ flowchart LR
     hook --> redact["PII Redactor"]
     redact --> persist[("Transcript (redacted)")]
 
-    style tool fill:#bbb,stroke:#888,color:#111
-    style result fill:#999,stroke:#777,color:#111
-    style hook fill:#888,stroke:#666,color:#fff
-    style redact fill:#555,stroke:#333,color:#fff
-    style persist fill:#bbb,stroke:#888,color:#111
+    style tool fill:#3F4756,stroke:#545b64,color:#fff
+    style result fill:#3F4756,stroke:#545b64,color:#fff
+    style hook fill:#9D7BED,stroke:#232F3E,color:#fff
+    style redact fill:#9D7BED,stroke:#232F3E,color:#fff
+    style persist fill:#e8dff5,stroke:#9D7BED,color:#232F3E
 ```
 
 **Important:** OpenObscure never reads local files itself. The agent's tools perform all file I/O and produce text results. OpenObscure only sees the resulting text *after* the agent has already read and extracted it. L1 operates on text strings from tool outputs, not on files directly.
@@ -520,9 +529,16 @@ flowchart LR
     token -. "written by L0" .-> l0side
     token -. "read by L1" .-> l1side
 
-    style l0side fill:#999,stroke:#777,color:#111
-    style l1side fill:#d0d0d0,stroke:#999,color:#333
-    style token fill:#bbb,stroke:#888,color:#111
+    style l0side fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
+    style l1side fill:#f0ebfa,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
+    style hb fill:#9D7BED,stroke:#232F3E,color:#fff
+    style down fill:#9D7BED,stroke:#232F3E,color:#fff
+    style back fill:#9D7BED,stroke:#232F3E,color:#fff
+    style auth_fail fill:#9D7BED,stroke:#232F3E,color:#fff
+    style endpoint fill:#545b64,stroke:#232F3E,color:#fff
+    style auth_check fill:#545b64,stroke:#232F3E,color:#fff
+    style response fill:#545b64,stroke:#232F3E,color:#fff
+    style token fill:#fff,stroke:#545b64,color:#232F3E
 ```
 
 **Crash path:**
@@ -536,12 +552,15 @@ flowchart LR
         restart["Startup"] --> detect["Detect .crashed"] --> log["Log recovery"] --> delete["Delete marker"]
     end
 
-    style crash fill:#666,stroke:#444,color:#fff
-    style recovery fill:#bbb,stroke:#888,color:#111
-    style panic fill:#555,stroke:#333,color:#fff
-    style abort fill:#555,stroke:#333,color:#fff
-    style restart fill:#888,stroke:#666,color:#fff
-    style log fill:#999,stroke:#777,color:#111
+    style crash fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
+    style recovery fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
+    style panic fill:#545b64,stroke:#232F3E,color:#fff
+    style write fill:#545b64,stroke:#232F3E,color:#fff
+    style abort fill:#545b64,stroke:#232F3E,color:#fff
+    style restart fill:#545b64,stroke:#232F3E,color:#fff
+    style detect fill:#545b64,stroke:#232F3E,color:#fff
+    style log fill:#545b64,stroke:#232F3E,color:#fff
+    style delete fill:#545b64,stroke:#232F3E,color:#fff
 ```
 
 **Auth token handshake:** L0 generates a random 32-byte hex token on first startup, writes to `~/.openobscure/.auth-token` (file permissions 0600 on Unix). L1 reads this file and sends it as the `X-OpenObscure-Token` header with every health check. If the token is missing or wrong, L0 returns 401 Unauthorized. This prevents other localhost processes from querying or impersonating the health endpoint.
@@ -579,12 +598,12 @@ flowchart TB
     subscriber --> audit
     subscriber --> crash
 
-    style macros fill:#555,stroke:#333,color:#fff
-    style subscriber fill:#888,stroke:#666,color:#fff
-    style stderr fill:#bbb,stroke:#888,color:#111
-    style filelog fill:#bbb,stroke:#888,color:#111
-    style audit fill:#bbb,stroke:#888,color:#111
-    style crash fill:#999,stroke:#666,color:#111
+    style macros fill:#545b64,stroke:#232F3E,color:#fff
+    style subscriber fill:#545b64,stroke:#232F3E,color:#fff
+    style stderr fill:#f2f5f7,stroke:#545b64,color:#232F3E
+    style filelog fill:#f2f5f7,stroke:#545b64,color:#232F3E
+    style audit fill:#f2f5f7,stroke:#545b64,color:#232F3E
+    style crash fill:#f2f5f7,stroke:#545b64,color:#232F3E
 ```
 
 | Layer | Purpose | Config |
@@ -611,10 +630,10 @@ flowchart TB
     facade --> console
     facade --> auditlog
 
-    style funcs fill:#555,stroke:#333,color:#fff
-    style facade fill:#888,stroke:#666,color:#fff
-    style console fill:#bbb,stroke:#888,color:#111
-    style auditlog fill:#bbb,stroke:#888,color:#111
+    style funcs fill:#9D7BED,stroke:#232F3E,color:#fff
+    style facade fill:#9D7BED,stroke:#232F3E,color:#fff
+    style console fill:#f2f5f7,stroke:#9D7BED,color:#232F3E
+    style auditlog fill:#f2f5f7,stroke:#9D7BED,color:#232F3E
 ```
 
 Module constants: REDACTOR, HEARTBEAT, PLUGIN.
@@ -654,9 +673,22 @@ flowchart TB
     entry --> pass1
     pass1 --> pass2
 
-    style entry fill:#555,stroke:#333,color:#fff
-    style pass1 fill:#d0d0d0,stroke:#999,color:#333
-    style pass2 fill:#e8e8e8,stroke:#aaa,color:#333
+    style entry fill:#545b64,stroke:#232F3E,color:#fff
+    style pass1 fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
+    style pass2 fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
+    style walk fill:#545b64,stroke:#232F3E,color:#fff
+    style detect fill:#545b64,stroke:#232F3E,color:#fff
+    style decode fill:#545b64,stroke:#232F3E,color:#fff
+    style exif fill:#545b64,stroke:#232F3E,color:#fff
+    style resize fill:#545b64,stroke:#232F3E,color:#fff
+    style nsfw fill:#545b64,stroke:#232F3E,color:#fff
+    style face fill:#545b64,stroke:#232F3E,color:#fff
+    style fullblur fill:#545b64,stroke:#232F3E,color:#fff
+    style ocr fill:#545b64,stroke:#232F3E,color:#fff
+    style encode fill:#545b64,stroke:#232F3E,color:#fff
+    style scan fill:#545b64,stroke:#232F3E,color:#fff
+    style match fill:#545b64,stroke:#232F3E,color:#fff
+    style encrypt fill:#545b64,stroke:#232F3E,color:#fff
 ```
 
 **Provider formats:**
