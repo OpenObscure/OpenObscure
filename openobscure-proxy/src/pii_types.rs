@@ -9,6 +9,10 @@ pub enum PiiType {
     PhoneNumber,
     Email,
     ApiKey,
+    Ipv4Address,
+    Ipv6Address,
+    GpsCoordinate,
+    MacAddress,
     HealthKeyword,
     ChildKeyword,
     Person,
@@ -24,6 +28,10 @@ impl fmt::Display for PiiType {
             PiiType::PhoneNumber => write!(f, "phone"),
             PiiType::Email => write!(f, "email"),
             PiiType::ApiKey => write!(f, "api_key"),
+            PiiType::Ipv4Address => write!(f, "ipv4_address"),
+            PiiType::Ipv6Address => write!(f, "ipv6_address"),
+            PiiType::GpsCoordinate => write!(f, "gps_coordinate"),
+            PiiType::MacAddress => write!(f, "mac_address"),
             PiiType::HealthKeyword => write!(f, "health_keyword"),
             PiiType::ChildKeyword => write!(f, "child_keyword"),
             PiiType::Person => write!(f, "person"),
@@ -68,9 +76,13 @@ impl PiiType {
                 alphabet: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
                 min_length: 6, // 62^6 >> 1,000,000
             },
-            // Keyword types are redacted, not FPE-encrypted.
+            // Network/device identifiers and keyword types are redacted, not FPE-encrypted.
             // Returning a dummy config — callers should check is_fpe_eligible() first.
-            PiiType::HealthKeyword
+            PiiType::Ipv4Address
+            | PiiType::Ipv6Address
+            | PiiType::GpsCoordinate
+            | PiiType::MacAddress
+            | PiiType::HealthKeyword
             | PiiType::ChildKeyword
             | PiiType::Person
             | PiiType::Location
@@ -91,7 +103,11 @@ impl PiiType {
             | PiiType::PhoneNumber
             | PiiType::Email
             | PiiType::ApiKey => true,
-            PiiType::HealthKeyword
+            PiiType::Ipv4Address
+            | PiiType::Ipv6Address
+            | PiiType::GpsCoordinate
+            | PiiType::MacAddress
+            | PiiType::HealthKeyword
             | PiiType::ChildKeyword
             | PiiType::Person
             | PiiType::Location
@@ -102,6 +118,10 @@ impl PiiType {
     /// The redaction placeholder for non-FPE types.
     pub fn redaction_label(&self) -> &'static str {
         match self {
+            PiiType::Ipv4Address => "[IPv4]",
+            PiiType::Ipv6Address => "[IPv6]",
+            PiiType::GpsCoordinate => "[GPS]",
+            PiiType::MacAddress => "[MAC]",
             PiiType::HealthKeyword => "[HEALTH]",
             PiiType::ChildKeyword => "[CHILD]",
             PiiType::Person => "[PERSON]",
@@ -119,6 +139,10 @@ impl PiiType {
             PiiType::PhoneNumber => "phone",
             PiiType::Email => "email",
             PiiType::ApiKey => "api_key",
+            PiiType::Ipv4Address => "ipv4_address",
+            PiiType::Ipv6Address => "ipv6_address",
+            PiiType::GpsCoordinate => "gps_coordinate",
+            PiiType::MacAddress => "mac_address",
             PiiType::HealthKeyword => "health_keyword",
             PiiType::ChildKeyword => "child_keyword",
             PiiType::Person => "person",

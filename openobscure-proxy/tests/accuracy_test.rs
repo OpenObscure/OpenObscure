@@ -32,7 +32,8 @@ struct ExpectedMatch {
 
 /// Types detected by the regex scanner (not keywords/NER).
 fn is_regex_type(t: &str) -> bool {
-    matches!(t, "CreditCard" | "Ssn" | "PhoneNumber" | "Email" | "ApiKey")
+    matches!(t, "CreditCard" | "Ssn" | "PhoneNumber" | "Email" | "ApiKey"
+        | "Ipv4Address" | "Ipv6Address" | "GpsCoordinate" | "MacAddress")
 }
 
 /// Map corpus type strings to PiiType enum.
@@ -43,6 +44,10 @@ fn parse_pii_type(s: &str) -> Option<PiiType> {
         "PhoneNumber" => Some(PiiType::PhoneNumber),
         "Email" => Some(PiiType::Email),
         "ApiKey" => Some(PiiType::ApiKey),
+        "Ipv4Address" => Some(PiiType::Ipv4Address),
+        "Ipv6Address" => Some(PiiType::Ipv6Address),
+        "GpsCoordinate" => Some(PiiType::GpsCoordinate),
+        "MacAddress" => Some(PiiType::MacAddress),
         "HealthKeyword" => Some(PiiType::HealthKeyword),
         "ChildKeyword" => Some(PiiType::ChildKeyword),
         _ => None,
@@ -551,6 +556,10 @@ fn test_pii_types_are_known() {
         PiiType::PhoneNumber,
         PiiType::Email,
         PiiType::ApiKey,
+        PiiType::Ipv4Address,
+        PiiType::Ipv6Address,
+        PiiType::GpsCoordinate,
+        PiiType::MacAddress,
         PiiType::HealthKeyword,
         PiiType::ChildKeyword,
     ];

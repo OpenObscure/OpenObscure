@@ -54,6 +54,26 @@ impl PiiScanner {
                 PiiType::ApiKey,
                 r"\b(?:sk-ant-[a-zA-Z0-9_-]{20,}|sk-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36,}|gho_[a-zA-Z0-9]{36,}|xoxb-[0-9]+-[a-zA-Z0-9]+|xoxp-[0-9]+-[a-zA-Z0-9]+)\b",
             ),
+            // IPv4 addresses (0-255 octets, validate_ipv4 rejects loopback/broadcast/0.x.x.x)
+            (
+                PiiType::Ipv4Address,
+                r"\b(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\.){3}(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])\b",
+            ),
+            // IPv6 addresses: full 8-group, mid-compressed (groups::groups), and ::prefix compressed
+            (
+                PiiType::Ipv6Address,
+                r"(?i)\b[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){7}\b|(?i)\b[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,5}::[0-9a-f]{0,4}(?::[0-9a-f]{1,4}){0,5}\b|(?i)::(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4}\b",
+            ),
+            // GPS coordinates: signed decimal lat/long pairs (e.g., 45.5231, -122.6765)
+            (
+                PiiType::GpsCoordinate,
+                r"-?(?:[1-8]?[0-9]\.[0-9]{4,}|90\.0{4,}),\s*-?(?:1[0-7][0-9]\.[0-9]{4,}|180\.0{4,}|[0-9]{1,2}\.[0-9]{4,})",
+            ),
+            // MAC addresses (colon, dash, or dot separated)
+            (
+                PiiType::MacAddress,
+                r"(?i)\b[0-9a-f]{2}(?::[0-9a-f]{2}){5}\b|(?i)\b[0-9a-f]{2}(?:-[0-9a-f]{2}){5}\b|(?i)\b[0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}\b",
+            ),
         ];
 
         let regex_strings: Vec<&str> = pattern_defs.iter().map(|(_, pat)| *pat).collect();
@@ -162,6 +182,7 @@ impl PiiScanner {
         match pii_type {
             PiiType::CreditCard => luhn_check(raw),
             PiiType::Ssn => validate_ssn(raw),
+            PiiType::Ipv4Address => validate_ipv4(raw),
             _ => true,
         }
     }
@@ -210,6 +231,35 @@ fn validate_ssn(raw: &str) -> bool {
         return false;
     }
     if group == 0 || serial == 0 {
+        return false;
+    }
+    true
+}
+
+/// Reject non-PII IPv4 addresses: loopback (127.x), link-local (169.254.x),
+/// broadcast (255.255.255.255), and common version-like patterns (x.0.0.x).
+fn validate_ipv4(raw: &str) -> bool {
+    let octets: Vec<u8> = raw
+        .split('.')
+        .filter_map(|s| s.parse::<u8>().ok())
+        .collect();
+    if octets.len() != 4 {
+        return false;
+    }
+    // Reject loopback (127.x.x.x)
+    if octets[0] == 127 {
+        return false;
+    }
+    // Reject broadcast
+    if octets.iter().all(|&o| o == 255) {
+        return false;
+    }
+    // Reject link-local (169.254.x.x)
+    if octets[0] == 169 && octets[1] == 254 {
+        return false;
+    }
+    // Reject 0.x.x.x (unspecified)
+    if octets[0] == 0 {
         return false;
     }
     true
@@ -344,5 +394,118 @@ mod tests {
         let scanner = PiiScanner::new();
         let matches = scanner.scan_text("Hello, how are you today? The weather is nice.");
         assert_eq!(matches.len(), 0);
+    }
+
+    // --- IPv4 tests ---
+
+    #[test]
+    fn test_ipv4_detection() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("Server at 192.168.1.42 is down");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::Ipv4Address);
+        assert_eq!(matches[0].raw_value, "192.168.1.42");
+    }
+
+    #[test]
+    fn test_ipv4_public_address() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("User connected from 203.0.113.42");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::Ipv4Address);
+    }
+
+    #[test]
+    fn test_ipv4_reject_loopback() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("localhost is 127.0.0.1");
+        assert!(
+            !matches.iter().any(|m| m.pii_type == PiiType::Ipv4Address),
+            "loopback 127.x.x.x should be rejected"
+        );
+    }
+
+    #[test]
+    fn test_ipv4_reject_broadcast() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("broadcast 255.255.255.255");
+        assert!(
+            !matches.iter().any(|m| m.pii_type == PiiType::Ipv4Address),
+            "broadcast should be rejected"
+        );
+    }
+
+    // --- IPv6 tests ---
+
+    #[test]
+    fn test_ipv6_full_detection() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("IPv6: 2001:0db8:85a3:0000:0000:8a2e:0370:7334");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::Ipv6Address);
+    }
+
+    #[test]
+    fn test_ipv6_compressed_detection() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("IPv6: ::1234:5678");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::Ipv6Address);
+    }
+
+    // --- GPS coordinate tests ---
+
+    #[test]
+    fn test_gps_coordinate_detection() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("Location: 45.5231, -122.6765");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::GpsCoordinate);
+        assert_eq!(matches[0].raw_value, "45.5231, -122.6765");
+    }
+
+    #[test]
+    fn test_gps_negative_latitude() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("Sydney: -33.8688, 151.2093");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::GpsCoordinate);
+    }
+
+    #[test]
+    fn test_gps_no_false_positive_on_low_precision() {
+        let scanner = PiiScanner::new();
+        // Only 2 decimal places — not precise enough to be a GPS coordinate
+        let matches = scanner.scan_text("Value: 45.52, -122.67");
+        assert!(
+            !matches.iter().any(|m| m.pii_type == PiiType::GpsCoordinate),
+            "low-precision decimals should not match GPS"
+        );
+    }
+
+    // --- MAC address tests ---
+
+    #[test]
+    fn test_mac_colon_detection() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("MAC: 00:1A:2B:3C:4D:5E");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::MacAddress);
+    }
+
+    #[test]
+    fn test_mac_dash_detection() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("MAC: 00-1A-2B-3C-4D-5E");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::MacAddress);
+    }
+
+    #[test]
+    fn test_mac_dot_detection() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("MAC: 001a.2b3c.4d5e");
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].pii_type, PiiType::MacAddress);
     }
 }
