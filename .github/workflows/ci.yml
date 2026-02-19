@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  proxy-test:
+    name: Proxy Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-proxy
+
+      - name: Test (default features)
+        run: cargo test --manifest-path openobscure-proxy/Cargo.toml
+
+      - name: Test (governance)
+        run: cargo test --manifest-path openobscure-proxy/Cargo.toml --features governance
+
+      - name: Test (crypto)
+        run: cargo test --manifest-path openobscure-proxy/Cargo.toml --features crypto
+
+  proxy-cross-arm64:
+    name: Cross-check aarch64-linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-proxy
+
+      - name: Install cross-compilation toolchain
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Check (aarch64-linux)
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: cargo check --manifest-path openobscure-proxy/Cargo.toml --target aarch64-unknown-linux-gnu
+
+  mobile-build:
+    name: Mobile Build (iOS)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-proxy
+
+      - name: Build iOS device (aarch64-apple-ios)
+        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --target aarch64-apple-ios --lib --features mobile-full
+
+      - name: Build iOS simulator (aarch64-apple-ios-sim)
+        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --target aarch64-apple-ios-sim --lib --features mobile-full
+
+  crypto-test:
+    name: Crypto Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-crypto
+
+      - name: Test openobscure-crypto
+        run: cargo test --manifest-path openobscure-crypto/Cargo.toml
+
+  plugin-test:
+    name: Plugin Tests (TypeScript)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        working-directory: openobscure-plugin
+        run: npm ci
+
+      - name: Run tests
+        working-directory: openobscure-plugin
+        run: npm test
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check (proxy)
+        run: cargo fmt --manifest-path openobscure-proxy/Cargo.toml -- --check
+
+      - name: Format check (crypto)
+        run: cargo fmt --manifest-path openobscure-crypto/Cargo.toml -- --check
+
+      - name: Clippy (proxy, default)
+        run: cargo clippy --manifest-path openobscure-proxy/Cargo.toml -- -D warnings
+
+      - name: Clippy (proxy, governance)
+        run: cargo clippy --manifest-path openobscure-proxy/Cargo.toml --features governance -- -D warnings
+
+      - name: Clippy (crypto)
+        run: cargo clippy --manifest-path openobscure-crypto/Cargo.toml -- -D warnings

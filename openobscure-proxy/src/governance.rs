@@ -488,6 +488,22 @@ impl ConsentStore {
         Ok(rows.filter_map(|r| r.ok()).collect())
     }
 
+    /// Get all processing log entries across all users (for breach assessment).
+    pub fn get_all_processing_log(&self, limit: Option<usize>) -> Result<Vec<ProcessingLogEntry>, GovernanceError> {
+        let sql = match limit {
+            Some(_) => "SELECT id, user_id, timestamp, action, pii_types, source, details
+                        FROM data_processing_log ORDER BY id DESC LIMIT ?1",
+            None => "SELECT id, user_id, timestamp, action, pii_types, source, details
+                     FROM data_processing_log ORDER BY id DESC",
+        };
+        let mut stmt = self.conn.prepare(sql)?;
+        let rows = match limit {
+            Some(lim) => stmt.query_map(params![lim as i64], map_processing_log)?,
+            None => stmt.query_map([], map_processing_log)?,
+        };
+        Ok(rows.filter_map(|r| r.ok()).collect())
+    }
+
     // ── DSAR ──
 
     /// Create a new DSAR request.
@@ -702,6 +718,40 @@ fn map_processing_log(row: &rusqlite::Row) -> rusqlite::Result<ProcessingLogEntr
         source: row.get(5)?,
         details: row.get(6)?,
     })
+}
+
+/// Convert processing log entries to audit entries for breach assessment.
+pub fn processing_log_to_audit_entries(entries: &[ProcessingLogEntry]) -> Vec<crate::compliance::AuditEntry> {
+    entries
+        .iter()
+        .map(|e| {
+            let pii_types_str = e.pii_types.as_deref().unwrap_or("");
+            let pii_count = if pii_types_str.is_empty() {
+                0u64
+            } else {
+                pii_types_str.split(',').count() as u64
+            };
+            let pii_breakdown = if pii_types_str.is_empty() {
+                None
+            } else {
+                // Convert "email,ssn,cc" → "email=1, ssn=1, cc=1"
+                let breakdown = pii_types_str
+                    .split(',')
+                    .map(|t| format!("{}=1", t.trim()))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                Some(breakdown)
+            };
+            crate::compliance::AuditEntry {
+                timestamp: e.timestamp.clone(),
+                module: e.source.clone().unwrap_or_else(|| "governance".to_string()),
+                operation: e.action.clone(),
+                pii_total: Some(pii_count),
+                pii_breakdown,
+                request_id: None,
+            }
+        })
+        .collect()
 }
 
 // ── FileGuard ──
@@ -1585,5 +1635,52 @@ mod tests {
         let result = handle_privacy_command(&engine, "user1", &["retention", "enforce"]);
         assert!(result.success);
         assert!(result.text.contains("Promoted:"));
+    }
+
+    // ── Processing Log + Audit Entry Converter Tests ──
+
+    #[test]
+    fn test_get_all_processing_log_empty() {
+        let store = test_store();
+        let entries = store.get_all_processing_log(None).unwrap();
+        assert!(entries.is_empty());
+    }
+
+    #[test]
+    fn test_get_all_processing_log_multiple_users() {
+        let store = test_store();
+        store.log_processing("alice", ProcessingAction::Scan, Some(&["email"]), Some("proxy"), None).unwrap();
+        store.log_processing("bob", ProcessingAction::Encrypt, Some(&["ssn", "cc"]), Some("proxy"), None).unwrap();
+        store.log_processing("alice", ProcessingAction::Redact, Some(&["phone"]), Some("plugin"), None).unwrap();
+
+        let all = store.get_all_processing_log(None).unwrap();
+        assert_eq!(all.len(), 3);
+
+        let limited = store.get_all_processing_log(Some(2)).unwrap();
+        assert_eq!(limited.len(), 2);
+    }
+
+    #[test]
+    fn test_processing_log_to_audit_entries_conversion() {
+        let store = test_store();
+        store.log_processing("user1", ProcessingAction::Scan, Some(&["email", "ssn"]), Some("proxy"), None).unwrap();
+        store.log_processing("user1", ProcessingAction::Encrypt, None, None, None).unwrap();
+
+        let log = store.get_all_processing_log(None).unwrap();
+        let audit = processing_log_to_audit_entries(&log);
+        assert_eq!(audit.len(), 2);
+
+        // Entry with PII types
+        let with_pii = audit.iter().find(|e| e.operation == "scan").unwrap();
+        assert_eq!(with_pii.module, "proxy");
+        assert_eq!(with_pii.pii_total, Some(2));
+        assert!(with_pii.pii_breakdown.as_ref().unwrap().contains("email=1"));
+        assert!(with_pii.pii_breakdown.as_ref().unwrap().contains("ssn=1"));
+
+        // Entry without PII types
+        let without = audit.iter().find(|e| e.operation == "encrypt").unwrap();
+        assert_eq!(without.module, "governance"); // fallback when source is None
+        assert_eq!(without.pii_total, Some(0));
+        assert!(without.pii_breakdown.is_none());
     }
 }

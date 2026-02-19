@@ -275,6 +275,88 @@ pub fn export_user_data(
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
+// ---- Breach Detection & Compliance FFI exports ----
+
+/// Assess processing log for anomalous PII activity (breach detection).
+///
+/// Returns a risk assessment with anomaly count and recommendations.
+/// `threshold` controls sensitivity (default: 3.0 sigma).
+#[cfg(all(feature = "mobile", feature = "governance"))]
+#[uniffi::export]
+pub fn assess_breach(
+    handle: &Arc<OpenObscureMobile>,
+    threshold: Option<f64>,
+) -> Result<BreachAssessmentFFI, MobileBindingError> {
+    let result = handle.assess_breach(threshold)
+        .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
+    Ok(BreachAssessmentFFI {
+        risk_level: result.risk_level,
+        anomaly_count: result.anomaly_count,
+        recommendation: result.recommendation,
+        anomalies_json: result.anomalies_json,
+    })
+}
+
+/// Generate a GDPR Art. 33 breach notification draft (Markdown).
+#[cfg(all(feature = "mobile", feature = "governance"))]
+#[uniffi::export]
+pub fn generate_breach_report(
+    handle: &Arc<OpenObscureMobile>,
+) -> Result<String, MobileBindingError> {
+    handle.generate_breach_report()
+        .map_err(|e| MobileBindingError::Processing(e.to_string()))
+}
+
+/// Export audit entries in SIEM format ("cef" or "leef").
+#[cfg(all(feature = "mobile", feature = "governance"))]
+#[uniffi::export]
+pub fn export_audit_entries(
+    handle: &Arc<OpenObscureMobile>,
+    format: String,
+    limit: Option<u32>,
+) -> Result<String, MobileBindingError> {
+    handle.export_audit_entries(&format, limit)
+        .map_err(|e| MobileBindingError::Processing(e.to_string()))
+}
+
+/// Get a compliance summary from the processing log.
+#[cfg(all(feature = "mobile", feature = "governance"))]
+#[uniffi::export]
+pub fn compliance_summary(
+    handle: &Arc<OpenObscureMobile>,
+) -> Result<String, MobileBindingError> {
+    handle.compliance_summary()
+        .map_err(|e| MobileBindingError::Processing(e.to_string()))
+}
+
+// ---- Encrypted Storage FFI exports (requires mobile + crypto) ----
+
+/// Encrypt data with AES-256-GCM using a passphrase-derived key (Argon2id).
+///
+/// Returns an opaque blob that the host app stores and passes back to `decrypt_data()`.
+#[cfg(all(feature = "mobile", feature = "crypto"))]
+#[uniffi::export]
+pub fn encrypt_data(
+    handle: &Arc<OpenObscureMobile>,
+    plaintext: Vec<u8>,
+    passphrase: String,
+) -> Result<Vec<u8>, MobileBindingError> {
+    handle.encrypt_data(&plaintext, &passphrase)
+        .map_err(|e| MobileBindingError::Processing(e.to_string()))
+}
+
+/// Decrypt data previously encrypted with `encrypt_data()`.
+#[cfg(all(feature = "mobile", feature = "crypto"))]
+#[uniffi::export]
+pub fn decrypt_data(
+    handle: &Arc<OpenObscureMobile>,
+    data: Vec<u8>,
+    passphrase: String,
+) -> Result<Vec<u8>, MobileBindingError> {
+    handle.decrypt_data(&data, &passphrase)
+        .map_err(|e| MobileBindingError::Processing(e.to_string()))
+}
+
 // ---- FFI-safe types for UniFFI ----
 
 /// Result of sanitizing text, exposed to Swift/Kotlin via UniFFI.
@@ -340,6 +422,16 @@ pub struct RetentionSummaryFFI {
     pub cold: u32,
     pub expired: u32,
     pub total: u32,
+}
+
+/// Breach assessment result exposed to Swift/Kotlin via UniFFI.
+#[cfg(all(feature = "mobile", feature = "governance"))]
+#[derive(uniffi::Record)]
+pub struct BreachAssessmentFFI {
+    pub risk_level: String,
+    pub anomaly_count: u32,
+    pub recommendation: String,
+    pub anomalies_json: String,
 }
 
 /// Error type exposed to Swift/Kotlin via UniFFI.

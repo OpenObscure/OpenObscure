@@ -65,8 +65,8 @@ flowchart TB
 ```
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
-- **Layers:** L0 (PII scan + FPE) + L1 governance via `governance` feature (consent, file guard, retention, privacy commands)
-- **Features:** Text PII scanning (regex + keywords), FPE encryption, image pipeline (optional), restore/decrypt for responses, GDPR consent management, file access guard, 4-tier retention lifecycle
+- **Layers:** L0 (PII scan + FPE) + L1 governance via `governance` feature + encrypted storage via `crypto` feature
+- **Features:** Text PII scanning (regex + keywords), FPE encryption, image pipeline (optional), restore/decrypt for responses, GDPR consent management, file access guard, 4-tier retention lifecycle, breach detection, SIEM export (CEF/LEEF), AES-256-GCM encrypted storage with Argon2id KDF
 - **Use case:** Mobile companion apps that sanitize PII on-device *before* data reaches the Gateway over WebSocket — defense in depth
 
 ### When to Use Which
@@ -234,9 +234,10 @@ See `config/openobscure.toml` for all available options.
 ## Running Tests
 
 ```bash
-# L0 Proxy (627 tests, or 723 with governance feature)
+# L0 Proxy (650 tests default, 768 with all features)
 cd openobscure-proxy && cargo test
-cd openobscure-proxy && cargo test --features governance  # includes governance tests
+cd openobscure-proxy && cargo test --features governance          # +governance
+cd openobscure-proxy && cargo test --features governance,crypto   # +governance +crypto
 
 # L2 Crypto (16 tests)
 cd openobscure-crypto && cargo test
@@ -245,7 +246,7 @@ cd openobscure-crypto && cargo test
 cd openobscure-plugin && npm test
 ```
 
-**Total: 835 tests** across all components (with governance feature enabled).
+**Total: 880 tests** across all components (with all features enabled).
 
 ---
 

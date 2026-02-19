@@ -1,7 +1,7 @@
 # OpenObscure — System Architecture
 
 > Privacy firewall for AI agents. Primary integration: [OpenClaw](https://github.com/openclaw/openclaw), the open-source AI assistant.
-> Last updated: 2026-02-18 (Phase 8D — L1 governance port to Rust for mobile, 835 tests)
+> Last updated: 2026-02-18 (Phase 8 — Production Hardening, 880 tests)
 
 ---
 
@@ -108,12 +108,21 @@ flowchart TB
 | `enforce_retention()` | Promote retention tiers + prune expired entries |
 | `retention_summary()` | Get tier counts (hot/warm/cold/expired/total) |
 | `export_user_data(user_id)` | Export all user data as JSON (DSAR access request) |
+| `assess_breach(threshold?)` | Anomaly detection on processing log (sigma-based, returns risk level) |
+| `generate_breach_report()` | GDPR Art. 33 breach notification draft (Markdown) |
+| `export_audit_entries(format, limit?)` | SIEM export in CEF or LEEF format |
+| `compliance_summary()` | Aggregate PII stats from processing log |
+| `encrypt_data(plaintext, passphrase)` | AES-256-GCM encrypt with Argon2id KDF (requires `crypto` feature) |
+| `decrypt_data(data, passphrase)` | Decrypt data from `encrypt_data()` (requires `crypto` feature) |
 
 **Key differences from Gateway Model:**
 - No HTTP server (axum/tokio not compiled in)
 - FPE key passed from host app (no OS keychain access on mobile)
 - CRF scanner used by default (NER requires ~55MB RAM, not recommended on mobile)
-- L1 governance available via `governance` feature — consent, file guard, retention, privacy commands (requires `mobile-full` feature flag)
+- L1 governance available via `governance` feature — consent, file guard, retention, privacy commands
+- Breach detection, compliance reports, SIEM export available via `governance` feature
+- Encrypted storage available via `crypto` feature (AES-256-GCM + Argon2id KDF)
+- `mobile-full` feature flag enables all: `mobile` + `governance` + `crypto`
 - Image pipeline optional via feature flag (`mobile` = text only, `mobile` + `image-pipeline` = full)
 
 ### Defense in Depth: Both Models Together
@@ -205,7 +214,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, GDPR audit log, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, keyring 3, clap 4 (CLI) |
 | **Resource** | ~12MB RAM (regex-only), ~67MB with NER model loaded, ~224MB peak during image processing; 2.7MB binary |
-| **Tests** | 627 default, 723 with `governance` feature (289 lib + 415 bin + 13 accuracy + 6 pipeline) |
+| **Tests** | 650 default, 768 with all features (325 lib + 424 bin + 13 integration + 6 accuracy) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -456,6 +465,7 @@ Storage ceiling: **62MB** (including all models, ONNX Runtime, config).
 | **Phase 7** (complete) | **97%** | Cross-platform support (Windows, Linux ARM64), mobile library API (iOS + Android via UniFFI), Embedded deployment model |
 | **Post-Phase 7** (complete) | **98%** | Network/device identifier detection (IPv4, IPv6, GPS coordinates, MAC addresses) — closes PII-06 + PII-12 |
 | **Phase 8D** (complete) | **98%** | L1 governance port to Rust — consent manager, file access guard, retention tiers, privacy commands available on mobile via `governance` feature |
+| **Phase 8** (complete) | **99%** | Breach detection, compliance/SIEM export, encrypted storage wired to mobile API; CI/CD workflows; UniFFI binding generation |
 
 ## Project Layout
 
@@ -463,11 +473,15 @@ Storage ceiling: **62MB** (including all models, ONNX Runtime, config).
 OpenObscure/
 ├── ARCHITECTURE.md              ← this file (system-level architecture)
 ├── session-notes/               Per-session implementation logs
+├── .github/workflows/
+│   ├── ci.yml                   CI: proxy-test matrix, cross-arm64, mobile-build, crypto, plugin, lint
+│   └── release.yml              Release: binary matrix + iOS XCFramework + UniFFI bindings
 ├── scripts/
 │   ├── download_models.sh       Download ONNX models for image pipeline
 │   ├── generate_screenshot.py   Generate synthetic PII screenshot for demos
-│   ├── build_ios.sh             Build iOS static library + XCFramework
-│   └── build_android.sh         Build Android shared library via cargo-ndk
+│   ├── build_ios.sh             Build iOS static library + XCFramework (--features mobile-full)
+│   ├── build_android.sh         Build Android shared library via cargo-ndk (--features mobile-full)
+│   └── generate_bindings.sh     Generate UniFFI Swift/Kotlin bindings
 ├── docs/examples/images/        Before/after visual PII examples
 ├── openobscure-proxy/             L0: Rust PII proxy
 │   ├── ARCHITECTURE.md          L0 architecture details
@@ -537,8 +551,9 @@ cd openobscure-proxy && cargo run -- --init-key
 cargo run -- -c config/openobscure.toml
 
 # Run all tests
-cd openobscure-proxy && cargo test                        # 627 tests
-cd openobscure-proxy && cargo test --features governance  # 723 tests (includes governance)
+cd openobscure-proxy && cargo test                               # 650 tests
+cd openobscure-proxy && cargo test --features governance          # 764 tests (includes governance)
+cd openobscure-proxy && cargo test --features governance,crypto   # 768 tests (all features)
 cd openobscure-crypto && cargo test                       # 16 tests
 cd openobscure-plugin && npm test                         # 96 tests
 ```
@@ -851,11 +866,14 @@ If L0 is not running, the host agent can't reach LLM providers (traffic is confi
 
 ## Future Architecture Changes
 
-Planned (Phase 8 — production hardening):
+Completed (Phase 8 — production hardening):
 - **L1 Rust rewrite** — DONE (Phase 8D). Consent manager, file access guard, retention tiers, and privacy commands ported to Rust (`governance.rs`). Available on mobile via `governance` feature flag.
-- **CI/CD matrix** — GitHub Actions cross-platform build verification (macOS, Linux, Windows, iOS sim, Android NDK)
+- **Mobile API gaps** — DONE (Phase 8). Breach detection, compliance reports, SIEM export (CEF/LEEF), and encrypted storage (AES-256-GCM + Argon2id) wired to mobile API.
+- **CI/CD matrix** — DONE (Phase 8). GitHub Actions: proxy-test (macOS/Linux/Windows), cross-arm64, mobile-build (iOS), crypto, plugin, lint. Release workflow with binary matrix + iOS XCFramework.
+- **UniFFI binding generation** — DONE (Phase 8). `scripts/generate_bindings.sh` + `uniffi-bindgen` binary for Swift/Kotlin binding generation.
+
+Planned (future):
 - **ONNX Runtime mobile** — pre-built ORT for iOS (CoreML EP) and Android (NNAPI EP), `.ort` format models
-- **UniFFI binding generation** — automated Swift/Kotlin binding generation in CI
 
 Planned (Phase 9 — advanced detection & multilingual):
 - **SCRFD multi-scale face detection** — SCRFD-2.5GF for mixed-size faces in screenshots (replaces BlazeFace on desktop)

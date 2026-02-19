@@ -25,6 +25,10 @@ pub mod screen_guard;
 pub mod detection_meta;
 pub mod detection_validators;
 
+// Compliance and breach detection (also used by governance for mobile breach assessment)
+pub mod compliance;
+pub mod breach_detect;
+
 // Privacy governance (consent, file guard, retention — SQLite-backed)
 #[cfg(feature = "governance")]
 pub mod governance;

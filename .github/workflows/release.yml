@@ -1,0 +1,112 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-binaries:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            artifact: openobscure-proxy
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: openobscure-proxy
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: openobscure-proxy.exe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-proxy
+
+      - name: Build release binary
+        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --release --features governance,crypto
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.target }}
+          path: openobscure-proxy/target/release/${{ matrix.artifact }}
+
+  build-ios:
+    name: Build iOS XCFramework
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios,aarch64-apple-ios-sim
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-proxy
+
+      - name: Build iOS XCFramework
+        run: ./scripts/build_ios.sh --release --xcframework
+
+      - name: Upload XCFramework
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-xcframework
+          path: openobscure-proxy/target/OpenObscure.xcframework
+
+  generate-bindings:
+    name: Generate UniFFI Bindings
+    runs-on: macos-14
+    needs: build-ios
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-proxy
+
+      - name: Generate bindings
+        run: ./scripts/generate_bindings.sh
+
+      - name: Upload Swift bindings
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-swift
+          path: bindings/swift/
+
+      - name: Upload Kotlin bindings
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-kotlin
+          path: bindings/kotlin/
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-binaries, build-ios, generate-bindings]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            release-artifacts/binary-*/*
+            release-artifacts/ios-xcframework/**
+            release-artifacts/bindings-swift/**
+            release-artifacts/bindings-kotlin/**

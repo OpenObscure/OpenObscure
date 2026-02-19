@@ -66,7 +66,7 @@ for target in "${TARGETS[@]}"; do
     cargo ndk --manifest-path "$PROXY_DIR/Cargo.toml" \
         --target "$target" \
         --platform "$API_LEVEL" \
-        build $BUILD_FLAG --lib
+        build $BUILD_FLAG --lib --features mobile-full
 done
 
 echo ""

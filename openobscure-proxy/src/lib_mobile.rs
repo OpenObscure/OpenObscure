@@ -50,6 +50,14 @@ pub struct MobileConfig {
     /// Maximum image dimension before resize.
     #[serde(default = "default_max_dimension")]
     pub max_dimension: u32,
+
+    /// Data Protection Officer email (for breach notification drafts).
+    #[serde(default)]
+    pub dpo_email: Option<String>,
+
+    /// Supervisory authority / DPA contact email.
+    #[serde(default)]
+    pub dpa_contact: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -74,6 +82,8 @@ impl Default for MobileConfig {
             face_model_dir: None,
             ocr_model_dir: None,
             max_dimension: 960,
+            dpo_email: None,
+            dpa_contact: None,
         }
     }
 }
@@ -122,6 +132,8 @@ pub enum MobileError {
     Governance(String),
     #[error("Governance not enabled")]
     GovernanceNotEnabled,
+    #[error("Crypto error: {0}")]
+    CryptoError(String),
 }
 
 /// Result of a file access check.
@@ -162,6 +174,15 @@ pub struct ConsentRecordMobile {
     pub consent_type: String,
     pub granted: bool,
     pub version: i64,
+}
+
+/// Breach assessment result for mobile API.
+#[derive(Debug, Clone)]
+pub struct BreachAssessmentMobile {
+    pub risk_level: String,
+    pub anomaly_count: u32,
+    pub recommendation: String,
+    pub anomalies_json: String,
 }
 
 /// The main mobile API handle. Thread-safe and reusable across calls.
@@ -513,6 +534,155 @@ impl OpenObscureMobile {
             .map_err(|e| MobileError::Serialization(e.to_string()))
     }
 
+    // ── Breach Detection & Compliance Methods ──
+
+    /// Assess processing log entries for anomalous PII activity.
+    ///
+    /// Queries the governance SQLite processing log, buckets by hour,
+    /// and flags outliers above `threshold` standard deviations (default: 3.0).
+    #[cfg(feature = "governance")]
+    pub fn assess_breach(&self, threshold: Option<f64>) -> Result<BreachAssessmentMobile, MobileError> {
+        let engine = self.gov_engine()?;
+        let entries = engine.consent_store().get_all_processing_log(None).map_err(Self::gov_err)?;
+        let audit = crate::governance::processing_log_to_audit_entries(&entries);
+        let assessment = crate::breach_detect::assess_breach(&audit, threshold.unwrap_or(3.0));
+        let anomalies_json = serde_json::to_string(
+            &assessment.anomalies.iter().map(|a| {
+                serde_json::json!({
+                    "hour": a.hour,
+                    "pii_count": a.pii_count,
+                    "expected_mean": a.expected_mean,
+                    "sigma_deviation": a.sigma_deviation,
+                    "pii_types": a.pii_types,
+                })
+            }).collect::<Vec<_>>()
+        ).unwrap_or_else(|_| "[]".to_string());
+        Ok(BreachAssessmentMobile {
+            risk_level: format!("{:?}", assessment.risk_level).to_lowercase(),
+            anomaly_count: assessment.anomalies.len() as u32,
+            recommendation: assessment.recommendation,
+            anomalies_json,
+        })
+    }
+
+    /// Generate a GDPR Art. 33 breach notification draft (Markdown).
+    #[cfg(feature = "governance")]
+    pub fn generate_breach_report(&self) -> Result<String, MobileError> {
+        let engine = self.gov_engine()?;
+        let entries = engine.consent_store().get_all_processing_log(None).map_err(Self::gov_err)?;
+        let audit = crate::governance::processing_log_to_audit_entries(&entries);
+        let assessment = crate::breach_detect::assess_breach(&audit, 3.0);
+        let config = crate::config::ComplianceConfig {
+            organization_name: None,
+            dpo_email: None,
+            dpa_contact: None,
+            reports_dir: None,
+            retention_days: 365,
+        };
+        Ok(crate::breach_detect::generate_art33_notification(&assessment, &config))
+    }
+
+    /// Export audit entries in SIEM format (CEF or LEEF).
+    #[cfg(feature = "governance")]
+    pub fn export_audit_entries(&self, format: &str, limit: Option<u32>) -> Result<String, MobileError> {
+        let engine = self.gov_engine()?;
+        let entries = engine.consent_store()
+            .get_all_processing_log(limit.map(|l| l as usize))
+            .map_err(Self::gov_err)?;
+        let audit = crate::governance::processing_log_to_audit_entries(&entries);
+        let lines: Vec<String> = audit.iter().map(|entry| {
+            match format.to_lowercase().as_str() {
+                "leef" => crate::compliance::format_leef_line(entry),
+                _ => crate::compliance::format_cef_line(entry),
+            }
+        }).collect();
+        Ok(lines.join("\n"))
+    }
+
+    /// Get a compliance summary from the processing log.
+    #[cfg(feature = "governance")]
+    pub fn compliance_summary(&self) -> Result<String, MobileError> {
+        let engine = self.gov_engine()?;
+        let entries = engine.consent_store().get_all_processing_log(None).map_err(Self::gov_err)?;
+        let audit = crate::governance::processing_log_to_audit_entries(&entries);
+
+        let total_entries = audit.len();
+        let total_pii: u64 = audit.iter().filter_map(|e| e.pii_total).sum();
+
+        // Aggregate PII types
+        let mut type_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        for entry in &audit {
+            if let Some(ref breakdown) = entry.pii_breakdown {
+                for pair in breakdown.split(", ") {
+                    if let Some((pii_type, count_str)) = pair.split_once('=') {
+                        let count: u64 = count_str.parse().unwrap_or(1);
+                        *type_counts.entry(pii_type.to_string()).or_insert(0) += count;
+                    }
+                }
+            }
+        }
+
+        let mut summary = format!(
+            "Compliance Summary\n==================\nTotal processing events: {}\nTotal PII detections: {}\n",
+            total_entries, total_pii
+        );
+        if !type_counts.is_empty() {
+            summary.push_str("\nPII Type Breakdown:\n");
+            let mut types: Vec<_> = type_counts.into_iter().collect();
+            types.sort_by(|a, b| b.1.cmp(&a.1));
+            for (pii_type, count) in &types {
+                summary.push_str(&format!("  {}: {}\n", pii_type, count));
+            }
+        }
+        Ok(summary)
+    }
+
+    // ── Encrypted Storage Methods ──
+
+    /// Encrypt data with AES-256-GCM using a passphrase-derived key (Argon2id).
+    ///
+    /// Returns an opaque blob: `[4-byte params_len LE][KdfParams JSON][nonce+ciphertext]`.
+    /// The host app stores this blob as-is and passes it back to `decrypt_data()`.
+    #[cfg(feature = "crypto")]
+    pub fn encrypt_data(&self, plaintext: &[u8], passphrase: &str) -> Result<Vec<u8>, MobileError> {
+        let params = openobscure_crypto::KdfParams::new();
+        let key = openobscure_crypto::derive_key(passphrase, &params)
+            .map_err(|e| MobileError::CryptoError(e.to_string()))?;
+        let ciphertext = openobscure_crypto::encrypt(&key, plaintext)
+            .map_err(|e| MobileError::CryptoError(e.to_string()))?;
+
+        let params_json = serde_json::to_vec(&params)
+            .map_err(|e| MobileError::Serialization(e.to_string()))?;
+        let params_len = (params_json.len() as u32).to_le_bytes();
+
+        let mut blob = Vec::with_capacity(4 + params_json.len() + ciphertext.len());
+        blob.extend_from_slice(&params_len);
+        blob.extend_from_slice(&params_json);
+        blob.extend_from_slice(&ciphertext);
+        Ok(blob)
+    }
+
+    /// Decrypt data previously encrypted with `encrypt_data()`.
+    ///
+    /// Reads KdfParams from the blob header, derives the same key from the passphrase,
+    /// then decrypts the AES-256-GCM ciphertext.
+    #[cfg(feature = "crypto")]
+    pub fn decrypt_data(&self, data: &[u8], passphrase: &str) -> Result<Vec<u8>, MobileError> {
+        if data.len() < 4 {
+            return Err(MobileError::CryptoError("Data too short".to_string()));
+        }
+        let params_len = u32::from_le_bytes([data[0], data[1], data[2], data[3]]) as usize;
+        if data.len() < 4 + params_len {
+            return Err(MobileError::CryptoError("Truncated KDF params".to_string()));
+        }
+        let params: openobscure_crypto::KdfParams = serde_json::from_slice(&data[4..4 + params_len])
+            .map_err(|e| MobileError::CryptoError(format!("Invalid KDF params: {}", e)))?;
+        let key = openobscure_crypto::derive_key(passphrase, &params)
+            .map_err(|e| MobileError::CryptoError(e.to_string()))?;
+        openobscure_crypto::decrypt(&key, &data[4 + params_len..])
+            .map_err(|e| MobileError::CryptoError(e.to_string()))
+    }
+
     /// Get current statistics for diagnostics.
     pub fn stats(&self) -> MobileStats {
         let s = self.stats.lock().unwrap();
@@ -768,6 +938,135 @@ mod tests {
             let result = mobile.privacy_command("user1", &[]).unwrap();
             assert!(result.success);
             assert!(result.text.contains("Privacy Commands"));
+        }
+
+        // ── Breach Detection & Compliance Tests ──
+
+        #[test]
+        fn test_mobile_assess_breach_empty() {
+            let mobile = make_governance_mobile();
+            let result = mobile.assess_breach(None).unwrap();
+            assert_eq!(result.risk_level, "low");
+            assert_eq!(result.anomaly_count, 0);
+        }
+
+        #[test]
+        fn test_mobile_assess_breach_with_data() {
+            use crate::governance::ProcessingAction;
+            let mobile = make_governance_mobile();
+            let engine = mobile.gov_engine().unwrap();
+            // Log some processing entries
+            for _ in 0..5 {
+                engine.consent_store().log_processing(
+                    "user1", ProcessingAction::Scan,
+                    Some(&["email", "ssn"]), Some("proxy"), None,
+                ).unwrap();
+            }
+            let result = mobile.assess_breach(Some(3.0)).unwrap();
+            // With only a few entries in the same hour, should be low risk
+            assert_eq!(result.risk_level, "low");
+            assert!(result.anomalies_json.starts_with('['));
+        }
+
+        #[test]
+        fn test_mobile_generate_breach_report() {
+            let mobile = make_governance_mobile();
+            let report = mobile.generate_breach_report().unwrap();
+            // Art. 33 notification always produces a markdown doc
+            assert!(report.contains("Breach") || report.contains("breach") || report.contains("Notification"));
+        }
+
+        #[test]
+        fn test_mobile_export_audit_cef() {
+            use crate::governance::ProcessingAction;
+            let mobile = make_governance_mobile();
+            let engine = mobile.gov_engine().unwrap();
+            engine.consent_store().log_processing(
+                "user1", ProcessingAction::Encrypt,
+                Some(&["credit_card"]), Some("proxy"), None,
+            ).unwrap();
+            let cef = mobile.export_audit_entries("cef", Some(10)).unwrap();
+            assert!(cef.contains("CEF:"));
+        }
+
+        #[test]
+        fn test_mobile_export_audit_leef() {
+            use crate::governance::ProcessingAction;
+            let mobile = make_governance_mobile();
+            let engine = mobile.gov_engine().unwrap();
+            engine.consent_store().log_processing(
+                "user1", ProcessingAction::Redact,
+                Some(&["phone"]), Some("scanner"), None,
+            ).unwrap();
+            let leef = mobile.export_audit_entries("leef", None).unwrap();
+            assert!(leef.contains("LEEF:"));
+        }
+
+        #[test]
+        fn test_mobile_compliance_summary() {
+            use crate::governance::ProcessingAction;
+            let mobile = make_governance_mobile();
+            let engine = mobile.gov_engine().unwrap();
+            engine.consent_store().log_processing(
+                "user1", ProcessingAction::Scan,
+                Some(&["email", "ssn"]), Some("proxy"), None,
+            ).unwrap();
+            engine.consent_store().log_processing(
+                "user2", ProcessingAction::Encrypt,
+                Some(&["credit_card"]), Some("proxy"), None,
+            ).unwrap();
+            let summary = mobile.compliance_summary().unwrap();
+            assert!(summary.contains("Compliance Summary"));
+            assert!(summary.contains("Total processing events: 2"));
+            assert!(summary.contains("Total PII detections: 3"));
+        }
+    }
+
+    // ── Encrypted Storage Tests ──
+
+    #[cfg(feature = "crypto")]
+    mod crypto_tests {
+        use super::*;
+
+        #[test]
+        fn test_mobile_encrypt_decrypt_roundtrip() {
+            let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+            let plaintext = b"Sensitive user data to protect";
+            let blob = mobile.encrypt_data(plaintext, "my-passphrase").unwrap();
+            assert_ne!(&blob, plaintext);
+            let decrypted = mobile.decrypt_data(&blob, "my-passphrase").unwrap();
+            assert_eq!(decrypted, plaintext);
+        }
+
+        #[test]
+        fn test_mobile_encrypt_wrong_passphrase() {
+            let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+            let blob = mobile.encrypt_data(b"secret", "correct-pass").unwrap();
+            let result = mobile.decrypt_data(&blob, "wrong-pass");
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("Crypto error"));
+        }
+
+        #[test]
+        fn test_mobile_encrypt_empty_data() {
+            let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+            let blob = mobile.encrypt_data(b"", "passphrase").unwrap();
+            let decrypted = mobile.decrypt_data(&blob, "passphrase").unwrap();
+            assert!(decrypted.is_empty());
+        }
+
+        #[test]
+        fn test_mobile_decrypt_truncated_data() {
+            let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+            // Too short — less than 4 bytes
+            let result = mobile.decrypt_data(&[0, 1], "pass");
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("too short"));
+
+            // Header says 100 bytes of params but only 10 total
+            let result = mobile.decrypt_data(&[100, 0, 0, 0, 0, 0, 0, 0, 0, 0], "pass");
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("Truncated"));
         }
     }
 }
