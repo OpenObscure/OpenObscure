@@ -118,6 +118,50 @@ pub enum MobileError {
     ImageError(String),
     #[error("Serialization error: {0}")]
     Serialization(String),
+    #[error("Governance error: {0}")]
+    Governance(String),
+    #[error("Governance not enabled")]
+    GovernanceNotEnabled,
+}
+
+/// Result of a file access check.
+#[derive(Debug, Clone)]
+pub struct FileCheckResultMobile {
+    pub allowed: bool,
+    pub reason: Option<String>,
+}
+
+/// Result of a privacy command.
+#[derive(Debug, Clone)]
+pub struct PrivacyCommandResultMobile {
+    pub text: String,
+    pub success: bool,
+}
+
+/// Result of retention enforcement.
+#[derive(Debug, Clone)]
+pub struct EnforceResultMobile {
+    pub promoted: u32,
+    pub pruned: u32,
+}
+
+/// Retention summary for diagnostics.
+#[derive(Debug, Clone)]
+pub struct RetentionSummaryMobile {
+    pub hot: u32,
+    pub warm: u32,
+    pub cold: u32,
+    pub expired: u32,
+    pub total: u32,
+}
+
+/// Consent record exposed to mobile API.
+#[derive(Debug, Clone)]
+pub struct ConsentRecordMobile {
+    pub id: i64,
+    pub consent_type: String,
+    pub granted: bool,
+    pub version: i64,
 }
 
 /// The main mobile API handle. Thread-safe and reusable across calls.
@@ -125,6 +169,8 @@ pub struct OpenObscureMobile {
     scanner: HybridScanner,
     fpe: FpeEngine,
     image_manager: Option<ImageModelManager>,
+    #[cfg(feature = "governance")]
+    governance: Option<crate::governance::GovernanceEngine>,
     stats: std::sync::Mutex<InternalStats>,
 }
 
@@ -194,12 +240,39 @@ impl OpenObscureMobile {
             scanner,
             fpe,
             image_manager,
+            #[cfg(feature = "governance")]
+            governance: None,
             stats: std::sync::Mutex::new(InternalStats {
                 total_pii_found: 0,
                 total_images_processed: 0,
                 scanner_mode,
             }),
         })
+    }
+
+    /// Create a new mobile OpenObscure instance with governance enabled.
+    ///
+    /// # Arguments
+    /// * `config` - Mobile configuration
+    /// * `fpe_key` - 32-byte AES-256 key for Format-Preserving Encryption
+    /// * `db_path` - Path to SQLite database for consent/retention storage
+    /// * `extra_deny_patterns` - Additional file deny patterns (merged with defaults)
+    #[cfg(feature = "governance")]
+    pub fn new_with_governance(
+        config: MobileConfig,
+        fpe_key: [u8; 32],
+        db_path: &str,
+        extra_deny_patterns: &[String],
+    ) -> Result<Self, MobileError> {
+        let mut instance = Self::new(config, fpe_key)?;
+        let file_guard_config = crate::governance::FileGuardConfig {
+            extra_deny: extra_deny_patterns.to_vec(),
+            allow: Vec::new(),
+        };
+        let engine = crate::governance::GovernanceEngine::new(db_path, Some(file_guard_config))
+            .map_err(Self::gov_err)?;
+        instance.governance = Some(engine);
+        Ok(instance)
     }
 
     /// Scan text for PII and encrypt matches with FF1 FPE.
@@ -334,6 +407,110 @@ impl OpenObscureMobile {
             .map_err(|e| MobileError::ImageError(e.to_string()))?;
 
         Ok(buf.into_inner())
+    }
+
+    // ── Governance Methods ──
+
+    #[cfg(feature = "governance")]
+    fn gov_err(e: crate::governance::GovernanceError) -> MobileError {
+        MobileError::Governance(e.to_string())
+    }
+
+    #[cfg(feature = "governance")]
+    fn gov_engine(&self) -> Result<&crate::governance::GovernanceEngine, MobileError> {
+        self.governance.as_ref().ok_or(MobileError::GovernanceNotEnabled)
+    }
+
+    /// Check if consent is active for a given type.
+    #[cfg(feature = "governance")]
+    pub fn check_consent(&self, user_id: &str, consent_type: &str) -> Result<bool, MobileError> {
+        let engine = self.gov_engine()?;
+        let ct = crate::governance::ConsentType::from_str(consent_type).map_err(Self::gov_err)?;
+        engine.consent_store().has_active_consent(user_id, ct).map_err(Self::gov_err)
+    }
+
+    /// Grant consent for a specific type.
+    #[cfg(feature = "governance")]
+    pub fn grant_consent(
+        &self,
+        user_id: &str,
+        consent_type: &str,
+        purpose: Option<&str>,
+    ) -> Result<ConsentRecordMobile, MobileError> {
+        let engine = self.gov_engine()?;
+        let ct = crate::governance::ConsentType::from_str(consent_type).map_err(Self::gov_err)?;
+        let record = engine.consent_store().grant_consent(user_id, ct, purpose, None).map_err(Self::gov_err)?;
+        Ok(ConsentRecordMobile {
+            id: record.id,
+            consent_type: record.consent_type,
+            granted: record.granted,
+            version: record.version,
+        })
+    }
+
+    /// Revoke consent for a specific type.
+    #[cfg(feature = "governance")]
+    pub fn revoke_consent(&self, user_id: &str, consent_type: &str) -> Result<bool, MobileError> {
+        let engine = self.gov_engine()?;
+        let ct = crate::governance::ConsentType::from_str(consent_type).map_err(Self::gov_err)?;
+        engine.consent_store().revoke_consent(user_id, ct).map_err(Self::gov_err)
+    }
+
+    /// Check if a file path is safe to access.
+    #[cfg(feature = "governance")]
+    pub fn check_file_access(&self, path: &str) -> Result<FileCheckResultMobile, MobileError> {
+        let engine = self.gov_engine()?;
+        let result = engine.file_guard().check_access(path);
+        Ok(FileCheckResultMobile {
+            allowed: result.allowed,
+            reason: result.reason,
+        })
+    }
+
+    /// Execute a /privacy command. Args are the space-separated tokens after "/privacy".
+    #[cfg(feature = "governance")]
+    pub fn privacy_command(&self, user_id: &str, args: &[String]) -> Result<PrivacyCommandResultMobile, MobileError> {
+        let engine = self.gov_engine()?;
+        let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
+        let result = crate::governance::handle_privacy_command(engine, user_id, &args_refs);
+        Ok(PrivacyCommandResultMobile {
+            text: result.text,
+            success: result.success,
+        })
+    }
+
+    /// Enforce retention policy (promote tiers, prune expired).
+    #[cfg(feature = "governance")]
+    pub fn enforce_retention(&self) -> Result<EnforceResultMobile, MobileError> {
+        let engine = self.gov_engine()?;
+        let result = engine.retention().enforce(None).map_err(Self::gov_err)?;
+        Ok(EnforceResultMobile {
+            promoted: result.promoted,
+            pruned: result.pruned,
+        })
+    }
+
+    /// Get retention tier summary.
+    #[cfg(feature = "governance")]
+    pub fn retention_summary(&self) -> Result<RetentionSummaryMobile, MobileError> {
+        let engine = self.gov_engine()?;
+        let summary = engine.retention().get_summary().map_err(Self::gov_err)?;
+        Ok(RetentionSummaryMobile {
+            hot: summary.hot,
+            warm: summary.warm,
+            cold: summary.cold,
+            expired: summary.expired,
+            total: summary.total,
+        })
+    }
+
+    /// Export all user data as JSON (for DSAR access request).
+    #[cfg(feature = "governance")]
+    pub fn export_user_data(&self, user_id: &str) -> Result<String, MobileError> {
+        let engine = self.gov_engine()?;
+        let data = engine.consent_store().export_user_data(user_id).map_err(Self::gov_err)?;
+        serde_json::to_string_pretty(&data)
+            .map_err(|e| MobileError::Serialization(e.to_string()))
     }
 
     /// Get current statistics for diagnostics.
@@ -482,5 +659,115 @@ mod tests {
         assert!(result.pii_count >= 2);
         assert!(!result.sanitized_text.contains("4111"));
         assert!(!result.sanitized_text.contains("123-45-6789"));
+    }
+
+    // ── Governance Integration Tests ──
+
+    #[cfg(feature = "governance")]
+    mod governance_tests {
+        use super::*;
+
+        fn make_governance_mobile() -> OpenObscureMobile {
+            OpenObscureMobile::new_with_governance(
+                MobileConfig::default(),
+                make_test_key(),
+                ":memory:",
+                &[],
+            ).unwrap()
+        }
+
+        #[test]
+        fn test_mobile_consent_grant_revoke() {
+            let mobile = make_governance_mobile();
+            let record = mobile.grant_consent("user1", "processing", Some("Test")).unwrap();
+            assert!(record.granted);
+            assert_eq!(record.version, 1);
+
+            assert!(mobile.check_consent("user1", "processing").unwrap());
+
+            let revoked = mobile.revoke_consent("user1", "processing").unwrap();
+            assert!(revoked);
+            assert!(!mobile.check_consent("user1", "processing").unwrap());
+        }
+
+        #[test]
+        fn test_mobile_file_guard_deny_env() {
+            let mobile = make_governance_mobile();
+            let result = mobile.check_file_access("/project/.env").unwrap();
+            assert!(!result.allowed);
+            assert!(result.reason.is_some());
+        }
+
+        #[test]
+        fn test_mobile_file_guard_allow_normal() {
+            let mobile = make_governance_mobile();
+            let result = mobile.check_file_access("/project/src/main.rs").unwrap();
+            assert!(result.allowed);
+            assert!(result.reason.is_none());
+        }
+
+        #[test]
+        fn test_mobile_privacy_command_status() {
+            let mobile = make_governance_mobile();
+            let result = mobile.privacy_command("user1", &["status".to_string()]).unwrap();
+            assert!(result.success);
+            assert!(result.text.contains("Privacy Status"));
+        }
+
+        #[test]
+        fn test_mobile_privacy_command_consent() {
+            let mobile = make_governance_mobile();
+            let result = mobile.privacy_command(
+                "user1",
+                &["consent".to_string(), "grant".to_string(), "processing".to_string()],
+            ).unwrap();
+            assert!(result.success);
+            assert!(result.text.contains("Consent granted"));
+        }
+
+        #[test]
+        fn test_mobile_retention_enforce() {
+            let mobile = make_governance_mobile();
+            let result = mobile.enforce_retention().unwrap();
+            assert_eq!(result.promoted, 0);
+            assert_eq!(result.pruned, 0);
+
+            let summary = mobile.retention_summary().unwrap();
+            assert_eq!(summary.total, 0);
+        }
+
+        #[test]
+        fn test_mobile_export_user_data() {
+            let mobile = make_governance_mobile();
+            mobile.grant_consent("user1", "processing", None).unwrap();
+            let json = mobile.export_user_data("user1").unwrap();
+            assert!(json.contains("user1"));
+            assert!(json.contains("processing"));
+        }
+
+        #[test]
+        fn test_mobile_privacy_command_delete() {
+            let mobile = make_governance_mobile();
+            mobile.grant_consent("user1", "storage", None).unwrap();
+            let result = mobile.privacy_command("user1", &["delete".to_string()]).unwrap();
+            assert!(result.success);
+            assert!(result.text.contains("erasure complete"));
+        }
+
+        #[test]
+        fn test_mobile_governance_disabled() {
+            let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+            let result = mobile.check_consent("user1", "processing");
+            assert!(result.is_err());
+            assert!(result.unwrap_err().to_string().contains("not enabled"));
+        }
+
+        #[test]
+        fn test_mobile_privacy_command_help() {
+            let mobile = make_governance_mobile();
+            let result = mobile.privacy_command("user1", &[]).unwrap();
+            assert!(result.success);
+            assert!(result.text.contains("Privacy Commands"));
+        }
     }
 }

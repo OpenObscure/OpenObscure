@@ -1,7 +1,7 @@
 # OpenObscure — System Architecture
 
 > Privacy firewall for AI agents. Primary integration: [OpenClaw](https://github.com/openclaw/openclaw), the open-source AI assistant.
-> Last updated: 2026-02-18 (Phase 7 — cross-platform support + mobile library, 431 tests)
+> Last updated: 2026-02-18 (Phase 8D — L1 governance port to Rust for mobile, 835 tests)
 
 ---
 
@@ -85,7 +85,7 @@ flowchart TB
 | Component | What | How it runs |
 |-----------|------|-------------|
 | **L0** (Rust library) | `OpenObscureMobile` API | Linked into host app binary. PII scan + FPE encrypt/decrypt + image pipeline. |
-| **L1** (consent/governance) | Not available on mobile | Deferred to Phase 8 (Rust rewrite of TypeScript plugin). Gateway-side L1 still protects when data passes through. |
+| **L1** (consent/governance) | `GovernanceEngine` API | Available via `governance` feature flag — consent manager, file access guard, retention tiers, privacy commands. All SQLite-backed (rusqlite bundled). |
 | **L2** (crypto) | Not applicable | FPE key provided by host app's native secure storage (iOS Keychain / Android Keystore). |
 
 **Supported platforms:** iOS (aarch64 device + simulator), Android (arm64-v8a, armeabi-v7a, x86_64, x86).
@@ -99,12 +99,21 @@ flowchart TB
 | `restore_text(text, mapping)` | Decrypt FPE values in response text using saved mapping |
 | `sanitize_image(bytes)` | Face blur + OCR text blur + EXIF strip (optional, adds ~20MB) |
 | `stats()` | PII counts, scanner mode, image pipeline status |
+| `new_with_governance(config, key, db_path, deny_patterns)` | Initialize with governance engine (requires `governance` feature) |
+| `check_consent(user_id, type)` | Check if consent is active for a given type |
+| `grant_consent(user_id, type, purpose?)` | Grant consent, returns consent record |
+| `revoke_consent(user_id, type)` | Revoke previously granted consent |
+| `check_file_access(path)` | Check if a file path is safe to access (19 deny patterns) |
+| `privacy_command(user_id, args)` | Execute a `/privacy` command (status, consent, export, delete, retention) |
+| `enforce_retention()` | Promote retention tiers + prune expired entries |
+| `retention_summary()` | Get tier counts (hot/warm/cold/expired/total) |
+| `export_user_data(user_id)` | Export all user data as JSON (DSAR access request) |
 
 **Key differences from Gateway Model:**
 - No HTTP server (axum/tokio not compiled in)
 - FPE key passed from host app (no OS keychain access on mobile)
 - CRF scanner used by default (NER requires ~55MB RAM, not recommended on mobile)
-- L1 governance not available — rely on Gateway-side L1 when data passes through
+- L1 governance available via `governance` feature — consent, file guard, retention, privacy commands (requires `mobile-full` feature flag)
 - Image pipeline optional via feature flag (`mobile` = text only, `mobile` + `image-pipeline` = full)
 
 ### Defense in Depth: Both Models Together
@@ -188,7 +197,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | Aspect | Detail |
 |--------|--------|
 | **What it does** | Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE (versioned keys with rotation support), decrypts ciphertexts in responses (SSE streaming supported). Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. Cross-border jurisdiction classification + policy enforcement. CLI compliance tooling (ROPA, DPIA, breach detection, SIEM export). |
-| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: nudity (NudeNet ONNX), faces in photos (BlazeFace ONNX), text in screenshots/images (PaddleOCR ONNX). Cross-border: jurisdiction flags from phone country codes, email TLDs, SSN format. |
+| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: nudity (NudeNet ONNX), faces in photos (BlazeFace ONNX), text in screenshots/images (PaddleOCR ONNX). Cross-border: jurisdiction flags from phone country codes, email TLDs, SSN format. |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged. Optional `override_auth` per provider for vault-sourced keys |
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). Versioned keys (`fpe-master-key-v{N}`) with 30s dual-key overlap during rotation. CLI `key-rotate` for offline rotation. |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
@@ -196,7 +205,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, GDPR audit log, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, keyring 3, clap 4 (CLI) |
 | **Resource** | ~12MB RAM (regex-only), ~67MB with NER model loaded, ~224MB peak during image processing; 2.7MB binary |
-| **Tests** | 319 (297 unit + 13 integration + 9 accuracy) |
+| **Tests** | 627 default, 723 with `governance` feature (289 lib + 415 bin + 13 accuracy + 6 pipeline) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -298,6 +307,10 @@ sequenceDiagram
 | Phone | 10 | 10+ digits | `+`, parens, spaces, dashes |
 | Email | 36 | Local part | `@` + domain |
 | API Key | 62 | Post-prefix body | Known prefix (`sk-`, `AKIA`...) |
+| IPv4 Address | — | Redacted to `[IPv4]` | N/A (not FPE) |
+| IPv6 Address | — | Redacted to `[IPv6]` | N/A (not FPE) |
+| GPS Coordinate | — | Redacted to `[GPS]` | N/A (not FPE) |
+| MAC Address | — | Redacted to `[MAC]` | N/A (not FPE) |
 
 **Algorithm:** FF1 per NIST SP 800-38G. FF3 is **WITHDRAWN** (SP 800-38G Rev 2, Feb 2025) — never used.
 
@@ -441,6 +454,8 @@ Storage ceiling: **62MB** (including all models, ONNX Runtime, config).
 | **Phase 5** (complete) | **97%** | FPE key rotation, SSE streaming, PII benchmark corpus (~400 samples, 100% recall), production benchmarks (criterion) |
 | **Phase 6** (complete) | **97%** | Ensemble confidence voting (cluster-based overlap resolution + agreement bonus), architecture cleanup (3-layer) |
 | **Phase 7** (complete) | **97%** | Cross-platform support (Windows, Linux ARM64), mobile library API (iOS + Android via UniFFI), Embedded deployment model |
+| **Post-Phase 7** (complete) | **98%** | Network/device identifier detection (IPv4, IPv6, GPS coordinates, MAC addresses) — closes PII-06 + PII-12 |
+| **Phase 8D** (complete) | **98%** | L1 governance port to Rust — consent manager, file access guard, retention tiers, privacy commands available on mobile via `governance` feature |
 
 ## Project Layout
 
@@ -457,7 +472,7 @@ OpenObscure/
 ├── openobscure-proxy/             L0: Rust PII proxy
 │   ├── ARCHITECTURE.md          L0 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
-│   ├── src/                     Rust source (32 modules + integration tests)
+│   ├── src/                     Rust source (33 modules + integration tests)
 │   ├── examples/                Demo binaries (demo_image_pipeline)
 │   ├── models/                  ONNX models (git-ignored, download via script)
 │   ├── config/openobscure.toml    Default configuration
@@ -522,9 +537,10 @@ cd openobscure-proxy && cargo run -- --init-key
 cargo run -- -c config/openobscure.toml
 
 # Run all tests
-cd openobscure-proxy && cargo test          # 319 tests
-cd openobscure-crypto && cargo test         # 16 tests
-cd openobscure-plugin && npm test           # 96 tests
+cd openobscure-proxy && cargo test                        # 627 tests
+cd openobscure-proxy && cargo test --features governance  # 723 tests (includes governance)
+cd openobscure-crypto && cargo test                       # 16 tests
+cd openobscure-plugin && npm test                         # 96 tests
 ```
 
 ## Health Monitoring & User Experience
@@ -836,7 +852,7 @@ If L0 is not running, the host agent can't reach LLM providers (traffic is confi
 ## Future Architecture Changes
 
 Planned (Phase 8 — production hardening):
-- **L1 Rust rewrite** — port consent manager, file access guard, and memory governance from TypeScript to Rust so the Embedded Model gets full governance on mobile
+- **L1 Rust rewrite** — DONE (Phase 8D). Consent manager, file access guard, retention tiers, and privacy commands ported to Rust (`governance.rs`). Available on mobile via `governance` feature flag.
 - **CI/CD matrix** — GitHub Actions cross-platform build verification (macOS, Linux, Windows, iOS sim, Android NDK)
 - **ONNX Runtime mobile** — pre-built ORT for iOS (CoreML EP) and Android (NNAPI EP), `.ort` format models
 - **UniFFI binding generation** — automated Swift/Kotlin binding generation in CI

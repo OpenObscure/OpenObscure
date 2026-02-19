@@ -68,9 +68,12 @@ src/
 ├── error.rs             Unified error types
 ├── integration_tests.rs E2E tests (wiremock + tower::oneshot)
 │
+│   ── Governance (Phase 8D, feature-gated: "governance") ──
+├── governance.rs        ConsentStore (SQLite) + FileGuard (regex) + RetentionManager + GovernanceEngine + privacy commands
+│
 │   ── Mobile Library (Phase 7, Embedded Model) ──
-├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats)
-└── uniffi_bindings.rs   UniFFI interface definitions for Swift/Kotlin (feature-gated: "mobile")
+├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats, governance)
+└── uniffi_bindings.rs   UniFFI interface definitions for Swift/Kotlin (feature-gated: "mobile", "governance")
 ```
 
 ## Request Flow
@@ -147,6 +150,15 @@ src/
 | Phone | 10 | 10+ digits | `+`, parens, spaces, dashes | `+1 (555) 123-4567` → `+1 (847) 293-6510` |
 | Email | 36 | Local part (lowercase) | `@` + domain | `john.doe@gmail.com` → `q7k2m91@gmail.com` |
 | API Key | 62 | Post-prefix body | Known prefix (`sk-`, `AKIA`...) | `sk-abc123def456` → `sk-x9q2w7m4k8p1` |
+
+**Redaction-only types** (not FPE-encrypted — formats too varied for format-preserving encryption):
+
+| PII Type | Regex | Validation | Redaction Label |
+|----------|-------|-----------|-----------------|
+| IPv4 Address | Dotted-quad (0-255 octets) | Rejects loopback, broadcast, link-local, 0.x.x.x | `[IPv4]` |
+| IPv6 Address | Full 8-group, mid-compressed, `::` prefix | — | `[IPv6]` |
+| GPS Coordinate | Signed decimal lat/long (4+ decimal places) | — | `[GPS]` |
+| MAC Address | Colon, dash, or Cisco dot notation | — | `[MAC]` |
 
 **Tweak strategy:** Per-record tweak = `request_uuid (16B) || SHA-256(json_path)[0..16]`. Same PII value in different requests produces different ciphertexts (prevents frequency analysis).
 
@@ -278,7 +290,7 @@ Longest prefix match wins when multiple providers overlap.
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **319** (297 unit + 13 integration + 9 accuracy) |
+| Test count | — | **627** default, **723** with `governance` feature |
 
 ## Technology Stack
 
@@ -388,5 +400,5 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 
 - **SCRFD upgrade:** SCRFD-2.5GF for multi-scale face detection on screenshots with mixed-size faces
 - **ONNX mobile EPs:** CoreML (iOS) and NNAPI (Android) execution providers for hardware-accelerated inference
-- **L1 Rust port:** Consent manager + file access guard rewritten in Rust for Embedded Model
+- **L1 Rust port:** DONE (Phase 8D) — `governance.rs` provides ConsentStore, FileGuard, RetentionManager, GovernanceEngine, and privacy command router
 - **Real-time breach monitoring:** Rolling window anomaly detection in proxy (batch CLI sufficient for v1)

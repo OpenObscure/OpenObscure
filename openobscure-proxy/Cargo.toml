@@ -19,6 +19,8 @@ path = "src/main.rs"
 [features]
 default = []
 mobile = ["uniffi"]
+governance = ["rusqlite", "chrono"]
+mobile-full = ["mobile", "governance"]
 
 [dependencies]
 # HTTP stack
@@ -75,6 +77,10 @@ futures-util = "0.3"
 
 # Mobile FFI bindings (optional — enabled by `mobile` feature)
 uniffi = { version = "0.29", optional = true }
+
+# Governance (consent manager, retention tiers — SQLite-backed)
+rusqlite = { version = "0.32", features = ["bundled"], optional = true }
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"], optional = true }
 
 # Utilities
 bytes = "1"

@@ -25,6 +25,10 @@ pub mod screen_guard;
 pub mod detection_meta;
 pub mod detection_validators;
 
+// Privacy governance (consent, file guard, retention — SQLite-backed)
+#[cfg(feature = "governance")]
+pub mod governance;
+
 // Mobile library API
 pub mod lib_mobile;
 #[cfg(feature = "mobile")]

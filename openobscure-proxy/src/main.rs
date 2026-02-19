@@ -31,6 +31,8 @@ mod screen_guard;
 mod server;
 mod vault;
 mod wordpiece;
+#[cfg(feature = "governance")]
+mod governance;
 #[allow(dead_code)]
 mod lib_mobile;
 

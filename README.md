@@ -33,7 +33,7 @@ flowchart LR
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
 - **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin) + L2 (crypto storage)
-- **Features:** Full PII scanning (regex + NER/CRF + keywords), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), GDPR compliance CLI, consent manager, memory governance, key rotation, SSE streaming
+- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), GDPR compliance CLI, consent manager, memory governance, key rotation, SSE streaming
 - **Use case:** Desktop apps, servers, VPS, Raspberry Pi — anywhere the agent's Gateway runs
 
 ### Embedded Model (Mobile / Library)
@@ -65,8 +65,8 @@ flowchart TB
 ```
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
-- **Layers:** L0 only (PII scan + FPE) — L1 governance deferred to Phase 8
-- **Features:** Text PII scanning (regex + keywords), FPE encryption, image pipeline (optional), restore/decrypt for responses
+- **Layers:** L0 (PII scan + FPE) + L1 governance via `governance` feature (consent, file guard, retention, privacy commands)
+- **Features:** Text PII scanning (regex + keywords), FPE encryption, image pipeline (optional), restore/decrypt for responses, GDPR consent management, file access guard, 4-tier retention lifecycle
 - **Use case:** Mobile companion apps that sanitize PII on-device *before* data reaches the Gateway over WebSocket — defense in depth
 
 ### When to Use Which
@@ -116,7 +116,7 @@ flowchart LR
 
 | Layer | Language | What it does |
 |-------|----------|-------------|
-| **L0** — PII Proxy | Rust | Intercepts HTTP traffic, scans JSON for PII, encrypts with FF1 FPE. Processes images (face blur, OCR text blur, EXIF strip). Includes compliance CLI (`openobscure compliance ...`). |
+| **L0** — PII Proxy | Rust | Intercepts HTTP traffic, scans JSON for PII (structured, network/device, semantic, keywords), encrypts with FF1 FPE or redacts. Processes images (face blur, OCR text blur, EXIF strip). Includes compliance CLI (`openobscure compliance ...`). |
 | **L1** — Gateway Plugin | TypeScript | Hooks tool results, redacts PII, blocks sensitive file reads, manages GDPR consent and memory governance. |
 | **L2** — Encryption Layer | Rust | AES-256-GCM encryption for session transcripts at rest. |
 
@@ -234,8 +234,9 @@ See `config/openobscure.toml` for all available options.
 ## Running Tests
 
 ```bash
-# L0 Proxy (319 tests)
+# L0 Proxy (627 tests, or 723 with governance feature)
 cd openobscure-proxy && cargo test
+cd openobscure-proxy && cargo test --features governance  # includes governance tests
 
 # L2 Crypto (16 tests)
 cd openobscure-crypto && cargo test
@@ -244,7 +245,7 @@ cd openobscure-crypto && cargo test
 cd openobscure-plugin && npm test
 ```
 
-**Total: 431 tests** across all components.
+**Total: 835 tests** across all components (with governance feature enabled).
 
 ---
 
@@ -271,7 +272,8 @@ sequenceDiagram
 ```
 
 PII detection uses a hybrid approach:
-- **Regex** with post-validation (Luhn for credit cards, range checks for SSNs)
+- **Regex** with post-validation (Luhn for credit cards, range checks for SSNs, IPv4 validation)
+- **Network/device identifiers** — IPv4, IPv6, GPS coordinates, MAC addresses (redacted to `[IPv4]`, `[IPv6]`, `[GPS]`, `[MAC]`)
 - **NER/CRF** (TinyBERT INT8) for semantic detection (names, addresses, orgs)
 - **Keyword dictionary** (~700 terms) for health and child-related terms
 - **Image pipeline** (BlazeFace + PaddleOCR ONNX) for visual PII in photos
