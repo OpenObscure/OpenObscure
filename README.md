@@ -21,14 +21,14 @@ The proxy runs as a **sidecar process** on the same host as the AI agent. All LL
 
 ```mermaid
 flowchart LR
-    agent["🤖 AI Agent"] -- "HTTP request" --> proxy["🔐 OpenObscure Proxy\n(localhost:18790)"]
-    proxy -- "HTTPS\n(PII encrypted)" --> llm["☁️ LLM Provider"]
-    llm -- "response\n(with ciphertexts)" --> proxy
-    proxy -- "response\n(PII decrypted)" --> agent
+    agent["🤖 AI Agent"] -- "HTTP request" --> proxy["🔐 OpenObscure Proxy<br>(localhost:18790)"]
+    proxy -- "HTTPS (PII encrypted)" --> llm["☁️ LLM Provider"]
+    llm -- "response (ciphertexts)" --> proxy
+    proxy -- "response (PII decrypted)" --> agent
 
-    style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
-    style proxy fill:#533483,stroke:#e94560,color:#e0e0e0
-    style llm fill:#e94560,stroke:#e94560,color:#fff
+    style agent fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
+    style proxy fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
+    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
 ```
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
@@ -41,27 +41,27 @@ flowchart LR
 OpenObscure is compiled as a **native library** and linked directly into the host application. Called via UniFFI-generated Swift/Kotlin bindings. No HTTP server, no sockets — just function calls.
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph phone ["📱 Mobile Device"]
-        app["Mobile App\n(Swift / Kotlin)"]
-        lib["🔐 OpenObscure lib\n(in-process)"]
+        app["Mobile App<br>(Swift / Kotlin)"]
+        lib["🔐 OpenObscure lib<br>(in-process)"]
         app -- "sanitize_text()" --> lib
-        lib -- "SanitizeResult\n+ mapping" --> app
+        lib -- "SanitizeResult + mapping" --> app
     end
 
-    subgraph remote ["🖥️ External Computer"]
-        gw["🌐 Gateway\n(macOS / Linux / Windows)"]
-    end
-
-    app -- "WebSocket\n(PII already encrypted)" --> gw
+    app -- "WebSocket (PII encrypted)" --> gw
     gw -- "response" --> app
     app -. "restore_text()" .-> lib
 
-    style phone fill:#1a1a2e,stroke:#533483,color:#e0e0e0
-    style app fill:#0f3460,stroke:#533483,color:#e0e0e0
-    style lib fill:#533483,stroke:#e94560,color:#e0e0e0
-    style remote fill:#16213e,stroke:#0f3460,color:#e0e0e0
-    style gw fill:#1a1a2e,stroke:#0f3460,color:#e0e0e0
+    subgraph remote ["🖥️ External Computer"]
+        gw["🌐 Gateway"]
+    end
+
+    style phone fill:#2f2f45,stroke:#4a4a6e,color:#d0d0e0
+    style app fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
+    style lib fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
+    style remote fill:#2f2f45,stroke:#4a4a6e,color:#d0d0e0
+    style gw fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
 ```
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
@@ -90,28 +90,28 @@ flowchart LR
     subgraph device ["🖥️ User's Device"]
         direction TB
         subgraph agent ["AI Agent (e.g. OpenClaw)"]
-            tools["🔧 Agent Tools\nweb · file · API · bash"]
-            L1["🛡️ L1 — Gateway Plugin\n(TypeScript)\nPII redact · file guard\nconsent · retention"]
+            tools["🔧 Agent Tools<br>web · file · API · bash"]
+            L1["🛡️ L1 Gateway Plugin<br>(TypeScript)<br>PII redact · file guard<br>consent · retention"]
             tools -- "tool results" --> L1
         end
         subgraph proxy ["L0 — PII Proxy (Rust process)"]
-            scanner["🔍 Hybrid Scanner\nregex · NER/CRF · keywords"]
+            scanner["🔍 Hybrid Scanner<br>regex · NER/CRF · keywords"]
             fpe["🔐 FF1 FPE Encrypt"]
-            img["📷 Image Pipeline\nNSFW · face blur · OCR blur · EXIF strip"]
-            crypt[("🗄️ L2 — Crypto Store\nAES-256-GCM · Argon2id\nEncrypted Transcripts")]
+            img["📷 Image Pipeline<br>NSFW · face · OCR · EXIF"]
+            crypt[("🗄️ L2 Crypto Store<br>AES-256-GCM · Argon2id")]
             scanner --> fpe
             scanner --> img
         end
         agent -- "HTTP (localhost)" --> proxy
         L1 -. "redacted transcripts" .-> crypt
     end
-    proxy -- "sanitized request\n(PII encrypted)" --> llm["☁️ LLM Providers\nAnthropic · OpenAI\nOllama · etc."]
-    llm -- "response\n(with ciphertexts)" --> proxy
+    proxy -- "sanitized (PII encrypted)" --> llm["☁️ LLM Providers<br>Anthropic · OpenAI · Ollama"]
+    llm -- "response (ciphertexts)" --> proxy
 
-    style device fill:#1a1a2e,stroke:#16213e,color:#e0e0e0
-    style agent fill:#0f3460,stroke:#533483,color:#e0e0e0
-    style proxy fill:#533483,stroke:#e94560,color:#e0e0e0
-    style llm fill:#e94560,stroke:#e94560,color:#fff
+    style device fill:#2f2f45,stroke:#3f3f5e,color:#d0d0e0
+    style agent fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
+    style proxy fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
+    style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
 ```
 
 | Layer | Language | What it does |
@@ -319,10 +319,10 @@ cargo run --example demo_image_pipeline -- \
 
 | Scenario | Before | After |
 |----------|--------|-------|
-| **Face Detection + Blur** — BlazeFace detects faces and applies selective Gaussian blur to the face bounding box | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face blurred](docs/examples/images/face-blurred.jpg) |
+| **Screenshot PII Blur** — Full patient record with names, SSNs, credit cards, phone numbers, emails, addresses, and medical history. PaddleOCR detects all text regions and blurs them. | ![Original screenshot](docs/examples/images/screenshot-original.png) | ![Screenshot blurred](docs/examples/images/screenshot-blurred.png) |
+| **Face Detection + Blur** — BlazeFace detects faces and applies selective Gaussian blur to face bounding boxes | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face blurred](docs/examples/images/face-blurred.jpg) |
 | **Child Face Privacy** — Automatically detects and blurs children's faces to protect minors' privacy | ![Original child photo](docs/examples/images/child-original.jpg) | ![Child face blurred](docs/examples/images/child-blurred.jpg) |
 | **OCR Text Blur** — PaddleOCR detects text in documents/photos and blurs readable content | ![Original document](docs/examples/images/text-original.jpg) | ![Text blurred](docs/examples/images/text-blurred.jpg) |
-| **Screenshot PII Blur** — Detects and blurs PII text in screenshots (names, SSNs, phone numbers, addresses) | ![Original screenshot](docs/examples/images/screenshot-original.png) | ![Screenshot blurred](docs/examples/images/screenshot-blurred.png) |
 
 ### Pipeline Details
 
@@ -403,21 +403,6 @@ For the threat model, see [ARCHITECTURE.md — Threat Model](ARCHITECTURE.md#thr
 ## Export Control
 
 This software contains cryptographic functionality (AES-256-GCM, FF1, Argon2id, TLS) and may be subject to export restrictions. See [EXPORT_CONTROL_NOTICE.md](EXPORT_CONTROL_NOTICE.md) for details.
-
----
-
-## Project Status
-
-| Phase | Status | Coverage |
-|-------|--------|----------|
-| Phase 1 — Structured PII (regex + FPE) | Complete | 78% |
-| Phase 2 — Semantic PII (NER + GDPR) | Complete | 91% |
-| Phase 2.5 — Unified Logging | Complete | 91% |
-| Phase 3 — Visual PII (faces + OCR) | Complete | 95% |
-| Phase 4 — Compliance CLI + Hardening | Complete | 97% |
-| Phase 5 — Key Rotation + Benchmarks | Complete | 97% |
-| Phase 6 — Ensemble Recall + Cleanup | Complete | 97% |
-| Phase 7 — Cross-Platform + Mobile Library | Complete | 97% |
 
 ---
 
