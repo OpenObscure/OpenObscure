@@ -39,7 +39,7 @@ src/
 ├── hybrid_scanner.rs    Hybrid scanner: regex → keywords → NER/CRF, dedup, nested JSON, code fences
 ├── keyword_dict.rs      Health/child keyword dictionary (~700 terms, HashSet O(1) lookup)
 ├── ner_scanner.rs       TinyBERT INT8 ONNX NER (BIO tags → PII spans)
-├── crf_scanner.rs       CRF fallback classifier (<200MB RAM devices) + device profiler
+├── crf_scanner.rs       CRF fallback classifier (delegates RAM detection to device_profile)
 ├── wordpiece.rs         WordPiece tokenizer for NER input
 ├── fpe_engine.rs        FF1 FPE encrypt/decrypt engine
 ├── pii_types.rs         PII type definitions, alphabet mappers, format templates
@@ -54,26 +54,19 @@ src/
 ├── image_blur.rs        Gaussian blur for face and text regions (sub-image extract/paste)
 ├── screen_guard.rs      Screenshot heuristics (EXIF, resolution, status bar uniformity)
 │
-│   ── Compliance & Cross-Border (Phase 4) ──
-├── compliance.rs        CLI dispatch: ROPA/DPIA/summary/audit-log/breach-check/export handlers
-├── cross_border.rs      Jurisdiction classifier (phone codes, email TLDs, SSN) + policy engine
-├── breach_detect.rs     Anomaly scoring (hourly buckets, mean+stddev) + Art. 33 notification draft
-│
 │   ── Infrastructure ──
+├── device_profile.rs    Hardware profiler: detect RAM/cores, classify tier (Full/Standard/Lite), derive FeatureBudget
 ├── vault.rs             OS keychain + env var bridge (FPE key + API keys)
-├── health.rs            Health endpoint, HealthStats, crash marker, image + cross-border counters
+├── health.rs            Health endpoint, HealthStats, crash marker, image counters, device tier + feature budget
 ├── oo_log.rs            Unified logging macros (oo_info!, oo_warn!, oo_audit!) + module constants
 ├── pii_scrub_layer.rs   PII scrub filter for log output (tracing MakeWriter wrapper)
 ├── crash_buffer.rs      mmap ring buffer for crash diagnostics (survives SIGKILL/OOM)
 ├── error.rs             Unified error types
 ├── integration_tests.rs E2E tests (wiremock + tower::oneshot)
 │
-│   ── Governance (Phase 8D, feature-gated: "governance") ──
-├── governance.rs        ConsentStore (SQLite) + FileGuard (regex) + RetentionManager + GovernanceEngine + privacy commands
-│
-│   ── Mobile Library (Phase 7+8, Embedded Model) ──
-├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats, governance, breach, crypto)
-└── uniffi_bindings.rs   UniFFI interface definitions for Swift/Kotlin (feature-gated: "mobile", "governance", "crypto")
+│   ── Mobile Library (Phase 7+, Embedded Model) ──
+├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats)
+└── uniffi_bindings.rs   UniFFI interface definitions for Swift/Kotlin (feature-gated: "mobile")
 ```
 
 ## Request Flow
@@ -117,12 +110,6 @@ src/
    │   g. Store mapping: ciphertext → (plaintext, tweak, type)
    │
 8. Apply replacements to JSON body (reverse offset order)
-        │
-8b. Cross-border jurisdiction classification (if enabled)
-    │   Reconstruct PiiMatch from FpeMapping entries
-    │   Classify jurisdiction: phone → country codes, email → TLDs, SSN → US
-    │   Evaluate policy: allow / warn (log) / block (403 Forbidden)
-    │   Record cross_border_flags_total in HealthStats
         │
 9. Forward modified request to upstream LLM provider (HTTPS)
         │
@@ -183,25 +170,6 @@ All original request headers are forwarded except:
 - **Hop-by-hop headers** (RFC 7230): `Connection`, `Transfer-Encoding`, `Host`, etc.
 - **Provider-specific strip_headers**: configured per provider in TOML (e.g., `x-openobscure-internal`)
 
-### Optional Auth Override
-
-For advanced setups where OpenObscure needs **different** API keys than the host agent (e.g., separate billing account for privacy-proxied traffic), set `override_auth = true` per provider:
-
-```toml
-[providers.anthropic]
-upstream_url = "https://api.anthropic.com"
-route_prefix = "/anthropic"
-override_auth = true              # Inject key from OpenObscure vault
-vault_key_name = "anthropic"      # Vault entry name (defaults to provider name)
-auth_header_name = "x-api-key"    # Anthropic uses x-api-key, not Authorization
-```
-
-When `override_auth = true`:
-1. Vault key is looked up by `vault_key_name` (or provider name)
-2. The `auth_header_name` header is injected/replaced in the upstream request
-3. For `authorization` headers, the value is automatically prefixed with `Bearer `
-4. If the vault key is missing, falls back to passthrough with a warning
-
 ### FPE Key Management
 
 FPE master key resolution (priority order):
@@ -212,7 +180,6 @@ FPE master key resolution (priority order):
 
 - Generated once with `--init-key` using `OsRng` (cryptographically secure)
 - When `OPENOBSCURE_HEADLESS=1` is set, `--init-key` also prints the key as hex to stdout for capture
-- Override API keys (optional): stored in keychain under `api-key-{provider}`
 
 ### Health Endpoint Auth Token
 
@@ -282,15 +249,25 @@ Longest prefix match wins when multiple providers overlap.
 
 ## Resource Budget
 
+OpenObscure detects device hardware at startup via the `device_profile` module and selects a capability tier (Full/Standard/Lite) based on total RAM. The tier determines which features are enabled and the RAM ceiling.
+
+| Tier | Max RAM | Scanners | Image | Model Timeout |
+|------|---------|----------|-------|---------------|
+| **Full** (8GB+) | 275MB | NER + CRF + ensemble | Yes | 300s |
+| **Standard** (4–8GB) | 200MB | NER + CRF | Yes | 120s |
+| **Lite** (<4GB) | 80MB | CRF + regex | Yes | 60s |
+
+On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
+
 | Metric | Target | Actual |
 |--------|--------|--------|
-| RAM (regex-only) | ~12MB | TBD (runtime profiling) |
-| RAM (with NER) | ~67MB | TBD (runtime profiling) |
-| RAM (peak, image processing) | ~224MB | Sequential model loading (face → OCR) |
+| RAM (Lite tier) | ~12–80MB | CRF + regex only |
+| RAM (Standard tier) | ~67–200MB | NER + image pipeline |
+| RAM (Full tier, peak) | ~224MB | NER + ensemble + image pipeline |
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **650** default, **768** with all features (`governance` + `crypto`) |
+| Test count | — | **650+** |
 
 ## Technology Stack
 
@@ -366,23 +343,6 @@ PaddleOCR-Lite text detection and recognition via ONNX Runtime.
 
 Explicit EXIF software match → screenshot. Otherwise need >= 2 supporting heuristics.
 
-## CLI Subcommands (Phase 4)
-
-The proxy binary supports both server mode and compliance CLI:
-
-```
-openobscure                          # Default: starts proxy (backward compatible)
-openobscure serve                    # Explicit: starts proxy
-openobscure compliance summary       # Aggregate stats from audit log
-openobscure compliance ropa          # GDPR Art. 30 ROPA (--format markdown|json)
-openobscure compliance dpia          # GDPR Art. 35 DPIA (--format markdown|json)
-openobscure compliance audit-log     # Query/filter audit log (--since, --until, --limit)
-openobscure compliance breach-check  # Anomaly detection + Art. 33 draft
-openobscure compliance export        # SIEM export (--format cef|leef)
-```
-
-Backward compatibility: `openobscure` with no subcommand still starts the proxy server via clap's `Option<Commands>` pattern.
-
 ## Deployment Modes
 
 The proxy crate produces both a **binary** and a **library**:
@@ -400,6 +360,3 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 
 - **SCRFD upgrade:** SCRFD-2.5GF for multi-scale face detection on screenshots with mixed-size faces
 - **ONNX mobile EPs:** CoreML (iOS) and NNAPI (Android) execution providers for hardware-accelerated inference
-- **L1 Rust port:** DONE (Phase 8D) — `governance.rs` provides ConsentStore, FileGuard, RetentionManager, GovernanceEngine, and privacy command router
-- **Mobile API gaps:** DONE (Phase 8) — breach detection, compliance/SIEM export, encrypted storage wired to mobile API; CI/CD workflows and UniFFI binding generation
-- **Real-time breach monitoring:** Rolling window anomaly detection in proxy (batch CLI sufficient for v1)

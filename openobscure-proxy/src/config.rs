@@ -52,10 +52,6 @@ pub struct AppConfig {
     pub logging: LoggingConfig,
     #[serde(default)]
     pub image: ImageConfig,
-    #[serde(default)]
-    pub compliance: ComplianceConfig,
-    #[serde(default)]
-    pub cross_border: CrossBorderConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -90,20 +86,6 @@ impl Default for ProxyConfig {
 pub struct ProviderConfig {
     pub upstream_url: String,
     pub route_prefix: String,
-    /// When false (default), auth headers from the host agent pass through to upstream
-    /// unchanged — no duplicate API key management required.
-    /// When true, OpenObscure injects/replaces the auth header with a key from its
-    /// own vault (secondary/override key for advanced setups).
-    #[serde(default)]
-    pub override_auth: bool,
-    /// Name of the vault entry to use when override_auth is true.
-    /// Defaults to the provider name (e.g., "anthropic").
-    pub vault_key_name: Option<String>,
-    /// Which HTTP header carries the API key for this provider.
-    /// Only used when override_auth is true.
-    /// Examples: "x-api-key" (Anthropic), "authorization" (OpenAI), "api-key" (Azure).
-    /// Defaults to "authorization".
-    pub auth_header_name: Option<String>,
     #[serde(default)]
     pub strip_headers: Vec<String>,
 }
@@ -118,9 +100,6 @@ pub struct FpeConfig {
     pub enabled: bool,
     #[serde(default)]
     pub type_overrides: HashMap<String, bool>,
-    /// Seconds to keep the previous key active after rotation (default: 30).
-    #[serde(default = "default_key_overlap_secs")]
-    pub key_overlap_secs: u64,
 }
 
 impl Default for FpeConfig {
@@ -130,7 +109,6 @@ impl Default for FpeConfig {
             keychain_user: default_keychain_user(),
             enabled: true,
             type_overrides: HashMap::new(),
-            key_overlap_secs: default_key_overlap_secs(),
         }
     }
 }
@@ -166,6 +144,9 @@ pub struct ScannerConfig {
     #[serde(default)]
     pub crf_model_dir: Option<String>,
     /// RAM threshold in MB for auto NER→CRF fallback (default 200).
+    ///
+    /// In "auto" scanner mode, the device profiler's tier system now takes
+    /// precedence. This field is retained for backward compatibility.
     #[serde(default = "default_ram_threshold")]
     pub ram_threshold_mb: u64,
     /// Skip PII scanning inside markdown code fences and inline code (default: true).
@@ -332,71 +313,6 @@ impl Default for ImageConfig {
     }
 }
 
-#[derive(Debug, Deserialize, Clone)]
-pub struct ComplianceConfig {
-    /// Organization name for compliance reports.
-    #[serde(default)]
-    pub organization_name: Option<String>,
-    /// Data Protection Officer email.
-    #[serde(default)]
-    pub dpo_email: Option<String>,
-    /// Supervisory authority / DPA contact email.
-    #[serde(default)]
-    pub dpa_contact: Option<String>,
-    /// Directory for generated compliance reports (default: ~/.openobscure/reports).
-    #[serde(default)]
-    pub reports_dir: Option<String>,
-    /// Audit log retention in days (default: 365).
-    #[serde(default = "default_retention_days")]
-    pub retention_days: u32,
-}
-
-impl Default for ComplianceConfig {
-    fn default() -> Self {
-        Self {
-            organization_name: None,
-            dpo_email: None,
-            dpa_contact: None,
-            reports_dir: None,
-            retention_days: default_retention_days(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct CrossBorderConfig {
-    /// Enable cross-border jurisdiction classification (default: false).
-    #[serde(default)]
-    pub enabled: bool,
-    /// Policy mode: "log" (default), "warn", "block".
-    #[serde(default = "default_cross_border_mode")]
-    pub mode: String,
-    /// Allowed jurisdictions (e.g. ["EU", "US", "UK"]). Empty = all allowed.
-    #[serde(default)]
-    pub allowed_jurisdictions: Vec<String>,
-    /// Blocked jurisdictions. Overrides allowed list.
-    #[serde(default)]
-    pub blocked_jurisdictions: Vec<String>,
-}
-
-impl Default for CrossBorderConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            mode: default_cross_border_mode(),
-            allowed_jurisdictions: Vec::new(),
-            blocked_jurisdictions: Vec::new(),
-        }
-    }
-}
-
-fn default_retention_days() -> u32 {
-    365
-}
-fn default_cross_border_mode() -> String {
-    "log".to_string()
-}
-
 fn default_ocr_tier() -> String {
     "detect_and_blur".to_string()
 }
@@ -457,9 +373,6 @@ fn default_log_max_files() -> u32 {
 }
 fn default_crash_buffer_size() -> usize {
     2 * 1024 * 1024 // 2MB
-}
-fn default_key_overlap_secs() -> u64 {
-    30
 }
 fn default_skip_fields() -> Vec<String> {
     vec![

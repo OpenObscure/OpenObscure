@@ -1,7 +1,6 @@
 # OpenObscure — System Architecture
 
 > Privacy firewall for AI agents. Primary integration: [OpenClaw](https://github.com/openclaw/openclaw), the open-source AI assistant.
-> Last updated: 2026-02-18 (Phase 8 — Production Hardening, 880 tests)
 
 ---
 
@@ -15,7 +14,7 @@ OpenObscure runs **entirely on the user's device** — no remote servers, no clo
 
 ### Gateway Model (Desktop / Server)
 
-The full-featured deployment. OpenObscure runs as a **sidecar HTTP proxy** on the same host as the AI agent's Gateway. All three layers are active.
+The full-featured deployment. OpenObscure runs as a **sidecar HTTP proxy** on the same host as the AI agent's Gateway. Both layers are active.
 
 ```mermaid
 flowchart TB
@@ -24,7 +23,6 @@ flowchart TB
             L1["L1 Plugin<br>(in-process, no separate PID)"]
         end
         subgraph l0proc ["L0 Proxy (standalone Rust process)"]
-            L2["L2 Crypto<br>(linked library, same process)"]
         end
         gateway -- "HTTP (localhost)" --> l0proc
     end
@@ -38,9 +36,8 @@ flowchart TB
 
 | Component | Process | How it runs |
 |-----------|---------|-------------|
-| **L0** (Rust proxy) | Standalone binary | Separate process, started as sidecar alongside the host agent. Includes compliance CLI subcommands (`openobscure compliance ...`). |
-| **L1** (TS plugin) | In-process | Loaded into the host agent's runtime (e.g., OpenClaw's Node.js via plugin SDK) or used as a library. Includes `/privacy` commands. |
-| **L2** (Rust crypto) | Library | Linked into L0's binary, not a separate process |
+| **L0** (Rust proxy) | Standalone binary | Separate process, started as sidecar alongside the host agent. |
+| **L1** (TS plugin) | In-process | Loaded into the host agent's runtime (e.g., OpenClaw's Node.js via plugin SDK) or used as a library. |
 
 **Supported platforms:** macOS (Apple Silicon), Linux (x64 + ARM64), Windows (x64).
 
@@ -84,9 +81,7 @@ flowchart TB
 
 | Component | What | How it runs |
 |-----------|------|-------------|
-| **L0** (Rust library) | `OpenObscureMobile` API | Linked into host app binary. PII scan + FPE encrypt/decrypt + image pipeline. |
-| **L1** (consent/governance) | `GovernanceEngine` API | Available via `governance` feature flag — consent manager, file access guard, retention tiers, privacy commands. All SQLite-backed (rusqlite bundled). |
-| **L2** (crypto) | Not applicable | FPE key provided by host app's native secure storage (iOS Keychain / Android Keystore). |
+| **L0** (Rust library) | `OpenObscureMobile` API | Linked into host app binary. PII scan + FPE encrypt/decrypt + image pipeline. FPE key provided by host app's native secure storage (iOS Keychain / Android Keystore). |
 
 **Supported platforms:** iOS (aarch64 device + simulator), Android (arm64-v8a, armeabi-v7a, x86_64, x86).
 
@@ -98,32 +93,13 @@ flowchart TB
 | `sanitize_text(text)` | Scan for PII, encrypt with FPE, return sanitized text + mapping |
 | `restore_text(text, mapping)` | Decrypt FPE values in response text using saved mapping |
 | `sanitize_image(bytes)` | Face blur + OCR text blur + EXIF strip (optional, adds ~20MB) |
-| `stats()` | PII counts, scanner mode, image pipeline status |
-| `new_with_governance(config, key, db_path, deny_patterns)` | Initialize with governance engine (requires `governance` feature) |
-| `check_consent(user_id, type)` | Check if consent is active for a given type |
-| `grant_consent(user_id, type, purpose?)` | Grant consent, returns consent record |
-| `revoke_consent(user_id, type)` | Revoke previously granted consent |
-| `check_file_access(path)` | Check if a file path is safe to access (19 deny patterns) |
-| `privacy_command(user_id, args)` | Execute a `/privacy` command (status, consent, export, delete, retention) |
-| `enforce_retention()` | Promote retention tiers + prune expired entries |
-| `retention_summary()` | Get tier counts (hot/warm/cold/expired/total) |
-| `export_user_data(user_id)` | Export all user data as JSON (DSAR access request) |
-| `assess_breach(threshold?)` | Anomaly detection on processing log (sigma-based, returns risk level) |
-| `generate_breach_report()` | GDPR Art. 33 breach notification draft (Markdown) |
-| `export_audit_entries(format, limit?)` | SIEM export in CEF or LEEF format |
-| `compliance_summary()` | Aggregate PII stats from processing log |
-| `encrypt_data(plaintext, passphrase)` | AES-256-GCM encrypt with Argon2id KDF (requires `crypto` feature) |
-| `decrypt_data(data, passphrase)` | Decrypt data from `encrypt_data()` (requires `crypto` feature) |
+| `stats()` | PII counts, scanner mode, image pipeline status, device tier |
 
 **Key differences from Gateway Model:**
 - No HTTP server (axum/tokio not compiled in)
 - FPE key passed from host app (no OS keychain access on mobile)
-- CRF scanner used by default (NER requires ~55MB RAM, not recommended on mobile)
-- L1 governance available via `governance` feature — consent, file guard, retention, privacy commands
-- Breach detection, compliance reports, SIEM export available via `governance` feature
-- Encrypted storage available via `crypto` feature (AES-256-GCM + Argon2id KDF)
-- `mobile-full` feature flag enables all: `mobile` + `governance` + `crypto`
-- Image pipeline optional via feature flag (`mobile` = text only, `mobile` + `image-pipeline` = full)
+- Hardware auto-detection (`auto_detect: true` default) profiles device RAM and selects features automatically — phones with 8GB+ RAM get full NER + ensemble + image pipeline, matching gateway efficacy
+- Image pipeline enabled automatically on capable devices (4GB+)
 
 ### Defense in Depth: Both Models Together
 
@@ -145,12 +121,12 @@ flowchart LR
 
 OpenObscure does **not** have its own LLM credentials and does **not** initiate its own API calls.
 
-- **Gateway Model:** Passthrough-first — forwards the host agent's API keys unchanged. The optional `override_auth` feature uses keys the user explicitly places in the OS keychain.
+- **Gateway Model:** Passthrough-first — forwards the host agent's API keys unchanged.
 - **Embedded Model:** No API calls at all — the library sanitizes text/images and returns results. The host app handles all networking.
 
 The only network activity OpenObscure produces (Gateway Model only) is forwarding the host agent's existing LLM requests through the local proxy. No telemetry, no phone-home, no external dependencies at runtime.
 
-## Three-Layer Defense-in-Depth
+## Two-Layer Defense-in-Depth
 
 ```mermaid
 flowchart TB
@@ -158,8 +134,7 @@ flowchart TB
 
     subgraph gateway ["AI Agent Gateway (e.g. OpenClaw)"]
         subgraph l1box ["L1 — Gateway Plugin (TypeScript)"]
-            guard["File Access Guard"] --> redact["PII Redactor<br>(regex → redaction)"]
-            redact --> consent["Consent Manager (GDPR)"]
+            redact["PII Redactor<br>(regex → redaction)"]
             heartbeat["Heartbeat Monitor<br>(pings L0 every 30s)"]
         end
     end
@@ -173,9 +148,6 @@ flowchart TB
         subgraph respath ["Response Path"]
             decrypt["FPE decrypt<br>ciphertexts → plaintext"]
         end
-        subgraph l2box ["L2 — Encryption Layer (linked library)"]
-            crypto["AES-256-GCM transcripts<br>Argon2id KDF<br>OS keychain (FPE keys)"]
-        end
     end
 
     llm(["LLM Providers<br>Anthropic · OpenAI · Ollama"])
@@ -185,14 +157,12 @@ flowchart TB
     ff1 -- "sanitized HTTPS" --> llm
     llm -- "response" --> decrypt
     decrypt -- "decrypted response" --> gateway
-    consent -. "redacted transcripts" .-> crypto
 
     style gateway fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
     style l1box fill:#3a5580,stroke:#5a75a0,color:#f0f0f0
     style l0box fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
     style reqpath fill:#6a5aaa,stroke:#8a7aca,color:#f0f0f0
     style respath fill:#6a5aaa,stroke:#8a7aca,color:#f0f0f0
-    style l2box fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
     style llm fill:#d9556a,stroke:#e97585,color:#f0f0f0
     style tools fill:#6a6a85,stroke:#8a8aa5,color:#f0f0f0
 ```
@@ -205,16 +175,16 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE (versioned keys with rotation support), decrypts ciphertexts in responses (SSE streaming supported). Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. Cross-border jurisdiction classification + policy enforcement. CLI compliance tooling (ROPA, DPIA, breach detection, SIEM export). |
-| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: nudity (NudeNet ONNX), faces in photos (BlazeFace ONNX), text in screenshots/images (PaddleOCR ONNX). Cross-border: jurisdiction flags from phone country codes, email TLDs, SSN format. |
-| **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged. Optional `override_auth` per provider for vault-sourced keys |
-| **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). Versioned keys (`fpe-master-key-v{N}`) with 30s dual-key overlap during rotation. CLI `key-rotate` for offline rotation. |
+| **What it does** | Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE, decrypts ciphertexts in responses (SSE streaming supported). Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. |
+| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: nudity (NudeNet ONNX), faces in photos (BlazeFace ONNX), text in screenshots/images (PaddleOCR ONNX). |
+| **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged |
+| **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
 | **Fail mode** | Configurable fail-open (default) or fail-closed. Vault unavailable always blocks (503) |
-| **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, GDPR audit log, platform logging (OSLog/journald) |
+| **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, keyring 3, clap 4 (CLI) |
-| **Resource** | ~12MB RAM (regex-only), ~67MB with NER model loaded, ~224MB peak during image processing; 2.7MB binary |
-| **Tests** | 650 default, 768 with all features (325 lib + 424 bin + 13 integration + 6 accuracy) |
+| **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
+| **Tests** | 650+ |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -224,61 +194,15 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Provides file access guard, GDPR consent manager (SQLite), L0 heartbeat monitor with auth token validation, memory governance (4-tier retention lifecycle), and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
+| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
 | **PII handling** | Redaction (`[REDACTED]`), not FPE — tool results are internal, don't need format preservation |
-| **File guard** | 15+ deny patterns (.env, SSH keys, AWS creds, databases, etc.) with configurable allow/deny |
 | **Heartbeat** | Pings L0 `/_openobscure/health` every 30s with `X-OpenObscure-Token` auth header. Warns user when L0 is down, logs recovery. |
 | **Hook model** | Synchronous — must not return a Promise. OpenClaw-specific: OpenClaw silently skips async hooks. |
-| **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output, GDPR audit log |
-| **Stack** | TypeScript 5.4, CommonJS, better-sqlite3 (consent DB) |
+| **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output |
+| **Stack** | TypeScript 5.4, CommonJS |
 | **Resource** | ~25MB RAM (within the host agent's process), ~3MB storage |
-| **Tests** | 96 (9 redactor + 11 file-guard + 17 consent + 10 privacy-commands + 1 disclosure + 12 heartbeat + 2 state-messages + 17 oo-log + 17 memory-governance) |
+| **Tests** | 96 (9 redactor + 12 heartbeat + 2 state-messages + 17 oo-log) |
 | **Docs** | [openobscure-plugin/ARCHITECTURE.md](openobscure-plugin/ARCHITECTURE.md) |
-
-### L2 — Encryption Layer (`openobscure-crypto/`)
-
-**At-rest encryption** for session transcripts. Ensures conversation history is unreadable without the passphrase, even if storage is compromised.
-
-| Aspect | Detail |
-|--------|--------|
-| **What it does** | Encrypts/decrypts session transcripts using AES-256-GCM with Argon2id-derived keys |
-| **KDF** | Argon2id (19MB memory, 2 iterations, parallelism 1) — OWASP recommended |
-| **Format** | Self-contained JSON files with embedded KDF params + base64 ciphertext |
-| **API** | `EncryptedStore::write/read/list/delete` |
-| **Stack** | Rust, aes-gcm 0.10, argon2 0.5, rand 0.8 |
-| **Resource** | ~6MB RAM (19MB peak during KDF) |
-| **Tests** | 16 |
-| **Docs** | [openobscure-crypto/ARCHITECTURE.md](openobscure-crypto/ARCHITECTURE.md) |
-
-### Compliance CLI (built into L0 + L1)
-
-Compliance tooling runs on-demand within existing L0/L1 processes — no separate layer or web server.
-
-**L0 CLI subcommands** (`openobscure compliance <subcommand>`):
-
-| Subcommand | GDPR Article | Output |
-|------------|-------------|--------|
-| `summary` | Art. 5(2) | Aggregate stats from audit log |
-| `ropa` | Art. 30 | Record of Processing Activities (Markdown/JSON) |
-| `dpia` | Art. 35 | Data Protection Impact Assessment (Markdown/JSON) |
-| `audit-log` | Art. 5(2) | Filtered audit log entries |
-| `breach-check` | Art. 33 | Anomaly detection + breach notification draft |
-| `export` | — | SIEM export (CEF/LEEF format) |
-
-**L0 cross-border router** (in proxy request path):
-- Jurisdiction classification from detected PII: phone country codes (~30 prefixes), email TLDs, SSN → US
-- Policy engine: allow/warn/block based on `[cross_border]` config
-- Block mode returns 403 Forbidden before request reaches upstream
-
-**L0 breach detection** (batch mode via `breach-check`):
-- Hourly bucketing of audit log entries
-- Mean + stddev anomaly scoring, configurable sigma threshold (default 3.0)
-- GDPR Art. 33 breach notification draft generator
-
-**L1 memory governance** (`/privacy retention <subcommand>`):
-- 4-tier retention lifecycle: hot (7d) → warm (30d) → cold (90d) → expired (delete)
-- Periodic enforcement timer (1 hour default)
-- `/privacy retention status|enforce|policy` commands
 
 **Process watchdog** (install templates):
 - macOS: launchd plist with `KeepAlive` + `ThrottleInterval`
@@ -388,22 +312,6 @@ flowchart LR
 
 **Important:** OpenObscure never reads local files itself. The agent's tools perform all file I/O and produce text results. OpenObscure only sees the resulting text *after* the agent has already read and extracted it. L1 operates on text strings from tool outputs, not on files directly.
 
-### File Access (agent → local files)
-
-```mermaid
-flowchart LR
-    agent["Agent<br>wants to read file"] --> check["File Guard<br>evaluate path vs deny patterns"]
-    check -->|".env, SSH keys, credentials"| blocked["Blocked"]
-    check -->|"regular files"| allowed["Allowed"]
-
-    style agent fill:#4a7fb5,stroke:#6a9fd5,color:#f0f0f0
-    style check fill:#7c6cbf,stroke:#9c8cdf,color:#f0f0f0
-    style blocked fill:#d9556a,stroke:#e97585,color:#f0f0f0
-    style allowed fill:#3d8a55,stroke:#5daa75,color:#f0f0f0
-```
-
-The File Access Guard is a **gate, not a parser** — it checks the file path before the agent reads the file, but the actual file I/O is always performed by the agent's tools.
-
 ## Authentication Model
 
 **Passthrough-first** — OpenObscure is transparent to API authentication:
@@ -421,51 +329,69 @@ sequenceDiagram
 ```
 
 - All original request headers forwarded (except hop-by-hop per RFC 7230)
-- Optional `override_auth = true` per provider injects keys from OS keychain
 - FPE master key is separate — 32-byte AES-256 via `OPENOBSCURE_MASTER_KEY` env var (headless) or OS keychain (desktop), generated with `--init-key`
 
 ## Resource Budget
 
-### Current (Phase 1 — text-only)
+OpenObscure uses a **hardware capability detection system** to select features at startup. The `device_profile` module detects total RAM, available RAM, and CPU cores, classifies the device into a capability tier, and derives a feature budget.
 
-| Component | RAM | Storage |
-|-----------|-----|---------|
-| Rust PII Proxy (L0) | ~12MB | 2.7MB |
-| Gateway Plugin (L1) | ~25MB | ~3MB |
-| Encryption Layer (L2) | ~6MB | <1MB |
-| Runtime overhead | ~15MB | — |
-| **Total** | **~58MB** | **~7MB** |
+### Capability Tiers
 
-### Target (Phase 4 — full stack)
+| Device RAM | Tier | Scanners | Image Pipeline | Model Idle Timeout |
+|------------|------|----------|----------------|--------------------|
+| 8GB+ | **Full** | NER + CRF + ensemble voting | Yes | 300s |
+| 4–8GB | **Standard** | NER + CRF (no ensemble) | Yes | 120s |
+| <4GB | **Lite** | CRF + regex only | Yes (shorter timeout) | 60s |
+
+### Gateway Budgets (fixed per tier)
+
+| Tier | Max RAM | NER | CRF | Ensemble | Image |
+|------|---------|-----|-----|----------|-------|
+| Full | 275MB | Yes | Yes | Yes | Yes |
+| Standard | 200MB | Yes | Yes | No | Yes |
+| Lite | 80MB | No | Yes | No | Yes |
+
+### Embedded Budgets (proportional to device RAM)
+
+Budget = 20% of total RAM, clamped to [12MB, 275MB]. Features enabled based on available budget within the tier:
+
+| Device | Total RAM | Budget | Tier | NER | CRF | Ensemble | Image |
+|--------|-----------|--------|------|-----|-----|----------|-------|
+| iPhone 16 Pro | 12GB | 275MB (capped) | Full | Yes | Yes | Yes | Yes |
+| iPhone 15 | 6GB | 275MB (capped) | Standard | Yes | Yes | No | Yes |
+| Budget Android | 3GB | 614MB | Lite | No | Yes | No | Yes |
+| Embedded IoT | 512MB | 102MB | Lite | No | Yes | No | Yes |
+
+### Full Stack Component Breakdown
 
 | Component | RAM | Resident? |
 |-----------|-----|-----------|
-| L0 + L1 + L2 + runtime | 115MB | Always |
-| TinyBERT INT8 NER | 55MB | Always |
+| L0 + L1 + runtime | 115MB | Always |
+| TinyBERT INT8 NER | 55MB | Always (when tier enables NER) |
 | Health/child keyword dict | 2MB | Always |
 | BlazeFace (face detection) | 8MB | On-demand |
 | PaddleOCR-Lite (OCR) | 35MB | On-demand |
 | Image buffer | 48MB | On-demand |
-| **Peak** | **224MB** | — |
+| **Peak (Full tier)** | **224MB** | — |
 | **Hard ceiling** | **275MB** | — |
 
 Storage ceiling: **62MB** (including all models, ONNX Runtime, config).
+
+Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 
 ## PII Coverage Roadmap
 
 | Phase | Coverage | What's Added |
 |-------|----------|--------------|
 | **Phase 1** (complete) | **78%** | Regex + FPE for structured PII (CC, SSN, phone, email, API keys) |
-| **Phase 2** (complete) | **91%** | Hybrid scanner (NER/CRF + keywords), GDPR consent, health monitoring, nested JSON, code fences |
-| **Phase 2.5** (complete) | **91%** | Unified logging, PII scrub layer, mmap crash buffer, GDPR audit log, file rotation |
+| **Phase 2** (complete) | **91%** | Hybrid scanner (NER/CRF + keywords), health monitoring, nested JSON, code fences |
+| **Phase 2.5** (complete) | **91%** | Unified logging, PII scrub layer, mmap crash buffer, file rotation |
 | **Phase 3** (complete) | **95%** | Visual PII (face blur, OCR text extraction, EXIF strip, screenshot detection, platform logging) |
-| **Phase 4** (complete) | **97%** | Cross-border routing, memory governance, breach detection, compliance CLI |
-| **Phase 5** (complete) | **97%** | FPE key rotation, SSE streaming, PII benchmark corpus (~400 samples, 100% recall), production benchmarks (criterion) |
-| **Phase 6** (complete) | **97%** | Ensemble confidence voting (cluster-based overlap resolution + agreement bonus), architecture cleanup (3-layer) |
+| **Phase 5** (complete) | **97%** | SSE streaming, PII benchmark corpus (~400 samples, 100% recall), production benchmarks (criterion) |
+| **Phase 6** (complete) | **97%** | Ensemble confidence voting (cluster-based overlap resolution + agreement bonus) |
 | **Phase 7** (complete) | **97%** | Cross-platform support (Windows, Linux ARM64), mobile library API (iOS + Android via UniFFI), Embedded deployment model |
 | **Post-Phase 7** (complete) | **98%** | Network/device identifier detection (IPv4, IPv6, GPS coordinates, MAC addresses) — closes PII-06 + PII-12 |
-| **Phase 8D** (complete) | **98%** | L1 governance port to Rust — consent manager, file access guard, retention tiers, privacy commands available on mobile via `governance` feature |
-| **Phase 8** (complete) | **99%** | Breach detection, compliance/SIEM export, encrypted storage wired to mobile API; CI/CD workflows; UniFFI binding generation |
+| **Phase 9** (complete) | **98%** | Runtime hardware capability detection — device profiler auto-selects features based on RAM; mobile devices with 8GB+ get full NER + ensemble parity with gateway |
 
 ## Project Layout
 
@@ -474,32 +400,28 @@ OpenObscure/
 ├── ARCHITECTURE.md              ← this file (system-level architecture)
 ├── session-notes/               Per-session implementation logs
 ├── .github/workflows/
-│   ├── ci.yml                   CI: proxy-test matrix, cross-arm64, mobile-build, crypto, plugin, lint
+│   ├── ci.yml                   CI: proxy-test matrix, cross-arm64, mobile-build, plugin, lint
 │   └── release.yml              Release: binary matrix + iOS XCFramework + UniFFI bindings
 ├── scripts/
 │   ├── download_models.sh       Download ONNX models for image pipeline
 │   ├── generate_screenshot.py   Generate synthetic PII screenshot for demos
-│   ├── build_ios.sh             Build iOS static library + XCFramework (--features mobile-full)
-│   ├── build_android.sh         Build Android shared library via cargo-ndk (--features mobile-full)
+│   ├── build_ios.sh             Build iOS static library + XCFramework
+│   ├── build_android.sh         Build Android shared library via cargo-ndk
 │   └── generate_bindings.sh     Generate UniFFI Swift/Kotlin bindings
 ├── docs/examples/images/        Before/after visual PII examples
-├── openobscure-proxy/             L0: Rust PII proxy
+├── openobscure-proxy/             L0: Rust PII proxy (+ embedded mobile library)
 │   ├── ARCHITECTURE.md          L0 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
-│   ├── src/                     Rust source (33 modules + integration tests)
+│   ├── src/                     Rust source
 │   ├── examples/                Demo binaries (demo_image_pipeline)
 │   ├── models/                  ONNX models (git-ignored, download via script)
 │   ├── config/openobscure.toml    Default configuration
 │   └── install/                 Process watchdog templates (launchd, systemd)
-├── openobscure-crypto/            L2: Encryption layer
-│   ├── ARCHITECTURE.md          L2 architecture details
-│   ├── LICENSE_AUDIT.md         Dependency license audit
-│   └── src/                     Rust source (KDF, cipher, store)
 ├── review-notes/                Architecture review analysis & responses
 ├── openobscure-plugin/            L1: Gateway plugin
 │   ├── ARCHITECTURE.md          L1 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
-│   └── src/                     TypeScript source (redactor, file-guard, consent, heartbeat, oo-log, memory-governance)
+│   └── src/                     TypeScript source (redactor, heartbeat, oo-log)
 └── project-plan/
     ├── MASTER_PLAN.md           Full design reference (single source of truth)
     ├── PHASE1_PLAN.md           Phase 1 plan (COMPLETE — 75 tests)
@@ -551,11 +473,8 @@ cd openobscure-proxy && cargo run -- --init-key
 cargo run -- -c config/openobscure.toml
 
 # Run all tests
-cd openobscure-proxy && cargo test                               # 650 tests
-cd openobscure-proxy && cargo test --features governance          # 764 tests (includes governance)
-cd openobscure-proxy && cargo test --features governance,crypto   # 768 tests (all features)
-cd openobscure-crypto && cargo test                       # 16 tests
-cd openobscure-plugin && npm test                         # 96 tests
+cd openobscure-proxy && cargo test
+cd openobscure-plugin && npm test
 ```
 
 ## Health Monitoring & User Experience
@@ -631,7 +550,7 @@ Token resolution (L0 startup): `OPENOBSCURE_AUTH_TOKEN` env var → `~/.openobsc
 
 | Component | What | Status |
 |-----------|------|--------|
-| `GET /_openobscure/health` endpoint | Returns status, version, uptime, PII stats. Auth-gated via `X-OpenObscure-Token`. | Complete |
+| `GET /_openobscure/health` endpoint | Returns status, version, uptime, PII stats, device tier, feature budget. Auth-gated via `X-OpenObscure-Token`. | Complete |
 | L1 heartbeat monitor | Pings health endpoint every 30s with auth token, warns user on failure | Complete |
 | L0/L1 auth token | Shared via file (`~/.openobscure/.auth-token`) or env var. Auto-generated on first run. | Complete |
 | Panic hook + crash marker | Writes `~/.openobscure/.crashed` before abort | Complete |
@@ -673,10 +592,10 @@ flowchart TB
 | **Stderr** | Primary output, JSON or human-readable | `logging.json_output` |
 | **PII scrub** | Regex-based scrub of SSN, CC, email, phone, API keys in log text | `logging.pii_scrub` (default: true) |
 | **File rotation** | Daily rolling log files | `logging.file_path`, `max_file_size`, `max_files` |
-| **Audit log** | GDPR audit trail — only `oo_audit!` events routed to separate JSONL | `logging.audit_log_path` |
+| **Audit log** | Audit trail — only `oo_audit!` events routed to separate JSONL | `logging.audit_log_path` |
 | **Crash buffer** | mmap ring buffer (default 2MB) — kernel flushes pages even on hard crash | `logging.crash_buffer`, `crash_buffer_size` |
 
-**Module tagging:** Every log line includes a `module` field (PROXY, SCANNER, HYBRID, FPE, VAULT, HEALTH, CONFIG, NER, CRF, BODY, SERVER, MAPPING) for structured filtering.
+**Module tagging:** Every log line includes a `module` field (PROXY, SCANNER, HYBRID, FPE, VAULT, HEALTH, CONFIG, NER, CRF, BODY, SERVER, MAPPING, DEVICE) for structured filtering.
 
 ### L1 Logging Stack
 
@@ -698,7 +617,7 @@ flowchart TB
     style auditlog fill:#4a6a8a,stroke:#6a8aaa,color:#f0f0f0
 ```
 
-Module constants: REDACTOR, FILE_GUARD, CONSENT, PRIVACY, HEARTBEAT, PLUGIN, RETENTION.
+Module constants: REDACTOR, HEARTBEAT, PLUGIN.
 
 All string fields are run through `redactPii()` before output — defense-in-depth ensures no PII leaks through log messages even if developers forget to sanitize.
 
@@ -780,17 +699,14 @@ OpenObscure is designed for open-source distribution. Security follows **Kerckho
 | PII leaking to LLM providers in API requests | FF1 FPE encryption of structured PII before request leaves device | L0 |
 | Visual PII in images (faces, text, EXIF) | NSFW full-image blur, face blur, OCR text blur, EXIF metadata stripping on base64 images | L0 |
 | PII persisted in tool result transcripts | Regex redaction of PII in tool outputs before persistence | L1 |
-| Agent reading sensitive local files (.env, SSH keys) | File path deny-list blocking before read | L1 |
-| Transcript exposure from storage compromise | AES-256-GCM encryption at rest with Argon2id KDF | L2 |
 | Frequency analysis of FPE ciphertexts | Per-record tweaks (UUID + JSON path hash) produce unique ciphertexts for identical inputs | L0 |
-| API key exposure via proxy | Passthrough-first — keys are never stored or logged by OpenObscure (unless user opts into vault override) | L0 |
+| API key exposure via proxy | Passthrough-first — keys are never stored or logged by OpenObscure | L0 |
 
 ### What OpenObscure Does NOT Protect Against
 
 | Threat | Why | Mitigation |
 |--------|-----|------------|
 | **Compromised OS / root access** | Attacker with root can read process memory, dump OS keychain, intercept localhost traffic. No userspace software can defend against this. | OS-level security (disk encryption, patching, access controls) |
-| **Compromised OpenClaw process** | If OpenClaw's Node.js process is hijacked, the attacker can bypass L1 hooks, read API keys from memory, and send direct HTTP requests bypassing L0. | OpenClaw integrity (version pinning, dependency auditing) |
 | **Semantic PII not covered by regex** (Phase 1) | Names, addresses, health conditions bypass regex. "Tell John about my diabetes" passes through unencrypted. | Phase 2 TinyBERT NER closes this gap (~91% coverage) |
 | **PII in tool results sent to LLM** | L1 hooks `tool_result_persist` (after LLM sees data), not `before_tool_call`. Tool result PII reaches the LLM before L1 can redact it. | OpenClaw limitation — when `before_tool_call` is wired, L1 upgrades to pre-LLM enforcement |
 | **Side-channel attacks on FPE** | Timing analysis of FF1 encrypt/decrypt could theoretically leak information. | AES-NI hardware acceleration provides constant-time operations on supported CPUs |
@@ -804,27 +720,21 @@ All runtime secrets live in the **OS keychain** or (for headless environments) e
 |--------|--------|-------|-----------|
 | FPE master key | 32 bytes (AES-256) | `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) **or** OS keychain (`openobscure/fpe-key`). Env var takes priority. | `--init-key` with `OsRng` |
 | L0/L1 auth token | 32 bytes (hex string) | `OPENOBSCURE_AUTH_TOKEN` env var **or** `~/.openobscure/.auth-token` file (0600). Auto-generated on first run. | `OsRng` at startup |
-| Vault API keys (optional) | String | OS keychain (`openobscure/<provider>`) | User-provided |
-| Transcript passphrase | User-provided string | Never stored — entered at runtime | User-chosen |
 
 **Key compromise impact:**
 - FPE key compromised → all FPE ciphertexts are decryptable (but attacker needs both the key AND the ciphertexts, which exist only in LLM provider logs)
-- Transcript passphrase compromised → stored transcripts are decryptable (but attacker needs physical access to encrypted files on disk)
-- Both require separate attacks — compromising one does not compromise the other
 
 ### Open-Source Security Considerations
 
 Publishing source code does **not** weaken OpenObscure's security posture:
 
-1. **Algorithms are public standards** — FF1 (NIST SP 800-38G), AES-256-GCM, Argon2id are all published, peer-reviewed algorithms. Security never depended on algorithm secrecy.
+1. **Algorithms are public standards** — FF1 (NIST SP 800-38G) is a published, peer-reviewed algorithm. Security never depended on algorithm secrecy.
 
 2. **Regex patterns are standard** — Credit card (Luhn), SSN (range validation), phone, email, and API key patterns are well-known. An attacker doesn't need source code to guess them.
 
-3. **File deny list is defense-in-depth** — Even if an attacker knows which paths are blocked, the deny list supplements (not replaces) OS-level file permissions.
+3. **NER models are not secrets** — The TinyBERT model detects PII patterns; it doesn't contain user data. An attacker could study the model to craft evasion inputs, but NER is layered on top of regex, not a sole defense.
 
-4. **NER models are not secrets** — The TinyBERT model detects PII patterns; it doesn't contain user data. An attacker could study the model to craft evasion inputs, but NER is layered on top of regex, not a sole defense.
-
-5. **Community audit is a net positive** — Cryptographic implementations benefit from public scrutiny. Bugs found by the community are bugs that don't become exploits.
+4. **Community audit is a net positive** — Cryptographic implementations benefit from public scrutiny. Bugs found by the community are bugs that don't become exploits.
 
 ### Attack Surface Reduction
 
@@ -832,19 +742,18 @@ Publishing source code does **not** weaken OpenObscure's security posture:
 - **Health endpoint auth** — `/_openobscure/health` requires `X-OpenObscure-Token` header. Prevents other localhost processes from querying or impersonating L0.
 - **No telemetry** — Zero outbound connections beyond forwarded LLM requests.
 - **No default credentials** — FPE key must be explicitly generated. No fallback "demo mode" keys. Auth token auto-generated with secure random on first run.
-- **No admin interface** — compliance CLI generates reports on-demand, no web server or persistent UI.
-- **Minimal dependencies** — Rust binary has no runtime dependency beyond libc. Plugin uses better-sqlite3 for consent storage.
-- **Memory-safe language** — L0 and L2 are Rust (no buffer overflows, use-after-free, or memory corruption).
+- **Minimal dependencies** — Rust binary has no runtime dependency beyond libc.
+- **Memory-safe language** — L0 is Rust (no buffer overflows, use-after-free, or memory corruption).
 
 ---
 
 ## FAQ
 
 **Does OpenObscure read local files to scan for PII?**
-No. OpenObscure never performs file I/O. The agent's tools (file_read, web_fetch, etc.) read files and produce text results. OpenObscure's L1 plugin only sees the resulting text after the agent has extracted it, via the tool result persistence hook. The File Access Guard checks file *paths* before reads, but doesn't touch the files themselves.
+No. OpenObscure never performs file I/O. The agent's tools (file_read, web_fetch, etc.) read files and produce text results. OpenObscure's L1 plugin only sees the resulting text after the agent has extracted it, via the tool result persistence hook.
 
 **Does OpenObscure need its own API keys?**
-No. By default, OpenObscure forwards the host agent's existing API keys unchanged (passthrough-first). It never provisions, generates, or requires separate LLM credentials. The optional `override_auth` feature allows users to place separate keys in the OS keychain for specific providers, but this is off by default and entirely user-controlled.
+No. By default, OpenObscure forwards the host agent's existing API keys unchanged (passthrough-first). It never provisions, generates, or requires separate LLM credentials.
 
 **Does OpenObscure phone home or contact external servers?**
 No. The only network traffic OpenObscure produces is forwarding the host agent's existing LLM API requests through the local proxy. No telemetry, no update checks, no external dependencies at runtime. Everything runs locally on the user's device.
@@ -852,32 +761,20 @@ No. The only network traffic OpenObscure produces is forwarding the host agent's
 **Is L0 (proxy) a separate server I need to host?**
 No. L0 runs as a lightweight sidecar process on the same device as the host agent, listening on `127.0.0.1:18790` (localhost only). It's started alongside the agent — either automatically during installation or manually when the user enables OpenObscure. It's not exposed to the network.
 
-**Is L2 (crypto) a separate process?**
-No. L2 is a Rust library linked into the L0 proxy binary. It runs in the same process as L0, not as a separate service. There's no IPC overhead.
-
 **Does OpenObscure intercept data *before* the LLM sees it?**
-L0 (proxy) does — it sits in the HTTP path and encrypts PII before the request reaches the LLM provider. L1 (plugin) does not — it hooks the agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`), which fires *after* tool execution. L1 prevents PII from being persisted to transcripts, but cannot prevent it from being sent to the LLM via tool results. This is a host agent limitation — in OpenClaw, only 3 of 14 hooks are wired. When the host agent supports pre-execution hooks (e.g., OpenClaw's `before_tool_call`), L1 will upgrade to pre-LLM enforcement.
+L0 (proxy) does — it sits in the HTTP path and encrypts PII before the request reaches the LLM provider. L1 (plugin) hooks the agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`), which fires *after* tool execution. L1 prevents PII from being persisted to transcripts, but cannot prevent it from being sent to the LLM via tool results.
 
 **How much RAM does OpenObscure actually use?**
-It depends on which phase is deployed. Phase 1: ~58MB. Phase 2 (+NER): ~140MB. Phase 3 (+vision): ~224MB peak during image processing, ~140MB baseline. Phase 4 (+compliance CLI): same peak — CLI tools run on-demand and add negligible RAM. The 275MB ceiling is the hard limit for the full stack across all phases.
+It depends on the device's capability tier. OpenObscure detects hardware at startup and selects features automatically. Lite tier (regex/CRF only): ~12–80MB. Standard tier (NER + images): ~67–200MB. Full tier (NER + ensemble + images): up to 224MB peak. The 275MB ceiling is the hard limit. On mobile, the budget is 20% of device RAM (capped at 275MB), so a 12GB phone gets the same features as a desktop server.
 
 **What happens if OpenObscure is disabled or crashes?**
 If L0 is not running, the host agent can't reach LLM providers (traffic is configured to route through the proxy). If L1 crashes, the agent continues normally but tool results won't be redacted. If OpenObscure is fully disabled via configuration, the agent operates with direct LLM connections — zero overhead.
 
 ## Future Architecture Changes
 
-Completed (Phase 8 — production hardening):
-- **L1 Rust rewrite** — DONE (Phase 8D). Consent manager, file access guard, retention tiers, and privacy commands ported to Rust (`governance.rs`). Available on mobile via `governance` feature flag.
-- **Mobile API gaps** — DONE (Phase 8). Breach detection, compliance reports, SIEM export (CEF/LEEF), and encrypted storage (AES-256-GCM + Argon2id) wired to mobile API.
-- **CI/CD matrix** — DONE (Phase 8). GitHub Actions: proxy-test (macOS/Linux/Windows), cross-arm64, mobile-build (iOS), crypto, plugin, lint. Release workflow with binary matrix + iOS XCFramework.
-- **UniFFI binding generation** — DONE (Phase 8). `scripts/generate_bindings.sh` + `uniffi-bindgen` binary for Swift/Kotlin binding generation.
-
 Planned (future):
 - **ONNX Runtime mobile** — pre-built ORT for iOS (CoreML EP) and Android (NNAPI EP), `.ort` format models
-
-Planned (Phase 9 — advanced detection & multilingual):
 - **SCRFD multi-scale face detection** — SCRFD-2.5GF for mixed-size faces in screenshots (replaces BlazeFace on desktop)
 - **Multilingual PII detection** — FastText language identification + per-language regex/keywords for 9 languages
 - **GLiNER NER upgrade** — 99.5%+ recall on semantic PII for 16GB+ devices
-- **Real-time breach monitoring** — rolling window anomaly detection in the live proxy request path
 - **Voice anonymization** — Whisper-base speech-to-text + PII masking in audio (experimental, 16GB+)

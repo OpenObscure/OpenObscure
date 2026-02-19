@@ -10,7 +10,7 @@
 //! Usage:
 //!   oo_info!(modules::SCANNER, "PII encrypted", pii_total = 3);
 //!   oo_warn!(modules::HEALTH, "Proxy degraded", error = %e);
-//!   oo_audit!(modules::CONSENT, "grant", user_id = "u123");
+//!   oo_audit!(modules::PROXY, "grant", user_id = "u123");
 
 /// Module name constants — use these instead of string literals.
 pub mod modules {
@@ -30,11 +30,7 @@ pub mod modules {
     pub const FACE: &str = "face_detector";
     pub const OCR: &str = "ocr_engine";
     pub const SCREEN: &str = "screen_guard";
-    #[allow(dead_code)]
-    pub const COMPLIANCE: &str = "compliance";
-    pub const CROSS_BORDER: &str = "cross_border";
-    #[allow(dead_code)]
-    pub const BREACH: &str = "breach";
+    pub const DEVICE: &str = "device_profile";
     #[allow(dead_code)]
     pub const WATCHDOG: &str = "watchdog";
 }
@@ -186,9 +182,7 @@ mod tests {
             modules::FACE,
             modules::OCR,
             modules::SCREEN,
-            modules::COMPLIANCE,
-            modules::CROSS_BORDER,
-            modules::BREACH,
+            modules::DEVICE,
             modules::WATCHDOG,
         ];
     }

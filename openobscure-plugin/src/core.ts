@@ -6,39 +6,12 @@
  * default entry point (index.ts) which exports the register() function.
  *
  * Usage:
- *   import { redactPii, checkFileAccess, ConsentManager } from "openobscure-plugin/core";
+ *   import { redactPii, HeartbeatMonitor } from "openobscure-plugin/core";
  */
 
 // PII Redaction
 export { redactPii } from "./redactor";
 export type { RedactionResult } from "./redactor";
-
-// File Access Guard
-export { checkFileAccess } from "./file-guard";
-export type { FileCheckResult, FileGuardConfig } from "./file-guard";
-
-// GDPR Consent
-export { ConsentManager, aiDisclosureText } from "./consent-manager";
-export type {
-  ConsentRecord,
-  ConsentType,
-  DsarRequest,
-  DsarType,
-  ProcessingLogEntry,
-  PrivacyExport,
-  ConsentStatus,
-  RetentionTier,
-  RetentionEntry,
-  RetentionSummary,
-} from "./consent-manager";
-
-// Privacy Commands
-export { handlePrivacyCommand } from "./privacy-commands";
-export type { PrivacyCommandResult, PrivacyCommandOptions } from "./privacy-commands";
-
-// Memory Governance
-export { MemoryGovernor, DEFAULT_RETENTION_POLICY } from "./memory-governance";
-export type { RetentionPolicy, EnforceResult } from "./memory-governance";
 
 // Health Monitoring
 export { HeartbeatMonitor, STATE_MESSAGES } from "./heartbeat";

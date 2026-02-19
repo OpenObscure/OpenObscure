@@ -10,14 +10,12 @@ use http_body_util::BodyExt;
 use hyper_util::client::legacy::Client;
 
 use crate::config::{AppConfig, FailMode, ProviderConfig};
-use crate::cross_border::{self, PolicyAction};
 use crate::health::HealthStats;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_pipeline::ImageModelManager;
 use crate::key_manager::KeyManager;
 use crate::mapping::MappingStore;
 use crate::pii_types::PiiType;
-use crate::scanner::PiiMatch;
 use crate::vault::Vault;
 
 type HttpsConnector =
@@ -151,47 +149,7 @@ pub async fn proxy_handler(
         state.mapping_store.insert(mappings.clone()).await;
     }
 
-    // 4b. Cross-border jurisdiction classification
-    if state.config.cross_border.enabled && has_mappings {
-        // Reconstruct PiiMatch from mappings for cross-border classification
-        let pii_matches: Vec<PiiMatch> = mappings
-            .by_ciphertext
-            .values()
-            .map(|m| PiiMatch {
-                pii_type: m.pii_type,
-                raw_value: m.plaintext.clone(),
-                start: 0,
-                end: m.plaintext.len(),
-                json_path: None,
-                confidence: 1.0,
-            })
-            .collect();
-
-        let cb_result =
-            cross_border::classify_and_enforce(&pii_matches, &state.config.cross_border);
-        if !cb_result.flags.is_empty() {
-            state
-                .health
-                .record_cross_border_flags(cb_result.flags.len() as u64);
-            let jurisdictions: Vec<String> = cb_result
-                .flags
-                .iter()
-                .map(|f| f.jurisdiction.to_string())
-                .collect();
-            oo_audit!(crate::oo_log::modules::CROSS_BORDER, "jurisdiction_flags",
-                request_id = %request_id,
-                flags = cb_result.flags.len(),
-                jurisdictions = %jurisdictions.join(","),
-                action = %cb_result.action);
-        }
-        if cb_result.action == PolicyAction::Block {
-            oo_warn!(crate::oo_log::modules::CROSS_BORDER, "Request blocked by cross-border policy",
-                request_id = %request_id);
-            return Err(StatusCode::FORBIDDEN);
-        }
-    }
-
-    // 5. Build upstream request (passthrough original headers, optional vault override)
+    // 5. Build upstream request (passthrough original headers)
     let upstream_req = build_upstream_request(
         method,
         &uri,
@@ -348,20 +306,17 @@ fn resolve_provider<'a>(config: &'a AppConfig, uri: &Uri) -> Option<(String, &'a
 
 /// Build the upstream HTTP request.
 ///
-/// Auth strategy (passthrough-first):
-/// 1. Forward all original headers from the host agent (except hop-by-hop and strip_headers)
-/// 2. If `override_auth = true` for this provider, inject/replace the auth header
-///    with a key from OpenObscure's vault (secondary/override key)
-/// 3. This means users share one set of API keys with the host agent by default —
-///    no duplicate key management required.
+/// Auth strategy (passthrough):
+/// Forward all original headers from the host agent (except hop-by-hop and strip_headers).
+/// Users share one set of API keys with the host agent — no duplicate key management.
 fn build_upstream_request(
     method: Method,
     original_uri: &Uri,
     provider: &ProviderConfig,
-    provider_name: &str,
+    _provider_name: &str,
     original_headers: &HeaderMap,
     body: &Bytes,
-    vault: &Vault,
+    _vault: &Vault,
 ) -> Result<Request<Body>, String> {
     // Strip the route prefix from the path
     let original_path = original_uri.path();
@@ -427,39 +382,6 @@ fn build_upstream_request(
             header::CONTENT_TYPE,
             HeaderValue::from_static("application/json"),
         );
-    }
-
-    // --- Optional auth override from OpenObscure vault ---
-    // Only if the user explicitly configured override_auth = true for this provider.
-    // Otherwise, the auth headers from the host agent pass through untouched.
-    if provider.override_auth {
-        let vault_key_name = provider.vault_key_name.as_deref().unwrap_or(provider_name);
-        match vault.get_api_key(vault_key_name) {
-            Ok(api_key) => {
-                let header_name = provider
-                    .auth_header_name
-                    .as_deref()
-                    .unwrap_or("authorization");
-                let header_value = if header_name.eq_ignore_ascii_case("authorization") {
-                    format!("Bearer {}", api_key)
-                } else {
-                    api_key
-                };
-                headers.insert(
-                    header::HeaderName::from_bytes(header_name.as_bytes()).map_err(|e| {
-                        format!("Invalid auth header name '{}': {}", header_name, e)
-                    })?,
-                    HeaderValue::from_str(&header_value)
-                        .map_err(|e| format!("Invalid auth header value: {}", e))?,
-                );
-                oo_debug!(crate::oo_log::modules::PROXY, "Auth header overridden from vault", provider = %provider_name);
-            }
-            Err(e) => {
-                oo_warn!(crate::oo_log::modules::PROXY, "override_auth enabled but vault key not found, using passthrough auth",
-                    provider = %provider_name,
-                    error = %e);
-            }
-        }
     }
 
     Ok(req)

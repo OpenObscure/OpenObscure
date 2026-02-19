@@ -17,7 +17,7 @@ OpenObscure can protect AI agents in two ways, depending on where the agent runs
 
 ### Gateway Model (Desktop / Server)
 
-The proxy runs as a **sidecar process** on the same host as the AI agent. All LLM API traffic routes through it. This is the full-featured deployment with all three layers active.
+The proxy runs as a **sidecar process** on the same host as the AI agent. All LLM API traffic routes through it. This is the full-featured deployment with both layers active.
 
 ```mermaid
 flowchart LR
@@ -32,8 +32,8 @@ flowchart LR
 ```
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
-- **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin) + L2 (crypto storage)
-- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), GDPR compliance CLI, consent manager, memory governance, key rotation, SSE streaming
+- **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin)
+- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), SSE streaming
 - **Use case:** Desktop apps, servers, VPS, Raspberry Pi — anywhere the agent's Gateway runs
 
 ### Embedded Model (Mobile / Library)
@@ -65,19 +65,84 @@ flowchart TB
 ```
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
-- **Layers:** L0 (PII scan + FPE) + L1 governance via `governance` feature + encrypted storage via `crypto` feature
-- **Features:** Text PII scanning (regex + keywords), FPE encryption, image pipeline (optional), restore/decrypt for responses, GDPR consent management, file access guard, 4-tier retention lifecycle, breach detection, SIEM export (CEF/LEEF), AES-256-GCM encrypted storage with Argon2id KDF
+- **Layers:** L0 (PII scan + FPE)
+- **Features:** Text PII scanning (regex + keywords + NER/CRF on capable devices), FPE encryption, image pipeline, restore/decrypt for responses
 - **Use case:** Mobile companion apps that sanitize PII on-device *before* data reaches the Gateway over WebSocket — defense in depth
 
 ### When to Use Which
 
 | Scenario | Model | Why |
 |----------|-------|-----|
-| Desktop AI agent (e.g. OpenClaw Gateway) | Gateway | Full feature set, all three layers |
+| Desktop AI agent (e.g. OpenClaw Gateway) | Gateway | Full feature set, both layers |
 | Server / VPS deployment | Gateway | Same binary, headless key management |
 | iOS / Android companion app | Embedded | On-device PII protection, native bindings |
 | Custom Rust application | Embedded | Link as a library crate, call directly |
 | Edge device (Raspberry Pi) | Gateway | Full features, runs on ARM Linux |
+
+---
+
+## Hardware Capability Detection
+
+OpenObscure detects device hardware at startup and automatically selects features based on what the device can support. A phone with 12GB RAM gets the same PII detection efficacy as a desktop server.
+
+### Capability Tiers
+
+| Device RAM | Tier | Scanners | Image Pipeline | Model Idle Timeout |
+|------------|------|----------|----------------|--------------------|
+| 8GB+ | **Full** | NER + CRF + ensemble voting | Yes | 300s |
+| 4–8GB | **Standard** | NER + CRF (no ensemble) | Yes | 120s |
+| <4GB | **Lite** | CRF + regex only | Yes (shorter timeout) | 60s |
+
+Tier classification uses **total physical RAM** — a stable device indicator that doesn't fluctuate with app usage.
+
+### Gateway vs Embedded Budgets
+
+- **Gateway** (desktop/server): Fixed RAM budget per tier (Full=275MB, Standard=200MB, Lite=80MB)
+- **Embedded** (mobile): 20% of total device RAM, capped at 275MB. A 12GB phone gets a 275MB budget (Full tier). A 6GB phone gets 275MB capped from 1228MB (Standard). A 3GB phone gets ~614MB budget (Lite)
+
+### Explicit Override
+
+Hardware auto-detection is the default when `scanner_mode = "auto"`. You can bypass it with an explicit mode:
+
+```toml
+# config/openobscure.toml
+[scanner]
+scanner_mode = "ner"    # Force NER regardless of device tier
+# scanner_mode = "crf"  # Force CRF
+# scanner_mode = "regex" # Force regex-only
+```
+
+On mobile, set `auto_detect: false` in `MobileConfig` to disable hardware profiling.
+
+### Health Endpoint
+
+The health endpoint reports the detected tier and active feature budget:
+
+```bash
+curl -s http://127.0.0.1:18790/_openobscure/health | jq '.device_tier, .feature_budget'
+```
+
+```json
+"full"
+{
+  "tier": "full",
+  "max_ram_mb": 275,
+  "ner_enabled": true,
+  "crf_enabled": true,
+  "ensemble_enabled": true,
+  "image_pipeline_enabled": true
+}
+```
+
+### Supported Platforms
+
+Hardware detection is implemented for all supported platforms:
+
+| Platform | Total RAM | Available RAM |
+|----------|-----------|---------------|
+| macOS / iOS | `sysctl hw.memsize` | `vm_stat` (macOS) |
+| Linux / Android | `/proc/meminfo MemTotal` | `/proc/meminfo MemAvailable` |
+| Windows | `GlobalMemoryStatusEx` | `GlobalMemoryStatusEx` |
 
 ---
 
@@ -91,19 +156,17 @@ flowchart LR
         direction TB
         subgraph agent ["AI Agent (e.g. OpenClaw)"]
             tools["🔧 Agent Tools<br>web · file · API · bash"]
-            L1["🛡️ L1 Gateway Plugin<br>(TypeScript)<br>PII redact · file guard<br>consent · retention"]
+            L1["🛡️ L1 Gateway Plugin<br>(TypeScript)<br>PII redact"]
             tools -- "tool results" --> L1
         end
         subgraph proxy ["L0 — PII Proxy (Rust process)"]
             scanner["🔍 Hybrid Scanner<br>regex · NER/CRF · keywords"]
             fpe["🔐 FF1 FPE Encrypt"]
             img["📷 Image Pipeline<br>NSFW · face · OCR · EXIF"]
-            crypt[("🗄️ L2 Crypto Store<br>AES-256-GCM · Argon2id")]
             scanner --> fpe
             scanner --> img
         end
         agent -- "HTTP (localhost)" --> proxy
-        L1 -. "redacted transcripts" .-> crypt
     end
     proxy -- "sanitized (PII encrypted)" --> llm["☁️ LLM Providers<br>Anthropic · OpenAI · Ollama"]
     llm -- "response (ciphertexts)" --> proxy
@@ -116,9 +179,8 @@ flowchart LR
 
 | Layer | Language | What it does |
 |-------|----------|-------------|
-| **L0** — PII Proxy | Rust | Intercepts HTTP traffic, scans JSON for PII (structured, network/device, semantic, keywords), encrypts with FF1 FPE or redacts. Processes images (face blur, OCR text blur, EXIF strip). Includes compliance CLI (`openobscure compliance ...`). |
-| **L1** — Gateway Plugin | TypeScript | Hooks tool results, redacts PII, blocks sensitive file reads, manages GDPR consent and memory governance. |
-| **L2** — Encryption Layer | Rust | AES-256-GCM encryption for session transcripts at rest. |
+| **L0** — PII Proxy | Rust | Intercepts HTTP traffic, scans JSON for PII (structured, network/device, semantic, keywords), encrypts with FF1 FPE or redacts. Processes images (face blur, OCR text blur, EXIF strip). |
+| **L1** — Gateway Plugin | TypeScript | Hooks tool results, redacts PII. Heartbeat monitor for L0 health. |
 
 For the full architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -128,7 +190,7 @@ For the full architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ### Prerequisites
 
-- **Rust** 1.75+ (for L0 proxy and L2 crypto)
+- **Rust** 1.75+ (for L0 proxy)
 - **Node.js** 20+ (for L1 plugin)
 - An AI agent that makes HTTP calls to an LLM provider (OpenClaw, custom agents, etc.)
 
@@ -184,21 +246,17 @@ http://127.0.0.1:18790
 
 The proxy transparently intercepts JSON payloads, scans for PII, applies FF1 Format-Preserving Encryption, and forwards the sanitized request to the upstream LLM provider. Responses are decrypted before being returned to your agent.
 
-For programmatic access to the L1 redaction and file-access guard from TypeScript/JavaScript, import directly from the plugin core:
+For programmatic access to the L1 redaction from TypeScript/JavaScript, import directly from the plugin core:
 
 ```typescript
-import { redactPii, checkFileAccess } from "openobscure-plugin/core";
+import { redactPii } from "openobscure-plugin/core";
 
 // Scan text for PII
 const result = redactPii(toolOutput);
 if (result.count > 0) toolOutput = result.text;
-
-// Check file safety before reading
-const check = checkFileAccess("/path/to/file");
-if (!check.allowed) throw new Error(check.reason);
 ```
 
-This allows any agent — not just OpenClaw — to leverage OpenObscure's PII redaction and file access controls as a library.
+This allows any agent — not just OpenClaw — to leverage OpenObscure's PII redaction as a library.
 
 ---
 
@@ -234,19 +292,12 @@ See `config/openobscure.toml` for all available options.
 ## Running Tests
 
 ```bash
-# L0 Proxy (650 tests default, 768 with all features)
+# L0 Proxy
 cd openobscure-proxy && cargo test
-cd openobscure-proxy && cargo test --features governance          # +governance
-cd openobscure-proxy && cargo test --features governance,crypto   # +governance +crypto
 
-# L2 Crypto (16 tests)
-cd openobscure-crypto && cargo test
-
-# L1 Plugin (96 tests)
+# L1 Plugin
 cd openobscure-plugin && npm test
 ```
-
-**Total: 880 tests** across all components (with all features enabled).
 
 ---
 
@@ -339,17 +390,18 @@ Additional features:
 - **EXIF stripping**: Automatically removes GPS coordinates, camera model, timestamps from photos
 - **Fail-open**: If a model fails to load, the pipeline skips that step and forwards the image as-is
 - **Lazy loading**: Models are loaded on first use and evicted after idle timeout (default: 5 minutes)
-- **Memory ceiling**: Models are loaded sequentially (never all in RAM) to stay within 275MB budget
+- **Memory ceiling**: Models are loaded sequentially (never all in RAM) to stay within the device's feature budget (up to 275MB)
 
 ---
 
 ## Mobile Library (Embedded Model)
 
-For iOS and Android apps, OpenObscure compiles as a native library with a simple API:
+For iOS and Android apps, OpenObscure compiles as a native library with a simple API. Hardware capability detection runs at initialization — a phone with 8GB+ RAM automatically gets NER, CRF, ensemble voting, and full image pipeline, matching gateway-level efficacy.
 
 ```rust
 // Initialize with FPE key from host app's secure storage
-let mobile = OpenObscureMobile::new(config, fpe_key)?;
+// auto_detect: true (default) — profiles device hardware and selects features
+let mobile = OpenObscureMobile::new(MobileConfig::default(), fpe_key)?;
 
 // Sanitize text before sending to Gateway
 let result = mobile.sanitize_text("My card is 4111-1111-1111-1111")?;
@@ -358,6 +410,10 @@ let result = mobile.sanitize_text("My card is 4111-1111-1111-1111")?;
 
 // Restore original values in responses
 let restored = mobile.restore_text(&response, &result.mapping_json);
+
+// Check device tier and active features
+let stats = mobile.stats();
+println!("Device tier: {}", stats.device_tier); // "full", "standard", or "lite"
 ```
 
 **Swift (iOS)** and **Kotlin (Android)** bindings are auto-generated by [UniFFI](https://github.com/mozilla/uniffi-rs). Build scripts provided:
@@ -389,13 +445,13 @@ See [ARCHITECTURE.md — Embedded Model](ARCHITECTURE.md#embedded-model-mobile--
 
 ## Security
 
-OpenObscure follows **Kerckhoffs's principle** — security depends on the secrecy of keys, not code. All algorithms (FF1, AES-256-GCM, Argon2id) are public NIST/OWASP standards. Publishing source code does not weaken the system.
+OpenObscure follows **Kerckhoffs's principle** — security depends on the secrecy of keys, not code. All algorithms (FF1) are public NIST standards. Publishing source code does not weaken the system.
 
 Key properties:
 - **No telemetry** — zero outbound connections beyond forwarded LLM requests
 - **Localhost-only** — proxy binds to `127.0.0.1`, not `0.0.0.0`
 - **No default credentials** — FPE key must be explicitly generated
-- **Memory-safe** — L0 and L2 are written in Rust
+- **Memory-safe** — L0 is written in Rust
 
 For the full security policy and vulnerability reporting instructions, see [SECURITY.md](SECURITY.md).
 
@@ -405,7 +461,7 @@ For the threat model, see [ARCHITECTURE.md — Threat Model](ARCHITECTURE.md#thr
 
 ## Export Control
 
-This software contains cryptographic functionality (AES-256-GCM, FF1, Argon2id, TLS) and may be subject to export restrictions. See [EXPORT_CONTROL_NOTICE.md](EXPORT_CONTROL_NOTICE.md) for details.
+This software contains cryptographic functionality (FF1, TLS) and may be subject to export restrictions. See [EXPORT_CONTROL_NOTICE.md](EXPORT_CONTROL_NOTICE.md) for details.
 
 ---
 
@@ -427,4 +483,4 @@ OpenObscure is dual-licensed under **MIT** or **Apache-2.0**, at your option.
 - [LICENSE](LICENSE) (MIT with Apache-2.0 option)
 - Each component's dependency licenses are audited in their respective `LICENSE_AUDIT.md` files
 
-See [EXPORT_CONTROL_NOTICE.md](EXPORT_CONTROL_NOTICE.md) for cryptographic export control information.
+See [EXPORT_CONTROL_NOTICE.md](EXPORT_CONTROL_NOTICE.md) for export control information.

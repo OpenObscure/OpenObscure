@@ -34,7 +34,7 @@ jobs:
           workspaces: openobscure-proxy
 
       - name: Build release binary
-        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --release --features governance,crypto
+        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --release
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

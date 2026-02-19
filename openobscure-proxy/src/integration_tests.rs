@@ -42,9 +42,6 @@ fn build_config_ext(upstream_url: &str, fail_mode: FailMode) -> AppConfig {
         ProviderConfig {
             upstream_url: upstream_url.to_string(),
             route_prefix: "/test".to_string(),
-            override_auth: false,
-            vault_key_name: None,
-            auth_header_name: None,
             strip_headers: vec![],
         },
     );
@@ -59,8 +56,6 @@ fn build_config_ext(upstream_url: &str, fail_mode: FailMode) -> AppConfig {
         scanner: ScannerConfig::default(),
         logging: LoggingConfig::default(),
         image: crate::config::ImageConfig::default(),
-        compliance: crate::config::ComplianceConfig::default(),
-        cross_border: crate::config::CrossBorderConfig::default(),
     }
 }
 

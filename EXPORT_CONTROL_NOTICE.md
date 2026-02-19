@@ -6,15 +6,19 @@
 
 ## Cryptographic Functionality
 
-This software utilizes strong encryption to protect data in transit (L0 Proxy) and at rest (L2 Encryption Layer). The following algorithms are implemented:
+This software utilizes strong encryption to protect PII in transit. The following algorithms are implemented in the core (non-enterprise) codebase:
 
-* **Symmetric Encryption (Data at Rest):** AES-256-GCM (Galois/Counter Mode).
-* **Format-Preserving Encryption (Data in Transit):** FF1 (NIST SP 800-38G) for PII obfuscation.
+* **Format-Preserving Encryption (PII in transit):** FF1 (NIST SP 800-38G) for PII obfuscation. Used in both Gateway (L0 proxy) and Embedded (mobile library) deployment models.
     * *Note: FF3 is explicitly excluded/withdrawn per NIST SP 800-38G Rev 2*.
-* **Key Derivation:** Argon2id (OWASP recommended parameters: 19MB memory, 2 iterations).
-* **Transport Security:** TLS 1.2/1.3 via standard Rust libraries (`hyper`, `rustls`) for communication with upstream LLM providers.
+* **Transport Security (Gateway only):** TLS 1.2/1.3 via standard Rust libraries (`hyper`, `rustls`) for communication with upstream LLM providers. Not used in the Embedded model (the host app handles networking).
+
+**Enterprise-only algorithms** (not in the main open-source distribution):
+* AES-256-GCM (data at rest encryption)
+* Argon2id key derivation
 
 **Additional crypto-relevant components:** ONNX Runtime (used for NER and image processing models) may include its own cryptographic functionality for TLS when fetching pre-compiled binaries at build time. ONNX Runtime is MIT-licensed.
+
+**Mobile app store note:** iOS App Store and Google Play require declaring encryption usage. The FF1 FPE implementation in the Embedded library qualifies as encryption under both Apple's and Google's export compliance requirements.
 
 ## Export Restrictions — Source Code vs Binaries
 

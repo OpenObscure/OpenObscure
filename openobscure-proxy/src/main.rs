@@ -5,19 +5,15 @@
 #[macro_use]
 mod oo_log;
 mod body;
-mod breach_detect;
-mod compliance;
 mod config;
 mod crash_buffer;
 mod crf_scanner;
-mod cross_border;
+mod device_profile;
 mod detection_meta;
 mod detection_validators;
 mod error;
 mod face_detector;
 mod fpe_engine;
-#[cfg(feature = "governance")]
-mod governance;
 mod health;
 mod hybrid_scanner;
 mod image_blur;
@@ -97,17 +93,6 @@ struct Cli {
 enum Commands {
     /// Start the PII proxy server (default when no subcommand given)
     Serve,
-    /// GDPR compliance tools
-    Compliance {
-        #[command(subcommand)]
-        command: compliance::ComplianceCommands,
-    },
-    /// Rotate the FPE encryption key (offline — generates new key, proxy picks up on restart)
-    KeyRotate {
-        /// Force rotation even if previous version is recent
-        #[arg(long)]
-        force: bool,
-    },
 }
 
 #[tokio::main]
@@ -148,14 +133,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Dispatch on subcommand
     match cli.command {
-        Some(Commands::Compliance { command }) => {
-            // Compliance CLI: runs without starting the proxy server
-            compliance::run(command, &config)
-        }
-        Some(Commands::KeyRotate { force: _ }) => {
-            // Offline key rotation: generates new key, updates version pointer
-            run_key_rotate(&config)
-        }
         None | Some(Commands::Serve) => {
             // Default: start the PII proxy server
             run_serve(config).await
@@ -163,42 +140,28 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-/// Offline key rotation: generate new versioned key and update pointer.
-fn run_key_rotate(config: &AppConfig) -> anyhow::Result<()> {
-    let vault = Vault::new(&config.fpe.keychain_service);
-
-    // Get current version
-    let current_version = vault
-        .get_fpe_key_version()
-        .map_err(|e| anyhow::anyhow!("Failed to get current key version: {}", e))?;
-    let new_version = current_version + 1;
-
-    // Generate new key
-    let mut new_key = [0u8; 32];
-    rand::rngs::OsRng.fill_bytes(&mut new_key);
-
-    // Store versioned key
-    vault
-        .store_fpe_key_versioned(new_version, &new_key)
-        .map_err(|e| anyhow::anyhow!("Failed to store new key version: {}", e))?;
-
-    // Update version pointer
-    vault
-        .set_current_version(new_version)
-        .map_err(|e| anyhow::anyhow!("Failed to update version pointer: {}", e))?;
-
-    // Zero the key material
-    new_key.fill(0);
-
-    println!("FPE key rotated: v{} → v{}", current_version, new_version);
-    println!("Restart the proxy to use the new key.");
-    Ok(())
-}
-
 /// Start the PII proxy server (default behavior).
 async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
     // Check for crash marker from previous run
     health::check_crash_marker();
+
+    // Detect device hardware and select feature budget
+    let profile = device_profile::detect(false);
+    let tier = device_profile::tier_for_profile(&profile);
+    let budget = device_profile::budget_for_tier(tier, &profile);
+
+    oo_info!(
+        crate::oo_log::modules::DEVICE,
+        "Device profile detected",
+        total_ram_mb = profile.total_ram_mb,
+        available_ram_mb = profile.available_ram_mb.unwrap_or(0),
+        cpu_cores = profile.cpu_cores,
+        tier = %tier,
+        max_ram_mb = budget.max_ram_mb,
+        ner = budget.ner_enabled,
+        ensemble = budget.ensemble_enabled,
+        image = budget.image_pipeline_enabled
+    );
 
     oo_info!(
         crate::oo_log::modules::CONFIG,
@@ -208,14 +171,12 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
 
     // Initialize vault and key manager
     let vault = Arc::new(Vault::new(&config.fpe.keychain_service));
-    let key_manager = KeyManager::new(Arc::clone(&vault), config.fpe.key_overlap_secs)
+    let key_manager = KeyManager::new(Arc::clone(&vault))
         .map_err(|e| anyhow::anyhow!("Failed to initialize KeyManager: {}", e))?;
-    let key_version = key_manager.current_version().await;
 
     oo_info!(
         crate::oo_log::modules::FPE,
-        "FPE engine initialized (FF1, AES-256)",
-        key_version = key_version
+        "FPE engine initialized (FF1, AES-256)"
     );
 
     // Build HTTPS client for upstream connections
@@ -230,7 +191,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
     let http_client: Client<_, Body> = Client::builder(TokioExecutor::new()).build(https_connector);
 
     // Build hybrid scanner (regex + keywords + semantic backend)
-    let scanner = build_scanner(&config);
+    let scanner = build_scanner(&config, &budget);
     oo_info!(
         crate::oo_log::modules::SCANNER,
         "Hybrid scanner initialized",
@@ -238,14 +199,17 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         semantic = scanner.semantic_backend_name()
     );
 
-    // Initialize image model manager if image processing is enabled
-    let image_models = if config.image.enabled {
-        let models = Arc::new(ImageModelManager::new(config.image.clone()));
+    // Initialize image model manager if image processing is enabled and budget allows
+    let image_models = if config.image.enabled && budget.image_pipeline_enabled {
+        let mut img_config = config.image.clone();
+        img_config.model_idle_timeout_secs = budget.model_idle_timeout_secs;
+        let models = Arc::new(ImageModelManager::new(img_config));
         oo_info!(crate::oo_log::modules::IMAGE, "Image pipeline enabled",
             face_detection = config.image.face_detection,
             ocr_enabled = config.image.ocr_enabled,
             ocr_tier = %config.image.ocr_tier,
-            max_dimension = config.image.max_dimension);
+            max_dimension = config.image.max_dimension,
+            idle_timeout_secs = budget.model_idle_timeout_secs);
 
         // Spawn model eviction task (checks every 60s)
         let evict_models = Arc::clone(&models);
@@ -258,6 +222,10 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         });
 
         Some(models)
+    } else if config.image.enabled && !budget.image_pipeline_enabled {
+        oo_info!(crate::oo_log::modules::IMAGE, "Image pipeline disabled by device budget",
+            tier = %tier, max_ram_mb = budget.max_ram_mb);
+        None
     } else {
         oo_info!(crate::oo_log::modules::IMAGE, "Image pipeline disabled");
         None
@@ -278,8 +246,18 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
     // Resolve auth token for health endpoint
     let auth_token = resolve_auth_token();
 
+    // Build budget summary for health endpoint
+    let budget_summary = health::FeatureBudgetSummary {
+        tier: tier.to_string(),
+        max_ram_mb: budget.max_ram_mb,
+        ner_enabled: budget.ner_enabled,
+        crf_enabled: budget.crf_enabled,
+        ensemble_enabled: budget.ensemble_enabled,
+        image_pipeline_enabled: budget.image_pipeline_enabled,
+    };
+
     // Start server
-    server::run(state, auth_token).await
+    server::run(state, auth_token, tier.to_string(), budget_summary).await
 }
 
 /// Build the hybrid scanner based on config scanner_mode and available resources.
@@ -517,7 +495,7 @@ fn resolve_crash_buffer_path() -> std::path::PathBuf {
 /// - "ner": force NER (fall back to regex+keywords if model unavailable)
 /// - "crf": force CRF (fall back to regex+keywords if model unavailable)
 /// - "regex": regex + keywords only, no semantic scanner
-fn build_scanner(config: &AppConfig) -> HybridScanner {
+fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> HybridScanner {
     let kw = config.scanner.keywords_enabled;
     let threshold = config.scanner.ner_confidence_threshold;
     let code_fences = config.scanner.respect_code_fences;
@@ -551,45 +529,41 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
             HybridScanner::with_crf(kw, crf)
         }
         _ => {
-            // Auto: check available RAM to decide NER vs CRF
-            let ram_mb = crf_scanner::available_ram_mb();
-            let threshold_mb = config.scanner.ram_threshold_mb;
+            // Auto: use device profile budget to decide NER vs CRF
+            oo_info!(
+                crate::oo_log::modules::SCANNER,
+                "Auto scanner selection via device profiler",
+                tier = %budget.tier,
+                budget_ner = budget.ner_enabled,
+                budget_crf = budget.crf_enabled,
+                budget_ensemble = budget.ensemble_enabled
+            );
 
-            if let Some(ram) = ram_mb {
-                oo_info!(
-                    crate::oo_log::modules::SCANNER,
-                    "Device profiler",
-                    available_ram_mb = ram,
-                    threshold_mb = threshold_mb
-                );
-            }
-
-            let use_ner = ram_mb.map_or(true, |ram| ram >= threshold_mb);
-
-            if use_ner {
-                // Try NER first, fall back to CRF
+            if budget.ner_enabled {
                 if let Some(ner) = try_load_ner(config, threshold) {
                     HybridScanner::new(kw, Some(ner))
-                } else if let Some(crf) = try_load_crf(config, threshold) {
+                } else if budget.crf_enabled {
                     oo_info!(
                         crate::oo_log::modules::SCANNER,
-                        "NER model unavailable, using CRF fallback"
+                        "NER model unavailable, falling back to CRF"
                     );
-                    HybridScanner::with_crf(kw, Some(crf))
+                    if let Some(crf) = try_load_crf(config, threshold) {
+                        HybridScanner::with_crf(kw, Some(crf))
+                    } else {
+                        oo_info!(
+                            crate::oo_log::modules::SCANNER,
+                            "No semantic model available, using regex+keywords only"
+                        );
+                        HybridScanner::new(kw, None)
+                    }
                 } else {
                     oo_info!(
                         crate::oo_log::modules::SCANNER,
-                        "No semantic model available, using regex+keywords only"
+                        "NER unavailable, no CRF in budget, using regex+keywords only"
                     );
                     HybridScanner::new(kw, None)
                 }
-            } else {
-                // Low RAM: prefer CRF
-                oo_info!(
-                    crate::oo_log::modules::SCANNER,
-                    "Low RAM detected, preferring CRF over NER",
-                    available_ram_mb = ram_mb.unwrap_or(0)
-                );
+            } else if budget.crf_enabled {
                 if let Some(crf) = try_load_crf(config, threshold) {
                     HybridScanner::with_crf(kw, Some(crf))
                 } else {
@@ -599,6 +573,12 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
                     );
                     HybridScanner::new(kw, None)
                 }
+            } else {
+                oo_info!(
+                    crate::oo_log::modules::SCANNER,
+                    "Device budget: regex+keywords only"
+                );
+                HybridScanner::new(kw, None)
             }
         }
     };

@@ -29,9 +29,6 @@ export interface OoLogConfig {
 
 export const OO_MODULES = {
   REDACTOR: "redactor",
-  FILE_GUARD: "file-guard",
-  CONSENT: "consent",
-  PRIVACY: "privacy",
   HEARTBEAT: "heartbeat",
   PLUGIN: "plugin",
 } as const;

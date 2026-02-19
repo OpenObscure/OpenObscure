@@ -19,14 +19,6 @@ The gateway plugin is the **second line of defense**. While L0 (Rust proxy) hand
 │   └─────────────┘    │  │  (regex + Luhn + SSN)    │ │       │
 │                       │  └─────────────────────────┘ │       │
 │                       └──────────────────────────────┘       │
-│                                                              │
-│   ┌─────────────┐    ┌──────────────────────────────┐       │
-│   │  Agent Tool  │───►│  openobscure_file_check tool    │       │
-│   │  (file_read) │    │  ┌─────────────────────────┐ │       │
-│   │              │    │  │  File Access Guard       │ │       │
-│   └─────────────┘    │  │  (deny patterns)         │ │       │
-│                       │  └─────────────────────────┘ │       │
-│                       └──────────────────────────────┘       │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -34,19 +26,12 @@ The gateway plugin is the **second line of defense**. While L0 (Rust proxy) hand
 
 ```
 src/
-├── index.ts                Plugin entry point — register(), hook wiring, tool registration, auth token, retention timer
+├── index.ts                Plugin entry point — register(), hook wiring, tool registration, auth token
 ├── redactor.ts             PII Redactor — regex detection with Luhn/SSN validation
-├── file-guard.ts           File Access Guard — sensitive file path blocking
-├── consent-manager.ts      GDPR Consent Manager — SQLite storage, CRUD, DSAR, retention tables
-├── privacy-commands.ts     /privacy slash command handler (status, consent, export, delete, disclosure, retention)
-├── memory-governance.ts    Memory Governor — 4-tier retention lifecycle (hot→warm→cold→expired)
 ├── heartbeat.ts            L1 Heartbeat Monitor — pings L0 health endpoint with auth token
 ├── oo-log.ts               Unified logging API — ooInfo/ooWarn/ooError/ooDebug/ooAudit + PII scrub
 ├── types.ts                OpenClaw plugin API type definitions
 ├── redactor.test.ts        Redactor tests (9 cases)
-├── file-guard.test.ts      File guard tests (11 cases)
-├── consent-manager.test.ts Consent + DSAR + privacy command tests (28 cases)
-├── memory-governance.test.ts Memory governance + retention command tests (17 cases)
 ├── heartbeat.test.ts       Heartbeat monitor + auth token tests (12 cases)
 └── oo-log.test.ts          Logging API tests (17 cases)
 ```
@@ -74,62 +59,6 @@ const result = redactPii("My SSN is 123-45-6789");
 // result.types → { ssn: 1 }
 ```
 
-### File Access Guard (file-guard.ts)
-
-Blocks agent tools from reading sensitive files. Operates on file paths before any I/O occurs.
-
-**Default deny patterns (15+):**
-
-| Category | Patterns |
-|----------|----------|
-| Environment files | `.env`, `.env.*` |
-| SSH keys | `.ssh/id_*`, `.ssh/authorized_keys`, `.ssh/known_hosts` |
-| Cloud credentials | `.aws/credentials`, `.aws/config`, `.gcloud/*.json` |
-| Generic secrets | `credentials.json`, `secrets.json`, `*.pem`, `*.key` |
-| Databases | `*.sqlite`, `*.sqlite3`, `*.db` |
-| OpenObscure files | `openobscure*.enc.json` |
-| Shell history | `.*_history`, `.bash_history`, `.zsh_history` |
-| Package tokens | `.npmrc`, `.pypirc` |
-
-**Configurable:**
-- `extraDenyPatterns`: Add custom deny patterns (regex)
-- `allowPatterns`: Explicit overrides to permit specific files (e.g., `test.env`)
-
-Allow patterns are checked **before** deny patterns — an explicit allow always wins.
-
-```typescript
-checkFileAccess("/home/user/.ssh/id_rsa")
-// → { allowed: false, reason: "Matches sensitive file pattern: ..." }
-
-checkFileAccess("/project/src/main.ts")
-// → { allowed: true }
-```
-
-### GDPR Consent Manager (consent-manager.ts)
-
-Tracks user consent for data processing per GDPR Articles 13/14. SQLite-backed (single file, embedded).
-
-| Feature | Detail |
-|---------|--------|
-| **Consent types** | `processing`, `storage`, `transfer`, `ai_disclosure` |
-| **Legal bases** | `consent`, `legitimate_interest`, `contract` |
-| **DSAR support** | Access, rectification, erasure, portability requests |
-| **Processing log** | Timestamped audit trail of all data operations (scan, encrypt, redact, store, delete) |
-
-**Slash commands** (via `openobscure_privacy` tool):
-
-| Command | Action |
-|---------|--------|
-| `/privacy status` | Show current consent state and data summary |
-| `/privacy consent grant` | Grant consent for data processing |
-| `/privacy consent revoke` | Revoke consent (stops non-essential processing) |
-| `/privacy export` | Export all personal data (DSAR - access) |
-| `/privacy delete` | Request data erasure (DSAR - erasure) |
-| `/privacy disclosure` | Show AI model disclosure (Art. 13/14) |
-| `/privacy retention status` | Show retention tier counts (hot/warm/cold/expired) |
-| `/privacy retention enforce` | Run tier promotion + pruning now |
-| `/privacy retention policy` | Show current retention policy |
-
 ### Heartbeat Monitor (heartbeat.ts)
 
 Pings L0's `/_openobscure/health` endpoint to detect outages.
@@ -155,29 +84,9 @@ All logging goes through a unified facade — no direct `console.*` calls outsid
 | `ooDebug(module, message, data?)` | DEBUG | Detailed diagnostic output |
 | `ooAudit(module, message, data?)` | AUDIT | GDPR audit trail (routed to separate JSONL file) |
 
-**Module constants:** `REDACTOR`, `FILE_GUARD`, `CONSENT`, `PRIVACY`, `HEARTBEAT`, `PLUGIN` — prevent typos in log module tags.
+**Module constants:** `REDACTOR`, `HEARTBEAT`, `PLUGIN` — prevent typos in log module tags.
 
 **PII scrubbing:** All string fields run through `redactPii()` before output, ensuring no PII leaks through log messages even if developers forget to sanitize.
-
-### Memory Governance (memory-governance.ts)
-
-Manages data retention lifecycle to comply with GDPR Art. 5(1)(e) storage limitation.
-
-| Tier | Retention | Description |
-|------|-----------|-------------|
-| hot | 7 days | Active conversation data |
-| warm | 30 days | Recent but inactive |
-| cold | 90 days | Archive before deletion |
-| expired | 0 | Immediate deletion candidate |
-
-The `MemoryGovernor` runs periodic enforcement (default: 1 hour interval) that promotes entries through tiers based on age and prunes expired entries. Retention policies are configurable via `RetentionPolicy` interface.
-
-```typescript
-const governor = new MemoryGovernor(consentManager, {
-  hotDays: 7, warmDays: 30, coldDays: 90
-});
-const { promoted, pruned } = governor.enforce();
-```
 
 ### Plugin Registration (index.ts)
 
@@ -186,24 +95,15 @@ import { register } from "openobscure-plugin";
 
 register(api, {
   redactToolResults: true,
-  fileGuard: true,
-  consentManager: true,
   heartbeat: true,
-  memoryGovernance: true,
 });
 ```
 
-Registers five things with the host agent:
+Registers two things with the host agent:
 
 1. **`tool_result_persist` hook** — Called synchronously after every tool execution. Scans the result text with the PII Redactor and replaces matches before persistence.
 
-2. **`openobscure_file_check` tool** — Registered via `registerTool`. Other tools can call it to pre-check file paths before reading. Returns `{ allowed, reason }`.
-
-3. **`openobscure_privacy` tool** — GDPR consent manager slash commands (status, consent grant/revoke, export, delete, disclosure).
-
-4. **Heartbeat monitor** — Background interval that pings L0 health with auth token, warns user on L0 failure, logs recovery.
-
-5. **Retention enforcement timer** — Background interval (1 hour) that promotes retention tiers and prunes expired entries.
+2. **Heartbeat monitor** — Background interval that pings L0 health with auth token, warns user on L0 failure, logs recovery.
 
 ## Hook Design: tool_result_persist
 
@@ -223,15 +123,10 @@ Tool executes → tool_result_persist fires → PII Redactor scans → redacted 
 | Module | Tests | What's Covered |
 |--------|-------|----------------|
 | `redactor` | 9 | SSN, CC (Luhn valid/invalid), email, phone, API key, multiple PII, invalid SSN areas, clean text |
-| `file-guard` | 11 | .env files, SSH keys, AWS creds, credentials.json, sqlite, OpenObscure enc files, regular files allowed, custom deny, allow overrides, Windows paths |
-| `consent-manager` | 17 | Grant/revoke consent, version bumping, active checks, user isolation, processing log, DSAR requests, composite operations (status, export, delete) |
-| `privacy-commands` | 10 | All /privacy subcommands, error handling, help text, granted consent display |
-| `ai-disclosure` | 1 | Disclosure text generation with model/provider names |
-| `memory-governance` | 17 | Tier promotions (hot→warm→cold→expired), pruning, retention summary, custom policy, privacy retention commands, idempotent enforce |
-| `heartbeat` | 12 | Initial state, healthy check, degraded transition, consecutive failures, recovery flow, stop/disabled, non-200 status, auth token sent, missing auth → 401/degraded, lastHealth preservation |
+| `heartbeat` | 12 | Initial state, healthy check, degraded transition, consecutive failures, recovery flow, stop/disabled, non-200 status, auth token sent, missing auth -> 401/degraded, lastHealth preservation |
 | `state-messages` | 2 | Message content for each state, active silence |
 | `oo-log` | 17 | Logging facade, PII scrubbing in logs, JSON/plain output, audit routing, module constants |
-| **Total** | **96** | |
+| **Total** | **40** | |
 
 ## Resource Budget
 
@@ -247,7 +142,6 @@ Tool executes → tool_result_persist fires → PII Redactor scans → redacted 
 |-----------|--------|-----|
 | Language | TypeScript 5.4 | Compatible with host agent runtime |
 | Module system | CommonJS | Compatible with OpenClaw plugin loader |
-| SQLite | better-sqlite3 | Consent DB — synchronous, embedded, zero-config |
 | Testing | node:test + node:assert | Zero-dependency, built into Node.js |
 | Test runner | tsx | TypeScript execution without pre-compilation |
 
@@ -268,17 +162,14 @@ Together, L0 and L1 form a **defense-in-depth** strategy: L0 encrypts PII in tra
 For agent-agnostic access to OpenObscure's privacy functions, use the core entry point:
 
 ```typescript
-import { redactPii, checkFileAccess, ConsentManager } from "openobscure-plugin/core";
+import { redactPii } from "openobscure-plugin/core";
 ```
 
-This exports all core logic (PII redaction, file access guard, consent management,
-memory governance, health monitoring, logging) without any agent framework wiring.
+This exports core logic (PII redaction, health monitoring, logging) without any agent framework wiring.
 The `register()` function and OpenClaw-specific tool definitions remain available
 via the default entry point (`openobscure-plugin`).
 
 ## Future Work
 
-- **Consent enforcement hooks:** Block tool execution if user hasn't consented to data processing
-- **Vector embedding PII scan:** Scan vector embeddings for PII before storage
 - **Streaming redaction:** Handle streamed tool results (e.g., large file reads) incrementally
 - **NER in redactor:** Add TinyBERT semantic detection alongside regex in L1 redaction (currently regex-only; L0 has hybrid scanner)

@@ -31,10 +31,10 @@ done
 
 echo "=== OpenObscure UniFFI Binding Generation ==="
 
-# Build the library with mobile-full features (needed for uniffi-bindgen)
+# Build the library with mobile features (needed for uniffi-bindgen)
 echo ""
-echo "--- Building library with mobile-full features ---"
-cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --features mobile-full --lib
+echo "--- Building library with mobile features ---"
+cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --features mobile --lib
 
 # Find the built library
 LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_proxy.dylib"
@@ -55,7 +55,7 @@ if [ "$GENERATE_SWIFT" = true ]; then
     echo "--- Generating Swift bindings ---"
     mkdir -p "$BINDINGS_DIR/swift"
     cargo run --manifest-path "$PROXY_DIR/Cargo.toml" \
-        --features mobile-full \
+        --features mobile \
         --bin uniffi-bindgen -- \
         generate --library "$LIB_PATH" \
         --language swift \
@@ -70,7 +70,7 @@ if [ "$GENERATE_KOTLIN" = true ]; then
     echo "--- Generating Kotlin bindings ---"
     mkdir -p "$BINDINGS_DIR/kotlin"
     cargo run --manifest-path "$PROXY_DIR/Cargo.toml" \
-        --features mobile-full \
+        --features mobile \
         --bin uniffi-bindgen -- \
         generate --library "$LIB_PATH" \
         --language kotlin \

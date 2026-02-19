@@ -13,6 +13,9 @@
 openobscure-proxy/models/
 !openobscure-ner/models/mock/
 
+# Enterprise features (not committed to repository)
+enterprise/
+
 # Local reference (not committed)
 project-plan/
 review-notes/

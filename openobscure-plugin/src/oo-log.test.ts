@@ -207,25 +207,25 @@ describe("GDPR audit log", () => {
   it("writes audit entries to file", () => {
     // Capture console to avoid test noise
     captureConsole("log", () => {
-      ooAudit(OO_MODULES.CONSENT, "grant", {
+      ooAudit(OO_MODULES.REDACTOR, "scrub", {
         user_id: "u123",
-        consent_type: "processing",
+        pii_type: "email",
       });
     });
 
     const content = fs.readFileSync(auditPath, "utf-8").trim();
     const entry = JSON.parse(content);
-    assert.equal(entry.module, "openobscure.consent");
-    assert.equal(entry.operation, "grant");
+    assert.equal(entry.module, "openobscure.redactor");
+    assert.equal(entry.operation, "scrub");
     assert.equal(entry.user_id, "u123");
-    assert.equal(entry.consent_type, "processing");
+    assert.equal(entry.pii_type, "email");
     assert.ok(entry.ts);
   });
 
   it("appends multiple audit entries", () => {
     captureConsole("log", () => {
       ooAudit(OO_MODULES.REDACTOR, "redact", { pii_count: 2 });
-      ooAudit(OO_MODULES.CONSENT, "revoke", { user_id: "u456" });
+      ooAudit(OO_MODULES.PLUGIN, "revoke", { user_id: "u456" });
     });
 
     const lines = fs.readFileSync(auditPath, "utf-8").trim().split("\n");
@@ -246,9 +246,6 @@ describe("GDPR audit log", () => {
 describe("OO_MODULES constants", () => {
   it("all module constants are defined", () => {
     assert.equal(OO_MODULES.REDACTOR, "redactor");
-    assert.equal(OO_MODULES.FILE_GUARD, "file-guard");
-    assert.equal(OO_MODULES.CONSENT, "consent");
-    assert.equal(OO_MODULES.PRIVACY, "privacy");
     assert.equal(OO_MODULES.HEARTBEAT, "heartbeat");
     assert.equal(OO_MODULES.PLUGIN, "plugin");
   });

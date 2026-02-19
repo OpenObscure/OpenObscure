@@ -515,51 +515,11 @@ fn bio_to_pii_type(label: usize) -> Option<PiiType> {
 }
 
 /// Get available system RAM in MB. Returns None if unavailable.
+///
+/// Backward-compatibility delegate — canonical implementation is in
+/// `device_profile::available_ram_mb()`.
 pub fn available_ram_mb() -> Option<u64> {
-    #[cfg(target_os = "macos")]
-    {
-        // Use vm_stat to get free + inactive pages, multiply by page size
-        let output = std::process::Command::new("vm_stat").output().ok()?;
-        let text = String::from_utf8_lossy(&output.stdout);
-        let mut free_pages: u64 = 0;
-        for line in text.lines() {
-            if line.starts_with("Pages free:") || line.starts_with("Pages inactive:") {
-                let val: String = line.chars().filter(|c| c.is_ascii_digit()).collect();
-                free_pages += val.parse::<u64>().unwrap_or(0);
-            }
-        }
-        // macOS page size is 16384 on Apple Silicon, 4096 on Intel
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) } as u64;
-        Some(free_pages * page_size / (1024 * 1024))
-    }
-    #[cfg(target_os = "linux")]
-    {
-        let content = std::fs::read_to_string("/proc/meminfo").ok()?;
-        for line in content.lines() {
-            if line.starts_with("MemAvailable:") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let kb = parts[1].parse::<u64>().ok()?;
-                    return Some(kb / 1024);
-                }
-            }
-        }
-        None
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
-        let mut status = MEMORYSTATUSEX::default();
-        status.dwLength = std::mem::size_of::<MEMORYSTATUSEX>() as u32;
-        if unsafe { GlobalMemoryStatusEx(&mut status as *mut MEMORYSTATUSEX) }.is_ok() {
-            return Some(status.ullAvailPhys / (1024 * 1024));
-        }
-        None
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
-    {
-        None
-    }
+    crate::device_profile::available_ram_mb()
 }
 
 #[derive(Debug, thiserror::Error)]

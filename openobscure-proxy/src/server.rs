@@ -5,10 +5,15 @@ use axum::Router;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
-use crate::health::HealthState;
+use crate::health::{FeatureBudgetSummary, HealthState};
 use crate::proxy::AppState;
 
-pub async fn run(state: AppState, auth_token: Option<String>) -> anyhow::Result<()> {
+pub async fn run(
+    state: AppState,
+    auth_token: Option<String>,
+    device_tier: String,
+    feature_budget: FeatureBudgetSummary,
+) -> anyhow::Result<()> {
     let config = state.config.clone();
 
     // Resolve key version for health endpoint (read once at startup,
@@ -21,6 +26,8 @@ pub async fn run(state: AppState, auth_token: Option<String>) -> anyhow::Result<
         stats: state.health.clone(),
         auth_token,
         key_version,
+        device_tier,
+        feature_budget,
     };
 
     let app = Router::new()

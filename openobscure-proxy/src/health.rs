@@ -100,7 +100,6 @@ pub struct HealthStats {
     images_processed_total: Arc<AtomicU64>,
     faces_blurred_total: Arc<AtomicU64>,
     text_regions_total: Arc<AtomicU64>,
-    cross_border_flags_total: Arc<AtomicU64>,
     pub scan_latency: LatencyHistogram,
     pub request_latency: LatencyHistogram,
 }
@@ -114,7 +113,6 @@ impl HealthStats {
             images_processed_total: Arc::new(AtomicU64::new(0)),
             faces_blurred_total: Arc::new(AtomicU64::new(0)),
             text_regions_total: Arc::new(AtomicU64::new(0)),
-            cross_border_flags_total: Arc::new(AtomicU64::new(0)),
             scan_latency: LatencyHistogram::new(),
             request_latency: LatencyHistogram::new(),
         }
@@ -146,12 +144,6 @@ impl HealthStats {
         self.text_regions_total.fetch_add(count, Ordering::Relaxed);
     }
 
-    /// Record cross-border jurisdiction flags raised.
-    pub fn record_cross_border_flags(&self, count: u64) {
-        self.cross_border_flags_total
-            .fetch_add(count, Ordering::Relaxed);
-    }
-
     pub fn uptime_secs(&self) -> u64 {
         self.start_time.elapsed().as_secs()
     }
@@ -175,10 +167,17 @@ impl HealthStats {
     pub fn text_regions_total(&self) -> u64 {
         self.text_regions_total.load(Ordering::Relaxed)
     }
+}
 
-    pub fn cross_border_flags_total(&self) -> u64 {
-        self.cross_border_flags_total.load(Ordering::Relaxed)
-    }
+/// Serializable summary of the active feature budget for the health endpoint.
+#[derive(Clone, Serialize)]
+pub struct FeatureBudgetSummary {
+    pub tier: String,
+    pub max_ram_mb: u64,
+    pub ner_enabled: bool,
+    pub crf_enabled: bool,
+    pub ensemble_enabled: bool,
+    pub image_pipeline_enabled: bool,
 }
 
 /// Combined health state: stats + optional auth token for the health endpoint.
@@ -187,6 +186,8 @@ pub struct HealthState {
     pub stats: HealthStats,
     pub auth_token: Option<String>,
     pub key_version: Arc<std::sync::atomic::AtomicU32>,
+    pub device_tier: String,
+    pub feature_budget: FeatureBudgetSummary,
 }
 
 /// Health endpoint response body.
@@ -200,7 +201,6 @@ pub struct HealthResponse {
     pub images_processed_total: u64,
     pub faces_blurred_total: u64,
     pub text_regions_total: u64,
-    pub cross_border_flags_total: u64,
     pub fpe_key_version: u32,
     pub scan_latency_p50_us: u64,
     pub scan_latency_p95_us: u64,
@@ -208,6 +208,8 @@ pub struct HealthResponse {
     pub request_latency_p50_us: u64,
     pub request_latency_p95_us: u64,
     pub request_latency_p99_us: u64,
+    pub device_tier: String,
+    pub feature_budget: FeatureBudgetSummary,
 }
 
 /// GET /_openobscure/health — returns proxy health status.
@@ -238,7 +240,6 @@ pub async fn health_handler(
         images_processed_total: stats.images_processed_total(),
         faces_blurred_total: stats.faces_blurred_total(),
         text_regions_total: stats.text_regions_total(),
-        cross_border_flags_total: stats.cross_border_flags_total(),
         fpe_key_version: health_state
             .key_version
             .load(std::sync::atomic::Ordering::Relaxed),
@@ -248,6 +249,8 @@ pub async fn health_handler(
         request_latency_p50_us: stats.request_latency.percentile(50.0),
         request_latency_p95_us: stats.request_latency.percentile(95.0),
         request_latency_p99_us: stats.request_latency.percentile(99.0),
+        device_tier: health_state.device_tier.clone(),
+        feature_budget: health_state.feature_budget.clone(),
     }))
 }
 
@@ -450,6 +453,15 @@ mod tests {
             stats: HealthStats::new(),
             auth_token,
             key_version: Arc::new(std::sync::atomic::AtomicU32::new(1)),
+            device_tier: "full".to_string(),
+            feature_budget: FeatureBudgetSummary {
+                tier: "full".to_string(),
+                max_ram_mb: 275,
+                ner_enabled: true,
+                crf_enabled: true,
+                ensemble_enabled: true,
+                image_pipeline_enabled: true,
+            },
         };
         Router::new().route(
             "/_openobscure/health",
@@ -509,5 +521,21 @@ mod tests {
 
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_health_includes_device_tier() {
+        let app = health_app(None);
+
+        let req = Request::get("/_openobscure/health")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["device_tier"], "full");
+        assert!(json["feature_budget"]["ner_enabled"].as_bool().unwrap());
+        assert_eq!(json["feature_budget"]["max_ram_mb"], 275);
     }
 }

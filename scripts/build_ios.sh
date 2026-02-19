@@ -44,13 +44,13 @@ done
 echo ""
 echo "--- Building for iOS device (aarch64-apple-ios) ---"
 cargo build --manifest-path "$PROXY_DIR/Cargo.toml" \
-    --target aarch64-apple-ios $BUILD_FLAG --lib --features mobile-full
+    --target aarch64-apple-ios $BUILD_FLAG --lib --features mobile
 
 # Build for simulator (ARM64 — runs natively on Apple Silicon)
 echo ""
 echo "--- Building for iOS Simulator (aarch64-apple-ios-sim) ---"
 cargo build --manifest-path "$PROXY_DIR/Cargo.toml" \
-    --target aarch64-apple-ios-sim $BUILD_FLAG --lib --features mobile-full
+    --target aarch64-apple-ios-sim $BUILD_FLAG --lib --features mobile
 
 DEVICE_LIB="$PROXY_DIR/target/aarch64-apple-ios/$PROFILE/libopenobscure_proxy.a"
 SIM_LIB="$PROXY_DIR/target/aarch64-apple-ios-sim/$PROFILE/libopenobscure_proxy.a"
