@@ -279,7 +279,7 @@ pub struct RetentionSummary {
 // ── ConsentStore ──
 
 pub struct ConsentStore {
-    conn: Connection,
+    conn: std::sync::Mutex<Connection>,
 }
 
 impl ConsentStore {
@@ -294,13 +294,15 @@ impl ConsentStore {
             Connection::open(db_path)?
         };
         conn.execute_batch("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;")?;
-        let store = Self { conn };
+        let store = Self {
+            conn: std::sync::Mutex::new(conn),
+        };
         store.init_schema()?;
         Ok(store)
     }
 
     fn init_schema(&self) -> Result<(), GovernanceError> {
-        self.conn.execute_batch(
+        self.conn.lock().unwrap().execute_batch(
             "CREATE TABLE IF NOT EXISTS consent_records (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id TEXT NOT NULL,
@@ -364,10 +366,10 @@ impl ConsentStore {
     ) -> Result<ConsentRecord, GovernanceError> {
         let now = Utc::now().to_rfc3339();
         let ct = consent_type.as_str();
+        let conn = self.conn.lock().unwrap();
 
         // Check for existing active consent
-        let existing: Option<(i64, i64)> = self
-            .conn
+        let existing: Option<(i64, i64)> = conn
             .query_row(
                 "SELECT id, version FROM consent_records
              WHERE user_id = ?1 AND consent_type = ?2 AND granted = 1 AND revoked_at IS NULL
@@ -379,7 +381,7 @@ impl ConsentStore {
 
         if let Some((id, version)) = existing {
             let new_version = version + 1;
-            self.conn.execute(
+            conn.execute(
                 "UPDATE consent_records SET version = ?1, granted_at = ?2, purpose = COALESCE(?3, purpose)
                  WHERE id = ?4",
                 params![new_version, now, purpose, id],
@@ -398,12 +400,12 @@ impl ConsentStore {
         }
 
         let lb = legal_basis.map(|b| b.as_str().to_string());
-        self.conn.execute(
+        conn.execute(
             "INSERT INTO consent_records (user_id, consent_type, granted, granted_at, purpose, legal_basis)
              VALUES (?1, ?2, 1, ?3, ?4, ?5)",
             params![user_id, ct, now, purpose, lb],
         )?;
-        let id = self.conn.last_insert_rowid();
+        let id = conn.last_insert_rowid();
 
         Ok(ConsentRecord {
             id,
@@ -425,7 +427,7 @@ impl ConsentStore {
         consent_type: ConsentType,
     ) -> Result<bool, GovernanceError> {
         let now = Utc::now().to_rfc3339();
-        let changes = self.conn.execute(
+        let changes = self.conn.lock().unwrap().execute(
             "UPDATE consent_records SET granted = 0, revoked_at = ?1
              WHERE user_id = ?2 AND consent_type = ?3 AND granted = 1 AND revoked_at IS NULL",
             params![now, user_id, consent_type.as_str()],
@@ -435,7 +437,8 @@ impl ConsentStore {
 
     /// Get all consent records for a user.
     pub fn get_consents(&self, user_id: &str) -> Result<Vec<ConsentRecord>, GovernanceError> {
-        let mut stmt = self.conn.prepare(
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
             "SELECT id, user_id, consent_type, granted, granted_at, revoked_at, purpose, legal_basis, version
              FROM consent_records WHERE user_id = ?1 ORDER BY id DESC"
         )?;
@@ -463,6 +466,8 @@ impl ConsentStore {
     ) -> Result<bool, GovernanceError> {
         let exists: Option<i32> = self
             .conn
+            .lock()
+            .unwrap()
             .query_row(
                 "SELECT 1 FROM consent_records
              WHERE user_id = ?1 AND consent_type = ?2 AND granted = 1 AND revoked_at IS NULL
@@ -487,12 +492,13 @@ impl ConsentStore {
     ) -> Result<i64, GovernanceError> {
         let now = Utc::now().to_rfc3339();
         let pii = pii_types.map(|t| t.join(","));
-        self.conn.execute(
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
             "INSERT INTO data_processing_log (user_id, timestamp, action, pii_types, source, details)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![user_id, now, action.as_str(), pii, source, details],
         )?;
-        Ok(self.conn.last_insert_rowid())
+        Ok(conn.last_insert_rowid())
     }
 
     /// Get processing log entries for a user.
@@ -511,7 +517,8 @@ impl ConsentStore {
                      FROM data_processing_log WHERE user_id = ?1 ORDER BY id DESC"
             }
         };
-        let mut stmt = self.conn.prepare(sql)?;
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(sql)?;
         let rows = match limit {
             Some(lim) => stmt.query_map(params![user_id, lim as i64], map_processing_log)?,
             None => stmt.query_map(params![user_id], map_processing_log)?,
@@ -534,7 +541,8 @@ impl ConsentStore {
                      FROM data_processing_log ORDER BY id DESC"
             }
         };
-        let mut stmt = self.conn.prepare(sql)?;
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(sql)?;
         let rows = match limit {
             Some(lim) => stmt.query_map(params![lim as i64], map_processing_log)?,
             None => stmt.query_map([], map_processing_log)?,
@@ -551,12 +559,13 @@ impl ConsentStore {
         request_type: DsarType,
     ) -> Result<DsarRequest, GovernanceError> {
         let now = Utc::now().to_rfc3339();
-        self.conn.execute(
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
             "INSERT INTO dsar_requests (user_id, request_type, requested_at, status)
              VALUES (?1, ?2, ?3, 'pending')",
             params![user_id, request_type.as_str(), now],
         )?;
-        let id = self.conn.last_insert_rowid();
+        let id = conn.last_insert_rowid();
         Ok(DsarRequest {
             id,
             user_id: user_id.to_string(),
@@ -580,7 +589,7 @@ impl ConsentStore {
         } else {
             None
         };
-        let changes = self.conn.execute(
+        let changes = self.conn.lock().unwrap().execute(
             "UPDATE dsar_requests SET status = ?1, completed_at = COALESCE(?2, completed_at),
              response_path = COALESCE(?3, response_path)
              WHERE id = ?4",
@@ -591,7 +600,8 @@ impl ConsentStore {
 
     /// Get DSAR requests for a user.
     pub fn get_dsar_requests(&self, user_id: &str) -> Result<Vec<DsarRequest>, GovernanceError> {
-        let mut stmt = self.conn.prepare(
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
             "SELECT id, user_id, request_type, requested_at, completed_at, status, response_path
              FROM dsar_requests WHERE user_id = ?1 ORDER BY id DESC",
         )?;
@@ -614,12 +624,13 @@ impl ConsentStore {
     /// Get full consent status for a user.
     pub fn get_status(&self, user_id: &str) -> Result<ConsentStatus, GovernanceError> {
         let consents = self.get_consents(user_id)?;
-        let log_count: i64 = self.conn.query_row(
+        let conn = self.conn.lock().unwrap();
+        let log_count: i64 = conn.query_row(
             "SELECT COUNT(*) FROM data_processing_log WHERE user_id = ?1",
             params![user_id],
             |row| row.get(0),
         )?;
-        let pending_dsars: i64 = self.conn.query_row(
+        let pending_dsars: i64 = conn.query_row(
             "SELECT COUNT(*) FROM dsar_requests WHERE user_id = ?1 AND status IN ('pending', 'in_progress')",
             params![user_id],
             |row| row.get(0),
@@ -645,19 +656,20 @@ impl ConsentStore {
 
     /// Delete all user data (for DSAR erasure request). Returns total records deleted.
     pub fn delete_user_data(&self, user_id: &str) -> Result<usize, GovernanceError> {
-        let c1 = self.conn.execute(
+        let conn = self.conn.lock().unwrap();
+        let c1 = conn.execute(
             "DELETE FROM consent_records WHERE user_id = ?1",
             params![user_id],
         )?;
-        let c2 = self.conn.execute(
+        let c2 = conn.execute(
             "DELETE FROM data_processing_log WHERE user_id = ?1",
             params![user_id],
         )?;
-        let c3 = self.conn.execute(
+        let c3 = conn.execute(
             "DELETE FROM dsar_requests WHERE user_id = ?1",
             params![user_id],
         )?;
-        let c4 = self.conn.execute(
+        let c4 = conn.execute(
             "DELETE FROM retention_entries WHERE user_id = ?1",
             params![user_id],
         )?;
@@ -676,7 +688,7 @@ impl ConsentStore {
         expires_at: &str,
     ) -> Result<(), GovernanceError> {
         let now = Utc::now().to_rfc3339();
-        self.conn.execute(
+        self.conn.lock().unwrap().execute(
             "INSERT INTO retention_entries (user_id, created_at, tier, expires_at, source_table, source_id)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![user_id, now, tier.as_str(), expires_at, source_table, source_id],
@@ -686,9 +698,9 @@ impl ConsentStore {
 
     /// Get count of retention entries per tier.
     pub fn get_retention_summary(&self) -> Result<RetentionSummary, GovernanceError> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT tier, COUNT(*) FROM retention_entries GROUP BY tier")?;
+        let conn = self.conn.lock().unwrap();
+        let mut stmt =
+            conn.prepare("SELECT tier, COUNT(*) FROM retention_entries GROUP BY tier")?;
         let mut summary = RetentionSummary::default();
         let rows = stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?))
@@ -712,7 +724,8 @@ impl ConsentStore {
         tier: RetentionTier,
         now: &str,
     ) -> Result<Vec<RetentionEntry>, GovernanceError> {
-        let mut stmt = self.conn.prepare(
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
             "SELECT id, user_id, created_at, tier, expires_at, source_table, source_id
              FROM retention_entries WHERE tier = ?1 AND expires_at <= ?2 ORDER BY expires_at ASC",
         )?;
@@ -737,7 +750,7 @@ impl ConsentStore {
         new_tier: RetentionTier,
         new_expires_at: &str,
     ) -> Result<(), GovernanceError> {
-        self.conn.execute(
+        self.conn.lock().unwrap().execute(
             "UPDATE retention_entries SET tier = ?1, expires_at = ?2 WHERE id = ?3",
             params![new_tier.as_str(), new_expires_at, id],
         )?;
@@ -746,7 +759,8 @@ impl ConsentStore {
 
     /// Delete expired retention entries and their source records. Returns count deleted.
     pub fn prune_expired(&self, now: &str) -> Result<usize, GovernanceError> {
-        let mut stmt = self.conn.prepare(
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
             "SELECT id, source_table, source_id FROM retention_entries WHERE tier = 'expired' AND expires_at <= ?1"
         )?;
         let expired: Vec<(i64, String, i64)> = stmt
@@ -763,13 +777,12 @@ impl ConsentStore {
         let mut count = 0;
         for (id, source_table, source_id) in &expired {
             if source_table == "data_processing_log" {
-                self.conn.execute(
+                conn.execute(
                     "DELETE FROM data_processing_log WHERE id = ?1",
                     params![source_id],
                 )?;
             }
-            self.conn
-                .execute("DELETE FROM retention_entries WHERE id = ?1", params![id])?;
+            conn.execute("DELETE FROM retention_entries WHERE id = ?1", params![id])?;
             count += 1;
         }
         Ok(count)
