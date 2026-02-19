@@ -68,8 +68,8 @@ impl NerScanner {
         let num_labels = if label_map_path.exists() {
             let content = std::fs::read_to_string(&label_map_path)
                 .map_err(|e| NerError::Io(e.to_string()))?;
-            let map: serde_json::Value = serde_json::from_str(&content)
-                .map_err(|e| NerError::Io(e.to_string()))?;
+            let map: serde_json::Value =
+                serde_json::from_str(&content).map_err(|e| NerError::Io(e.to_string()))?;
             map.get("labels")
                 .and_then(|v| v.as_array())
                 .map(|a| a.len())
@@ -110,20 +110,14 @@ impl NerScanner {
         let seq_len = encoded.input_ids.len();
 
         // 2. Build input tensors
-        let input_ids = Array2::from_shape_vec(
-            (1, seq_len),
-            encoded.input_ids.clone(),
-        ).map_err(|e| NerError::Shape(e.to_string()))?;
+        let input_ids = Array2::from_shape_vec((1, seq_len), encoded.input_ids.clone())
+            .map_err(|e| NerError::Shape(e.to_string()))?;
 
-        let attention_mask = Array2::from_shape_vec(
-            (1, seq_len),
-            encoded.attention_mask.clone(),
-        ).map_err(|e| NerError::Shape(e.to_string()))?;
+        let attention_mask = Array2::from_shape_vec((1, seq_len), encoded.attention_mask.clone())
+            .map_err(|e| NerError::Shape(e.to_string()))?;
 
-        let token_type_ids = Array2::from_shape_vec(
-            (1, seq_len),
-            encoded.token_type_ids.clone(),
-        ).map_err(|e| NerError::Shape(e.to_string()))?;
+        let token_type_ids = Array2::from_shape_vec((1, seq_len), encoded.token_type_ids.clone())
+            .map_err(|e| NerError::Shape(e.to_string()))?;
 
         // 3. Convert ndarray to ort Values
         let input_ids_val = ort::value::Value::from_array(input_ids)
@@ -135,18 +129,20 @@ impl NerScanner {
 
         // 4. Run inference and extract token labels (scoped to drop outputs before self borrow)
         let token_labels = {
-            let outputs = self.session.run(
-                ort::inputs![
+            let outputs = self
+                .session
+                .run(ort::inputs![
                     "input_ids" => input_ids_val,
                     "attention_mask" => attention_mask_val,
                     "token_type_ids" => token_type_ids_val,
-                ],
-            ).map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
+                ])
+                .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
 
             let (logits_shape, logits_data) = outputs[0]
                 .try_extract_tensor::<f32>()
                 .map_err(|e: ort::Error| NerError::OnnxRuntime(e.to_string()))?;
-            let n_labels = logits_shape.last()
+            let n_labels = logits_shape
+                .last()
                 .map(|&d| d as usize)
                 .unwrap_or(self.num_labels);
 
@@ -215,7 +211,14 @@ impl NerScanner {
                 None => {
                     // Special token — flush current entity
                     if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
-                        if let Some(entity) = build_entity(pii_type, ws, we, min_conf / count as f32, words, original_text) {
+                        if let Some(entity) = build_entity(
+                            pii_type,
+                            ws,
+                            we,
+                            min_conf / count as f32,
+                            words,
+                            original_text,
+                        ) {
                             entities.push(entity);
                         }
                     }
@@ -225,8 +228,8 @@ impl NerScanner {
 
             // Only process first sub-token of each word for B/I decisions;
             // continuation sub-tokens inherit the same word's label.
-            let is_first_subtoken = token_idx == 0
-                || word_ids.get(token_idx - 1).copied().flatten() != Some(word_idx);
+            let is_first_subtoken =
+                token_idx == 0 || word_ids.get(token_idx - 1).copied().flatten() != Some(word_idx);
 
             if !is_first_subtoken {
                 continue; // Skip continuation sub-tokens
@@ -238,7 +241,14 @@ impl NerScanner {
                 // B-* tag: start new entity (flush previous if any)
                 (l, _) if is_b_tag(l) => {
                     if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
-                        if let Some(entity) = build_entity(pii_type, ws, we, min_conf / count as f32, words, original_text) {
+                        if let Some(entity) = build_entity(
+                            pii_type,
+                            ws,
+                            we,
+                            min_conf / count as f32,
+                            words,
+                            original_text,
+                        ) {
                             entities.push(entity);
                         }
                     }
@@ -257,7 +267,14 @@ impl NerScanner {
                 // I-* tag but no current entity or type mismatch → treat as B
                 (l, _) if is_i_tag(l) => {
                     if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
-                        if let Some(entity) = build_entity(pii_type, ws, we, min_conf / count as f32, words, original_text) {
+                        if let Some(entity) = build_entity(
+                            pii_type,
+                            ws,
+                            we,
+                            min_conf / count as f32,
+                            words,
+                            original_text,
+                        ) {
                             entities.push(entity);
                         }
                     }
@@ -268,7 +285,14 @@ impl NerScanner {
                 // O tag: flush
                 _ => {
                     if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
-                        if let Some(entity) = build_entity(pii_type, ws, we, min_conf / count as f32, words, original_text) {
+                        if let Some(entity) = build_entity(
+                            pii_type,
+                            ws,
+                            we,
+                            min_conf / count as f32,
+                            words,
+                            original_text,
+                        ) {
                             entities.push(entity);
                         }
                     }
@@ -278,7 +302,14 @@ impl NerScanner {
 
         // Flush remaining entity
         if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
-            if let Some(entity) = build_entity(pii_type, ws, we, min_conf / count as f32, words, original_text) {
+            if let Some(entity) = build_entity(
+                pii_type,
+                ws,
+                we,
+                min_conf / count as f32,
+                words,
+                original_text,
+            ) {
                 entities.push(entity);
             }
         }
@@ -288,11 +319,17 @@ impl NerScanner {
 }
 
 fn is_b_tag(label_id: usize) -> bool {
-    matches!(label_id, LABEL_B_PER | LABEL_B_LOC | LABEL_B_ORG | LABEL_B_HEALTH | LABEL_B_CHILD)
+    matches!(
+        label_id,
+        LABEL_B_PER | LABEL_B_LOC | LABEL_B_ORG | LABEL_B_HEALTH | LABEL_B_CHILD
+    )
 }
 
 fn is_i_tag(label_id: usize) -> bool {
-    matches!(label_id, LABEL_I_PER | LABEL_I_LOC | LABEL_I_ORG | LABEL_I_HEALTH | LABEL_I_CHILD)
+    matches!(
+        label_id,
+        LABEL_I_PER | LABEL_I_LOC | LABEL_I_ORG | LABEL_I_HEALTH | LABEL_I_CHILD
+    )
 }
 
 fn bio_to_pii_type(label_id: usize) -> Option<PiiType> {
@@ -359,7 +396,10 @@ mod tests {
         assert_eq!(bio_to_pii_type(LABEL_I_PER), Some(PiiType::Person));
         assert_eq!(bio_to_pii_type(LABEL_B_LOC), Some(PiiType::Location));
         assert_eq!(bio_to_pii_type(LABEL_B_ORG), Some(PiiType::Organization));
-        assert_eq!(bio_to_pii_type(LABEL_B_HEALTH), Some(PiiType::HealthKeyword));
+        assert_eq!(
+            bio_to_pii_type(LABEL_B_HEALTH),
+            Some(PiiType::HealthKeyword)
+        );
         assert_eq!(bio_to_pii_type(LABEL_B_CHILD), Some(PiiType::ChildKeyword));
         assert_eq!(bio_to_pii_type(LABEL_O), None);
     }
@@ -419,7 +459,9 @@ mod tests {
         }
 
         let mut scanner = NerScanner::load(&mock_dir, 0.0).expect("Failed to load mock NER model");
-        let matches = scanner.scan_text("John Smith has diabetes").expect("Inference failed");
+        let matches = scanner
+            .scan_text("John Smith has diabetes")
+            .expect("Inference failed");
 
         // Mock model has random weights, so we don't assert specific entities.
         // Just verify it runs without error and returns results.

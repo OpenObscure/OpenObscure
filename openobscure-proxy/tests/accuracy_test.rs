@@ -32,8 +32,18 @@ struct ExpectedMatch {
 
 /// Types detected by the regex scanner (not keywords/NER).
 fn is_regex_type(t: &str) -> bool {
-    matches!(t, "CreditCard" | "Ssn" | "PhoneNumber" | "Email" | "ApiKey"
-        | "Ipv4Address" | "Ipv6Address" | "GpsCoordinate" | "MacAddress")
+    matches!(
+        t,
+        "CreditCard"
+            | "Ssn"
+            | "PhoneNumber"
+            | "Email"
+            | "ApiKey"
+            | "Ipv4Address"
+            | "Ipv6Address"
+            | "GpsCoordinate"
+            | "MacAddress"
+    )
 }
 
 /// Map corpus type strings to PiiType enum.
@@ -65,14 +75,17 @@ fn load_corpus() -> Vec<CorpusEntry> {
         .join("pii_corpus.json");
     let data = std::fs::read_to_string(&corpus_path)
         .unwrap_or_else(|e| panic!("Failed to load corpus at {}: {}", corpus_path.display(), e));
-    serde_json::from_str(&data)
-        .unwrap_or_else(|e| panic!("Failed to parse corpus JSON: {}", e))
+    serde_json::from_str(&data).unwrap_or_else(|e| panic!("Failed to parse corpus JSON: {}", e))
 }
 
 #[test]
 fn test_corpus_loads_and_is_non_empty() {
     let corpus = load_corpus();
-    assert!(corpus.len() >= 300, "Corpus should have >= 300 entries, got {}", corpus.len());
+    assert!(
+        corpus.len() >= 300,
+        "Corpus should have >= 300 entries, got {}",
+        corpus.len()
+    );
 }
 
 #[test]
@@ -88,7 +101,9 @@ fn test_regex_scanner_recall() {
 
     for (idx, entry) in corpus.iter().enumerate() {
         // Only test regex-detectable types
-        let expected_regex: Vec<&ExpectedMatch> = entry.expected.iter()
+        let expected_regex: Vec<&ExpectedMatch> = entry
+            .expected
+            .iter()
             .filter(|e| is_regex_type(&e.pii_type))
             .collect();
 
@@ -101,8 +116,7 @@ fn test_regex_scanner_recall() {
             // Check if a match was found that overlaps with the expected value
             let found = detected.iter().any(|d| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t)
-                    && d.raw_value == exp.value
+                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
             });
 
             if found {
@@ -127,7 +141,12 @@ fn test_regex_scanner_recall() {
         let r = found as f64 / *expected as f64;
         eprintln!("  {}: {}/{} ({:.1}%)", pii_type, found, expected, r * 100.0);
     }
-    eprintln!("  TOTAL: {}/{} ({:.1}%)", total_found, total_expected, recall * 100.0);
+    eprintln!(
+        "  TOTAL: {}/{} ({:.1}%)",
+        total_found,
+        total_expected,
+        recall * 100.0
+    );
 
     if !missed.is_empty() {
         eprintln!("\n=== Missed detections (first 20) ===");
@@ -163,18 +182,13 @@ fn test_regex_scanner_precision() {
             // Check if this detection matches any expected annotation
             let matches_expected = entry.expected.iter().any(|exp| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t)
-                    && d.raw_value == exp.value
+                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
             });
 
             if matches_expected {
                 true_positives += 1;
             } else {
-                false_positives.push((
-                    idx + 1,
-                    format!("{:?}", d.pii_type),
-                    d.raw_value.clone(),
-                ));
+                false_positives.push((idx + 1, format!("{:?}", d.pii_type), d.raw_value.clone()));
             }
         }
     }
@@ -252,7 +266,9 @@ fn test_f1_score() {
     let mut fn_count = 0usize;
 
     for entry in &corpus {
-        let expected_regex: Vec<&ExpectedMatch> = entry.expected.iter()
+        let expected_regex: Vec<&ExpectedMatch> = entry
+            .expected
+            .iter()
             .filter(|e| is_regex_type(&e.pii_type))
             .collect();
         let detected = scanner.scan_text(&entry.text);
@@ -282,8 +298,16 @@ fn test_f1_score() {
         }
     }
 
-    let precision = if tp + fp > 0 { tp as f64 / (tp + fp) as f64 } else { 1.0 };
-    let recall = if tp + fn_count > 0 { tp as f64 / (tp + fn_count) as f64 } else { 1.0 };
+    let precision = if tp + fp > 0 {
+        tp as f64 / (tp + fp) as f64
+    } else {
+        1.0
+    };
+    let recall = if tp + fn_count > 0 {
+        tp as f64 / (tp + fn_count) as f64
+    } else {
+        1.0
+    };
     let f1 = if precision + recall > 0.0 {
         2.0 * precision * recall / (precision + recall)
     } else {
@@ -311,7 +335,9 @@ fn test_hybrid_scanner_keyword_recall() {
     let mut missed: Vec<(usize, String, String)> = Vec::new();
 
     for (idx, entry) in corpus.iter().enumerate() {
-        let expected_kw: Vec<&ExpectedMatch> = entry.expected.iter()
+        let expected_kw: Vec<&ExpectedMatch> = entry
+            .expected
+            .iter()
             .filter(|e| is_keyword_type(&e.pii_type))
             .collect();
 
@@ -343,7 +369,12 @@ fn test_hybrid_scanner_keyword_recall() {
     };
 
     eprintln!("\n=== HybridScanner Keyword Recall ===");
-    eprintln!("  Found: {}/{} ({:.1}%)", total_found, total_expected, recall * 100.0);
+    eprintln!(
+        "  Found: {}/{} ({:.1}%)",
+        total_found,
+        total_expected,
+        recall * 100.0
+    );
     if !missed.is_empty() {
         eprintln!("  Missed (first 10):");
         for (line, pii_type, value) in missed.iter().take(10) {
@@ -355,7 +386,9 @@ fn test_hybrid_scanner_keyword_recall() {
     assert!(
         recall >= 0.75,
         "Keyword recall {:.3} is below target 0.75. Missed {}/{}.",
-        recall, total_expected - total_found, total_expected
+        recall,
+        total_expected - total_found,
+        total_expected
     );
 }
 
@@ -369,7 +402,9 @@ fn test_hybrid_scanner_overall_recall() {
 
     for entry in &corpus {
         // Only test regex types (corpus doesn't annotate keyword types)
-        let expected_all: Vec<&ExpectedMatch> = entry.expected.iter()
+        let expected_all: Vec<&ExpectedMatch> = entry
+            .expected
+            .iter()
             .filter(|e| is_regex_type(&e.pii_type))
             .collect();
 
@@ -379,8 +414,7 @@ fn test_hybrid_scanner_overall_recall() {
             total_expected += 1;
             let found = detected.iter().any(|d| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t)
-                    && d.raw_value == exp.value
+                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
             });
             if found {
                 total_found += 1;
@@ -395,12 +429,19 @@ fn test_hybrid_scanner_overall_recall() {
     };
 
     eprintln!("\n=== HybridScanner Overall Recall (regex + keyword) ===");
-    eprintln!("  Found: {}/{} ({:.1}%)", total_found, total_expected, recall * 100.0);
+    eprintln!(
+        "  Found: {}/{} ({:.1}%)",
+        total_found,
+        total_expected,
+        recall * 100.0
+    );
 
     assert!(
         recall >= 0.95,
         "Overall recall {:.3} is below target 0.95. Missed {}/{}.",
-        recall, total_expected - total_found, total_expected
+        recall,
+        total_expected - total_found,
+        total_expected
     );
 }
 
@@ -425,17 +466,12 @@ fn test_hybrid_scanner_precision() {
             total_detected += 1;
             let matches_expected = entry.expected.iter().any(|exp| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t)
-                    && d.raw_value == exp.value
+                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
             });
             if matches_expected {
                 true_positives += 1;
             } else {
-                false_positives.push((
-                    idx + 1,
-                    format!("{:?}", d.pii_type),
-                    d.raw_value.clone(),
-                ));
+                false_positives.push((idx + 1, format!("{:?}", d.pii_type), d.raw_value.clone()));
             }
         }
     }
@@ -447,7 +483,12 @@ fn test_hybrid_scanner_precision() {
     };
 
     eprintln!("\n=== HybridScanner Precision (regex types only) ===");
-    eprintln!("  TP: {}, FP: {}, Total: {}", true_positives, false_positives.len(), total_detected);
+    eprintln!(
+        "  TP: {}, FP: {}, Total: {}",
+        true_positives,
+        false_positives.len(),
+        total_detected
+    );
     eprintln!("  Precision: {:.1}%", precision * 100.0);
 
     if !false_positives.is_empty() {
@@ -460,7 +501,9 @@ fn test_hybrid_scanner_precision() {
     assert!(
         precision >= 0.95,
         "HybridScanner precision {:.3} is below target 0.95. {} FP out of {} detections.",
-        precision, false_positives.len(), total_detected
+        precision,
+        false_positives.len(),
+        total_detected
     );
 }
 
@@ -475,7 +518,8 @@ fn test_hybrid_confidence_present() {
             assert!(
                 d.confidence > 0.0,
                 "Match {:?} '{}' has zero confidence",
-                d.pii_type, d.raw_value
+                d.pii_type,
+                d.raw_value
             );
         }
     }
@@ -496,12 +540,20 @@ fn test_pii_match_spans_valid() {
             assert!(
                 d.start < d.end,
                 "Entry {}: match {:?} '{}' has start {} >= end {}",
-                idx, d.pii_type, d.raw_value, d.start, d.end
+                idx,
+                d.pii_type,
+                d.raw_value,
+                d.start,
+                d.end
             );
             assert!(
                 d.end <= entry.text.len(),
                 "Entry {}: match {:?} '{}' end {} exceeds text length {}",
-                idx, d.pii_type, d.raw_value, d.end, entry.text.len()
+                idx,
+                d.pii_type,
+                d.raw_value,
+                d.end,
+                entry.text.len()
             );
         }
     }
@@ -521,8 +573,12 @@ fn test_pii_match_no_overlaps() {
                 window[0].end <= window[1].start,
                 "Entry {}: overlapping matches {:?}[{}..{}] and {:?}[{}..{}]",
                 idx,
-                window[0].pii_type, window[0].start, window[0].end,
-                window[1].pii_type, window[1].start, window[1].end,
+                window[0].pii_type,
+                window[0].start,
+                window[0].end,
+                window[1].pii_type,
+                window[1].start,
+                window[1].end,
             );
         }
     }
@@ -539,7 +595,10 @@ fn test_pii_confidence_range() {
             assert!(
                 d.confidence > 0.0 && d.confidence <= 1.0,
                 "Entry {}: match {:?} '{}' confidence {} not in (0, 1]",
-                idx, d.pii_type, d.raw_value, d.confidence
+                idx,
+                d.pii_type,
+                d.raw_value,
+                d.confidence
             );
         }
     }
@@ -570,7 +629,9 @@ fn test_pii_types_are_known() {
             assert!(
                 known_types.contains(&d.pii_type),
                 "Entry {}: unknown PiiType {:?} for match '{}'",
-                idx, d.pii_type, d.raw_value
+                idx,
+                d.pii_type,
+                d.raw_value
             );
         }
     }

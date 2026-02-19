@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::Mutex;
 use std::time::Instant;
 
-use image::{DynamicImage, ImageFormat, GenericImageView};
+use image::{DynamicImage, GenericImageView, ImageFormat};
 
 use crate::config::ImageConfig;
 use crate::detection_meta::{NsfwMeta, PipelineMeta};
@@ -142,28 +142,43 @@ impl ImageModelManager {
         let mut nsfw = self.nsfw_detector.lock().unwrap_or_else(|e| e.into_inner());
         if nsfw.is_some() {
             *nsfw = None;
-            oo_info!(crate::oo_log::modules::IMAGE, "NSFW model evicted (idle timeout)");
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "NSFW model evicted (idle timeout)"
+            );
         }
         drop(nsfw);
 
         let mut face = self.face_detector.lock().unwrap_or_else(|e| e.into_inner());
         if face.is_some() {
             *face = None;
-            oo_info!(crate::oo_log::modules::IMAGE, "Face model evicted (idle timeout)");
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "Face model evicted (idle timeout)"
+            );
         }
         drop(face);
 
         let mut det = self.ocr_detector.lock().unwrap_or_else(|e| e.into_inner());
         if det.is_some() {
             *det = None;
-            oo_info!(crate::oo_log::modules::IMAGE, "OCR detector evicted (idle timeout)");
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "OCR detector evicted (idle timeout)"
+            );
         }
         drop(det);
 
-        let mut rec = self.ocr_recognizer.lock().unwrap_or_else(|e| e.into_inner());
+        let mut rec = self
+            .ocr_recognizer
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if rec.is_some() {
             *rec = None;
-            oo_info!(crate::oo_log::modules::IMAGE, "OCR recognizer evicted (idle timeout)");
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "OCR recognizer evicted (idle timeout)"
+            );
         }
     }
 
@@ -175,7 +190,10 @@ impl ImageModelManager {
     ///
     /// Returns `(processed_image, stats, pipeline_meta)` where `pipeline_meta` contains
     /// all detection metadata for verification.
-    pub fn process_image(&self, img: DynamicImage) -> Result<(DynamicImage, ImageStats, PipelineMeta), ImageError> {
+    pub fn process_image(
+        &self,
+        img: DynamicImage,
+    ) -> Result<(DynamicImage, ImageStats, PipelineMeta), ImageError> {
         let start = Instant::now();
         let mut stats = ImageStats::default();
         let (orig_w, orig_h) = img.dimensions();
@@ -259,9 +277,8 @@ impl ImageModelManager {
                             let img_area = (img_w * img_h) as f32;
 
                             // Collect face metadata for verification
-                            meta.faces = faces.iter()
-                                .map(|f| f.to_bbox_meta(img_w, img_h))
-                                .collect();
+                            meta.faces =
+                                faces.iter().map(|f| f.to_bbox_meta(img_w, img_h)).collect();
 
                             for face in &faces {
                                 let face_w = face.x_max - face.x_min;
@@ -270,21 +287,36 @@ impl ImageModelManager {
                                 if face_area / img_area > 0.8 {
                                     // Face dominates image — blur everything
                                     image_blur::blur_region(
-                                        &mut rgb, 0, 0, img_w, img_h,
+                                        &mut rgb,
+                                        0,
+                                        0,
+                                        img_w,
+                                        img_h,
                                         self.config.face_blur_sigma,
                                     );
                                 } else {
                                     // Selective face blur with 15% padding
                                     let (x, y, w, h) = image_blur::expand_bbox(
-                                        face.x_min, face.y_min, face.x_max, face.y_max,
-                                        0.15, img_w, img_h,
+                                        face.x_min, face.y_min, face.x_max, face.y_max, 0.15,
+                                        img_w, img_h,
                                     );
-                                    image_blur::blur_region(&mut rgb, x, y, w, h, self.config.face_blur_sigma);
+                                    image_blur::blur_region(
+                                        &mut rgb,
+                                        x,
+                                        y,
+                                        w,
+                                        h,
+                                        self.config.face_blur_sigma,
+                                    );
                                 }
                             }
                             stats.faces_blurred = faces.len() as u32;
                             if !faces.is_empty() {
-                                oo_debug!(crate::oo_log::modules::FACE, "Faces blurred", count = faces.len());
+                                oo_debug!(
+                                    crate::oo_log::modules::FACE,
+                                    "Faces blurred",
+                                    count = faces.len()
+                                );
                                 // Update DynamicImage from blurred RGB for OCR phase
                                 dyn_img = DynamicImage::ImageRgb8(rgb.clone());
                             }
@@ -322,7 +354,8 @@ impl ImageModelManager {
 
                             // Collect text region metadata for verification
                             let (img_w, img_h) = (rgb.width(), rgb.height());
-                            meta.text_regions = regions.iter()
+                            meta.text_regions = regions
+                                .iter()
                                 .map(|r| r.to_bbox_meta(img_w, img_h))
                                 .collect();
 
@@ -342,7 +375,9 @@ impl ImageModelManager {
                                     // Drop detector before loading recognizer (RAM)
                                     drop(det_guard);
 
-                                    let mut rec_guard = self.ocr_recognizer.lock()
+                                    let mut rec_guard = self
+                                        .ocr_recognizer
+                                        .lock()
                                         .unwrap_or_else(|e| e.into_inner());
                                     if rec_guard.is_none() {
                                         match OcrRecognizer::load(Path::new(dir)) {
@@ -490,11 +525,26 @@ mod tests {
 
     #[test]
     fn test_output_format_from_media_type() {
-        assert!(matches!(OutputFormat::from_media_type("image/png"), OutputFormat::Png));
-        assert!(matches!(OutputFormat::from_media_type("image/jpeg"), OutputFormat::Jpeg));
-        assert!(matches!(OutputFormat::from_media_type("image/webp"), OutputFormat::WebP));
-        assert!(matches!(OutputFormat::from_media_type("image/gif"), OutputFormat::Gif));
-        assert!(matches!(OutputFormat::from_media_type("unknown"), OutputFormat::Png));
+        assert!(matches!(
+            OutputFormat::from_media_type("image/png"),
+            OutputFormat::Png
+        ));
+        assert!(matches!(
+            OutputFormat::from_media_type("image/jpeg"),
+            OutputFormat::Jpeg
+        ));
+        assert!(matches!(
+            OutputFormat::from_media_type("image/webp"),
+            OutputFormat::WebP
+        ));
+        assert!(matches!(
+            OutputFormat::from_media_type("image/gif"),
+            OutputFormat::Gif
+        ));
+        assert!(matches!(
+            OutputFormat::from_media_type("unknown"),
+            OutputFormat::Png
+        ));
     }
 
     #[test]

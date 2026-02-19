@@ -89,8 +89,7 @@ impl CrashBuffer {
         while !remaining.is_empty() {
             let space = ring_size - pos;
             let chunk = remaining.len().min(space);
-            mmap[HEADER_SIZE + pos..HEADER_SIZE + pos + chunk]
-                .copy_from_slice(&remaining[..chunk]);
+            mmap[HEADER_SIZE + pos..HEADER_SIZE + pos + chunk].copy_from_slice(&remaining[..chunk]);
             remaining = &remaining[chunk..];
             pos = (pos + chunk) % ring_size;
         }

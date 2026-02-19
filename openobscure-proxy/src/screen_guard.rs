@@ -131,7 +131,9 @@ pub fn check_exif(raw_bytes: &[u8]) -> Vec<ScreenGuardReason> {
 
     // Check for camera hardware (Make, Model)
     if exif.get_field(exif::Tag::Make, exif::In::PRIMARY).is_some()
-        || exif.get_field(exif::Tag::Model, exif::In::PRIMARY).is_some()
+        || exif
+            .get_field(exif::Tag::Model, exif::In::PRIMARY)
+            .is_some()
     {
         has_camera = true;
     }
@@ -251,9 +253,13 @@ pub fn detect_screenshot(raw_bytes: &[u8], img: &DynamicImage) -> ScreenGuardRes
     let is_screenshot = has_exif_software_match || reasons.len() >= 2;
 
     if is_screenshot {
-        oo_info!(crate::oo_log::modules::SCREEN, "Screenshot detected",
-            width = width, height = height,
-            reasons = reasons.len());
+        oo_info!(
+            crate::oo_log::modules::SCREEN,
+            "Screenshot detected",
+            width = width,
+            height = height,
+            reasons = reasons.len()
+        );
     }
 
     ScreenGuardResult {
@@ -281,11 +287,15 @@ mod tests {
                     img.put_pixel(x, y, Rgb([50, 50, 50])); // Uniform status bar
                 } else {
                     // Varied content below
-                    img.put_pixel(x, y, Rgb([
-                        ((x * 7 + y * 13) % 256) as u8,
-                        ((x * 11 + y * 3) % 256) as u8,
-                        ((x * 5 + y * 9) % 256) as u8,
-                    ]));
+                    img.put_pixel(
+                        x,
+                        y,
+                        Rgb([
+                            ((x * 7 + y * 13) % 256) as u8,
+                            ((x * 11 + y * 3) % 256) as u8,
+                            ((x * 5 + y * 9) % 256) as u8,
+                        ]),
+                    );
                 }
             }
         }
@@ -323,21 +333,31 @@ mod tests {
         let mut img = RgbImage::new(400, 200);
         for y in 0..200 {
             for x in 0..400 {
-                img.put_pixel(x, y, Rgb([
-                    ((x * 37 + y * 97) % 256) as u8,
-                    ((x * 53 + y * 29) % 256) as u8,
-                    ((x * 71 + y * 41) % 256) as u8,
-                ]));
+                img.put_pixel(
+                    x,
+                    y,
+                    Rgb([
+                        ((x * 37 + y * 97) % 256) as u8,
+                        ((x * 53 + y * 29) % 256) as u8,
+                        ((x * 71 + y * 41) % 256) as u8,
+                    ]),
+                );
             }
         }
         let result = check_status_bar(&DynamicImage::ImageRgb8(img));
-        assert!(result.is_none(), "Varied image should not trigger status bar detection");
+        assert!(
+            result.is_none(),
+            "Varied image should not trigger status bar detection"
+        );
     }
 
     #[test]
     fn test_check_status_bar_small_image() {
         let img = make_image(50, 50);
-        assert!(check_status_bar(&img).is_none(), "Small images should be skipped");
+        assert!(
+            check_status_bar(&img).is_none(),
+            "Small images should be skipped"
+        );
     }
 
     #[test]
@@ -383,11 +403,15 @@ mod tests {
         let mut img = RgbImage::new(300, 200);
         for y in 0..200 {
             for x in 0..300 {
-                img.put_pixel(x, y, Rgb([
-                    ((x * 37 + y * 97) % 256) as u8,
-                    ((x * 53 + y * 29) % 256) as u8,
-                    ((x * 71 + y * 41) % 256) as u8,
-                ]));
+                img.put_pixel(
+                    x,
+                    y,
+                    Rgb([
+                        ((x * 37 + y * 97) % 256) as u8,
+                        ((x * 53 + y * 29) % 256) as u8,
+                        ((x * 71 + y * 41) % 256) as u8,
+                    ]),
+                );
             }
         }
         let dyn_img = DynamicImage::ImageRgb8(img);

@@ -52,10 +52,7 @@ pub struct HybridScanner {
 
 impl HybridScanner {
     /// Create a hybrid scanner with NER as the semantic backend.
-    pub fn new(
-        keywords_enabled: bool,
-        ner_scanner: Option<NerScanner>,
-    ) -> Self {
+    pub fn new(keywords_enabled: bool, ner_scanner: Option<NerScanner>) -> Self {
         Self {
             regex_scanner: PiiScanner::new(),
             keyword_dict: KeywordDict::new(),
@@ -68,10 +65,7 @@ impl HybridScanner {
     }
 
     /// Create a hybrid scanner with CRF as the semantic backend.
-    pub fn with_crf(
-        keywords_enabled: bool,
-        crf_scanner: Option<CrfScanner>,
-    ) -> Self {
+    pub fn with_crf(keywords_enabled: bool, crf_scanner: Option<CrfScanner>) -> Self {
         Self {
             regex_scanner: PiiScanner::new(),
             keyword_dict: KeywordDict::new(),
@@ -120,13 +114,19 @@ impl HybridScanner {
 
         // 1a. Regex (deterministic, confidence = 1.0)
         for m in self.regex_scanner.scan_text(&effective_text) {
-            tagged.push(TaggedMatch { pii_match: m, source: ScannerSource::Regex });
+            tagged.push(TaggedMatch {
+                pii_match: m,
+                source: ScannerSource::Regex,
+            });
         }
 
         // 1b. Keyword dictionary (if enabled)
         if self.keywords_enabled {
             for m in self.keyword_dict.scan_text(&effective_text) {
-                tagged.push(TaggedMatch { pii_match: m, source: ScannerSource::Keyword });
+                tagged.push(TaggedMatch {
+                    pii_match: m,
+                    source: ScannerSource::Keyword,
+                });
             }
         }
 
@@ -149,7 +149,10 @@ impl HybridScanner {
                 SemanticBackend::Crf(crf) => crf.scan_text(&effective_text),
             };
             for m in semantic_matches {
-                tagged.push(TaggedMatch { pii_match: m, source: ScannerSource::Semantic });
+                tagged.push(TaggedMatch {
+                    pii_match: m,
+                    source: ScannerSource::Semantic,
+                });
             }
         }
 
@@ -339,7 +342,11 @@ fn cluster_overlapping(tagged: &[TaggedMatch]) -> Vec<Vec<usize>> {
 /// 3. If ≥2 distinct scanner sources detected that type, add agreement_bonus (cap 1.0)
 /// 4. The type with the highest adjusted confidence wins
 /// 5. Return the winning match
-fn resolve_cluster(cluster: &[usize], tagged: &[TaggedMatch], agreement_bonus: f32) -> Vec<PiiMatch> {
+fn resolve_cluster(
+    cluster: &[usize],
+    tagged: &[TaggedMatch],
+    agreement_bonus: f32,
+) -> Vec<PiiMatch> {
     if cluster.len() == 1 {
         return vec![tagged[cluster[0]].pii_match.clone()];
     }
@@ -507,7 +514,9 @@ mod tests {
         let scanner = HybridScanner::new(true, None);
         let matches = scanner.scan_text("My SSN is 123-45-6789 and I have diabetes");
         let ssn = matches.iter().find(|m| m.pii_type == PiiType::Ssn);
-        let health = matches.iter().find(|m| m.pii_type == PiiType::HealthKeyword);
+        let health = matches
+            .iter()
+            .find(|m| m.pii_type == PiiType::HealthKeyword);
         assert!(ssn.is_some(), "SSN should be detected by regex");
         assert!(health.is_some(), "Diabetes should be detected by keywords");
     }
@@ -557,7 +566,9 @@ mod tests {
         let scanner = HybridScanner::new(true, None);
         let matches = scanner.scan_text("Call me at (555) 123-4567, I have asthma");
         let phone = matches.iter().find(|m| m.pii_type == PiiType::PhoneNumber);
-        let health = matches.iter().find(|m| m.pii_type == PiiType::HealthKeyword);
+        let health = matches
+            .iter()
+            .find(|m| m.pii_type == PiiType::HealthKeyword);
         assert!(phone.is_some(), "Phone should be detected");
         assert!(health.is_some(), "Health keyword should be detected");
         assert!(phone.unwrap().pii_type.is_fpe_eligible());
@@ -736,7 +747,11 @@ mod tests {
     fn test_mask_code_fences_preserves_length() {
         let text = "a\n```python\nline1\nline2\n```\nb";
         let masked = mask_code_fences(text);
-        assert_eq!(masked.len(), text.len(), "Masking must preserve byte length");
+        assert_eq!(
+            masked.len(),
+            text.len(),
+            "Masking must preserve byte length"
+        );
     }
 
     // ── Confidence voting tests ──
@@ -752,12 +767,15 @@ mod tests {
     #[test]
     fn test_regex_confidence_always_one() {
         let scanner = HybridScanner::regex_only();
-        let matches = scanner.scan_text(
-            "SSN 123-45-6789, email test@example.com, card 4532015112830366"
-        );
+        let matches =
+            scanner.scan_text("SSN 123-45-6789, email test@example.com, card 4532015112830366");
         assert!(matches.len() >= 3);
         for m in &matches {
-            assert_eq!(m.confidence, 1.0, "{:?} should have confidence 1.0", m.pii_type);
+            assert_eq!(
+                m.confidence, 1.0,
+                "{:?} should have confidence 1.0",
+                m.pii_type
+            );
         }
     }
 
@@ -765,10 +783,16 @@ mod tests {
     fn test_keyword_confidence_always_one() {
         let scanner = HybridScanner::new(true, None);
         let matches = scanner.scan_text("I have diabetes and asthma");
-        let health: Vec<_> = matches.iter().filter(|m| m.pii_type == PiiType::HealthKeyword).collect();
+        let health: Vec<_> = matches
+            .iter()
+            .filter(|m| m.pii_type == PiiType::HealthKeyword)
+            .collect();
         assert!(health.len() >= 2);
         for m in &health {
-            assert_eq!(m.confidence, 1.0, "keyword match should have confidence 1.0");
+            assert_eq!(
+                m.confidence, 1.0,
+                "keyword match should have confidence 1.0"
+            );
         }
     }
 
@@ -777,7 +801,9 @@ mod tests {
         let scanner = HybridScanner::new(true, None);
         let matches = scanner.scan_text("SSN 123-45-6789 and I have diabetes");
         let ssn = matches.iter().find(|m| m.pii_type == PiiType::Ssn);
-        let health = matches.iter().find(|m| m.pii_type == PiiType::HealthKeyword);
+        let health = matches
+            .iter()
+            .find(|m| m.pii_type == PiiType::HealthKeyword);
         assert!(ssn.is_some(), "SSN should survive voting");
         assert!(health.is_some(), "Health keyword should survive voting");
     }
@@ -788,7 +814,11 @@ mod tests {
         let mut scanner = HybridScanner::regex_only();
         scanner.set_confidence_params(1.1, 0.15); // nothing passes 1.1
         let matches = scanner.scan_text("SSN 123-45-6789");
-        assert_eq!(matches.len(), 0, "All matches should be filtered by min_confidence > 1.0");
+        assert_eq!(
+            matches.len(),
+            0,
+            "All matches should be filtered by min_confidence > 1.0"
+        );
     }
 
     #[test]
@@ -796,7 +826,11 @@ mod tests {
         // Default min_confidence 0.5 should pass regex (confidence 1.0)
         let scanner = HybridScanner::regex_only();
         let matches = scanner.scan_text("SSN 123-45-6789");
-        assert_eq!(matches.len(), 1, "Regex match at 1.0 should pass default 0.5 threshold");
+        assert_eq!(
+            matches.len(),
+            1,
+            "Regex match at 1.0 should pass default 0.5 threshold"
+        );
     }
 
     #[test]
@@ -804,21 +838,33 @@ mod tests {
         let tagged = vec![
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 1.0,
+                    pii_type: PiiType::Ssn,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 1.0,
                 },
                 source: ScannerSource::Regex,
             },
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Email, start: 20, end: 36,
-                    raw_value: "test@example.com".into(), json_path: None, confidence: 1.0,
+                    pii_type: PiiType::Email,
+                    start: 20,
+                    end: 36,
+                    raw_value: "test@example.com".into(),
+                    json_path: None,
+                    confidence: 1.0,
                 },
                 source: ScannerSource::Regex,
             },
         ];
         let clusters = cluster_overlapping(&tagged);
-        assert_eq!(clusters.len(), 2, "Non-overlapping spans should be separate clusters");
+        assert_eq!(
+            clusters.len(),
+            2,
+            "Non-overlapping spans should be separate clusters"
+        );
     }
 
     #[test]
@@ -826,35 +872,49 @@ mod tests {
         let tagged = vec![
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 1.0,
+                    pii_type: PiiType::Ssn,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 1.0,
                 },
                 source: ScannerSource::Regex,
             },
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Person, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 0.6,
+                    pii_type: PiiType::Person,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 0.6,
                 },
                 source: ScannerSource::Semantic,
             },
         ];
         let clusters = cluster_overlapping(&tagged);
-        assert_eq!(clusters.len(), 1, "Overlapping spans should merge into one cluster");
+        assert_eq!(
+            clusters.len(),
+            1,
+            "Overlapping spans should merge into one cluster"
+        );
         assert_eq!(clusters[0].len(), 2);
     }
 
     #[test]
     fn test_resolve_cluster_single_match() {
-        let tagged = vec![
-            TaggedMatch {
-                pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 1.0,
-                },
-                source: ScannerSource::Regex,
+        let tagged = vec![TaggedMatch {
+            pii_match: PiiMatch {
+                pii_type: PiiType::Ssn,
+                start: 0,
+                end: 11,
+                raw_value: "123-45-6789".into(),
+                json_path: None,
+                confidence: 1.0,
             },
-        ];
+            source: ScannerSource::Regex,
+        }];
         let winners = resolve_cluster(&[0], &tagged, 0.15);
         assert_eq!(winners.len(), 1);
         assert_eq!(winners[0].pii_type, PiiType::Ssn);
@@ -866,22 +926,34 @@ mod tests {
         let tagged = vec![
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 1.0,
+                    pii_type: PiiType::Ssn,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 1.0,
                 },
                 source: ScannerSource::Regex,
             },
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Person, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 0.6,
+                    pii_type: PiiType::Person,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 0.6,
                 },
                 source: ScannerSource::Semantic,
             },
         ];
         let winners = resolve_cluster(&[0, 1], &tagged, 0.15);
         assert_eq!(winners.len(), 1);
-        assert_eq!(winners[0].pii_type, PiiType::Ssn, "Higher confidence type should win");
+        assert_eq!(
+            winners[0].pii_type,
+            PiiType::Ssn,
+            "Higher confidence type should win"
+        );
     }
 
     #[test]
@@ -890,15 +962,23 @@ mod tests {
         let tagged = vec![
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 0.8,
+                    pii_type: PiiType::Ssn,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 0.8,
                 },
                 source: ScannerSource::Regex,
             },
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 0.7,
+                    pii_type: PiiType::Ssn,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 0.7,
                 },
                 source: ScannerSource::Semantic,
             },
@@ -907,8 +987,11 @@ mod tests {
         assert_eq!(winners.len(), 1);
         assert_eq!(winners[0].pii_type, PiiType::Ssn);
         // Best raw = 0.8, adjusted = 0.8 + 0.15 = 0.95
-        assert!((winners[0].confidence - 0.95).abs() < 0.001,
-            "Agreement bonus should boost to 0.95, got {}", winners[0].confidence);
+        assert!(
+            (winners[0].confidence - 0.95).abs() < 0.001,
+            "Agreement bonus should boost to 0.95, got {}",
+            winners[0].confidence
+        );
     }
 
     #[test]
@@ -916,21 +999,32 @@ mod tests {
         let tagged = vec![
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 1.0,
+                    pii_type: PiiType::Ssn,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 1.0,
                 },
                 source: ScannerSource::Regex,
             },
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 11,
-                    raw_value: "123-45-6789".into(), json_path: None, confidence: 0.9,
+                    pii_type: PiiType::Ssn,
+                    start: 0,
+                    end: 11,
+                    raw_value: "123-45-6789".into(),
+                    json_path: None,
+                    confidence: 0.9,
                 },
                 source: ScannerSource::Keyword,
             },
         ];
         let winners = resolve_cluster(&[0, 1], &tagged, 0.15);
-        assert_eq!(winners[0].confidence, 1.0, "Agreement bonus should cap at 1.0");
+        assert_eq!(
+            winners[0].confidence, 1.0,
+            "Agreement bonus should cap at 1.0"
+        );
     }
 
     #[test]
@@ -939,11 +1033,15 @@ mod tests {
         let text = "I have diabetes\n```\nSSN: 123-45-6789\n```\nand asthma";
         let matches = scanner.scan_text(text);
         // SSN inside fence should be masked
-        assert!(!matches.iter().any(|m| m.pii_type == PiiType::Ssn),
-            "SSN inside code fence should not be detected with voting");
+        assert!(
+            !matches.iter().any(|m| m.pii_type == PiiType::Ssn),
+            "SSN inside code fence should not be detected with voting"
+        );
         // Keywords outside fence should still be found
-        assert!(matches.iter().any(|m| m.pii_type == PiiType::HealthKeyword),
-            "Health keywords outside fence should survive voting");
+        assert!(
+            matches.iter().any(|m| m.pii_type == PiiType::HealthKeyword),
+            "Health keywords outside fence should survive voting"
+        );
     }
 
     #[test]
@@ -954,7 +1052,10 @@ mod tests {
         });
         let matches = scanner.scan_json(&json, &[]);
         assert_eq!(matches.len(), 1);
-        assert_eq!(matches[0].confidence, 1.0, "JSON-scanned match should have confidence");
+        assert_eq!(
+            matches[0].confidence, 1.0,
+            "JSON-scanned match should have confidence"
+        );
     }
 
     #[test]
@@ -963,28 +1064,44 @@ mod tests {
         let tagged = vec![
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Ssn, start: 0, end: 10,
-                    raw_value: "0123456789".into(), json_path: None, confidence: 1.0,
+                    pii_type: PiiType::Ssn,
+                    start: 0,
+                    end: 10,
+                    raw_value: "0123456789".into(),
+                    json_path: None,
+                    confidence: 1.0,
                 },
                 source: ScannerSource::Regex,
             },
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::Person, start: 5, end: 15,
-                    raw_value: "5678901234".into(), json_path: None, confidence: 0.6,
+                    pii_type: PiiType::Person,
+                    start: 5,
+                    end: 15,
+                    raw_value: "5678901234".into(),
+                    json_path: None,
+                    confidence: 0.6,
                 },
                 source: ScannerSource::Semantic,
             },
             TaggedMatch {
                 pii_match: PiiMatch {
-                    pii_type: PiiType::PhoneNumber, start: 12, end: 20,
-                    raw_value: "23456789".into(), json_path: None, confidence: 0.8,
+                    pii_type: PiiType::PhoneNumber,
+                    start: 12,
+                    end: 20,
+                    raw_value: "23456789".into(),
+                    json_path: None,
+                    confidence: 0.8,
                 },
                 source: ScannerSource::Regex,
             },
         ];
         let clusters = cluster_overlapping(&tagged);
-        assert_eq!(clusters.len(), 1, "Transitive overlaps should merge into one cluster");
+        assert_eq!(
+            clusters.len(),
+            1,
+            "Transitive overlaps should merge into one cluster"
+        );
         assert_eq!(clusters[0].len(), 3);
     }
 }

@@ -4,7 +4,7 @@
 //! without affecting the rest of the image. Used for face anonymization
 //! and text region obfuscation.
 
-use image::{DynamicImage, RgbImage, imageops};
+use image::{imageops, DynamicImage, RgbImage};
 
 /// Apply Gaussian blur to a rectangular region within an image.
 ///

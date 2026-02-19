@@ -59,10 +59,7 @@ pub struct CrossBorderResult {
 }
 
 /// Classify PII matches by jurisdiction and enforce cross-border policy.
-pub fn classify_and_enforce(
-    matches: &[PiiMatch],
-    config: &CrossBorderConfig,
-) -> CrossBorderResult {
+pub fn classify_and_enforce(matches: &[PiiMatch], config: &CrossBorderConfig) -> CrossBorderResult {
     let mut flags = Vec::new();
 
     for m in matches {
@@ -94,7 +91,10 @@ fn classify_match(m: &PiiMatch) -> Option<Jurisdiction> {
 
 /// Classify phone number by country code prefix.
 fn phone_to_jurisdiction(phone: &str) -> Jurisdiction {
-    let digits: String = phone.chars().filter(|c| c.is_ascii_digit() || *c == '+').collect();
+    let digits: String = phone
+        .chars()
+        .filter(|c| c.is_ascii_digit() || *c == '+')
+        .collect();
 
     if digits.starts_with("+1") || digits.starts_with("1") && digits.len() >= 11 {
         return Jurisdiction::US;
@@ -105,9 +105,9 @@ fn phone_to_jurisdiction(phone: &str) -> Jurisdiction {
 
     // EU country codes
     let eu_prefixes = [
-        "+33", "+49", "+34", "+39", "+31", "+32", "+43", "+48", "+46", "+45",
-        "+351", "+353", "+358", "+30", "+36", "+40", "+420", "+421", "+386",
-        "+372", "+371", "+370", "+356", "+357", "+352", "+385",
+        "+33", "+49", "+34", "+39", "+31", "+32", "+43", "+48", "+46", "+45", "+351", "+353",
+        "+358", "+30", "+36", "+40", "+420", "+421", "+386", "+372", "+371", "+370", "+356",
+        "+357", "+352", "+385",
     ];
     for prefix in &eu_prefixes {
         if digits.starts_with(prefix) {
@@ -151,8 +151,8 @@ fn email_to_jurisdiction(email: &str) -> Option<Jurisdiction> {
         "uk" | "gb" => Some(Jurisdiction::UK),
         // EU country TLDs
         "de" | "fr" | "es" | "it" | "nl" | "be" | "at" | "pl" | "se" | "dk" | "pt" | "ie"
-        | "fi" | "gr" | "hu" | "ro" | "cz" | "sk" | "si" | "ee" | "lv" | "lt" | "mt"
-        | "cy" | "lu" | "hr" | "bg" | "eu" => Some(Jurisdiction::EU),
+        | "fi" | "gr" | "hu" | "ro" | "cz" | "sk" | "si" | "ee" | "lv" | "lt" | "mt" | "cy"
+        | "lu" | "hr" | "bg" | "eu" => Some(Jurisdiction::EU),
         "cn" => Some(Jurisdiction::Other("CN".to_string())),
         "jp" => Some(Jurisdiction::Other("JP".to_string())),
         "in" => Some(Jurisdiction::Other("IN".to_string())),
@@ -182,7 +182,10 @@ fn evaluate_policy(flags: &[JurisdictionFlag], config: &CrossBorderConfig) -> Po
 
     let has_blocked = flags.iter().any(|f| {
         let j = f.jurisdiction.to_string();
-        config.blocked_jurisdictions.iter().any(|b| b.eq_ignore_ascii_case(&j))
+        config
+            .blocked_jurisdictions
+            .iter()
+            .any(|b| b.eq_ignore_ascii_case(&j))
     });
 
     if has_blocked && config.mode == "block" {
@@ -194,7 +197,10 @@ fn evaluate_policy(flags: &[JurisdictionFlag], config: &CrossBorderConfig) -> Po
     } else {
         flags.iter().any(|f| {
             let j = f.jurisdiction.to_string();
-            !config.allowed_jurisdictions.iter().any(|a| a.eq_ignore_ascii_case(&j))
+            !config
+                .allowed_jurisdictions
+                .iter()
+                .any(|a| a.eq_ignore_ascii_case(&j))
                 && f.jurisdiction != Jurisdiction::Unknown
         })
     };

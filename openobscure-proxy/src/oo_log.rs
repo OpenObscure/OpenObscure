@@ -119,7 +119,12 @@ mod tests {
 
     #[test]
     fn test_oo_info_with_fields() {
-        oo_info!(modules::SCANNER, "PII encrypted", pii_total = 3, breakdown = "ssn=1");
+        oo_info!(
+            modules::SCANNER,
+            "PII encrypted",
+            pii_total = 3,
+            breakdown = "ssn=1"
+        );
     }
 
     #[test]
@@ -146,7 +151,12 @@ mod tests {
 
     #[test]
     fn test_oo_audit_multiple_fields() {
-        oo_audit!(modules::SCANNER, "scan", pii_count = 3, types = "ssn=1, email=2");
+        oo_audit!(
+            modules::SCANNER,
+            "scan",
+            pii_count = 3,
+            types = "ssn=1, email=2"
+        );
     }
 
     #[test]

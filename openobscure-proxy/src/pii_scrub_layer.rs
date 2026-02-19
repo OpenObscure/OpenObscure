@@ -132,10 +132,7 @@ mod tests {
 
     #[test]
     fn test_scrub_ssn_spaces() {
-        assert_eq!(
-            scrub("SSN: 123 45 6789"),
-            "SSN: [REDACTED-SSN]"
-        );
+        assert_eq!(scrub("SSN: 123 45 6789"), "SSN: [REDACTED-SSN]");
     }
 
     #[test]
@@ -148,10 +145,7 @@ mod tests {
 
     #[test]
     fn test_scrub_phone() {
-        assert_eq!(
-            scrub("Call (555) 123-4567"),
-            "Call [REDACTED-PHONE]"
-        );
+        assert_eq!(scrub("Call (555) 123-4567"), "Call [REDACTED-PHONE]");
     }
 
     #[test]

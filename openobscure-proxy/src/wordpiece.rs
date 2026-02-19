@@ -43,8 +43,7 @@ pub struct WordSpan {
 impl WordPieceTokenizer {
     /// Load a WordPiece vocabulary from a vocab.txt file (one token per line).
     pub fn from_file(path: &Path) -> Result<Self, WordPieceError> {
-        let content =
-            fs::read_to_string(path).map_err(|e| WordPieceError::Io(e.to_string()))?;
+        let content = fs::read_to_string(path).map_err(|e| WordPieceError::Io(e.to_string()))?;
         let mut vocab = HashMap::new();
         for (i, line) in content.lines().enumerate() {
             vocab.insert(line.to_string(), i as i64);
@@ -54,10 +53,18 @@ impl WordPieceTokenizer {
 
     /// Build from an in-memory vocabulary map.
     pub fn from_vocab(vocab: HashMap<String, i64>) -> Result<Self, WordPieceError> {
-        let unk_id = *vocab.get("[UNK]").ok_or(WordPieceError::MissingToken("[UNK]"))?;
-        let cls_id = *vocab.get("[CLS]").ok_or(WordPieceError::MissingToken("[CLS]"))?;
-        let sep_id = *vocab.get("[SEP]").ok_or(WordPieceError::MissingToken("[SEP]"))?;
-        let pad_id = *vocab.get("[PAD]").ok_or(WordPieceError::MissingToken("[PAD]"))?;
+        let unk_id = *vocab
+            .get("[UNK]")
+            .ok_or(WordPieceError::MissingToken("[UNK]"))?;
+        let cls_id = *vocab
+            .get("[CLS]")
+            .ok_or(WordPieceError::MissingToken("[CLS]"))?;
+        let sep_id = *vocab
+            .get("[SEP]")
+            .ok_or(WordPieceError::MissingToken("[SEP]"))?;
+        let pad_id = *vocab
+            .get("[PAD]")
+            .ok_or(WordPieceError::MissingToken("[PAD]"))?;
         Ok(Self {
             vocab,
             unk_id,
@@ -214,14 +221,10 @@ mod tests {
     fn test_vocab() -> HashMap<String, i64> {
         let mut v = HashMap::new();
         let tokens = [
-            "[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]",
-            "hello", "world", "john", "smith", "diabetes",
-            "the", "is", "my", "has", "i",
-            "a", "b", "c", "d", "e", "f", "g", "h",
-            "j", "k", "l", "m", "n", "o", "p", "q",
-            "r", "s", "t", "u", "v", "w", "x", "y", "z",
-            "##s", "##ed", "##ing",
-            ".", ",", "!", "?",
+            "[PAD]", "[UNK]", "[CLS]", "[SEP]", "[MASK]", "hello", "world", "john", "smith",
+            "diabetes", "the", "is", "my", "has", "i", "a", "b", "c", "d", "e", "f", "g", "h", "j",
+            "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "##s",
+            "##ed", "##ing", ".", ",", "!", "?",
         ];
         for (i, t) in tokens.iter().enumerate() {
             v.insert(t.to_string(), i as i64);
@@ -247,10 +250,10 @@ mod tests {
     fn test_word_ids_alignment() {
         let tok = WordPieceTokenizer::from_vocab(test_vocab()).unwrap();
         let result = tok.tokenize("Hello world");
-        assert_eq!(result.word_ids[0], None);       // [CLS]
-        assert_eq!(result.word_ids[1], Some(0));     // hello
-        assert_eq!(result.word_ids[2], Some(1));     // world
-        assert_eq!(result.word_ids[3], None);        // [SEP]
+        assert_eq!(result.word_ids[0], None); // [CLS]
+        assert_eq!(result.word_ids[1], Some(0)); // hello
+        assert_eq!(result.word_ids[2], Some(1)); // world
+        assert_eq!(result.word_ids[3], None); // [SEP]
     }
 
     #[test]
@@ -280,7 +283,10 @@ mod tests {
         let result = tok.tokenize(text);
         assert_eq!(result.words[0].byte_start, 0);
         assert_eq!(result.words[0].byte_end, 4);
-        assert_eq!(&text[result.words[2].byte_start..result.words[2].byte_end], "diabetes");
+        assert_eq!(
+            &text[result.words[2].byte_start..result.words[2].byte_end],
+            "diabetes"
+        );
     }
 
     #[test]
@@ -302,7 +308,7 @@ mod tests {
         // Should split as: work + ##ing
         assert_eq!(result.input_ids[1], 50); // work
         assert_eq!(result.input_ids[2], 51); // ##ing
-        // Both sub-tokens map to word 0
+                                             // Both sub-tokens map to word 0
         assert_eq!(result.word_ids[1], Some(0));
         assert_eq!(result.word_ids[2], Some(0));
     }

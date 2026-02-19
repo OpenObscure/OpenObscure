@@ -97,7 +97,10 @@ fn test_face_image_pipeline_validates() {
     }
 
     // Should not flag NSFW
-    assert!(!stats.nsfw_detected, "Face photo should not be flagged NSFW");
+    assert!(
+        !stats.nsfw_detected,
+        "Face photo should not be flagged NSFW"
+    );
 }
 
 #[test]

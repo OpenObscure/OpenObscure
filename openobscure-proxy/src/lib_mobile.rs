@@ -215,10 +215,7 @@ impl OpenObscureMobile {
         let scanner = match config.scanner_mode.as_str() {
             "crf" => {
                 if let Some(ref dir) = config.crf_model_dir {
-                    match crate::crf_scanner::CrfScanner::load(
-                        &std::path::Path::new(dir),
-                        0.5,
-                    ) {
+                    match crate::crf_scanner::CrfScanner::load(&std::path::Path::new(dir), 0.5) {
                         Ok(crf) => HybridScanner::with_crf(config.keywords_enabled, Some(crf)),
                         Err(_) => HybridScanner::new(config.keywords_enabled, None),
                     }
@@ -439,7 +436,9 @@ impl OpenObscureMobile {
 
     #[cfg(feature = "governance")]
     fn gov_engine(&self) -> Result<&crate::governance::GovernanceEngine, MobileError> {
-        self.governance.as_ref().ok_or(MobileError::GovernanceNotEnabled)
+        self.governance
+            .as_ref()
+            .ok_or(MobileError::GovernanceNotEnabled)
     }
 
     /// Check if consent is active for a given type.
@@ -447,7 +446,10 @@ impl OpenObscureMobile {
     pub fn check_consent(&self, user_id: &str, consent_type: &str) -> Result<bool, MobileError> {
         let engine = self.gov_engine()?;
         let ct = crate::governance::ConsentType::from_str(consent_type).map_err(Self::gov_err)?;
-        engine.consent_store().has_active_consent(user_id, ct).map_err(Self::gov_err)
+        engine
+            .consent_store()
+            .has_active_consent(user_id, ct)
+            .map_err(Self::gov_err)
     }
 
     /// Grant consent for a specific type.
@@ -460,7 +462,10 @@ impl OpenObscureMobile {
     ) -> Result<ConsentRecordMobile, MobileError> {
         let engine = self.gov_engine()?;
         let ct = crate::governance::ConsentType::from_str(consent_type).map_err(Self::gov_err)?;
-        let record = engine.consent_store().grant_consent(user_id, ct, purpose, None).map_err(Self::gov_err)?;
+        let record = engine
+            .consent_store()
+            .grant_consent(user_id, ct, purpose, None)
+            .map_err(Self::gov_err)?;
         Ok(ConsentRecordMobile {
             id: record.id,
             consent_type: record.consent_type,
@@ -474,7 +479,10 @@ impl OpenObscureMobile {
     pub fn revoke_consent(&self, user_id: &str, consent_type: &str) -> Result<bool, MobileError> {
         let engine = self.gov_engine()?;
         let ct = crate::governance::ConsentType::from_str(consent_type).map_err(Self::gov_err)?;
-        engine.consent_store().revoke_consent(user_id, ct).map_err(Self::gov_err)
+        engine
+            .consent_store()
+            .revoke_consent(user_id, ct)
+            .map_err(Self::gov_err)
     }
 
     /// Check if a file path is safe to access.
@@ -490,7 +498,11 @@ impl OpenObscureMobile {
 
     /// Execute a /privacy command. Args are the space-separated tokens after "/privacy".
     #[cfg(feature = "governance")]
-    pub fn privacy_command(&self, user_id: &str, args: &[String]) -> Result<PrivacyCommandResultMobile, MobileError> {
+    pub fn privacy_command(
+        &self,
+        user_id: &str,
+        args: &[String],
+    ) -> Result<PrivacyCommandResultMobile, MobileError> {
         let engine = self.gov_engine()?;
         let args_refs: Vec<&str> = args.iter().map(|s| s.as_str()).collect();
         let result = crate::governance::handle_privacy_command(engine, user_id, &args_refs);
@@ -529,9 +541,11 @@ impl OpenObscureMobile {
     #[cfg(feature = "governance")]
     pub fn export_user_data(&self, user_id: &str) -> Result<String, MobileError> {
         let engine = self.gov_engine()?;
-        let data = engine.consent_store().export_user_data(user_id).map_err(Self::gov_err)?;
-        serde_json::to_string_pretty(&data)
-            .map_err(|e| MobileError::Serialization(e.to_string()))
+        let data = engine
+            .consent_store()
+            .export_user_data(user_id)
+            .map_err(Self::gov_err)?;
+        serde_json::to_string_pretty(&data).map_err(|e| MobileError::Serialization(e.to_string()))
     }
 
     // ── Breach Detection & Compliance Methods ──
@@ -541,22 +555,33 @@ impl OpenObscureMobile {
     /// Queries the governance SQLite processing log, buckets by hour,
     /// and flags outliers above `threshold` standard deviations (default: 3.0).
     #[cfg(feature = "governance")]
-    pub fn assess_breach(&self, threshold: Option<f64>) -> Result<BreachAssessmentMobile, MobileError> {
+    pub fn assess_breach(
+        &self,
+        threshold: Option<f64>,
+    ) -> Result<BreachAssessmentMobile, MobileError> {
         let engine = self.gov_engine()?;
-        let entries = engine.consent_store().get_all_processing_log(None).map_err(Self::gov_err)?;
+        let entries = engine
+            .consent_store()
+            .get_all_processing_log(None)
+            .map_err(Self::gov_err)?;
         let audit = crate::governance::processing_log_to_audit_entries(&entries);
         let assessment = crate::breach_detect::assess_breach(&audit, threshold.unwrap_or(3.0));
         let anomalies_json = serde_json::to_string(
-            &assessment.anomalies.iter().map(|a| {
-                serde_json::json!({
-                    "hour": a.hour,
-                    "pii_count": a.pii_count,
-                    "expected_mean": a.expected_mean,
-                    "sigma_deviation": a.sigma_deviation,
-                    "pii_types": a.pii_types,
+            &assessment
+                .anomalies
+                .iter()
+                .map(|a| {
+                    serde_json::json!({
+                        "hour": a.hour,
+                        "pii_count": a.pii_count,
+                        "expected_mean": a.expected_mean,
+                        "sigma_deviation": a.sigma_deviation,
+                        "pii_types": a.pii_types,
+                    })
                 })
-            }).collect::<Vec<_>>()
-        ).unwrap_or_else(|_| "[]".to_string());
+                .collect::<Vec<_>>(),
+        )
+        .unwrap_or_else(|_| "[]".to_string());
         Ok(BreachAssessmentMobile {
             risk_level: format!("{:?}", assessment.risk_level).to_lowercase(),
             anomaly_count: assessment.anomalies.len() as u32,
@@ -569,7 +594,10 @@ impl OpenObscureMobile {
     #[cfg(feature = "governance")]
     pub fn generate_breach_report(&self) -> Result<String, MobileError> {
         let engine = self.gov_engine()?;
-        let entries = engine.consent_store().get_all_processing_log(None).map_err(Self::gov_err)?;
+        let entries = engine
+            .consent_store()
+            .get_all_processing_log(None)
+            .map_err(Self::gov_err)?;
         let audit = crate::governance::processing_log_to_audit_entries(&entries);
         let assessment = crate::breach_detect::assess_breach(&audit, 3.0);
         let config = crate::config::ComplianceConfig {
@@ -579,23 +607,32 @@ impl OpenObscureMobile {
             reports_dir: None,
             retention_days: 365,
         };
-        Ok(crate::breach_detect::generate_art33_notification(&assessment, &config))
+        Ok(crate::breach_detect::generate_art33_notification(
+            &assessment,
+            &config,
+        ))
     }
 
     /// Export audit entries in SIEM format (CEF or LEEF).
     #[cfg(feature = "governance")]
-    pub fn export_audit_entries(&self, format: &str, limit: Option<u32>) -> Result<String, MobileError> {
+    pub fn export_audit_entries(
+        &self,
+        format: &str,
+        limit: Option<u32>,
+    ) -> Result<String, MobileError> {
         let engine = self.gov_engine()?;
-        let entries = engine.consent_store()
+        let entries = engine
+            .consent_store()
             .get_all_processing_log(limit.map(|l| l as usize))
             .map_err(Self::gov_err)?;
         let audit = crate::governance::processing_log_to_audit_entries(&entries);
-        let lines: Vec<String> = audit.iter().map(|entry| {
-            match format.to_lowercase().as_str() {
+        let lines: Vec<String> = audit
+            .iter()
+            .map(|entry| match format.to_lowercase().as_str() {
                 "leef" => crate::compliance::format_leef_line(entry),
                 _ => crate::compliance::format_cef_line(entry),
-            }
-        }).collect();
+            })
+            .collect();
         Ok(lines.join("\n"))
     }
 
@@ -603,14 +640,18 @@ impl OpenObscureMobile {
     #[cfg(feature = "governance")]
     pub fn compliance_summary(&self) -> Result<String, MobileError> {
         let engine = self.gov_engine()?;
-        let entries = engine.consent_store().get_all_processing_log(None).map_err(Self::gov_err)?;
+        let entries = engine
+            .consent_store()
+            .get_all_processing_log(None)
+            .map_err(Self::gov_err)?;
         let audit = crate::governance::processing_log_to_audit_entries(&entries);
 
         let total_entries = audit.len();
         let total_pii: u64 = audit.iter().filter_map(|e| e.pii_total).sum();
 
         // Aggregate PII types
-        let mut type_counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        let mut type_counts: std::collections::HashMap<String, u64> =
+            std::collections::HashMap::new();
         for entry in &audit {
             if let Some(ref breakdown) = entry.pii_breakdown {
                 for pair in breakdown.split(", ") {
@@ -651,8 +692,8 @@ impl OpenObscureMobile {
         let ciphertext = openobscure_crypto::encrypt(&key, plaintext)
             .map_err(|e| MobileError::CryptoError(e.to_string()))?;
 
-        let params_json = serde_json::to_vec(&params)
-            .map_err(|e| MobileError::Serialization(e.to_string()))?;
+        let params_json =
+            serde_json::to_vec(&params).map_err(|e| MobileError::Serialization(e.to_string()))?;
         let params_len = (params_json.len() as u32).to_le_bytes();
 
         let mut blob = Vec::with_capacity(4 + params_json.len() + ciphertext.len());
@@ -675,8 +716,9 @@ impl OpenObscureMobile {
         if data.len() < 4 + params_len {
             return Err(MobileError::CryptoError("Truncated KDF params".to_string()));
         }
-        let params: openobscure_crypto::KdfParams = serde_json::from_slice(&data[4..4 + params_len])
-            .map_err(|e| MobileError::CryptoError(format!("Invalid KDF params: {}", e)))?;
+        let params: openobscure_crypto::KdfParams =
+            serde_json::from_slice(&data[4..4 + params_len])
+                .map_err(|e| MobileError::CryptoError(format!("Invalid KDF params: {}", e)))?;
         let key = openobscure_crypto::derive_key(passphrase, &params)
             .map_err(|e| MobileError::CryptoError(e.to_string()))?;
         openobscure_crypto::decrypt(&key, &data[4 + params_len..])
@@ -736,9 +778,7 @@ mod tests {
     #[test]
     fn test_mobile_sanitize_ssn() {
         let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
-        let result = mobile
-            .sanitize_text("SSN: 123-45-6789")
-            .unwrap();
+        let result = mobile.sanitize_text("SSN: 123-45-6789").unwrap();
         assert!(result.pii_count >= 1);
         assert!(!result.sanitized_text.contains("123-45-6789"));
     }
@@ -800,10 +840,7 @@ mod tests {
         let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
         let result = mobile.sanitize_image(&[0xFF, 0xD8, 0xFF]); // JPEG header
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("not enabled"));
+        assert!(result.unwrap_err().to_string().contains("not enabled"));
     }
 
     #[test]
@@ -843,13 +880,16 @@ mod tests {
                 make_test_key(),
                 ":memory:",
                 &[],
-            ).unwrap()
+            )
+            .unwrap()
         }
 
         #[test]
         fn test_mobile_consent_grant_revoke() {
             let mobile = make_governance_mobile();
-            let record = mobile.grant_consent("user1", "processing", Some("Test")).unwrap();
+            let record = mobile
+                .grant_consent("user1", "processing", Some("Test"))
+                .unwrap();
             assert!(record.granted);
             assert_eq!(record.version, 1);
 
@@ -879,7 +919,9 @@ mod tests {
         #[test]
         fn test_mobile_privacy_command_status() {
             let mobile = make_governance_mobile();
-            let result = mobile.privacy_command("user1", &["status".to_string()]).unwrap();
+            let result = mobile
+                .privacy_command("user1", &["status".to_string()])
+                .unwrap();
             assert!(result.success);
             assert!(result.text.contains("Privacy Status"));
         }
@@ -887,10 +929,16 @@ mod tests {
         #[test]
         fn test_mobile_privacy_command_consent() {
             let mobile = make_governance_mobile();
-            let result = mobile.privacy_command(
-                "user1",
-                &["consent".to_string(), "grant".to_string(), "processing".to_string()],
-            ).unwrap();
+            let result = mobile
+                .privacy_command(
+                    "user1",
+                    &[
+                        "consent".to_string(),
+                        "grant".to_string(),
+                        "processing".to_string(),
+                    ],
+                )
+                .unwrap();
             assert!(result.success);
             assert!(result.text.contains("Consent granted"));
         }
@@ -919,7 +967,9 @@ mod tests {
         fn test_mobile_privacy_command_delete() {
             let mobile = make_governance_mobile();
             mobile.grant_consent("user1", "storage", None).unwrap();
-            let result = mobile.privacy_command("user1", &["delete".to_string()]).unwrap();
+            let result = mobile
+                .privacy_command("user1", &["delete".to_string()])
+                .unwrap();
             assert!(result.success);
             assert!(result.text.contains("erasure complete"));
         }
@@ -957,10 +1007,16 @@ mod tests {
             let engine = mobile.gov_engine().unwrap();
             // Log some processing entries
             for _ in 0..5 {
-                engine.consent_store().log_processing(
-                    "user1", ProcessingAction::Scan,
-                    Some(&["email", "ssn"]), Some("proxy"), None,
-                ).unwrap();
+                engine
+                    .consent_store()
+                    .log_processing(
+                        "user1",
+                        ProcessingAction::Scan,
+                        Some(&["email", "ssn"]),
+                        Some("proxy"),
+                        None,
+                    )
+                    .unwrap();
             }
             let result = mobile.assess_breach(Some(3.0)).unwrap();
             // With only a few entries in the same hour, should be low risk
@@ -973,7 +1029,11 @@ mod tests {
             let mobile = make_governance_mobile();
             let report = mobile.generate_breach_report().unwrap();
             // Art. 33 notification always produces a markdown doc
-            assert!(report.contains("Breach") || report.contains("breach") || report.contains("Notification"));
+            assert!(
+                report.contains("Breach")
+                    || report.contains("breach")
+                    || report.contains("Notification")
+            );
         }
 
         #[test]
@@ -981,10 +1041,16 @@ mod tests {
             use crate::governance::ProcessingAction;
             let mobile = make_governance_mobile();
             let engine = mobile.gov_engine().unwrap();
-            engine.consent_store().log_processing(
-                "user1", ProcessingAction::Encrypt,
-                Some(&["credit_card"]), Some("proxy"), None,
-            ).unwrap();
+            engine
+                .consent_store()
+                .log_processing(
+                    "user1",
+                    ProcessingAction::Encrypt,
+                    Some(&["credit_card"]),
+                    Some("proxy"),
+                    None,
+                )
+                .unwrap();
             let cef = mobile.export_audit_entries("cef", Some(10)).unwrap();
             assert!(cef.contains("CEF:"));
         }
@@ -994,10 +1060,16 @@ mod tests {
             use crate::governance::ProcessingAction;
             let mobile = make_governance_mobile();
             let engine = mobile.gov_engine().unwrap();
-            engine.consent_store().log_processing(
-                "user1", ProcessingAction::Redact,
-                Some(&["phone"]), Some("scanner"), None,
-            ).unwrap();
+            engine
+                .consent_store()
+                .log_processing(
+                    "user1",
+                    ProcessingAction::Redact,
+                    Some(&["phone"]),
+                    Some("scanner"),
+                    None,
+                )
+                .unwrap();
             let leef = mobile.export_audit_entries("leef", None).unwrap();
             assert!(leef.contains("LEEF:"));
         }
@@ -1007,14 +1079,26 @@ mod tests {
             use crate::governance::ProcessingAction;
             let mobile = make_governance_mobile();
             let engine = mobile.gov_engine().unwrap();
-            engine.consent_store().log_processing(
-                "user1", ProcessingAction::Scan,
-                Some(&["email", "ssn"]), Some("proxy"), None,
-            ).unwrap();
-            engine.consent_store().log_processing(
-                "user2", ProcessingAction::Encrypt,
-                Some(&["credit_card"]), Some("proxy"), None,
-            ).unwrap();
+            engine
+                .consent_store()
+                .log_processing(
+                    "user1",
+                    ProcessingAction::Scan,
+                    Some(&["email", "ssn"]),
+                    Some("proxy"),
+                    None,
+                )
+                .unwrap();
+            engine
+                .consent_store()
+                .log_processing(
+                    "user2",
+                    ProcessingAction::Encrypt,
+                    Some(&["credit_card"]),
+                    Some("proxy"),
+                    None,
+                )
+                .unwrap();
             let summary = mobile.compliance_summary().unwrap();
             assert!(summary.contains("Compliance Summary"));
             assert!(summary.contains("Total processing events: 2"));

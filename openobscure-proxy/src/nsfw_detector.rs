@@ -100,7 +100,11 @@ impl NsfwDetector {
         let (_orig_w, _orig_h) = img.dimensions();
 
         // Resize to 320x320
-        let resized = img.resize_exact(INPUT_SIZE, INPUT_SIZE, image::imageops::FilterType::Triangle);
+        let resized = img.resize_exact(
+            INPUT_SIZE,
+            INPUT_SIZE,
+            image::imageops::FilterType::Triangle,
+        );
         let rgb = resized.to_rgb8();
 
         // Build input tensor [1, 3, 320, 320] normalized to [0, 1]
@@ -117,11 +121,14 @@ impl NsfwDetector {
 
         // Run inference — use dynamic input name
         let input_name = self.session.inputs()[0].name().to_string();
-        let outputs = self.session.run(ort::inputs![input_name.as_str() => input_val])
+        let outputs = self
+            .session
+            .run(ort::inputs![input_name.as_str() => input_val])
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         // Output shape: [1, 22, 2100] — transpose to iterate candidates
-        let (_shape, data) = outputs[0].try_extract_tensor::<f32>()
+        let (_shape, data) = outputs[0]
+            .try_extract_tensor::<f32>()
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         // Parse YOLOv8 output: data is [1, 22, 2100] flattened

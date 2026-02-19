@@ -151,20 +151,20 @@ impl OcrDetector {
         let rgb = resized.to_rgb8();
 
         // Build input tensor [1, 3, H, W] normalized with PaddleOCR mean/std
-        let input = Array4::<f32>::from_shape_fn(
-            (1, 3, det_h as usize, det_w as usize),
-            |(_, c, h, w)| {
+        let input =
+            Array4::<f32>::from_shape_fn((1, 3, det_h as usize, det_w as usize), |(_, c, h, w)| {
                 let pixel = rgb.get_pixel(w as u32, h as u32);
                 let mean = [0.485, 0.456, 0.406];
                 let std = [0.229, 0.224, 0.225];
                 (pixel[c] as f32 / 255.0 - mean[c]) / std[c]
-            },
-        );
+            });
 
         let input_val = ort::value::Value::from_array(input)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        let outputs = self.session.run(ort::inputs!["x" => input_val])
+        let outputs = self
+            .session
+            .run(ort::inputs!["x" => input_val])
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         // Output: probability map [1, 1, H, W]
@@ -218,7 +218,10 @@ impl OcrRecognizer {
             model = %model_path.display(),
             dict_size = dictionary.len());
 
-        Ok(Self { session, dictionary })
+        Ok(Self {
+            session,
+            dictionary,
+        })
     }
 
     /// Recognize text in cropped region images.
@@ -249,11 +252,8 @@ impl OcrRecognizer {
             // Resize to rec input height, preserving aspect ratio
             let scale = REC_HEIGHT as f32 / h as f32;
             let rec_w = ((w as f32 * scale) as u32).min(REC_MAX_WIDTH).max(1);
-            let resized = cropped.resize_exact(
-                rec_w,
-                REC_HEIGHT,
-                image::imageops::FilterType::Triangle,
-            );
+            let resized =
+                cropped.resize_exact(rec_w, REC_HEIGHT, image::imageops::FilterType::Triangle);
             let rgb = resized.to_rgb8();
 
             // Build input tensor [1, 3, 48, W] with PaddleOCR normalization
@@ -268,7 +268,9 @@ impl OcrRecognizer {
             let input_val = ort::value::Value::from_array(input)
                 .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-            let outputs = self.session.run(ort::inputs!["x" => input_val])
+            let outputs = self
+                .session
+                .run(ort::inputs!["x" => input_val])
                 .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
             // Output: [1, seq_len, dict_size+2] logits
@@ -423,13 +425,9 @@ fn extract_regions_from_map(
             let root = find_root(&equivalences, label);
             let score = prob_map.get_pixel(x as u32, y as u32).0[0] as f32 / 255.0;
 
-            let entry = components.entry(root).or_insert((
-                x as f32,
-                y as f32,
-                x as f32,
-                y as f32,
-                0.0,
-            ));
+            let entry = components
+                .entry(root)
+                .or_insert((x as f32, y as f32, x as f32, y as f32, 0.0));
             entry.0 = entry.0.min(x as f32); // x_min
             entry.1 = entry.1.min(y as f32); // y_min
             entry.2 = entry.2.max(x as f32); // x_max
@@ -580,8 +578,14 @@ mod tests {
 
     #[test]
     fn test_ocr_tier_from_config() {
-        assert_eq!(OcrTier::from_config("detect_and_blur"), OcrTier::DetectAndBlur);
-        assert_eq!(OcrTier::from_config("full_recognition"), OcrTier::FullRecognition);
+        assert_eq!(
+            OcrTier::from_config("detect_and_blur"),
+            OcrTier::DetectAndBlur
+        );
+        assert_eq!(
+            OcrTier::from_config("full_recognition"),
+            OcrTier::FullRecognition
+        );
         assert_eq!(OcrTier::from_config("unknown"), OcrTier::DetectAndBlur);
     }
 
@@ -658,10 +662,7 @@ mod tests {
     #[test]
     fn test_ctc_greedy_decode_all_blank() {
         let dict = vec!["a".to_string(), "b".to_string()];
-        let logits = vec![
-            10.0, -10.0, -10.0,
-            10.0, -10.0, -10.0,
-        ];
+        let logits = vec![10.0, -10.0, -10.0, 10.0, -10.0, -10.0];
         let (text, conf) = ctc_greedy_decode(&logits, 2, 3, &dict);
         assert_eq!(text, "");
         assert_eq!(conf, 0.0);
@@ -680,9 +681,9 @@ mod tests {
         // Sequence: a, blank, a → "aa" (blank separates the repeated 'a')
         let dict = vec!["a".to_string(), "b".to_string()];
         let logits = vec![
-            -10.0, 10.0, -10.0,  // t0: 'a'
-            10.0, -10.0, -10.0,  // t1: blank
-            -10.0, 10.0, -10.0,  // t2: 'a'
+            -10.0, 10.0, -10.0, // t0: 'a'
+            10.0, -10.0, -10.0, // t1: blank
+            -10.0, 10.0, -10.0, // t2: 'a'
         ];
         let (text, _) = ctc_greedy_decode(&logits, 3, 3, &dict);
         assert_eq!(text, "aa");
@@ -695,7 +696,7 @@ mod tests {
         assert_eq!(map.get_pixel(0, 0).0[0], 0);
         assert_eq!(map.get_pixel(1, 0).0[0], 127); // 0.5 * 255 ≈ 127
         assert_eq!(map.get_pixel(0, 1).0[0], 255);
-        assert_eq!(map.get_pixel(1, 1).0[0], 76);  // 0.3 * 255 ≈ 76
+        assert_eq!(map.get_pixel(1, 1).0[0], 76); // 0.3 * 255 ≈ 76
     }
 
     #[test]

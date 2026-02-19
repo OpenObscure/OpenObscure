@@ -58,8 +58,8 @@ impl CrfScanner {
             return Err(CrfError::ModelNotFound(model_dir.display().to_string()));
         }
 
-        let content = std::fs::read_to_string(&model_path)
-            .map_err(|e| CrfError::Io(e.to_string()))?;
+        let content =
+            std::fs::read_to_string(&model_path).map_err(|e| CrfError::Io(e.to_string()))?;
         let model = CrfModel::from_json(&content)?;
 
         // Build gazetteers from keyword dict for feature extraction
@@ -67,9 +67,12 @@ impl CrfScanner {
         let gazetteer_health = dict.health_terms_clone();
         let gazetteer_child = dict.child_terms_clone();
 
-        oo_info!(crate::oo_log::modules::CRF, "CRF model loaded",
+        oo_info!(
+            crate::oo_log::modules::CRF,
+            "CRF model loaded",
             features = model.state_features.len(),
-            labels = model.num_labels);
+            labels = model.num_labels
+        );
 
         Ok(Self {
             model,
@@ -130,7 +133,11 @@ impl CrfScanner {
         if token.text.chars().all(|c| c.is_uppercase()) {
             feats.push("isupper".to_string());
         }
-        if token.text.chars().next().map_or(false, |c| c.is_uppercase())
+        if token
+            .text
+            .chars()
+            .next()
+            .map_or(false, |c| c.is_uppercase())
             && token.text.chars().skip(1).all(|c| c.is_lowercase())
         {
             feats.push("istitle".to_string());
@@ -268,7 +275,15 @@ impl CrfScanner {
                 // B-* tag: start new entity
                 (l, _) if is_b_tag(l) => {
                     if let Some((pt, ts, te, total, count)) = current.take() {
-                        self.push_entity(&mut entities, &tokens, pt, ts, te, total / count as f64, original_text);
+                        self.push_entity(
+                            &mut entities,
+                            &tokens,
+                            pt,
+                            ts,
+                            te,
+                            total / count as f64,
+                            original_text,
+                        );
                     }
                     if let Some(pt) = pii_type {
                         current = Some((pt, i, i, scores[i], 1));
@@ -285,7 +300,15 @@ impl CrfScanner {
                 // I-* tag but wrong type or no current → treat as B
                 (l, _) if is_i_tag(l) => {
                     if let Some((pt, ts, te, total, count)) = current.take() {
-                        self.push_entity(&mut entities, &tokens, pt, ts, te, total / count as f64, original_text);
+                        self.push_entity(
+                            &mut entities,
+                            &tokens,
+                            pt,
+                            ts,
+                            te,
+                            total / count as f64,
+                            original_text,
+                        );
                     }
                     if let Some(pt) = pii_type {
                         current = Some((pt, i, i, scores[i], 1));
@@ -294,7 +317,15 @@ impl CrfScanner {
                 // O tag: flush
                 _ => {
                     if let Some((pt, ts, te, total, count)) = current.take() {
-                        self.push_entity(&mut entities, &tokens, pt, ts, te, total / count as f64, original_text);
+                        self.push_entity(
+                            &mut entities,
+                            &tokens,
+                            pt,
+                            ts,
+                            te,
+                            total / count as f64,
+                            original_text,
+                        );
                     }
                 }
             }
@@ -302,7 +333,15 @@ impl CrfScanner {
 
         // Flush remaining
         if let Some((pt, ts, te, total, count)) = current.take() {
-            self.push_entity(&mut entities, &tokens, pt, ts, te, total / count as f64, original_text);
+            self.push_entity(
+                &mut entities,
+                &tokens,
+                pt,
+                ts,
+                te,
+                total / count as f64,
+                original_text,
+            );
         }
 
         entities
@@ -351,8 +390,9 @@ impl CrfModel {
         let state_features_val = value
             .get("state_features")
             .ok_or_else(|| CrfError::ModelParse("missing 'state_features'".to_string()))?;
-        let state_features: HashMap<String, Vec<f64>> = serde_json::from_value(state_features_val.clone())
-            .map_err(|e| CrfError::ModelParse(format!("state_features: {}", e)))?;
+        let state_features: HashMap<String, Vec<f64>> =
+            serde_json::from_value(state_features_val.clone())
+                .map_err(|e| CrfError::ModelParse(format!("state_features: {}", e)))?;
 
         // Parse transitions
         let transitions_val = value
@@ -367,7 +407,9 @@ impl CrfModel {
         }
         for row in &transitions {
             if row.len() != num_labels {
-                return Err(CrfError::ModelParse("transitions matrix not square".to_string()));
+                return Err(CrfError::ModelParse(
+                    "transitions matrix not square".to_string(),
+                ));
             }
         }
 
@@ -452,11 +494,17 @@ fn word_shape(word: &str) -> String {
 }
 
 fn is_b_tag(label: usize) -> bool {
-    matches!(label, LABEL_B_PER | LABEL_B_LOC | LABEL_B_ORG | LABEL_B_HEALTH | LABEL_B_CHILD)
+    matches!(
+        label,
+        LABEL_B_PER | LABEL_B_LOC | LABEL_B_ORG | LABEL_B_HEALTH | LABEL_B_CHILD
+    )
 }
 
 fn is_i_tag(label: usize) -> bool {
-    matches!(label, LABEL_I_PER | LABEL_I_LOC | LABEL_I_ORG | LABEL_I_HEALTH | LABEL_I_CHILD)
+    matches!(
+        label,
+        LABEL_I_PER | LABEL_I_LOC | LABEL_I_ORG | LABEL_I_HEALTH | LABEL_I_CHILD
+    )
 }
 
 fn bio_to_pii_type(label: usize) -> Option<PiiType> {
@@ -475,9 +523,7 @@ pub fn available_ram_mb() -> Option<u64> {
     #[cfg(target_os = "macos")]
     {
         // Use vm_stat to get free + inactive pages, multiply by page size
-        let output = std::process::Command::new("vm_stat")
-            .output()
-            .ok()?;
+        let output = std::process::Command::new("vm_stat").output().ok()?;
         let text = String::from_utf8_lossy(&output.stdout);
         let mut free_pages: u64 = 0;
         for line in text.lines() {
@@ -667,7 +713,10 @@ mod tests {
             .join("openobscure-ner/models/crf_mock");
         if !model_dir.join("crf_model.json").exists() {
             // Skip if mock model hasn't been generated yet
-            eprintln!("Skipping: mock CRF model not found at {}", model_dir.display());
+            eprintln!(
+                "Skipping: mock CRF model not found at {}",
+                model_dir.display()
+            );
             return;
         }
 
@@ -680,7 +729,8 @@ mod tests {
         // At minimum, gazetteer-backed features should trigger health matches
         assert!(
             matches.iter().any(|m| m.pii_type == PiiType::HealthKeyword),
-            "Expected at least one HEALTH match, got: {:?}", types
+            "Expected at least one HEALTH match, got: {:?}",
+            types
         );
 
         // Verify all matches have valid spans
@@ -695,47 +745,32 @@ mod tests {
         let mut state_features: HashMap<String, Vec<f64>> = HashMap::new();
 
         // Add some features that bias toward B-PER for title-cased words
-        state_features.insert(
-            "istitle".to_string(),
-            {
-                let mut v = vec![0.0; NUM_LABELS];
-                v[LABEL_B_PER] = 1.5;
-                v
-            },
-        );
-        state_features.insert(
-            "word=john".to_string(),
-            {
-                let mut v = vec![0.0; NUM_LABELS];
-                v[LABEL_B_PER] = 2.0;
-                v
-            },
-        );
-        state_features.insert(
-            "word=smith".to_string(),
-            {
-                let mut v = vec![0.0; NUM_LABELS];
-                v[LABEL_I_PER] = 1.5;
-                v[LABEL_B_PER] = 0.5;
-                v
-            },
-        );
-        state_features.insert(
-            "gaz=health".to_string(),
-            {
-                let mut v = vec![0.0; NUM_LABELS];
-                v[LABEL_B_HEALTH] = 2.0;
-                v
-            },
-        );
-        state_features.insert(
-            "gaz=child".to_string(),
-            {
-                let mut v = vec![0.0; NUM_LABELS];
-                v[LABEL_B_CHILD] = 2.0;
-                v
-            },
-        );
+        state_features.insert("istitle".to_string(), {
+            let mut v = vec![0.0; NUM_LABELS];
+            v[LABEL_B_PER] = 1.5;
+            v
+        });
+        state_features.insert("word=john".to_string(), {
+            let mut v = vec![0.0; NUM_LABELS];
+            v[LABEL_B_PER] = 2.0;
+            v
+        });
+        state_features.insert("word=smith".to_string(), {
+            let mut v = vec![0.0; NUM_LABELS];
+            v[LABEL_I_PER] = 1.5;
+            v[LABEL_B_PER] = 0.5;
+            v
+        });
+        state_features.insert("gaz=health".to_string(), {
+            let mut v = vec![0.0; NUM_LABELS];
+            v[LABEL_B_HEALTH] = 2.0;
+            v
+        });
+        state_features.insert("gaz=child".to_string(), {
+            let mut v = vec![0.0; NUM_LABELS];
+            v[LABEL_B_CHILD] = 2.0;
+            v
+        });
 
         // Transition matrix: favor O→B and B→I of same type
         let mut transitions = vec![vec![0.0; NUM_LABELS]; NUM_LABELS];

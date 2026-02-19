@@ -47,7 +47,11 @@ pub fn process_request_body(
     if matches.is_empty() {
         // Images were modified but no text PII found — re-serialize the image-modified JSON
         let modified = serde_json::to_vec(&json).map_err(BodyError::Json)?;
-        return Ok((Bytes::from(modified), RequestMappings::new(*request_id), image_stats));
+        return Ok((
+            Bytes::from(modified),
+            RequestMappings::new(*request_id),
+            image_stats,
+        ));
     }
 
     let mut mappings = RequestMappings::new(*request_id);
@@ -143,7 +147,12 @@ fn walk_json_for_images(
                 if let Some(detected) = image_detect::extract_image_bytes(map, &img_ref) {
                     // Verify it's actually an image
                     if image_detect::has_image_magic_bytes(&detected.raw_bytes) {
-                        match process_single_image(&detected.raw_bytes, &detected.media_type, &img_ref, models) {
+                        match process_single_image(
+                            &detected.raw_bytes,
+                            &detected.media_type,
+                            &img_ref,
+                            models,
+                        ) {
                             Ok((new_bytes, img_stats)) => {
                                 // Replace the base64 data in the JSON object
                                 let encoded = image_detect::encode_to_base64(
@@ -257,14 +266,9 @@ pub fn process_response_body(body: &Bytes, mappings: &RequestMappings) -> Bytes 
 /// within each string field that contained PII matches.
 fn apply_replacements_to_json(json: &mut Value, replacements: &[FpeResult]) {
     // Group replacements by json_path
-    let mut by_path: HashMap<String, Vec<&FpeResult>> =
-        HashMap::new();
+    let mut by_path: HashMap<String, Vec<&FpeResult>> = HashMap::new();
     for r in replacements {
-        let path = r
-            .original
-            .json_path
-            .clone()
-            .unwrap_or_default();
+        let path = r.original.json_path.clone().unwrap_or_default();
         by_path.entry(path).or_default().push(r);
     }
 
@@ -405,7 +409,10 @@ mod tests {
         map.insert("type".to_string(), Value::String("image".to_string()));
         let mut source = serde_json::Map::new();
         source.insert("type".to_string(), Value::String("base64".to_string()));
-        source.insert("media_type".to_string(), Value::String("image/png".to_string()));
+        source.insert(
+            "media_type".to_string(),
+            Value::String("image/png".to_string()),
+        );
         source.insert("data".to_string(), Value::String("OLD_DATA".to_string()));
         map.insert("source".to_string(), Value::Object(source));
 
@@ -426,7 +433,10 @@ mod tests {
         let mut map = serde_json::Map::new();
         map.insert("type".to_string(), Value::String("image_url".to_string()));
         let mut img_url = serde_json::Map::new();
-        img_url.insert("url".to_string(), Value::String("data:image/png;base64,OLD".to_string()));
+        img_url.insert(
+            "url".to_string(),
+            Value::String("data:image/png;base64,OLD".to_string()),
+        );
         map.insert("image_url".to_string(), Value::Object(img_url));
 
         let img_ref = image_detect::ImageContentRef {
@@ -454,7 +464,10 @@ mod tests {
 
         let mut stats = Vec::new();
         walk_json_for_images(&mut json, &models, &mut stats);
-        assert!(stats.is_empty(), "Non-image JSON should produce no image stats");
+        assert!(
+            stats.is_empty(),
+            "Non-image JSON should produce no image stats"
+        );
     }
 
     #[test]
@@ -463,9 +476,7 @@ mod tests {
         use std::io::Cursor;
 
         // Create a small test PNG
-        let img = image::DynamicImage::ImageRgb8(
-            RgbImage::from_pixel(10, 10, Rgb([128, 64, 32]))
-        );
+        let img = image::DynamicImage::ImageRgb8(RgbImage::from_pixel(10, 10, Rgb([128, 64, 32])));
         let mut buf = Cursor::new(Vec::new());
         img.write_to(&mut buf, image::ImageFormat::Png).unwrap();
         let png_bytes = buf.into_inner();
@@ -504,9 +515,13 @@ mod tests {
         assert_eq!(stats[0].text_regions_found, 0);
 
         // The base64 data should have been replaced
-        let new_data = json["messages"][0]["content"][0]["source"]["data"].as_str().unwrap();
+        let new_data = json["messages"][0]["content"][0]["source"]["data"]
+            .as_str()
+            .unwrap();
         // It should be valid base64 that decodes to a valid PNG
-        let decoded = base64::engine::general_purpose::STANDARD.decode(new_data).unwrap();
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(new_data)
+            .unwrap();
         let decoded_img = image::load_from_memory(&decoded).unwrap();
         assert_eq!(decoded_img.width(), 10);
         assert_eq!(decoded_img.height(), 10);
@@ -517,9 +532,7 @@ mod tests {
         use image::{Rgb, RgbImage};
         use std::io::Cursor;
 
-        let img = image::DynamicImage::ImageRgb8(
-            RgbImage::from_pixel(10, 10, Rgb([128, 64, 32]))
-        );
+        let img = image::DynamicImage::ImageRgb8(RgbImage::from_pixel(10, 10, Rgb([128, 64, 32])));
         let mut buf = Cursor::new(Vec::new());
         img.write_to(&mut buf, image::ImageFormat::Png).unwrap();
         let b64 = base64::engine::general_purpose::STANDARD.encode(buf.into_inner());
@@ -580,6 +593,9 @@ mod tests {
         walk_json_for_images(&mut json, &models, &mut stats);
 
         // Should not have processed anything (bad base64 → extraction returns None or bad magic)
-        assert!(stats.is_empty(), "Invalid base64 should be skipped (fail-open)");
+        assert!(
+            stats.is_empty(),
+            "Invalid base64 should be skipped (fail-open)"
+        );
     }
 }

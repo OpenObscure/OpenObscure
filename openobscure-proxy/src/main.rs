@@ -5,20 +5,24 @@ mod breach_detect;
 mod compliance;
 mod config;
 mod crash_buffer;
+mod crf_scanner;
 mod cross_border;
 mod detection_meta;
 mod detection_validators;
-mod crf_scanner;
 mod error;
 mod face_detector;
 mod fpe_engine;
+#[cfg(feature = "governance")]
+mod governance;
 mod health;
 mod hybrid_scanner;
-mod key_manager;
 mod image_blur;
 mod image_detect;
 mod image_pipeline;
+mod key_manager;
 mod keyword_dict;
+#[allow(dead_code)]
+mod lib_mobile;
 mod mapping;
 mod ner_scanner;
 mod nsfw_detector;
@@ -31,10 +35,6 @@ mod screen_guard;
 mod server;
 mod vault;
 mod wordpiece;
-#[cfg(feature = "governance")]
-mod governance;
-#[allow(dead_code)]
-mod lib_mobile;
 
 #[cfg(test)]
 mod integration_tests;
@@ -127,13 +127,19 @@ async fn main() -> anyhow::Result<()> {
     if cli.init_key {
         let vault = Vault::new(&config.fpe.keychain_service);
         if vault.fpe_key_exists() {
-            oo_warn!(crate::oo_log::modules::VAULT, "FPE key already exists in keychain. Delete it first to regenerate.");
+            oo_warn!(
+                crate::oo_log::modules::VAULT,
+                "FPE key already exists in keychain. Delete it first to regenerate."
+            );
             return Ok(());
         }
         vault
             .init_fpe_key()
             .map_err(|e| anyhow::anyhow!("Failed to initialize FPE key: {}", e))?;
-        oo_info!(crate::oo_log::modules::VAULT, "FPE master key generated and stored in OS keychain");
+        oo_info!(
+            crate::oo_log::modules::VAULT,
+            "FPE master key generated and stored in OS keychain"
+        );
         return Ok(());
     }
 
@@ -159,9 +165,9 @@ fn run_key_rotate(config: &AppConfig) -> anyhow::Result<()> {
     let vault = Vault::new(&config.fpe.keychain_service);
 
     // Get current version
-    let current_version = vault.get_fpe_key_version().map_err(|e| {
-        anyhow::anyhow!("Failed to get current key version: {}", e)
-    })?;
+    let current_version = vault
+        .get_fpe_key_version()
+        .map_err(|e| anyhow::anyhow!("Failed to get current key version: {}", e))?;
     let new_version = current_version + 1;
 
     // Generate new key
@@ -169,14 +175,14 @@ fn run_key_rotate(config: &AppConfig) -> anyhow::Result<()> {
     rand::rngs::OsRng.fill_bytes(&mut new_key);
 
     // Store versioned key
-    vault.store_fpe_key_versioned(new_version, &new_key).map_err(|e| {
-        anyhow::anyhow!("Failed to store new key version: {}", e)
-    })?;
+    vault
+        .store_fpe_key_versioned(new_version, &new_key)
+        .map_err(|e| anyhow::anyhow!("Failed to store new key version: {}", e))?;
 
     // Update version pointer
-    vault.set_current_version(new_version).map_err(|e| {
-        anyhow::anyhow!("Failed to update version pointer: {}", e)
-    })?;
+    vault
+        .set_current_version(new_version)
+        .map_err(|e| anyhow::anyhow!("Failed to update version pointer: {}", e))?;
 
     // Zero the key material
     new_key.fill(0);
@@ -191,8 +197,11 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
     // Check for crash marker from previous run
     health::check_crash_marker();
 
-    oo_info!(crate::oo_log::modules::CONFIG, "Configuration loaded",
-        providers = config.providers.len());
+    oo_info!(
+        crate::oo_log::modules::CONFIG,
+        "Configuration loaded",
+        providers = config.providers.len()
+    );
 
     // Initialize vault and key manager
     let vault = Arc::new(Vault::new(&config.fpe.keychain_service));
@@ -200,8 +209,11 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to initialize KeyManager: {}", e))?;
     let key_version = key_manager.current_version().await;
 
-    oo_info!(crate::oo_log::modules::FPE, "FPE engine initialized (FF1, AES-256)",
-        key_version = key_version);
+    oo_info!(
+        crate::oo_log::modules::FPE,
+        "FPE engine initialized (FF1, AES-256)",
+        key_version = key_version
+    );
 
     // Build HTTPS client for upstream connections
     let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
@@ -212,14 +224,16 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         .enable_http2()
         .build();
 
-    let http_client: Client<_, Body> =
-        Client::builder(TokioExecutor::new()).build(https_connector);
+    let http_client: Client<_, Body> = Client::builder(TokioExecutor::new()).build(https_connector);
 
     // Build hybrid scanner (regex + keywords + semantic backend)
     let scanner = build_scanner(&config);
-    oo_info!(crate::oo_log::modules::SCANNER, "Hybrid scanner initialized",
+    oo_info!(
+        crate::oo_log::modules::SCANNER,
+        "Hybrid scanner initialized",
         keywords = scanner.keywords_enabled(),
-        semantic = scanner.semantic_backend_name());
+        semantic = scanner.semantic_backend_name()
+    );
 
     // Initialize image model manager if image processing is enabled
     let image_models = if config.image.enabled {
@@ -285,30 +299,51 @@ fn init_tracing(
     use crate::pii_scrub_layer::PiiScrubMakeWriter;
 
     // Stderr layer: 4 combinations (json × pii_scrub). Only one is Some at a time.
-    let (stderr_js, stderr_jp, stderr_ps, stderr_pp) = match (log_cfg.json_output, log_cfg.pii_scrub) {
-        (true, true) => (
-            Some(tracing_subscriber::fmt::layer().json().with_target(false)
-                .with_writer(PiiScrubMakeWriter::new(std::io::stderr))),
-            None, None, None,
-        ),
-        (true, false) => (
-            None,
-            Some(tracing_subscriber::fmt::layer().json().with_target(false)
-                .with_writer(std::io::stderr)),
-            None, None,
-        ),
-        (false, true) => (
-            None, None,
-            Some(tracing_subscriber::fmt::layer().with_target(false)
-                .with_writer(PiiScrubMakeWriter::new(std::io::stderr))),
-            None,
-        ),
-        (false, false) => (
-            None, None, None,
-            Some(tracing_subscriber::fmt::layer().with_target(false)
-                .with_writer(std::io::stderr)),
-        ),
-    };
+    let (stderr_js, stderr_jp, stderr_ps, stderr_pp) =
+        match (log_cfg.json_output, log_cfg.pii_scrub) {
+            (true, true) => (
+                Some(
+                    tracing_subscriber::fmt::layer()
+                        .json()
+                        .with_target(false)
+                        .with_writer(PiiScrubMakeWriter::new(std::io::stderr)),
+                ),
+                None,
+                None,
+                None,
+            ),
+            (true, false) => (
+                None,
+                Some(
+                    tracing_subscriber::fmt::layer()
+                        .json()
+                        .with_target(false)
+                        .with_writer(std::io::stderr),
+                ),
+                None,
+                None,
+            ),
+            (false, true) => (
+                None,
+                None,
+                Some(
+                    tracing_subscriber::fmt::layer()
+                        .with_target(false)
+                        .with_writer(PiiScrubMakeWriter::new(std::io::stderr)),
+                ),
+                None,
+            ),
+            (false, false) => (
+                None,
+                None,
+                None,
+                Some(
+                    tracing_subscriber::fmt::layer()
+                        .with_target(false)
+                        .with_writer(std::io::stderr),
+                ),
+            ),
+        };
 
     // File layer: optional, daily rotation, always JSON. Two variants for pii_scrub on/off.
     let (file_scrub, file_plain) = if let Some(ref file_path) = log_cfg.file_path {
@@ -325,15 +360,23 @@ fn init_tracing(
 
         if log_cfg.pii_scrub {
             (
-                Some(tracing_subscriber::fmt::layer().json().with_target(false)
-                    .with_writer(PiiScrubMakeWriter::new(non_blocking))),
+                Some(
+                    tracing_subscriber::fmt::layer()
+                        .json()
+                        .with_target(false)
+                        .with_writer(PiiScrubMakeWriter::new(non_blocking)),
+                ),
                 None,
             )
         } else {
             (
                 None,
-                Some(tracing_subscriber::fmt::layer().json().with_target(false)
-                    .with_writer(non_blocking)),
+                Some(
+                    tracing_subscriber::fmt::layer()
+                        .json()
+                        .with_target(false)
+                        .with_writer(non_blocking),
+                ),
             )
         }
     } else {
@@ -347,7 +390,11 @@ fn init_tracing(
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        match std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+        {
             Ok(file) => {
                 let (non_blocking, guard) = tracing_appender::non_blocking(file);
                 guards.push(guard);
@@ -362,7 +409,10 @@ fn init_tracing(
                 )
             }
             Err(e) => {
-                eprintln!("[OpenObscure] Failed to open audit log {}: {}", audit_path, e);
+                eprintln!(
+                    "[OpenObscure] Failed to open audit log {}: {}",
+                    audit_path, e
+                );
                 None
             }
         }
@@ -386,10 +436,7 @@ fn init_tracing(
                     tracing_subscriber::fmt::layer()
                         .with_ansi(false)
                         .with_target(false)
-                        .with_writer(crash_buffer::CrashBufferMakeWriter::new(
-                            std::io::sink,
-                            buf,
-                        )),
+                        .with_writer(crash_buffer::CrashBufferMakeWriter::new(std::io::sink, buf)),
                 )
             }
             Err(e) => {
@@ -474,20 +521,29 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
 
     let mut scanner = match config.scanner.scanner_mode.as_str() {
         "regex" => {
-            oo_info!(crate::oo_log::modules::SCANNER, "Scanner mode: regex-only (no semantic backend)");
+            oo_info!(
+                crate::oo_log::modules::SCANNER,
+                "Scanner mode: regex-only (no semantic backend)"
+            );
             HybridScanner::new(kw, None)
         }
         "ner" => {
             let ner = try_load_ner(config, threshold);
             if ner.is_none() {
-                oo_warn!(crate::oo_log::modules::SCANNER, "Scanner mode 'ner' requested but model unavailable, using regex+keywords");
+                oo_warn!(
+                    crate::oo_log::modules::SCANNER,
+                    "Scanner mode 'ner' requested but model unavailable, using regex+keywords"
+                );
             }
             HybridScanner::new(kw, ner)
         }
         "crf" => {
             let crf = try_load_crf(config, threshold);
             if crf.is_none() {
-                oo_warn!(crate::oo_log::modules::SCANNER, "Scanner mode 'crf' requested but model unavailable, using regex+keywords");
+                oo_warn!(
+                    crate::oo_log::modules::SCANNER,
+                    "Scanner mode 'crf' requested but model unavailable, using regex+keywords"
+                );
             }
             HybridScanner::with_crf(kw, crf)
         }
@@ -497,7 +553,12 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
             let threshold_mb = config.scanner.ram_threshold_mb;
 
             if let Some(ram) = ram_mb {
-                oo_info!(crate::oo_log::modules::SCANNER, "Device profiler", available_ram_mb = ram, threshold_mb = threshold_mb);
+                oo_info!(
+                    crate::oo_log::modules::SCANNER,
+                    "Device profiler",
+                    available_ram_mb = ram,
+                    threshold_mb = threshold_mb
+                );
             }
 
             let use_ner = ram_mb.map_or(true, |ram| ram >= threshold_mb);
@@ -507,20 +568,32 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
                 if let Some(ner) = try_load_ner(config, threshold) {
                     HybridScanner::new(kw, Some(ner))
                 } else if let Some(crf) = try_load_crf(config, threshold) {
-                    oo_info!(crate::oo_log::modules::SCANNER, "NER model unavailable, using CRF fallback");
+                    oo_info!(
+                        crate::oo_log::modules::SCANNER,
+                        "NER model unavailable, using CRF fallback"
+                    );
                     HybridScanner::with_crf(kw, Some(crf))
                 } else {
-                    oo_info!(crate::oo_log::modules::SCANNER, "No semantic model available, using regex+keywords only");
+                    oo_info!(
+                        crate::oo_log::modules::SCANNER,
+                        "No semantic model available, using regex+keywords only"
+                    );
                     HybridScanner::new(kw, None)
                 }
             } else {
                 // Low RAM: prefer CRF
-                oo_info!(crate::oo_log::modules::SCANNER, "Low RAM detected, preferring CRF over NER",
-                    available_ram_mb = ram_mb.unwrap_or(0));
+                oo_info!(
+                    crate::oo_log::modules::SCANNER,
+                    "Low RAM detected, preferring CRF over NER",
+                    available_ram_mb = ram_mb.unwrap_or(0)
+                );
                 if let Some(crf) = try_load_crf(config, threshold) {
                     HybridScanner::with_crf(kw, Some(crf))
                 } else {
-                    oo_info!(crate::oo_log::modules::SCANNER, "CRF model unavailable, using regex+keywords only");
+                    oo_info!(
+                        crate::oo_log::modules::SCANNER,
+                        "CRF model unavailable, using regex+keywords only"
+                    );
                     HybridScanner::new(kw, None)
                 }
             }
@@ -534,10 +607,7 @@ fn build_scanner(config: &AppConfig) -> HybridScanner {
     scanner
 }
 
-fn try_load_ner(
-    config: &AppConfig,
-    threshold: f32,
-) -> Option<ner_scanner::NerScanner> {
+fn try_load_ner(config: &AppConfig, threshold: f32) -> Option<ner_scanner::NerScanner> {
     let model_dir = config.scanner.ner_model_dir.as_ref()?;
     let model_path = std::path::Path::new(model_dir);
     match ner_scanner::NerScanner::load(model_path, threshold) {
@@ -552,10 +622,7 @@ fn try_load_ner(
     }
 }
 
-fn try_load_crf(
-    config: &AppConfig,
-    threshold: f32,
-) -> Option<crf_scanner::CrfScanner> {
+fn try_load_crf(config: &AppConfig, threshold: f32) -> Option<crf_scanner::CrfScanner> {
     let model_dir = config.scanner.crf_model_dir.as_ref()?;
     let model_path = std::path::Path::new(model_dir);
     match crf_scanner::CrfScanner::load(model_path, threshold) {
@@ -581,7 +648,10 @@ fn resolve_auth_token() -> Option<String> {
     if let Ok(token) = std::env::var("OPENOBSCURE_AUTH_TOKEN") {
         let token = token.trim().to_string();
         if !token.is_empty() {
-            oo_info!(crate::oo_log::modules::SERVER, "Auth token loaded from OPENOBSCURE_AUTH_TOKEN env var");
+            oo_info!(
+                crate::oo_log::modules::SERVER,
+                "Auth token loaded from OPENOBSCURE_AUTH_TOKEN env var"
+            );
             return Some(token);
         }
     }

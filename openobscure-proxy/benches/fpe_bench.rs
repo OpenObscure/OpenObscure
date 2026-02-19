@@ -97,7 +97,9 @@ fn fpe_benchmark(c: &mut Criterion) {
             json_path: None,
         };
         b.iter(|| {
-            let res = engine.encrypt_match(black_box(&pii), black_box(tweak)).unwrap();
+            let res = engine
+                .encrypt_match(black_box(&pii), black_box(tweak))
+                .unwrap();
             engine
                 .decrypt_value(
                     black_box(&res.encrypted),

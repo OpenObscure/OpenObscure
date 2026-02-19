@@ -63,7 +63,12 @@ impl ConsentType {
     }
 
     pub fn all() -> &'static [ConsentType] {
-        &[Self::Processing, Self::Storage, Self::Transfer, Self::AiDisclosure]
+        &[
+            Self::Processing,
+            Self::Storage,
+            Self::Transfer,
+            Self::AiDisclosure,
+        ]
     }
 }
 
@@ -338,7 +343,7 @@ impl ConsentStore {
             CREATE INDEX IF NOT EXISTS idx_processing_user ON data_processing_log(user_id);
             CREATE INDEX IF NOT EXISTS idx_dsar_user ON dsar_requests(user_id);
             CREATE INDEX IF NOT EXISTS idx_retention_tier ON retention_entries(tier);
-            CREATE INDEX IF NOT EXISTS idx_retention_expires ON retention_entries(expires_at);"
+            CREATE INDEX IF NOT EXISTS idx_retention_expires ON retention_entries(expires_at);",
         )?;
         Ok(())
     }
@@ -357,13 +362,16 @@ impl ConsentStore {
         let ct = consent_type.as_str();
 
         // Check for existing active consent
-        let existing: Option<(i64, i64)> = self.conn.query_row(
-            "SELECT id, version FROM consent_records
+        let existing: Option<(i64, i64)> = self
+            .conn
+            .query_row(
+                "SELECT id, version FROM consent_records
              WHERE user_id = ?1 AND consent_type = ?2 AND granted = 1 AND revoked_at IS NULL
              ORDER BY id DESC LIMIT 1",
-            params![user_id, ct],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        ).optional()?;
+                params![user_id, ct],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
 
         if let Some((id, version)) = existing {
             let new_version = version + 1;
@@ -407,7 +415,11 @@ impl ConsentStore {
     }
 
     /// Revoke consent for a specific type.
-    pub fn revoke_consent(&self, user_id: &str, consent_type: ConsentType) -> Result<bool, GovernanceError> {
+    pub fn revoke_consent(
+        &self,
+        user_id: &str,
+        consent_type: ConsentType,
+    ) -> Result<bool, GovernanceError> {
         let now = Utc::now().to_rfc3339();
         let changes = self.conn.execute(
             "UPDATE consent_records SET granted = 0, revoked_at = ?1
@@ -440,14 +452,21 @@ impl ConsentStore {
     }
 
     /// Check if a specific consent type is currently active.
-    pub fn has_active_consent(&self, user_id: &str, consent_type: ConsentType) -> Result<bool, GovernanceError> {
-        let exists: Option<i32> = self.conn.query_row(
-            "SELECT 1 FROM consent_records
+    pub fn has_active_consent(
+        &self,
+        user_id: &str,
+        consent_type: ConsentType,
+    ) -> Result<bool, GovernanceError> {
+        let exists: Option<i32> = self
+            .conn
+            .query_row(
+                "SELECT 1 FROM consent_records
              WHERE user_id = ?1 AND consent_type = ?2 AND granted = 1 AND revoked_at IS NULL
              LIMIT 1",
-            params![user_id, consent_type.as_str()],
-            |row| row.get(0),
-        ).optional()?;
+                params![user_id, consent_type.as_str()],
+                |row| row.get(0),
+            )
+            .optional()?;
         Ok(exists.is_some())
     }
 
@@ -473,12 +492,20 @@ impl ConsentStore {
     }
 
     /// Get processing log entries for a user.
-    pub fn get_processing_log(&self, user_id: &str, limit: Option<usize>) -> Result<Vec<ProcessingLogEntry>, GovernanceError> {
+    pub fn get_processing_log(
+        &self,
+        user_id: &str,
+        limit: Option<usize>,
+    ) -> Result<Vec<ProcessingLogEntry>, GovernanceError> {
         let sql = match limit {
-            Some(_) => "SELECT id, user_id, timestamp, action, pii_types, source, details
-                        FROM data_processing_log WHERE user_id = ?1 ORDER BY id DESC LIMIT ?2",
-            None => "SELECT id, user_id, timestamp, action, pii_types, source, details
-                     FROM data_processing_log WHERE user_id = ?1 ORDER BY id DESC",
+            Some(_) => {
+                "SELECT id, user_id, timestamp, action, pii_types, source, details
+                        FROM data_processing_log WHERE user_id = ?1 ORDER BY id DESC LIMIT ?2"
+            }
+            None => {
+                "SELECT id, user_id, timestamp, action, pii_types, source, details
+                     FROM data_processing_log WHERE user_id = ?1 ORDER BY id DESC"
+            }
         };
         let mut stmt = self.conn.prepare(sql)?;
         let rows = match limit {
@@ -489,12 +516,19 @@ impl ConsentStore {
     }
 
     /// Get all processing log entries across all users (for breach assessment).
-    pub fn get_all_processing_log(&self, limit: Option<usize>) -> Result<Vec<ProcessingLogEntry>, GovernanceError> {
+    pub fn get_all_processing_log(
+        &self,
+        limit: Option<usize>,
+    ) -> Result<Vec<ProcessingLogEntry>, GovernanceError> {
         let sql = match limit {
-            Some(_) => "SELECT id, user_id, timestamp, action, pii_types, source, details
-                        FROM data_processing_log ORDER BY id DESC LIMIT ?1",
-            None => "SELECT id, user_id, timestamp, action, pii_types, source, details
-                     FROM data_processing_log ORDER BY id DESC",
+            Some(_) => {
+                "SELECT id, user_id, timestamp, action, pii_types, source, details
+                        FROM data_processing_log ORDER BY id DESC LIMIT ?1"
+            }
+            None => {
+                "SELECT id, user_id, timestamp, action, pii_types, source, details
+                     FROM data_processing_log ORDER BY id DESC"
+            }
         };
         let mut stmt = self.conn.prepare(sql)?;
         let rows = match limit {
@@ -507,7 +541,11 @@ impl ConsentStore {
     // ── DSAR ──
 
     /// Create a new DSAR request.
-    pub fn create_dsar(&self, user_id: &str, request_type: DsarType) -> Result<DsarRequest, GovernanceError> {
+    pub fn create_dsar(
+        &self,
+        user_id: &str,
+        request_type: DsarType,
+    ) -> Result<DsarRequest, GovernanceError> {
         let now = Utc::now().to_rfc3339();
         self.conn.execute(
             "INSERT INTO dsar_requests (user_id, request_type, requested_at, status)
@@ -551,7 +589,7 @@ impl ConsentStore {
     pub fn get_dsar_requests(&self, user_id: &str) -> Result<Vec<DsarRequest>, GovernanceError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, user_id, request_type, requested_at, completed_at, status, response_path
-             FROM dsar_requests WHERE user_id = ?1 ORDER BY id DESC"
+             FROM dsar_requests WHERE user_id = ?1 ORDER BY id DESC",
         )?;
         let rows = stmt.query_map(params![user_id], |row| {
             Ok(DsarRequest {
@@ -603,10 +641,22 @@ impl ConsentStore {
 
     /// Delete all user data (for DSAR erasure request). Returns total records deleted.
     pub fn delete_user_data(&self, user_id: &str) -> Result<usize, GovernanceError> {
-        let c1 = self.conn.execute("DELETE FROM consent_records WHERE user_id = ?1", params![user_id])?;
-        let c2 = self.conn.execute("DELETE FROM data_processing_log WHERE user_id = ?1", params![user_id])?;
-        let c3 = self.conn.execute("DELETE FROM dsar_requests WHERE user_id = ?1", params![user_id])?;
-        let c4 = self.conn.execute("DELETE FROM retention_entries WHERE user_id = ?1", params![user_id])?;
+        let c1 = self.conn.execute(
+            "DELETE FROM consent_records WHERE user_id = ?1",
+            params![user_id],
+        )?;
+        let c2 = self.conn.execute(
+            "DELETE FROM data_processing_log WHERE user_id = ?1",
+            params![user_id],
+        )?;
+        let c3 = self.conn.execute(
+            "DELETE FROM dsar_requests WHERE user_id = ?1",
+            params![user_id],
+        )?;
+        let c4 = self.conn.execute(
+            "DELETE FROM retention_entries WHERE user_id = ?1",
+            params![user_id],
+        )?;
         Ok(c1 + c2 + c3 + c4)
     }
 
@@ -632,9 +682,9 @@ impl ConsentStore {
 
     /// Get count of retention entries per tier.
     pub fn get_retention_summary(&self) -> Result<RetentionSummary, GovernanceError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT tier, COUNT(*) FROM retention_entries GROUP BY tier"
-        )?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT tier, COUNT(*) FROM retention_entries GROUP BY tier")?;
         let mut summary = RetentionSummary::default();
         let rows = stmt.query_map([], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, u32>(1)?))
@@ -655,10 +705,14 @@ impl ConsentStore {
     }
 
     /// Get retention entries that should be promoted to the next tier.
-    pub fn get_retention_candidates(&self, tier: RetentionTier, now: &str) -> Result<Vec<RetentionEntry>, GovernanceError> {
+    pub fn get_retention_candidates(
+        &self,
+        tier: RetentionTier,
+        now: &str,
+    ) -> Result<Vec<RetentionEntry>, GovernanceError> {
         let mut stmt = self.conn.prepare(
             "SELECT id, user_id, created_at, tier, expires_at, source_table, source_id
-             FROM retention_entries WHERE tier = ?1 AND expires_at <= ?2 ORDER BY expires_at ASC"
+             FROM retention_entries WHERE tier = ?1 AND expires_at <= ?2 ORDER BY expires_at ASC",
         )?;
         let rows = stmt.query_map(params![tier.as_str(), now], |row| {
             Ok(RetentionEntry {
@@ -675,7 +729,12 @@ impl ConsentStore {
     }
 
     /// Update the tier of a retention entry.
-    pub fn update_retention_tier(&self, id: i64, new_tier: RetentionTier, new_expires_at: &str) -> Result<(), GovernanceError> {
+    pub fn update_retention_tier(
+        &self,
+        id: i64,
+        new_tier: RetentionTier,
+        new_expires_at: &str,
+    ) -> Result<(), GovernanceError> {
         self.conn.execute(
             "UPDATE retention_entries SET tier = ?1, expires_at = ?2 WHERE id = ?3",
             params![new_tier.as_str(), new_expires_at, id],
@@ -688,9 +747,12 @@ impl ConsentStore {
         let mut stmt = self.conn.prepare(
             "SELECT id, source_table, source_id FROM retention_entries WHERE tier = 'expired' AND expires_at <= ?1"
         )?;
-        let expired: Vec<(i64, String, i64)> = stmt.query_map(params![now], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-        })?.filter_map(|r| r.ok()).collect();
+        let expired: Vec<(i64, String, i64)> = stmt
+            .query_map(params![now], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
 
         if expired.is_empty() {
             return Ok(0);
@@ -699,9 +761,13 @@ impl ConsentStore {
         let mut count = 0;
         for (id, source_table, source_id) in &expired {
             if source_table == "data_processing_log" {
-                self.conn.execute("DELETE FROM data_processing_log WHERE id = ?1", params![source_id])?;
+                self.conn.execute(
+                    "DELETE FROM data_processing_log WHERE id = ?1",
+                    params![source_id],
+                )?;
             }
-            self.conn.execute("DELETE FROM retention_entries WHERE id = ?1", params![id])?;
+            self.conn
+                .execute("DELETE FROM retention_entries WHERE id = ?1", params![id])?;
             count += 1;
         }
         Ok(count)
@@ -721,7 +787,9 @@ fn map_processing_log(row: &rusqlite::Row) -> rusqlite::Result<ProcessingLogEntr
 }
 
 /// Convert processing log entries to audit entries for breach assessment.
-pub fn processing_log_to_audit_entries(entries: &[ProcessingLogEntry]) -> Vec<crate::compliance::AuditEntry> {
+pub fn processing_log_to_audit_entries(
+    entries: &[ProcessingLogEntry],
+) -> Vec<crate::compliance::AuditEntry> {
     entries
         .iter()
         .map(|e| {
@@ -786,7 +854,10 @@ pub struct FileGuardConfig {
 
 impl Default for FileGuardConfig {
     fn default() -> Self {
-        Self { extra_deny: Vec::new(), allow: Vec::new() }
+        Self {
+            extra_deny: Vec::new(),
+            allow: Vec::new(),
+        }
     }
 }
 
@@ -816,12 +887,16 @@ impl FileGuard {
             }
         }
 
-        let allow_patterns: Vec<Regex> = config.allow
+        let allow_patterns: Vec<Regex> = config
+            .allow
             .iter()
             .filter_map(|p| Regex::new(p).ok())
             .collect();
 
-        Self { deny_patterns, allow_patterns }
+        Self {
+            deny_patterns,
+            allow_patterns,
+        }
     }
 
     /// Check if a file path is allowed for agent access.
@@ -831,7 +906,10 @@ impl FileGuard {
         // Allow list overrides deny
         for pattern in &self.allow_patterns {
             if pattern.is_match(&normalized) {
-                return FileCheckResult { allowed: true, reason: None };
+                return FileCheckResult {
+                    allowed: true,
+                    reason: None,
+                };
             }
         }
 
@@ -840,12 +918,18 @@ impl FileGuard {
             if pattern.is_match(&normalized) {
                 return FileCheckResult {
                     allowed: false,
-                    reason: Some(format!("Path matches sensitive pattern: {}", pattern.as_str())),
+                    reason: Some(format!(
+                        "Path matches sensitive pattern: {}",
+                        pattern.as_str()
+                    )),
                 };
             }
         }
 
-        FileCheckResult { allowed: true, reason: None }
+        FileCheckResult {
+            allowed: true,
+            reason: None,
+        }
     }
 }
 
@@ -860,7 +944,11 @@ pub struct RetentionPolicy {
 
 impl Default for RetentionPolicy {
     fn default() -> Self {
-        Self { hot_days: 7, warm_days: 30, cold_days: 90 }
+        Self {
+            hot_days: 7,
+            warm_days: 30,
+            cold_days: 90,
+        }
     }
 }
 
@@ -885,22 +973,36 @@ impl RetentionManager {
 
     /// Run tier promotion + pruning. Returns counts of promoted and pruned entries.
     pub fn enforce(&self, now: Option<&str>) -> Result<EnforceResult, GovernanceError> {
-        let current_time = now.map(|s| s.to_string())
+        let current_time = now
+            .map(|s| s.to_string())
             .unwrap_or_else(|| Utc::now().to_rfc3339());
         let mut promoted = 0u32;
 
         // Tier transitions: hot→warm, warm→cold, cold→expired
         let transitions = [
-            (RetentionTier::Hot, RetentionTier::Warm, self.policy.warm_days),
-            (RetentionTier::Warm, RetentionTier::Cold, self.policy.cold_days),
-            (RetentionTier::Cold, RetentionTier::Expired, self.policy.cold_days),
+            (
+                RetentionTier::Hot,
+                RetentionTier::Warm,
+                self.policy.warm_days,
+            ),
+            (
+                RetentionTier::Warm,
+                RetentionTier::Cold,
+                self.policy.cold_days,
+            ),
+            (
+                RetentionTier::Cold,
+                RetentionTier::Expired,
+                self.policy.cold_days,
+            ),
         ];
 
         for (from, to, days) in &transitions {
             let candidates = self.store.get_retention_candidates(*from, &current_time)?;
             for entry in &candidates {
                 let new_expires = (Utc::now() + Duration::days(*days)).to_rfc3339();
-                self.store.update_retention_tier(entry.id, *to, &new_expires)?;
+                self.store
+                    .update_retention_tier(entry.id, *to, &new_expires)?;
                 promoted += 1;
             }
         }
@@ -921,15 +1023,27 @@ impl RetentionManager {
     }
 
     /// Track a new processing log entry in the retention system.
-    pub fn track_entry(&self, user_id: &str, source_id: i64, now: Option<&str>) -> Result<(), GovernanceError> {
-        let current_time = now.map(|s| s.to_string())
+    pub fn track_entry(
+        &self,
+        user_id: &str,
+        source_id: i64,
+        now: Option<&str>,
+    ) -> Result<(), GovernanceError> {
+        let current_time = now
+            .map(|s| s.to_string())
             .unwrap_or_else(|| Utc::now().to_rfc3339());
         let expires_at = if let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(&current_time) {
             (parsed + Duration::days(self.policy.hot_days)).to_rfc3339()
         } else {
             (Utc::now() + Duration::days(self.policy.hot_days)).to_rfc3339()
         };
-        self.store.track_retention(user_id, "data_processing_log", source_id, RetentionTier::Hot, &expires_at)
+        self.store.track_retention(
+            user_id,
+            "data_processing_log",
+            source_id,
+            RetentionTier::Hot,
+            &expires_at,
+        )
     }
 }
 
@@ -942,11 +1056,18 @@ pub struct GovernanceEngine {
 }
 
 impl GovernanceEngine {
-    pub fn new(db_path: &str, file_guard_config: Option<FileGuardConfig>) -> Result<Self, GovernanceError> {
+    pub fn new(
+        db_path: &str,
+        file_guard_config: Option<FileGuardConfig>,
+    ) -> Result<Self, GovernanceError> {
         let consent_store = Arc::new(ConsentStore::open(db_path)?);
         let file_guard = FileGuard::new(file_guard_config);
         let retention = RetentionManager::new(Arc::clone(&consent_store), None);
-        Ok(Self { consent_store, file_guard, retention })
+        Ok(Self {
+            consent_store,
+            file_guard,
+            retention,
+        })
     }
 
     pub fn consent_store(&self) -> &ConsentStore {
@@ -1031,7 +1152,8 @@ pub fn handle_privacy_command(
                 "  /privacy retention status   \u{2014} Show retention tier counts",
                 "  /privacy retention enforce  \u{2014} Run tier promotion + pruning now",
                 "  /privacy retention policy   \u{2014} Show current retention policy",
-            ].join("\n"),
+            ]
+            .join("\n"),
             success: true,
         },
     }
@@ -1042,19 +1164,34 @@ fn cmd_status(engine: &GovernanceEngine, user_id: &str) -> PrivacyCommandResult 
         Ok(status) => {
             let mut lines = vec!["OpenObscure Privacy Status".to_string(), String::new()];
 
-            let active: Vec<_> = status.consents.iter()
+            let active: Vec<_> = status
+                .consents
+                .iter()
                 .filter(|c| c.granted && c.revoked_at.is_none())
                 .collect();
-            let revoked: Vec<_> = status.consents.iter()
+            let revoked: Vec<_> = status
+                .consents
+                .iter()
                 .filter(|c| !c.granted || c.revoked_at.is_some())
                 .collect();
 
             if !active.is_empty() {
                 lines.push("Active Consents:".to_string());
                 for c in &active {
-                    let basis = c.legal_basis.as_deref().map(|b| format!(" (basis: {})", b)).unwrap_or_default();
-                    let purpose = c.purpose.as_deref().map(|p| format!(" \u{2014} {}", p)).unwrap_or_default();
-                    lines.push(format!("  [granted] {}{}{} (v{})", c.consent_type, basis, purpose, c.version));
+                    let basis = c
+                        .legal_basis
+                        .as_deref()
+                        .map(|b| format!(" (basis: {})", b))
+                        .unwrap_or_default();
+                    let purpose = c
+                        .purpose
+                        .as_deref()
+                        .map(|p| format!(" \u{2014} {}", p))
+                        .unwrap_or_default();
+                    lines.push(format!(
+                        "  [granted] {}{}{} (v{})",
+                        c.consent_type, basis, purpose, c.version
+                    ));
                 }
             } else {
                 lines.push("Active Consents: none".to_string());
@@ -1064,38 +1201,67 @@ fn cmd_status(engine: &GovernanceEngine, user_id: &str) -> PrivacyCommandResult 
                 lines.push("Revoked Consents:".to_string());
                 for c in &revoked {
                     let revoked_at = c.revoked_at.as_deref().unwrap_or("unknown");
-                    lines.push(format!("  [revoked] {} (revoked: {})", c.consent_type, revoked_at));
+                    lines.push(format!(
+                        "  [revoked] {} (revoked: {})",
+                        c.consent_type, revoked_at
+                    ));
                 }
             }
 
             lines.push(String::new());
-            lines.push(format!("Data Processing Log: {} entries", status.processing_log_count));
+            lines.push(format!(
+                "Data Processing Log: {} entries",
+                status.processing_log_count
+            ));
             lines.push(format!("Pending DSARs: {}", status.pending_dsars));
 
-            PrivacyCommandResult { text: lines.join("\n"), success: true }
+            PrivacyCommandResult {
+                text: lines.join("\n"),
+                success: true,
+            }
         }
-        Err(e) => PrivacyCommandResult { text: format!("Error: {}", e), success: false },
+        Err(e) => PrivacyCommandResult {
+            text: format!("Error: {}", e),
+            success: false,
+        },
     }
 }
 
-fn cmd_consent_grant(engine: &GovernanceEngine, user_id: &str, consent_type: Option<&str>) -> PrivacyCommandResult {
+fn cmd_consent_grant(
+    engine: &GovernanceEngine,
+    user_id: &str,
+    consent_type: Option<&str>,
+) -> PrivacyCommandResult {
     let ct_str = consent_type.unwrap_or("processing");
     let ct = match ConsentType::from_str(ct_str) {
         Ok(ct) => ct,
         Err(_) => {
             let valid: Vec<_> = ConsentType::all().iter().map(|c| c.as_str()).collect();
             return PrivacyCommandResult {
-                text: format!("Invalid consent type: \"{}\". Valid types: {}", ct_str, valid.join(", ")),
+                text: format!(
+                    "Invalid consent type: \"{}\". Valid types: {}",
+                    ct_str,
+                    valid.join(", ")
+                ),
                 success: false,
             };
         }
     };
 
-    match engine.consent_store().grant_consent(user_id, ct, Some("User-initiated consent"), None) {
+    match engine
+        .consent_store()
+        .grant_consent(user_id, ct, Some("User-initiated consent"), None)
+    {
         Ok(record) => {
             let _ = engine.consent_store().log_processing(
-                user_id, ProcessingAction::Store, Some(&[]), Some("consent_manager"),
-                Some(&format!("{{\"action\":\"consent_grant\",\"consent_type\":\"{}\"}}", ct_str)),
+                user_id,
+                ProcessingAction::Store,
+                Some(&[]),
+                Some("consent_manager"),
+                Some(&format!(
+                    "{{\"action\":\"consent_grant\",\"consent_type\":\"{}\"}}",
+                    ct_str
+                )),
             );
             PrivacyCommandResult {
                 text: format!(
@@ -1105,18 +1271,29 @@ fn cmd_consent_grant(engine: &GovernanceEngine, user_id: &str, consent_type: Opt
                 success: true,
             }
         }
-        Err(e) => PrivacyCommandResult { text: format!("Error: {}", e), success: false },
+        Err(e) => PrivacyCommandResult {
+            text: format!("Error: {}", e),
+            success: false,
+        },
     }
 }
 
-fn cmd_consent_revoke(engine: &GovernanceEngine, user_id: &str, consent_type: Option<&str>) -> PrivacyCommandResult {
+fn cmd_consent_revoke(
+    engine: &GovernanceEngine,
+    user_id: &str,
+    consent_type: Option<&str>,
+) -> PrivacyCommandResult {
     let ct_str = consent_type.unwrap_or("processing");
     let ct = match ConsentType::from_str(ct_str) {
         Ok(ct) => ct,
         Err(_) => {
             let valid: Vec<_> = ConsentType::all().iter().map(|c| c.as_str()).collect();
             return PrivacyCommandResult {
-                text: format!("Invalid consent type: \"{}\". Valid types: {}", ct_str, valid.join(", ")),
+                text: format!(
+                    "Invalid consent type: \"{}\". Valid types: {}",
+                    ct_str,
+                    valid.join(", ")
+                ),
                 success: false,
             };
         }
@@ -1125,8 +1302,14 @@ fn cmd_consent_revoke(engine: &GovernanceEngine, user_id: &str, consent_type: Op
     match engine.consent_store().revoke_consent(user_id, ct) {
         Ok(true) => {
             let _ = engine.consent_store().log_processing(
-                user_id, ProcessingAction::Store, Some(&[]), Some("consent_manager"),
-                Some(&format!("{{\"action\":\"consent_revoke\",\"consent_type\":\"{}\"}}", ct_str)),
+                user_id,
+                ProcessingAction::Store,
+                Some(&[]),
+                Some("consent_manager"),
+                Some(&format!(
+                    "{{\"action\":\"consent_revoke\",\"consent_type\":\"{}\"}}",
+                    ct_str
+                )),
             );
             PrivacyCommandResult {
                 text: format!(
@@ -1140,7 +1323,10 @@ fn cmd_consent_revoke(engine: &GovernanceEngine, user_id: &str, consent_type: Op
             text: format!("No active consent for \"{}\" to revoke.", ct_str),
             success: false,
         },
-        Err(e) => PrivacyCommandResult { text: format!("Error: {}", e), success: false },
+        Err(e) => PrivacyCommandResult {
+            text: format!("Error: {}", e),
+            success: false,
+        },
     }
 }
 
@@ -1148,72 +1334,105 @@ fn cmd_export(engine: &GovernanceEngine, user_id: &str) -> PrivacyCommandResult 
     match engine.consent_store().export_user_data(user_id) {
         Ok(data) => {
             // Create DSAR access request
-            let dsar = engine.consent_store().create_dsar(user_id, DsarType::Access).ok();
+            let dsar = engine
+                .consent_store()
+                .create_dsar(user_id, DsarType::Access)
+                .ok();
             if let Some(ref d) = dsar {
-                let _ = engine.consent_store().update_dsar_status(d.id, DsarStatus::Completed, None);
+                let _ =
+                    engine
+                        .consent_store()
+                        .update_dsar_status(d.id, DsarStatus::Completed, None);
             }
 
             match serde_json::to_string_pretty(&data) {
                 Ok(json) => {
-                    let dsar_note = dsar.map(|d| format!("\nDSAR request #{} fulfilled.", d.id)).unwrap_or_default();
+                    let dsar_note = dsar
+                        .map(|d| format!("\nDSAR request #{} fulfilled.", d.id))
+                        .unwrap_or_default();
                     PrivacyCommandResult {
                         text: format!("{}{}", json, dsar_note),
                         success: true,
                     }
                 }
-                Err(e) => PrivacyCommandResult { text: format!("Serialization error: {}", e), success: false },
+                Err(e) => PrivacyCommandResult {
+                    text: format!("Serialization error: {}", e),
+                    success: false,
+                },
             }
         }
-        Err(e) => PrivacyCommandResult { text: format!("Error: {}", e), success: false },
+        Err(e) => PrivacyCommandResult {
+            text: format!("Error: {}", e),
+            success: false,
+        },
     }
 }
 
 fn cmd_delete(engine: &GovernanceEngine, user_id: &str) -> PrivacyCommandResult {
     // Create DSAR erasure request first
-    let _ = engine.consent_store().create_dsar(user_id, DsarType::Erasure);
+    let _ = engine
+        .consent_store()
+        .create_dsar(user_id, DsarType::Erasure);
 
     match engine.consent_store().delete_user_data(user_id) {
         Ok(deleted_count) => {
             // Re-create a completion record after deletion
-            if let Ok(d) = engine.consent_store().create_dsar(user_id, DsarType::Erasure) {
-                let _ = engine.consent_store().update_dsar_status(d.id, DsarStatus::Completed, None);
+            if let Ok(d) = engine
+                .consent_store()
+                .create_dsar(user_id, DsarType::Erasure)
+            {
+                let _ =
+                    engine
+                        .consent_store()
+                        .update_dsar_status(d.id, DsarStatus::Completed, None);
             }
             PrivacyCommandResult {
                 text: format!("Data erasure complete. {} records deleted across all tables.\nDSAR erasure request fulfilled.", deleted_count),
                 success: true,
             }
         }
-        Err(e) => PrivacyCommandResult { text: format!("Error: {}", e), success: false },
+        Err(e) => PrivacyCommandResult {
+            text: format!("Error: {}", e),
+            success: false,
+        },
     }
 }
 
 fn cmd_retention(engine: &GovernanceEngine, action: Option<&str>) -> PrivacyCommandResult {
     match action {
-        Some("status") => {
-            match engine.retention().get_summary() {
-                Ok(summary) => {
-                    let lines = [
-                        "Retention Tier Summary:".to_string(),
-                        format!("  hot:     {} entries", summary.hot),
-                        format!("  warm:    {} entries", summary.warm),
-                        format!("  cold:    {} entries", summary.cold),
-                        format!("  expired: {} entries", summary.expired),
-                        format!("  total:   {} entries", summary.total),
-                    ];
-                    PrivacyCommandResult { text: lines.join("\n"), success: true }
-                }
-                Err(e) => PrivacyCommandResult { text: format!("Error: {}", e), success: false },
-            }
-        }
-        Some("enforce") => {
-            match engine.retention().enforce(None) {
-                Ok(result) => PrivacyCommandResult {
-                    text: format!("Retention enforcement complete. Promoted: {}, Pruned: {}.", result.promoted, result.pruned),
+        Some("status") => match engine.retention().get_summary() {
+            Ok(summary) => {
+                let lines = [
+                    "Retention Tier Summary:".to_string(),
+                    format!("  hot:     {} entries", summary.hot),
+                    format!("  warm:    {} entries", summary.warm),
+                    format!("  cold:    {} entries", summary.cold),
+                    format!("  expired: {} entries", summary.expired),
+                    format!("  total:   {} entries", summary.total),
+                ];
+                PrivacyCommandResult {
+                    text: lines.join("\n"),
                     success: true,
-                },
-                Err(e) => PrivacyCommandResult { text: format!("Error: {}", e), success: false },
+                }
             }
-        }
+            Err(e) => PrivacyCommandResult {
+                text: format!("Error: {}", e),
+                success: false,
+            },
+        },
+        Some("enforce") => match engine.retention().enforce(None) {
+            Ok(result) => PrivacyCommandResult {
+                text: format!(
+                    "Retention enforcement complete. Promoted: {}, Pruned: {}.",
+                    result.promoted, result.pruned
+                ),
+                success: true,
+            },
+            Err(e) => PrivacyCommandResult {
+                text: format!("Error: {}", e),
+                success: false,
+            },
+        },
         Some("policy") => {
             let policy = engine.retention().get_policy();
             let lines = [
@@ -1223,7 +1442,10 @@ fn cmd_retention(engine: &GovernanceEngine, action: Option<&str>) -> PrivacyComm
                 format!("  cold \u{2192} expired: after {} days", policy.cold_days),
                 "  expired: deleted on next enforcement run".to_string(),
             ];
-            PrivacyCommandResult { text: lines.join("\n"), success: true }
+            PrivacyCommandResult {
+                text: lines.join("\n"),
+                success: true,
+            }
         }
         _ => PrivacyCommandResult {
             text: "Usage: /privacy retention <status|enforce|policy>".to_string(),
@@ -1251,7 +1473,9 @@ mod tests {
     #[test]
     fn test_grant_consent() {
         let store = test_store();
-        let record = store.grant_consent("user1", ConsentType::Processing, Some("Test"), None).unwrap();
+        let record = store
+            .grant_consent("user1", ConsentType::Processing, Some("Test"), None)
+            .unwrap();
         assert_eq!(record.consent_type, "processing");
         assert!(record.granted);
         assert_eq!(record.version, 1);
@@ -1261,35 +1485,51 @@ mod tests {
     #[test]
     fn test_grant_consent_bumps_version() {
         let store = test_store();
-        let r1 = store.grant_consent("user1", ConsentType::Processing, None, None).unwrap();
+        let r1 = store
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
         assert_eq!(r1.version, 1);
-        let r2 = store.grant_consent("user1", ConsentType::Processing, None, None).unwrap();
+        let r2 = store
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
         assert_eq!(r2.version, 2);
     }
 
     #[test]
     fn test_revoke_consent() {
         let store = test_store();
-        store.grant_consent("user1", ConsentType::Storage, None, None).unwrap();
-        assert!(store.has_active_consent("user1", ConsentType::Storage).unwrap());
+        store
+            .grant_consent("user1", ConsentType::Storage, None, None)
+            .unwrap();
+        assert!(store
+            .has_active_consent("user1", ConsentType::Storage)
+            .unwrap());
 
         let revoked = store.revoke_consent("user1", ConsentType::Storage).unwrap();
         assert!(revoked);
-        assert!(!store.has_active_consent("user1", ConsentType::Storage).unwrap());
+        assert!(!store
+            .has_active_consent("user1", ConsentType::Storage)
+            .unwrap());
     }
 
     #[test]
     fn test_revoke_nonexistent() {
         let store = test_store();
-        let revoked = store.revoke_consent("user1", ConsentType::Transfer).unwrap();
+        let revoked = store
+            .revoke_consent("user1", ConsentType::Transfer)
+            .unwrap();
         assert!(!revoked);
     }
 
     #[test]
     fn test_get_consents() {
         let store = test_store();
-        store.grant_consent("user1", ConsentType::Processing, None, None).unwrap();
-        store.grant_consent("user1", ConsentType::Storage, None, None).unwrap();
+        store
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
+        store
+            .grant_consent("user1", ConsentType::Storage, None, None)
+            .unwrap();
         let consents = store.get_consents("user1").unwrap();
         assert_eq!(consents.len(), 2);
     }
@@ -1297,15 +1537,29 @@ mod tests {
     #[test]
     fn test_has_active_consent() {
         let store = test_store();
-        assert!(!store.has_active_consent("user1", ConsentType::Processing).unwrap());
-        store.grant_consent("user1", ConsentType::Processing, None, None).unwrap();
-        assert!(store.has_active_consent("user1", ConsentType::Processing).unwrap());
+        assert!(!store
+            .has_active_consent("user1", ConsentType::Processing)
+            .unwrap());
+        store
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
+        assert!(store
+            .has_active_consent("user1", ConsentType::Processing)
+            .unwrap());
     }
 
     #[test]
     fn test_log_processing() {
         let store = test_store();
-        let id = store.log_processing("user1", ProcessingAction::Scan, Some(&["email", "phone"]), Some("proxy"), None).unwrap();
+        let id = store
+            .log_processing(
+                "user1",
+                ProcessingAction::Scan,
+                Some(&["email", "phone"]),
+                Some("proxy"),
+                None,
+            )
+            .unwrap();
         assert!(id > 0);
 
         let log = store.get_processing_log("user1", None).unwrap();
@@ -1318,7 +1572,9 @@ mod tests {
     fn test_processing_log_limit() {
         let store = test_store();
         for _ in 0..5 {
-            store.log_processing("user1", ProcessingAction::Scan, None, None, None).unwrap();
+            store
+                .log_processing("user1", ProcessingAction::Scan, None, None, None)
+                .unwrap();
         }
         let log = store.get_processing_log("user1", Some(3)).unwrap();
         assert_eq!(log.len(), 3);
@@ -1330,7 +1586,9 @@ mod tests {
         let dsar = store.create_dsar("user1", DsarType::Access).unwrap();
         assert_eq!(dsar.status, "pending");
 
-        store.update_dsar_status(dsar.id, DsarStatus::Completed, None).unwrap();
+        store
+            .update_dsar_status(dsar.id, DsarStatus::Completed, None)
+            .unwrap();
         let requests = store.get_dsar_requests("user1").unwrap();
         assert_eq!(requests[0].status, "completed");
         assert!(requests[0].completed_at.is_some());
@@ -1339,8 +1597,12 @@ mod tests {
     #[test]
     fn test_get_status() {
         let store = test_store();
-        store.grant_consent("user1", ConsentType::Processing, None, None).unwrap();
-        store.log_processing("user1", ProcessingAction::Scan, None, None, None).unwrap();
+        store
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
+        store
+            .log_processing("user1", ProcessingAction::Scan, None, None, None)
+            .unwrap();
         store.create_dsar("user1", DsarType::Access).unwrap();
 
         let status = store.get_status("user1").unwrap();
@@ -1352,8 +1614,12 @@ mod tests {
     #[test]
     fn test_export_user_data() {
         let store = test_store();
-        store.grant_consent("user1", ConsentType::Processing, None, None).unwrap();
-        store.log_processing("user1", ProcessingAction::Encrypt, None, None, None).unwrap();
+        store
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
+        store
+            .log_processing("user1", ProcessingAction::Encrypt, None, None, None)
+            .unwrap();
 
         let export = store.export_user_data("user1").unwrap();
         assert_eq!(export.user_id, "user1");
@@ -1364,8 +1630,12 @@ mod tests {
     #[test]
     fn test_delete_user_data() {
         let store = test_store();
-        store.grant_consent("user1", ConsentType::Processing, None, None).unwrap();
-        store.log_processing("user1", ProcessingAction::Scan, None, None, None).unwrap();
+        store
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
+        store
+            .log_processing("user1", ProcessingAction::Scan, None, None, None)
+            .unwrap();
         store.create_dsar("user1", DsarType::Access).unwrap();
 
         let deleted = store.delete_user_data("user1").unwrap();
@@ -1398,7 +1668,11 @@ mod tests {
         let guard = FileGuard::new(None);
         assert!(!guard.check_access("/home/user/.ssh/id_rsa").allowed);
         assert!(!guard.check_access("/home/user/.ssh/id_ed25519").allowed);
-        assert!(!guard.check_access("/home/user/.ssh/authorized_keys").allowed);
+        assert!(
+            !guard
+                .check_access("/home/user/.ssh/authorized_keys")
+                .allowed
+        );
     }
 
     #[test]
@@ -1462,7 +1736,9 @@ mod tests {
         let store = Arc::new(test_store());
         let rm = RetentionManager::new(Arc::clone(&store), None);
 
-        let log_id = store.log_processing("user1", ProcessingAction::Scan, None, None, None).unwrap();
+        let log_id = store
+            .log_processing("user1", ProcessingAction::Scan, None, None, None)
+            .unwrap();
         rm.track_entry("user1", log_id, None).unwrap();
 
         let summary = rm.get_summary().unwrap();
@@ -1477,7 +1753,9 @@ mod tests {
 
         // Create an entry with an already-expired hot tier
         let past = "2020-01-01T00:00:00+00:00";
-        store.track_retention("user1", "data_processing_log", 1, RetentionTier::Hot, past).unwrap();
+        store
+            .track_retention("user1", "data_processing_log", 1, RetentionTier::Hot, past)
+            .unwrap();
 
         let result = rm.enforce(None).unwrap();
         assert!(result.promoted >= 1);
@@ -1494,10 +1772,20 @@ mod tests {
         let rm = RetentionManager::new(Arc::clone(&store), None);
 
         // Insert a processing log entry
-        let log_id = store.log_processing("user1", ProcessingAction::Scan, None, None, None).unwrap();
+        let log_id = store
+            .log_processing("user1", ProcessingAction::Scan, None, None, None)
+            .unwrap();
         // Track it as already expired
         let past = "2020-01-01T00:00:00+00:00";
-        store.track_retention("user1", "data_processing_log", log_id, RetentionTier::Expired, past).unwrap();
+        store
+            .track_retention(
+                "user1",
+                "data_processing_log",
+                log_id,
+                RetentionTier::Expired,
+                past,
+            )
+            .unwrap();
 
         let result = rm.enforce(None).unwrap();
         assert_eq!(result.pruned, 1);
@@ -1520,7 +1808,11 @@ mod tests {
     #[test]
     fn test_retention_custom_policy() {
         let store = Arc::new(test_store());
-        let policy = RetentionPolicy { hot_days: 1, warm_days: 7, cold_days: 30 };
+        let policy = RetentionPolicy {
+            hot_days: 1,
+            warm_days: 7,
+            cold_days: 30,
+        };
         let rm = RetentionManager::new(Arc::clone(&store), Some(policy));
         let p = rm.get_policy();
         assert_eq!(p.hot_days, 1);
@@ -1533,7 +1825,11 @@ mod tests {
     #[test]
     fn test_engine_creation() {
         let engine = test_engine();
-        assert!(engine.consent_store().get_consents("nobody").unwrap().is_empty());
+        assert!(engine
+            .consent_store()
+            .get_consents("nobody")
+            .unwrap()
+            .is_empty());
         assert!(engine.file_guard().check_access("/safe/file.rs").allowed);
     }
 
@@ -1586,7 +1882,10 @@ mod tests {
     #[test]
     fn test_cmd_export() {
         let engine = test_engine();
-        engine.consent_store().grant_consent("user1", ConsentType::Processing, None, None).unwrap();
+        engine
+            .consent_store()
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
         let result = handle_privacy_command(&engine, "user1", &["export"]);
         assert!(result.success);
         assert!(result.text.contains("user1"));
@@ -1596,7 +1895,10 @@ mod tests {
     #[test]
     fn test_cmd_delete() {
         let engine = test_engine();
-        engine.consent_store().grant_consent("user1", ConsentType::Processing, None, None).unwrap();
+        engine
+            .consent_store()
+            .grant_consent("user1", ConsentType::Processing, None, None)
+            .unwrap();
         let result = handle_privacy_command(&engine, "user1", &["delete"]);
         assert!(result.success);
         assert!(result.text.contains("erasure complete"));
@@ -1605,7 +1907,8 @@ mod tests {
     #[test]
     fn test_cmd_disclosure() {
         let engine = test_engine();
-        let result = handle_privacy_command(&engine, "user1", &["disclosure", "Claude", "Anthropic"]);
+        let result =
+            handle_privacy_command(&engine, "user1", &["disclosure", "Claude", "Anthropic"]);
         assert!(result.success);
         assert!(result.text.contains("Claude"));
         assert!(result.text.contains("Anthropic"));
@@ -1649,9 +1952,33 @@ mod tests {
     #[test]
     fn test_get_all_processing_log_multiple_users() {
         let store = test_store();
-        store.log_processing("alice", ProcessingAction::Scan, Some(&["email"]), Some("proxy"), None).unwrap();
-        store.log_processing("bob", ProcessingAction::Encrypt, Some(&["ssn", "cc"]), Some("proxy"), None).unwrap();
-        store.log_processing("alice", ProcessingAction::Redact, Some(&["phone"]), Some("plugin"), None).unwrap();
+        store
+            .log_processing(
+                "alice",
+                ProcessingAction::Scan,
+                Some(&["email"]),
+                Some("proxy"),
+                None,
+            )
+            .unwrap();
+        store
+            .log_processing(
+                "bob",
+                ProcessingAction::Encrypt,
+                Some(&["ssn", "cc"]),
+                Some("proxy"),
+                None,
+            )
+            .unwrap();
+        store
+            .log_processing(
+                "alice",
+                ProcessingAction::Redact,
+                Some(&["phone"]),
+                Some("plugin"),
+                None,
+            )
+            .unwrap();
 
         let all = store.get_all_processing_log(None).unwrap();
         assert_eq!(all.len(), 3);
@@ -1663,8 +1990,18 @@ mod tests {
     #[test]
     fn test_processing_log_to_audit_entries_conversion() {
         let store = test_store();
-        store.log_processing("user1", ProcessingAction::Scan, Some(&["email", "ssn"]), Some("proxy"), None).unwrap();
-        store.log_processing("user1", ProcessingAction::Encrypt, None, None, None).unwrap();
+        store
+            .log_processing(
+                "user1",
+                ProcessingAction::Scan,
+                Some(&["email", "ssn"]),
+                Some("proxy"),
+                None,
+            )
+            .unwrap();
+        store
+            .log_processing("user1", ProcessingAction::Encrypt, None, None, None)
+            .unwrap();
 
         let log = store.get_all_processing_log(None).unwrap();
         let audit = processing_log_to_audit_entries(&log);

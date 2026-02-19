@@ -173,7 +173,10 @@ async fn test_multi_pii_encryption() {
 
     let received = mock.received_requests().await.unwrap();
     let upstream_body = String::from_utf8(received[0].body.clone()).unwrap();
-    assert!(!upstream_body.contains("123-45-6789"), "SSN leaked to upstream");
+    assert!(
+        !upstream_body.contains("123-45-6789"),
+        "SSN leaked to upstream"
+    );
     assert!(
         !upstream_body.contains("johndoe@example.com"),
         "Email leaked to upstream"
@@ -459,10 +462,7 @@ impl Respond for SseEchoResponder {
     fn respond(&self, request: &wiremock::Request) -> ResponseTemplate {
         // Build SSE events from the request body
         let body_str = String::from_utf8_lossy(&request.body);
-        let sse_response = format!(
-            "data: {}\n\ndata: [DONE]\n\n",
-            body_str
-        );
+        let sse_response = format!("data: {}\n\ndata: [DONE]\n\n", body_str);
         ResponseTemplate::new(200)
             .insert_header("content-type", "text/event-stream")
             .set_body_string(sse_response)

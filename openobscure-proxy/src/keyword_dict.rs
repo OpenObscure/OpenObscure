@@ -194,9 +194,7 @@ fn tokenize(text: &str) -> Vec<Token> {
 
 /// Check if a span [start, end) overlaps with any existing match.
 fn overlaps_any(matches: &[PiiMatch], start: usize, end: usize) -> bool {
-    matches
-        .iter()
-        .any(|m| start < m.end && end > m.start)
+    matches.iter().any(|m| start < m.end && end > m.start)
 }
 
 // ─── Health dictionary (~450 terms) ─────────────────────────────────────────
@@ -897,9 +895,21 @@ mod tests {
     fn test_dictionary_sizes() {
         let dict = KeywordDict::new();
         // Plan calls for ~450 health + ~200 child = ~650-700 total
-        assert!(dict.health_count() >= 400, "Expected >=400 health terms, got {}", dict.health_count());
-        assert!(dict.child_count() >= 150, "Expected >=150 child terms, got {}", dict.child_count());
-        assert!(dict.total_count() >= 600, "Expected >=600 total terms, got {}", dict.total_count());
+        assert!(
+            dict.health_count() >= 400,
+            "Expected >=400 health terms, got {}",
+            dict.health_count()
+        );
+        assert!(
+            dict.child_count() >= 150,
+            "Expected >=150 child terms, got {}",
+            dict.child_count()
+        );
+        assert!(
+            dict.total_count() >= 600,
+            "Expected >=600 total terms, got {}",
+            dict.total_count()
+        );
     }
 
     #[test]
@@ -924,23 +934,37 @@ mod tests {
         let dict = KeywordDict::new();
         let matches = dict.scan_text("My blood pressure has been high");
         // "blood pressure" should be a single match
-        let bp_match = matches.iter().find(|m| m.raw_value.to_lowercase().contains("blood pressure"));
-        assert!(bp_match.is_some(), "Should detect 'blood pressure' as a phrase");
+        let bp_match = matches
+            .iter()
+            .find(|m| m.raw_value.to_lowercase().contains("blood pressure"));
+        assert!(
+            bp_match.is_some(),
+            "Should detect 'blood pressure' as a phrase"
+        );
     }
 
     #[test]
     fn test_child_possessive_phrases() {
         let dict = KeywordDict::new();
         let matches = dict.scan_text("my daughter started kindergarten this fall");
-        assert!(matches.iter().any(|m| m.pii_type == PiiType::ChildKeyword && m.raw_value.to_lowercase() == "my daughter"));
-        assert!(matches.iter().any(|m| m.pii_type == PiiType::ChildKeyword && m.raw_value.to_lowercase() == "kindergarten"));
+        assert!(matches
+            .iter()
+            .any(|m| m.pii_type == PiiType::ChildKeyword
+                && m.raw_value.to_lowercase() == "my daughter"));
+        assert!(matches
+            .iter()
+            .any(|m| m.pii_type == PiiType::ChildKeyword
+                && m.raw_value.to_lowercase() == "kindergarten"));
     }
 
     #[test]
     fn test_child_age_indicators() {
         let dict = KeywordDict::new();
         let matches = dict.scan_text("My 8-year-old loves reading");
-        assert!(matches.iter().any(|m| m.pii_type == PiiType::ChildKeyword && m.raw_value.to_lowercase() == "8-year-old"));
+        assert!(matches
+            .iter()
+            .any(|m| m.pii_type == PiiType::ChildKeyword
+                && m.raw_value.to_lowercase() == "8-year-old"));
     }
 
     #[test]
@@ -969,8 +993,14 @@ mod tests {
     fn test_mixed_health_and_child() {
         let dict = KeywordDict::new();
         let matches = dict.scan_text("My daughter has asthma and uses an inhaler");
-        let child_matches: Vec<_> = matches.iter().filter(|m| m.pii_type == PiiType::ChildKeyword).collect();
-        let health_matches: Vec<_> = matches.iter().filter(|m| m.pii_type == PiiType::HealthKeyword).collect();
+        let child_matches: Vec<_> = matches
+            .iter()
+            .filter(|m| m.pii_type == PiiType::ChildKeyword)
+            .collect();
+        let health_matches: Vec<_> = matches
+            .iter()
+            .filter(|m| m.pii_type == PiiType::HealthKeyword)
+            .collect();
         assert!(!child_matches.is_empty(), "Should find child keyword");
         assert!(!health_matches.is_empty(), "Should find health keyword");
     }
@@ -989,7 +1019,9 @@ mod tests {
     fn test_symptoms_detected() {
         let dict = KeywordDict::new();
         let matches = dict.scan_text("I've been having chest pain and shortness of breath");
-        assert!(matches.iter().any(|m| m.raw_value.to_lowercase() == "chest pain"));
+        assert!(matches
+            .iter()
+            .any(|m| m.raw_value.to_lowercase() == "chest pain"));
     }
 
     #[test]
@@ -1004,7 +1036,10 @@ mod tests {
         let dict = KeywordDict::new();
         // "camp" is a child term, but "campaign" should not match
         let matches = dict.scan_text("The marketing campaign was successful");
-        assert!(matches.is_empty(), "Should not match 'camp' inside 'campaign'");
+        assert!(
+            matches.is_empty(),
+            "Should not match 'camp' inside 'campaign'"
+        );
     }
 
     #[test]
@@ -1013,10 +1048,15 @@ mod tests {
         let matches = dict.scan_text("blood pressure reading was normal");
         // "blood pressure" is a phrase, "blood" is not a standalone health term,
         // so we should get exactly one match for the phrase
-        let blood_matches: Vec<_> = matches.iter()
+        let blood_matches: Vec<_> = matches
+            .iter()
             .filter(|m| m.raw_value.to_lowercase().contains("blood"))
             .collect();
-        assert_eq!(blood_matches.len(), 1, "Should have one match for 'blood pressure', not separate matches");
+        assert_eq!(
+            blood_matches.len(),
+            1,
+            "Should have one match for 'blood pressure', not separate matches"
+        );
     }
 
     #[test]

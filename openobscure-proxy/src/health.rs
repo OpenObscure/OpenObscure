@@ -25,22 +25,22 @@ pub struct LatencyHistogram {
 
 /// Upper bound of each bucket in microseconds.
 const BUCKET_BOUNDS_US: [u64; 16] = [
-    100,      // 0.1ms
-    250,      // 0.25ms
-    500,      // 0.5ms
-    1_000,    // 1ms
-    2_500,    // 2.5ms
-    5_000,    // 5ms
-    10_000,   // 10ms
-    25_000,   // 25ms
-    50_000,   // 50ms
-    100_000,  // 100ms
-    250_000,  // 250ms
-    500_000,  // 500ms
-    1_000_000,  // 1s
-    2_500_000,  // 2.5s
-    5_000_000,  // 5s
-    u64::MAX,   // +inf
+    100,       // 0.1ms
+    250,       // 0.25ms
+    500,       // 0.5ms
+    1_000,     // 1ms
+    2_500,     // 2.5ms
+    5_000,     // 5ms
+    10_000,    // 10ms
+    25_000,    // 25ms
+    50_000,    // 50ms
+    100_000,   // 100ms
+    250_000,   // 250ms
+    500_000,   // 500ms
+    1_000_000, // 1s
+    2_500_000, // 2.5s
+    5_000_000, // 5s
+    u64::MAX,  // +inf
 ];
 
 impl LatencyHistogram {
@@ -132,7 +132,8 @@ impl HealthStats {
 
     /// Record images processed.
     pub fn record_images_processed(&self, count: u64) {
-        self.images_processed_total.fetch_add(count, Ordering::Relaxed);
+        self.images_processed_total
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     /// Record faces blurred.
@@ -147,7 +148,8 @@ impl HealthStats {
 
     /// Record cross-border jurisdiction flags raised.
     pub fn record_cross_border_flags(&self, count: u64) {
-        self.cross_border_flags_total.fetch_add(count, Ordering::Relaxed);
+        self.cross_border_flags_total
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     pub fn uptime_secs(&self) -> u64 {
@@ -237,7 +239,9 @@ pub async fn health_handler(
         faces_blurred_total: stats.faces_blurred_total(),
         text_regions_total: stats.text_regions_total(),
         cross_border_flags_total: stats.cross_border_flags_total(),
-        fpe_key_version: health_state.key_version.load(std::sync::atomic::Ordering::Relaxed),
+        fpe_key_version: health_state
+            .key_version
+            .load(std::sync::atomic::Ordering::Relaxed),
         scan_latency_p50_us: stats.scan_latency.percentile(50.0),
         scan_latency_p95_us: stats.scan_latency.percentile(95.0),
         scan_latency_p99_us: stats.scan_latency.percentile(99.0),
@@ -260,7 +264,10 @@ pub fn install_panic_hook() {
             let message = info.to_string();
             let content = format!("timestamp={}\nmessage={}\n", timestamp, message);
             let _ = std::fs::write(&marker_path, content);
-            eprintln!("[OpenObscure] Crash marker written to {}", marker_path.display());
+            eprintln!(
+                "[OpenObscure] Crash marker written to {}",
+                marker_path.display()
+            );
         }
         // Call default hook (prints backtrace etc.)
         default_hook(info);
@@ -278,7 +285,10 @@ pub fn check_crash_marker() {
                         crash_info = %content.trim());
                 }
                 Err(_) => {
-                    oo_warn!(crate::oo_log::modules::HEALTH, "Recovered from previous crash (marker unreadable)");
+                    oo_warn!(
+                        crate::oo_log::modules::HEALTH,
+                        "Recovered from previous crash (marker unreadable)"
+                    );
                 }
             }
             let _ = std::fs::remove_file(&marker_path);

@@ -20,7 +20,8 @@ use crate::pii_types::PiiType;
 use crate::scanner::PiiMatch;
 use crate::vault::Vault;
 
-type HttpsConnector = hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>;
+type HttpsConnector =
+    hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>;
 
 /// Headers that must not be forwarded to upstream (hop-by-hop per RFC 7230).
 const HOP_BY_HOP_HEADERS: &[&str] = &[
@@ -67,11 +68,10 @@ pub async fn proxy_handler(
         uri = %uri);
 
     // 1. Resolve provider by path prefix
-    let (provider_name, provider) = resolve_provider(&state.config, &uri)
-        .ok_or_else(|| {
-            oo_warn!(crate::oo_log::modules::PROXY, "No provider matched", path = %uri.path());
-            StatusCode::NOT_FOUND
-        })?;
+    let (provider_name, provider) = resolve_provider(&state.config, &uri).ok_or_else(|| {
+        oo_warn!(crate::oo_log::modules::PROXY, "No provider matched", path = %uri.path());
+        StatusCode::NOT_FOUND
+    })?;
 
     oo_debug!(crate::oo_log::modules::PROXY, "Matched provider", request_id = %request_id, provider = %provider_name);
 
@@ -114,7 +114,9 @@ pub async fn proxy_handler(
                 for is in &image_stats {
                     state.health.record_images_processed(1);
                     state.health.record_faces_blurred(is.faces_blurred as u64);
-                    state.health.record_text_regions(is.text_regions_found as u64);
+                    state
+                        .health
+                        .record_text_regions(is.text_regions_found as u64);
                 }
                 (body, mappings)
             }
@@ -125,7 +127,10 @@ pub async fn proxy_handler(
                         oo_warn!(crate::oo_log::modules::PROXY, "Body processing failed (fail-open), forwarding original",
                             request_id = %request_id,
                             error = %e);
-                        (body_bytes.clone(), crate::mapping::RequestMappings::new(request_id))
+                        (
+                            body_bytes.clone(),
+                            crate::mapping::RequestMappings::new(request_id),
+                        )
                     }
                     FailMode::Closed => {
                         oo_error!(crate::oo_log::modules::PROXY, "Body processing failed (fail-closed), rejecting request",
@@ -162,10 +167,17 @@ pub async fn proxy_handler(
             })
             .collect();
 
-        let cb_result = cross_border::classify_and_enforce(&pii_matches, &state.config.cross_border);
+        let cb_result =
+            cross_border::classify_and_enforce(&pii_matches, &state.config.cross_border);
         if !cb_result.flags.is_empty() {
-            state.health.record_cross_border_flags(cb_result.flags.len() as u64);
-            let jurisdictions: Vec<String> = cb_result.flags.iter().map(|f| f.jurisdiction.to_string()).collect();
+            state
+                .health
+                .record_cross_border_flags(cb_result.flags.len() as u64);
+            let jurisdictions: Vec<String> = cb_result
+                .flags
+                .iter()
+                .map(|f| f.jurisdiction.to_string())
+                .collect();
             oo_audit!(crate::oo_log::modules::CROSS_BORDER, "jurisdiction_flags",
                 request_id = %request_id,
                 flags = cb_result.flags.len(),
@@ -218,9 +230,8 @@ pub async fn proxy_handler(
         let req_id = request_id;
 
         // Build streaming body that decrypts each chunk
-        let stream = futures_util::stream::unfold(
-            (resp_body, mappings),
-            move |(mut body, mappings)| {
+        let stream =
+            futures_util::stream::unfold((resp_body, mappings), move |(mut body, mappings)| {
                 let mapping_store = mapping_store.clone();
                 let req_id = req_id;
                 async move {
@@ -250,8 +261,7 @@ pub async fn proxy_handler(
                         }
                     }
                 }
-            },
-        );
+            });
 
         let stream_body = Body::from_stream(stream);
         let mut response = Response::new(stream_body);
@@ -321,10 +331,7 @@ pub async fn proxy_handler(
 }
 
 /// Find the provider config that matches the request URI path prefix.
-fn resolve_provider<'a>(
-    config: &'a AppConfig,
-    uri: &Uri,
-) -> Option<(String, &'a ProviderConfig)> {
+fn resolve_provider<'a>(config: &'a AppConfig, uri: &Uri) -> Option<(String, &'a ProviderConfig)> {
     let path = uri.path();
     // Try longest prefix first for specificity
     let mut candidates: Vec<_> = config
@@ -396,7 +403,11 @@ fn build_upstream_request(
         }
 
         // Skip provider-specific stripped headers
-        if provider.strip_headers.iter().any(|h| h.eq_ignore_ascii_case(&key_str)) {
+        if provider
+            .strip_headers
+            .iter()
+            .any(|h| h.eq_ignore_ascii_case(&key_str))
+        {
             continue;
         }
 
@@ -412,17 +423,17 @@ fn build_upstream_request(
 
     // If no content-type was forwarded and we have a body, default to JSON
     if !body.is_empty() && !headers.contains_key(header::CONTENT_TYPE) {
-        headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
     }
 
     // --- Optional auth override from OpenObscure vault ---
     // Only if the user explicitly configured override_auth = true for this provider.
     // Otherwise, the auth headers from the host agent pass through untouched.
     if provider.override_auth {
-        let vault_key_name = provider
-            .vault_key_name
-            .as_deref()
-            .unwrap_or(provider_name);
+        let vault_key_name = provider.vault_key_name.as_deref().unwrap_or(provider_name);
         match vault.get_api_key(vault_key_name) {
             Ok(api_key) => {
                 let header_name = provider
@@ -435,8 +446,9 @@ fn build_upstream_request(
                     api_key
                 };
                 headers.insert(
-                    header::HeaderName::from_bytes(header_name.as_bytes())
-                        .map_err(|e| format!("Invalid auth header name '{}': {}", header_name, e))?,
+                    header::HeaderName::from_bytes(header_name.as_bytes()).map_err(|e| {
+                        format!("Invalid auth header name '{}': {}", header_name, e)
+                    })?,
                     HeaderValue::from_str(&header_value)
                         .map_err(|e| format!("Invalid auth header value: {}", e))?,
                 );
@@ -506,9 +518,12 @@ async fn buffer_body(req: Request<Body>, max_bytes: usize) -> Result<Bytes, Stat
     })?;
     let bytes = collected.to_bytes();
     if bytes.len() > max_bytes {
-        oo_warn!(crate::oo_log::modules::PROXY, "Request body exceeds size limit",
+        oo_warn!(
+            crate::oo_log::modules::PROXY,
+            "Request body exceeds size limit",
             size = bytes.len(),
-            limit = max_bytes);
+            limit = max_bytes
+        );
         return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
     Ok(bytes)

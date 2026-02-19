@@ -36,11 +36,7 @@ impl FpeEngine {
     }
 
     /// Encrypt a single PII match, returning the encrypted replacement.
-    pub fn encrypt_match(
-        &self,
-        pii_match: &PiiMatch,
-        tweak: &[u8],
-    ) -> Result<FpeResult, FpeError> {
+    pub fn encrypt_match(&self, pii_match: &PiiMatch, tweak: &[u8]) -> Result<FpeResult, FpeError> {
         let config = pii_match.pii_type.config();
         let mapper = self
             .mappers

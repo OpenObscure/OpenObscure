@@ -50,14 +50,16 @@ impl Vault {
         }
         let mut key = [0u8; 32];
         key.copy_from_slice(&decoded);
-        oo_info!(crate::oo_log::modules::VAULT, "FPE key loaded from OPENOBSCURE_MASTER_KEY environment variable");
+        oo_info!(
+            crate::oo_log::modules::VAULT,
+            "FPE key loaded from OPENOBSCURE_MASTER_KEY environment variable"
+        );
         Ok(key)
     }
 
     /// Retrieve the FPE key from the OS keychain only.
     fn get_fpe_key_from_keychain(&self) -> Result<[u8; 32], VaultError> {
-        let entry =
-            Entry::new(&self.service, "fpe-master-key").map_err(VaultError::Keyring)?;
+        let entry = Entry::new(&self.service, "fpe-master-key").map_err(VaultError::Keyring)?;
         let secret = entry.get_secret().map_err(VaultError::Keyring)?;
         if secret.len() != 32 {
             return Err(VaultError::InvalidKeyLength(secret.len()));
@@ -80,11 +82,13 @@ impl Vault {
             println!("OPENOBSCURE_MASTER_KEY={}", hex::encode(&key));
         }
 
-        let entry =
-            Entry::new(&self.service, "fpe-master-key").map_err(VaultError::Keyring)?;
+        let entry = Entry::new(&self.service, "fpe-master-key").map_err(VaultError::Keyring)?;
         entry.set_secret(&key).map_err(VaultError::Keyring)?;
         key.fill(0);
-        oo_info!(crate::oo_log::modules::VAULT, "FPE master key initialized in OS keychain");
+        oo_info!(
+            crate::oo_log::modules::VAULT,
+            "FPE master key initialized in OS keychain"
+        );
         Ok(())
     }
 
@@ -121,7 +125,10 @@ impl Vault {
         if let Ok(entry) = Entry::new(&self.service, "fpe-key-current") {
             if let Ok(password) = entry.get_password() {
                 return password.trim().parse::<u32>().map_err(|e| {
-                    VaultError::EnvVar(format!("fpe-key-current keychain entry is not valid u32: {}", e))
+                    VaultError::EnvVar(format!(
+                        "fpe-key-current keychain entry is not valid u32: {}",
+                        e
+                    ))
                 });
             }
         }
@@ -131,7 +138,9 @@ impl Vault {
             return Ok(1);
         }
 
-        Err(VaultError::KeyNotFound("No FPE key version found".to_string()))
+        Err(VaultError::KeyNotFound(
+            "No FPE key version found".to_string(),
+        ))
     }
 
     /// Retrieve a specific versioned FPE key.
@@ -181,15 +190,25 @@ impl Vault {
             println!("OPENOBSCURE_MASTER_KEY_V{}={}", version, hex::encode(key));
         }
 
-        oo_info!(crate::oo_log::modules::VAULT, "Stored FPE key version in keychain", version = version);
+        oo_info!(
+            crate::oo_log::modules::VAULT,
+            "Stored FPE key version in keychain",
+            version = version
+        );
         Ok(())
     }
 
     /// Update the current version pointer in the keychain.
     pub fn set_current_version(&self, version: u32) -> Result<(), VaultError> {
         let entry = Entry::new(&self.service, "fpe-key-current").map_err(VaultError::Keyring)?;
-        entry.set_password(&version.to_string()).map_err(VaultError::Keyring)?;
-        oo_info!(crate::oo_log::modules::VAULT, "Set current FPE key version", version = version);
+        entry
+            .set_password(&version.to_string())
+            .map_err(VaultError::Keyring)?;
+        oo_info!(
+            crate::oo_log::modules::VAULT,
+            "Set current FPE key version",
+            version = version
+        );
         Ok(())
     }
 
@@ -281,8 +300,7 @@ mod tests {
     #[test]
     fn test_env_var_with_whitespace_trimmed() {
         let _lock = ENV_LOCK.lock().unwrap();
-        let key_hex =
-            "  a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2\n";
+        let key_hex = "  a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2a3b4c5d6a7b8c9d0e1f2\n";
         std::env::set_var("OPENOBSCURE_MASTER_KEY", key_hex);
 
         let vault = Vault::new("test-vault-env");

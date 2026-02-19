@@ -217,11 +217,7 @@ pub fn validate_face_detections(
 // ---------------------------------------------------------------------------
 
 /// Validate OCR text region detections.
-pub fn validate_text_regions(
-    regions: &[BboxMeta],
-    img_w: u32,
-    img_h: u32,
-) -> Vec<ValidationIssue> {
+pub fn validate_text_regions(regions: &[BboxMeta], img_w: u32, img_h: u32) -> Vec<ValidationIssue> {
     let mut issues = Vec::new();
 
     for (i, region) in regions.iter().enumerate() {
@@ -247,10 +243,7 @@ pub fn validate_text_regions(
             issues.push(ValidationIssue {
                 severity: Severity::Warning,
                 check: "text_score_threshold",
-                message: format!(
-                    "text {}: score {:.3} < 0.6 threshold",
-                    i, region.confidence
-                ),
+                message: format!("text {}: score {:.3} < 0.6 threshold", i, region.confidence),
             });
         }
 
@@ -260,7 +253,10 @@ pub fn validate_text_regions(
             issues.push(ValidationIssue {
                 severity: Severity::Warning,
                 check: "text_aspect_ratio",
-                message: format!("text {}: aspect ratio {:.2} < 0.5 (taller than wide)", i, ar),
+                message: format!(
+                    "text {}: aspect ratio {:.2} < 0.5 (taller than wide)",
+                    i, ar
+                ),
             });
         }
 
@@ -534,8 +530,15 @@ mod tests {
         // Normal face: ~10% of 640x480 image
         let face = make_bbox(200.0, 100.0, 280.0, 200.0, 0.92, 640, 480, "face");
         let issues = validate_bbox(&face);
-        let errors: Vec<_> = issues.iter().filter(|i| i.severity == Severity::Error).collect();
-        assert!(errors.is_empty(), "Valid face should have no errors: {:?}", errors);
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "Valid face should have no errors: {:?}",
+            errors
+        );
     }
 
     #[test]
@@ -621,8 +624,15 @@ mod tests {
         let face = make_bbox(200.0, 120.0, 300.0, 250.0, 0.88, 640, 480, "face");
         let faces = vec![face];
         let issues = validate_face_detections(&faces, 640, 480);
-        let errors: Vec<_> = issues.iter().filter(|i| i.severity == Severity::Error).collect();
-        assert!(errors.is_empty(), "Reasonable face should have no errors: {:?}", errors);
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "Reasonable face should have no errors: {:?}",
+            errors
+        );
     }
 
     #[test]
@@ -660,7 +670,10 @@ mod tests {
             make_bbox(400.0, 100.0, 480.0, 180.0, 0.8, 640, 480, "face"),
         ];
         let issues = validate_no_nms_violations(&faces, 0.5);
-        assert!(issues.is_empty(), "Non-overlapping faces should pass NMS check");
+        assert!(
+            issues.is_empty(),
+            "Non-overlapping faces should pass NMS check"
+        );
     }
 
     #[test]
@@ -684,8 +697,15 @@ mod tests {
     fn test_valid_text_region() {
         let region = make_bbox(50.0, 100.0, 400.0, 130.0, 0.85, 640, 480, "text");
         let issues = validate_text_regions(&[region], 640, 480);
-        let errors: Vec<_> = issues.iter().filter(|i| i.severity == Severity::Error).collect();
-        assert!(errors.is_empty(), "Valid text region should have no errors: {:?}", errors);
+        let errors: Vec<_> = issues
+            .iter()
+            .filter(|i| i.severity == Severity::Error)
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "Valid text region should have no errors: {:?}",
+            errors
+        );
     }
 
     #[test]
@@ -693,7 +713,9 @@ mod tests {
         let region = make_bbox(100.0, 100.0, 101.5, 102.0, 0.9, 640, 480, "text");
         let issues = validate_text_regions(&[region], 640, 480);
         assert!(
-            issues.iter().any(|i| i.check == "minimum_size" || i.check == "text_min_height"),
+            issues
+                .iter()
+                .any(|i| i.check == "minimum_size" || i.check == "text_min_height"),
             "Tiny text region should be flagged"
         );
     }
@@ -704,7 +726,9 @@ mod tests {
         let region = make_bbox(50.0, 100.0, 450.0, 102.0, 0.9, 640, 480, "text");
         let issues = validate_text_regions(&[region], 640, 480);
         assert!(
-            issues.iter().any(|i| i.check == "minimum_size" || i.check == "text_min_height"),
+            issues
+                .iter()
+                .any(|i| i.check == "minimum_size" || i.check == "text_min_height"),
             "400x2px text should be flagged as too thin"
         );
     }
@@ -743,7 +767,9 @@ mod tests {
         let region = make_bbox(100.0, 100.0, 100.0, 100.0, 0.9, 640, 480, "text");
         let issues = validate_text_regions(&[region], 640, 480);
         assert!(
-            issues.iter().any(|i| i.check == "text_degenerate" || i.check == "ordered_coords"),
+            issues
+                .iter()
+                .any(|i| i.check == "text_degenerate" || i.check == "ordered_coords"),
             "Degenerate quad should be flagged"
         );
     }
@@ -762,7 +788,11 @@ mod tests {
             exposed_scores: vec![("FEMALE_BREAST_EXPOSED".to_string(), 0.85)],
         };
         let issues = validate_nsfw(&meta);
-        assert!(issues.is_empty(), "Valid NSFW detection should have no issues: {:?}", issues);
+        assert!(
+            issues.is_empty(),
+            "Valid NSFW detection should have no issues: {:?}",
+            issues
+        );
     }
 
     #[test]
@@ -775,7 +805,11 @@ mod tests {
             exposed_scores: vec![],
         };
         let issues = validate_nsfw(&meta);
-        assert!(issues.is_empty(), "Clean image should have no issues: {:?}", issues);
+        assert!(
+            issues.is_empty(),
+            "Clean image should have no issues: {:?}",
+            issues
+        );
     }
 
     #[test]
@@ -858,7 +892,11 @@ mod tests {
             reason_count: 2,
         };
         let issues = validate_screenshot(&meta);
-        assert!(issues.is_empty(), "Valid screenshot should pass: {:?}", issues);
+        assert!(
+            issues.is_empty(),
+            "Valid screenshot should pass: {:?}",
+            issues
+        );
     }
 
     #[test]
@@ -872,7 +910,11 @@ mod tests {
             reason_count: 0,
         };
         let issues = validate_screenshot(&meta);
-        assert!(issues.is_empty(), "Non-screenshot should pass: {:?}", issues);
+        assert!(
+            issues.is_empty(),
+            "Non-screenshot should pass: {:?}",
+            issues
+        );
     }
 
     #[test]
@@ -885,7 +927,10 @@ mod tests {
             reason_count: 2,
         };
         let issues = validate_screenshot(&meta);
-        assert!(issues.is_empty(), "Low variance + resolution = valid screenshot");
+        assert!(
+            issues.is_empty(),
+            "Low variance + resolution = valid screenshot"
+        );
     }
 
     #[test]
@@ -898,7 +943,10 @@ mod tests {
             reason_count: 0,
         };
         let issues = validate_screenshot(&meta);
-        assert!(issues.is_empty(), "High variance non-screenshot should pass");
+        assert!(
+            issues.is_empty(),
+            "High variance non-screenshot should pass"
+        );
     }
 
     #[test]
@@ -999,7 +1047,10 @@ mod tests {
         ];
         let gt = vec![make_bbox(10.0, 10.0, 60.0, 60.0, 0.9, 200, 200, "gt")];
         let (p, r, _f1) = precision_recall(&detected, &gt, 0.5);
-        assert!((p - 0.5).abs() < 1e-6, "precision should be 0.5 (1 TP / 2 det)");
+        assert!(
+            (p - 0.5).abs() < 1e-6,
+            "precision should be 0.5 (1 TP / 2 det)"
+        );
         assert!((r - 1.0).abs() < 1e-6, "recall should be 1.0");
     }
 

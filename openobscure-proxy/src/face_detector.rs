@@ -98,30 +98,41 @@ impl FaceDetector {
         let (orig_w, orig_h) = img.dimensions();
 
         // Resize to 128x128 for BlazeFace input
-        let resized = img.resize_exact(INPUT_SIZE, INPUT_SIZE, image::imageops::FilterType::Triangle);
+        let resized = img.resize_exact(
+            INPUT_SIZE,
+            INPUT_SIZE,
+            image::imageops::FilterType::Triangle,
+        );
         let rgb = resized.to_rgb8();
 
         // Build input tensor [1, 3, 128, 128] normalized to [-1, 1]
-        let input = Array4::<f32>::from_shape_fn((1, 3, INPUT_SIZE as usize, INPUT_SIZE as usize), |(_, c, h, w)| {
-            let pixel = rgb.get_pixel(w as u32, h as u32);
-            (pixel[c] as f32 - 127.5) / 127.5
-        });
+        let input = Array4::<f32>::from_shape_fn(
+            (1, 3, INPUT_SIZE as usize, INPUT_SIZE as usize),
+            |(_, c, h, w)| {
+                let pixel = rgb.get_pixel(w as u32, h as u32);
+                (pixel[c] as f32 - 127.5) / 127.5
+            },
+        );
 
         let input_val = ort::value::Value::from_array(input)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         // Run inference — use dynamic input name to support different BlazeFace ONNX exports
         let input_name = self.session.inputs()[0].name().to_string();
-        let outputs = self.session.run(ort::inputs![input_name.as_str() => input_val])
+        let outputs = self
+            .session
+            .run(ort::inputs![input_name.as_str() => input_val])
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         // Decode outputs — BlazeFace produces two tensors:
         // [0]: regressors [1, num_anchors, 16] (bbox + landmarks)
         // [1]: classificators [1, num_anchors, 1] (face confidence)
         // try_extract_tensor returns (&Shape, &[f32]) — flat data with shape info
-        let (reg_shape, reg_data) = outputs[0].try_extract_tensor::<f32>()
+        let (reg_shape, reg_data) = outputs[0]
+            .try_extract_tensor::<f32>()
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
-        let (_score_shape, score_data) = outputs[1].try_extract_tensor::<f32>()
+        let (_score_shape, score_data) = outputs[1]
+            .try_extract_tensor::<f32>()
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         // regressors shape: [1, num_anchors, 16], scores shape: [1, num_anchors, 1]
@@ -142,8 +153,10 @@ impl FaceDetector {
             // Decode bounding box from anchor-relative offsets.
             // BlazeFace regression values are in input pixel space (0–128),
             // divide by INPUT_SIZE to normalize to [0, 1] before scaling to original image coords.
-            let cx = anchor.cx + reg_data.get(reg_offset).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
-            let cy = anchor.cy + reg_data.get(reg_offset + 1).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
+            let cx =
+                anchor.cx + reg_data.get(reg_offset).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
+            let cy = anchor.cy
+                + reg_data.get(reg_offset + 1).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
             let w = reg_data.get(reg_offset + 2).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
             let h = reg_data.get(reg_offset + 3).copied().unwrap_or(0.0) / INPUT_SIZE as f32;
 
@@ -175,7 +188,11 @@ fn sigmoid(x: f32) -> f32 {
 
 /// Non-maximum suppression: remove overlapping detections, keep highest confidence.
 pub fn nms(detections: &mut Vec<FaceDetection>, iou_threshold: f32) -> Vec<FaceDetection> {
-    detections.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+    detections.sort_by(|a, b| {
+        b.confidence
+            .partial_cmp(&a.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let mut keep = Vec::new();
     let mut suppressed = vec![false; detections.len()];
@@ -276,8 +293,20 @@ fn generate_short_range_anchors() -> Vec<Anchor> {
 mod tests {
     use super::*;
 
-    fn make_detection(x_min: f32, y_min: f32, x_max: f32, y_max: f32, confidence: f32) -> FaceDetection {
-        FaceDetection { x_min, y_min, x_max, y_max, confidence }
+    fn make_detection(
+        x_min: f32,
+        y_min: f32,
+        x_max: f32,
+        y_max: f32,
+        confidence: f32,
+    ) -> FaceDetection {
+        FaceDetection {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+            confidence,
+        }
     }
 
     #[test]

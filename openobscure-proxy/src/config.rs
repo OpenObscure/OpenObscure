@@ -502,10 +502,7 @@ impl AppConfig {
                 anyhow::bail!("Provider '{}' has empty route_prefix", name);
             }
             if !provider.route_prefix.starts_with('/') {
-                anyhow::bail!(
-                    "Provider '{}' route_prefix must start with '/'",
-                    name
-                );
+                anyhow::bail!("Provider '{}' route_prefix must start with '/'", name);
             }
         }
         Ok(())

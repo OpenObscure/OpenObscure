@@ -34,10 +34,7 @@ impl PiiScanner {
                 r"\b(?:4[0-9]{3}|5[1-5][0-9]{2}|3[47][0-9]{2}|6(?:011|5[0-9]{2}))[- ]?[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{1,7}\b",
             ),
             // SSN: XXX-XX-XXXX with dashes or spaces (require separators to reduce false positives)
-            (
-                PiiType::Ssn,
-                r"\b[0-9]{3}[- ][0-9]{2}[- ][0-9]{4}\b",
-            ),
+            (PiiType::Ssn, r"\b[0-9]{3}[- ][0-9]{2}[- ][0-9]{4}\b"),
             // US/international phone numbers — requires at least one separator or leading +
             // to avoid matching bare digit runs inside credit card numbers etc.
             (
@@ -367,10 +364,7 @@ mod tests {
         let matches = scanner.scan_json(&json, &skip_fields);
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].pii_type, PiiType::Ssn);
-        assert_eq!(
-            matches[0].json_path.as_deref(),
-            Some("messages[0].content")
-        );
+        assert_eq!(matches[0].json_path.as_deref(), Some("messages[0].content"));
     }
 
     #[test]

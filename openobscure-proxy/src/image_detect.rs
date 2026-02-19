@@ -56,7 +56,10 @@ pub fn is_image_content_block(obj: &serde_json::Map<String, Value>) -> Option<Im
             if source_type != "base64" {
                 return None; // URL-based images not handled (yet)
             }
-            let media_type = source.get("media_type").and_then(|v| v.as_str()).map(String::from);
+            let media_type = source
+                .get("media_type")
+                .and_then(|v| v.as_str())
+                .map(String::from);
             // Verify "data" field exists and is a string
             source.get("data")?.as_str()?;
             Some(ImageContentRef {
@@ -91,18 +94,27 @@ pub fn is_image_content_block(obj: &serde_json::Map<String, Value>) -> Option<Im
 ///
 /// For Anthropic: decodes the "source.data" field directly.
 /// For OpenAI: strips the "data:image/...;base64," prefix, then decodes.
-pub fn extract_image_bytes(obj: &serde_json::Map<String, Value>, image_ref: &ImageContentRef) -> Option<DetectedImage> {
+pub fn extract_image_bytes(
+    obj: &serde_json::Map<String, Value>,
+    image_ref: &ImageContentRef,
+) -> Option<DetectedImage> {
     let data_str = navigate_to_str(obj, &image_ref.data_key_path)?;
 
     let (base64_data, media_type) = match image_ref.format {
         ImageFormat::AnthropicBase64 => {
-            let media = image_ref.media_type.clone().unwrap_or_else(|| "image/png".to_string());
+            let media = image_ref
+                .media_type
+                .clone()
+                .unwrap_or_else(|| "image/png".to_string());
             (data_str, media)
         }
         ImageFormat::OpenAiDataUri => {
             // Parse "data:image/png;base64,iVBOR..."
             let after_comma = data_str.split_once(',')?.1;
-            let media = image_ref.media_type.clone().unwrap_or_else(|| "image/png".to_string());
+            let media = image_ref
+                .media_type
+                .clone()
+                .unwrap_or_else(|| "image/png".to_string());
             (after_comma, media)
         }
     };
@@ -124,7 +136,10 @@ pub fn extract_image_bytes(obj: &serde_json::Map<String, Value>, image_ref: &Ima
 }
 
 /// Navigate a JSON object by a key path to get a string value.
-fn navigate_to_str<'a>(obj: &'a serde_json::Map<String, Value>, keys: &[String]) -> Option<&'a str> {
+fn navigate_to_str<'a>(
+    obj: &'a serde_json::Map<String, Value>,
+    keys: &[String],
+) -> Option<&'a str> {
     if keys.is_empty() {
         return None;
     }
@@ -361,7 +376,9 @@ mod tests {
         let bytes = tiny_png_bytes();
         let encoded = encode_to_base64(&bytes, "image/png", ImageFormat::AnthropicBase64);
         assert!(!encoded.starts_with("data:"));
-        let decoded = base64::engine::general_purpose::STANDARD.decode(&encoded).unwrap();
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(&encoded)
+            .unwrap();
         assert_eq!(decoded, bytes);
     }
 
@@ -374,10 +391,19 @@ mod tests {
 
     #[test]
     fn test_detect_media_type() {
-        assert_eq!(detect_media_type(&[0x89, 0x50, 0x4E, 0x47]), Some("image/png"));
-        assert_eq!(detect_media_type(&[0xFF, 0xD8, 0xFF, 0xE0]), Some("image/jpeg"));
+        assert_eq!(
+            detect_media_type(&[0x89, 0x50, 0x4E, 0x47]),
+            Some("image/png")
+        );
+        assert_eq!(
+            detect_media_type(&[0xFF, 0xD8, 0xFF, 0xE0]),
+            Some("image/jpeg")
+        );
         assert_eq!(detect_media_type(b"GIF89a"), Some("image/gif"));
-        assert_eq!(detect_media_type(b"RIFF\x00\x00\x00\x00WEBP"), Some("image/webp"));
+        assert_eq!(
+            detect_media_type(b"RIFF\x00\x00\x00\x00WEBP"),
+            Some("image/webp")
+        );
         assert_eq!(detect_media_type(b"hello"), None);
     }
 }

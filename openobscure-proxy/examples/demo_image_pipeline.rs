@@ -28,7 +28,10 @@ use openobscure_proxy::image_pipeline::{
 };
 
 #[derive(Parser)]
-#[command(name = "demo_image_pipeline", about = "OpenObscure image pipeline demo")]
+#[command(
+    name = "demo_image_pipeline",
+    about = "OpenObscure image pipeline demo"
+)]
 struct Args {
     /// Input image path (JPEG, PNG, WebP)
     #[arg(long)]
@@ -58,7 +61,11 @@ fn main() {
         std::process::exit(1);
     });
 
-    println!("Input:  {} ({} bytes)", args.input.display(), input_bytes.len());
+    println!(
+        "Input:  {} ({} bytes)",
+        args.input.display(),
+        input_bytes.len()
+    );
 
     // Decode
     let img = decode_image(&input_bytes).unwrap_or_else(|e| {
@@ -93,13 +100,19 @@ fn main() {
         face_model_dir: if face_dir.exists() {
             Some(face_dir.to_string_lossy().into_owned())
         } else {
-            println!("Note:   BlazeFace models not found at {}", face_dir.display());
+            println!(
+                "Note:   BlazeFace models not found at {}",
+                face_dir.display()
+            );
             None
         },
         ocr_model_dir: if ocr_dir.exists() {
             Some(ocr_dir.to_string_lossy().into_owned())
         } else {
-            println!("Note:   PaddleOCR models not found at {}", ocr_dir.display());
+            println!(
+                "Note:   PaddleOCR models not found at {}",
+                ocr_dir.display()
+            );
             None
         },
         screen_guard: true,
@@ -151,5 +164,9 @@ fn main() {
     println!("Text regions found: {}", stats.text_regions_found);
     println!("Screenshot:         {}", stats.is_screenshot);
     println!("Processing time:    {:.0}ms", elapsed.as_millis());
-    println!("Output: {} ({} bytes)", args.output.display(), output_bytes.len());
+    println!(
+        "Output: {} ({} bytes)",
+        args.output.display(),
+        output_bytes.len()
+    );
 }

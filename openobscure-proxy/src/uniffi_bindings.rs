@@ -57,8 +57,8 @@ pub fn create_openobscure(
     let mut key = [0u8; 32];
     key.copy_from_slice(&key_bytes);
 
-    let mobile = OpenObscureMobile::new(config, key)
-        .map_err(|e| MobileBindingError::Init(e.to_string()))?;
+    let mobile =
+        OpenObscureMobile::new(config, key).map_err(|e| MobileBindingError::Init(e.to_string()))?;
 
     Ok(Arc::new(mobile))
 }
@@ -87,11 +87,7 @@ pub fn sanitize_text(
 /// Restore original PII values in response text using saved mappings.
 #[cfg(feature = "mobile")]
 #[uniffi::export]
-pub fn restore_text(
-    handle: &Arc<OpenObscureMobile>,
-    text: String,
-    mapping_json: String,
-) -> String {
+pub fn restore_text(handle: &Arc<OpenObscureMobile>, text: String, mapping_json: String) -> String {
     handle.restore_text(&text, &mapping_json)
 }
 
@@ -153,8 +149,9 @@ pub fn create_openobscure_with_governance(
     let mut key = [0u8; 32];
     key.copy_from_slice(&key_bytes);
 
-    let mobile = OpenObscureMobile::new_with_governance(config, key, &db_path, &extra_deny_patterns)
-        .map_err(|e| MobileBindingError::Init(e.to_string()))?;
+    let mobile =
+        OpenObscureMobile::new_with_governance(config, key, &db_path, &extra_deny_patterns)
+            .map_err(|e| MobileBindingError::Init(e.to_string()))?;
 
     Ok(Arc::new(mobile))
 }
@@ -167,7 +164,8 @@ pub fn check_consent(
     user_id: String,
     consent_type: String,
 ) -> Result<bool, MobileBindingError> {
-    handle.check_consent(&user_id, &consent_type)
+    handle
+        .check_consent(&user_id, &consent_type)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
@@ -180,7 +178,8 @@ pub fn grant_consent(
     consent_type: String,
     purpose: Option<String>,
 ) -> Result<ConsentRecordFFI, MobileBindingError> {
-    let record = handle.grant_consent(&user_id, &consent_type, purpose.as_deref())
+    let record = handle
+        .grant_consent(&user_id, &consent_type, purpose.as_deref())
         .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
     Ok(ConsentRecordFFI {
         id: record.id,
@@ -198,7 +197,8 @@ pub fn revoke_consent(
     user_id: String,
     consent_type: String,
 ) -> Result<bool, MobileBindingError> {
-    handle.revoke_consent(&user_id, &consent_type)
+    handle
+        .revoke_consent(&user_id, &consent_type)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
@@ -209,7 +209,8 @@ pub fn check_file_access(
     handle: &Arc<OpenObscureMobile>,
     path: String,
 ) -> Result<FileCheckResultFFI, MobileBindingError> {
-    let result = handle.check_file_access(&path)
+    let result = handle
+        .check_file_access(&path)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
     Ok(FileCheckResultFFI {
         allowed: result.allowed,
@@ -225,7 +226,8 @@ pub fn privacy_command(
     user_id: String,
     args: Vec<String>,
 ) -> Result<PrivacyCommandResultFFI, MobileBindingError> {
-    let result = handle.privacy_command(&user_id, &args)
+    let result = handle
+        .privacy_command(&user_id, &args)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
     Ok(PrivacyCommandResultFFI {
         text: result.text,
@@ -239,7 +241,8 @@ pub fn privacy_command(
 pub fn enforce_retention(
     handle: &Arc<OpenObscureMobile>,
 ) -> Result<EnforceResultFFI, MobileBindingError> {
-    let result = handle.enforce_retention()
+    let result = handle
+        .enforce_retention()
         .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
     Ok(EnforceResultFFI {
         promoted: result.promoted,
@@ -253,7 +256,8 @@ pub fn enforce_retention(
 pub fn retention_summary(
     handle: &Arc<OpenObscureMobile>,
 ) -> Result<RetentionSummaryFFI, MobileBindingError> {
-    let summary = handle.retention_summary()
+    let summary = handle
+        .retention_summary()
         .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
     Ok(RetentionSummaryFFI {
         hot: summary.hot,
@@ -271,7 +275,8 @@ pub fn export_user_data(
     handle: &Arc<OpenObscureMobile>,
     user_id: String,
 ) -> Result<String, MobileBindingError> {
-    handle.export_user_data(&user_id)
+    handle
+        .export_user_data(&user_id)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
@@ -287,7 +292,8 @@ pub fn assess_breach(
     handle: &Arc<OpenObscureMobile>,
     threshold: Option<f64>,
 ) -> Result<BreachAssessmentFFI, MobileBindingError> {
-    let result = handle.assess_breach(threshold)
+    let result = handle
+        .assess_breach(threshold)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
     Ok(BreachAssessmentFFI {
         risk_level: result.risk_level,
@@ -303,7 +309,8 @@ pub fn assess_breach(
 pub fn generate_breach_report(
     handle: &Arc<OpenObscureMobile>,
 ) -> Result<String, MobileBindingError> {
-    handle.generate_breach_report()
+    handle
+        .generate_breach_report()
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
@@ -315,17 +322,17 @@ pub fn export_audit_entries(
     format: String,
     limit: Option<u32>,
 ) -> Result<String, MobileBindingError> {
-    handle.export_audit_entries(&format, limit)
+    handle
+        .export_audit_entries(&format, limit)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
 /// Get a compliance summary from the processing log.
 #[cfg(all(feature = "mobile", feature = "governance"))]
 #[uniffi::export]
-pub fn compliance_summary(
-    handle: &Arc<OpenObscureMobile>,
-) -> Result<String, MobileBindingError> {
-    handle.compliance_summary()
+pub fn compliance_summary(handle: &Arc<OpenObscureMobile>) -> Result<String, MobileBindingError> {
+    handle
+        .compliance_summary()
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
@@ -341,7 +348,8 @@ pub fn encrypt_data(
     plaintext: Vec<u8>,
     passphrase: String,
 ) -> Result<Vec<u8>, MobileBindingError> {
-    handle.encrypt_data(&plaintext, &passphrase)
+    handle
+        .encrypt_data(&plaintext, &passphrase)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
@@ -353,7 +361,8 @@ pub fn decrypt_data(
     data: Vec<u8>,
     passphrase: String,
 ) -> Result<Vec<u8>, MobileBindingError> {
-    handle.decrypt_data(&data, &passphrase)
+    handle
+        .decrypt_data(&data, &passphrase)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 

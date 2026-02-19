@@ -34,14 +34,20 @@ pub struct KeyManager {
 impl KeyManager {
     /// Build a KeyManager from the vault's current key version.
     pub fn new(vault: Arc<Vault>, overlap_secs: u64) -> Result<Self, KeyManagerError> {
-        let version = vault.get_fpe_key_version().map_err(KeyManagerError::Vault)?;
+        let version = vault
+            .get_fpe_key_version()
+            .map_err(KeyManagerError::Vault)?;
         let key = vault
             .get_fpe_key_by_version(version)
             .map_err(KeyManagerError::Vault)?;
         let engine = FpeEngine::new(&key).map_err(KeyManagerError::Fpe)?;
 
-        oo_info!(crate::oo_log::modules::FPE, "KeyManager initialized",
-            version = version, overlap_secs = overlap_secs);
+        oo_info!(
+            crate::oo_log::modules::FPE,
+            "KeyManager initialized",
+            version = version,
+            overlap_secs = overlap_secs
+        );
 
         Ok(Self {
             current: RwLock::new(Arc::new(VersionedEngine { version, engine })),
@@ -95,8 +101,11 @@ impl KeyManager {
                 let mut prev_write = self.previous.write().await;
                 if let Some(ref pw) = *prev_write {
                     if Instant::now() >= pw.expires_at {
-                        oo_debug!(crate::oo_log::modules::FPE, "Overlap window expired, clearing previous key",
-                            version = pw.engine.version);
+                        oo_debug!(
+                            crate::oo_log::modules::FPE,
+                            "Overlap window expired, clearing previous key",
+                            version = pw.engine.version
+                        );
                         *prev_write = None;
                     }
                 }
@@ -153,10 +162,13 @@ impl KeyManager {
             });
         }
 
-        oo_info!(crate::oo_log::modules::FPE, "Key rotated",
+        oo_info!(
+            crate::oo_log::modules::FPE,
+            "Key rotated",
             old_version = old_version,
             new_version = new_version,
-            overlap_secs = self.overlap_secs);
+            overlap_secs = self.overlap_secs
+        );
 
         Ok(new_version)
     }
@@ -292,8 +304,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_encrypt_decrypt_across_versions() {
-        use crate::scanner::PiiMatch;
         use crate::pii_types::PiiType;
+        use crate::scanner::PiiMatch;
 
         let engine1 = FpeEngine::new(&test_key()).unwrap();
         let km = KeyManager::from_engine(engine1, 1);
@@ -324,8 +336,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_different_keys_produce_different_ciphertexts() {
-        use crate::scanner::PiiMatch;
         use crate::pii_types::PiiType;
+        use crate::scanner::PiiMatch;
 
         let engine1 = FpeEngine::new(&test_key()).unwrap();
         let engine2 = FpeEngine::new(&test_key_2()).unwrap();
@@ -342,8 +354,10 @@ mod tests {
 
         let result1 = engine1.encrypt_match(&pii_match, tweak).unwrap();
         let result2 = engine2.encrypt_match(&pii_match, tweak).unwrap();
-        assert_ne!(result1.encrypted, result2.encrypted,
-            "Different keys must produce different ciphertexts");
+        assert_ne!(
+            result1.encrypted, result2.encrypted,
+            "Different keys must produce different ciphertexts"
+        );
     }
 
     #[tokio::test]

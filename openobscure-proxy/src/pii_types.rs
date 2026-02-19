@@ -262,13 +262,13 @@ pub fn build_mappers() -> HashMap<PiiType, AlphabetMapper> {
 
 /// Known API key prefixes that should be preserved during FPE.
 pub const API_KEY_PREFIXES: &[&str] = &[
-    "sk-ant-",  // Anthropic
-    "sk-",      // OpenAI
-    "AKIA",     // AWS
-    "ghp_",     // GitHub
-    "gho_",     // GitHub OAuth
-    "xoxb-",    // Slack bot
-    "xoxp-",    // Slack user
+    "sk-ant-", // Anthropic
+    "sk-",     // OpenAI
+    "AKIA",    // AWS
+    "ghp_",    // GitHub
+    "gho_",    // GitHub OAuth
+    "xoxb-",   // Slack bot
+    "xoxp-",   // Slack user
 ];
 
 /// Find the known prefix of an API key, if any.
@@ -320,7 +320,10 @@ mod tests {
         assert_eq!(find_api_key_prefix("sk-ant-abc123"), Some("sk-ant-"));
         assert_eq!(find_api_key_prefix("sk-abc123"), Some("sk-"));
         assert_eq!(find_api_key_prefix("AKIAIOSFODNN7EXAMPLE"), Some("AKIA"));
-        assert_eq!(find_api_key_prefix("ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"), Some("ghp_"));
+        assert_eq!(
+            find_api_key_prefix("ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"),
+            Some("ghp_")
+        );
         assert_eq!(find_api_key_prefix("unknown-key"), None);
     }
 }

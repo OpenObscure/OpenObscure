@@ -64,7 +64,10 @@ pub async fn run(state: AppState, auth_token: Option<String>) -> anyhow::Result<
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    oo_info!(crate::oo_log::modules::SERVER, "OpenObscure proxy shut down gracefully");
+    oo_info!(
+        crate::oo_log::modules::SERVER,
+        "OpenObscure proxy shut down gracefully"
+    );
     Ok(())
 }
 
