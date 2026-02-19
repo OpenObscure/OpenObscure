@@ -20,11 +20,11 @@ The full-featured deployment. OpenObscure runs as a **sidecar HTTP proxy** on th
 flowchart TB
     subgraph device ["User's Device"]
         subgraph gateway ["AI Agent Gateway"]
-            L1["L1 Plugin\n(in-process)"]
+            L1["L1 Plugin (in-process)"]
         end
         subgraph l0proc ["L0 Proxy (Rust)"]
         end
-        gateway -- "HTTP\n(localhost)" --> l0proc
+        gateway -- "HTTP (localhost)" --> l0proc
     end
     l0proc -- "HTTPS" --> llm(["LLM Providers"])
 
@@ -55,15 +55,15 @@ For mobile apps and custom integrations, OpenObscure compiles as a **native libr
 flowchart TB
     subgraph mobile ["Mobile Device"]
         subgraph app ["Host App"]
-            ui["UI Layer\n(Swift / Kotlin)"]
-            lib["OpenObscure lib\n(Rust)"]
+            ui["UI Layer (Swift / Kotlin)"]
+            lib["OpenObscure lib (Rust)"]
             ui -- "sanitize_text()" --> lib
-            lib -- "SanitizeResult\n+ mapping" --> ui
+            lib -- "SanitizeResult + mapping" --> ui
             ui -. "restore_text()" .-> lib
         end
     end
 
-    app -- "WebSocket\n(PII encrypted)" --> gw
+    app -- "WebSocket (PII encrypted)" --> gw
     gw -- "response" --> app
 
     subgraph desktop ["External Computer"]
@@ -107,9 +107,9 @@ In the OpenClaw architecture, **both models can run simultaneously**. The mobile
 
 ```mermaid
 flowchart LR
-    phone["Mobile App\n+ OpenObscure lib"] -- "WS\n(PII encrypted)" --> gw["Gateway\n+ L1 Plugin"]
-    gw -- "HTTP" --> proxy["OpenObscure Proxy\n(FPE encrypt)"]
-    proxy -- "HTTPS\n(encrypted twice)" --> llm["LLM Provider"]
+    phone["Mobile App + OpenObscure lib"] -- "WS (PII encrypted)" --> gw["Gateway + L1 Plugin"]
+    gw -- "HTTP" --> proxy["OpenObscure Proxy (FPE encrypt)"]
+    proxy -- "HTTPS (encrypted twice)" --> llm["LLM Provider"]
 
     style phone fill:#888,stroke:#666,color:#fff
     style gw fill:#999,stroke:#777,color:#111
@@ -141,7 +141,7 @@ flowchart TB
 
     subgraph l0box ["L0 Proxy — 127.0.0.1:18790"]
         subgraph reqpath ["Request Path"]
-            nested["Parse JSON\n+ code fences"] --> hybrid["Hybrid Scanner"]
+            nested["Parse JSON + code fences"] --> hybrid["Hybrid Scanner"]
             hybrid --> imgpipe["Image Pipeline"]
             imgpipe --> ff1["FPE Encrypt"]
         end
@@ -154,7 +154,7 @@ flowchart TB
 
     tools -- "tool results" --> gateway
     gateway -- "HTTP" --> reqpath
-    ff1 -- "sanitized\nHTTPS" --> llm
+    ff1 -- "sanitized HTTPS" --> llm
     llm -- "response" --> decrypt
     decrypt -- "decrypted" --> gateway
 
@@ -270,7 +270,7 @@ Neither layer alone is sufficient:
 ```mermaid
 flowchart LR
     user["User"] --> agent["Agent"]
-    agent --> l0["L0 Proxy\nFPE encrypt"]
+    agent --> l0["L0 Proxy FPE encrypt"]
     l0 --> llm["LLM Provider"]
 
     style user fill:#bbb,stroke:#888,color:#111
@@ -283,7 +283,7 @@ flowchart LR
 
 ```mermaid
 flowchart RL
-    llm["LLM Provider"] --> proxy["L0 Proxy\nFPE decrypt"]
+    llm["LLM Provider"] --> proxy["L0 Proxy FPE decrypt"]
     proxy --> agent["Host Agent"]
     agent --> user["User"]
 
@@ -299,9 +299,9 @@ flowchart RL
 flowchart LR
     tool["Agent Tool"]
     tool --> result["Tool result"]
-    result --> hook["L1 hook\n(synchronous)"]
+    result --> hook["L1 hook (synchronous)"]
     hook --> redact["PII Redactor"]
-    redact --> persist[("Transcript\n(redacted)")]
+    redact --> persist[("Transcript (redacted)")]
 
     style tool fill:#bbb,stroke:#888,color:#111
     style result fill:#999,stroke:#777,color:#111
@@ -501,7 +501,7 @@ OpenObscure must be **invisible when working, clear when not**. Users should nev
 ```mermaid
 flowchart LR
     subgraph l1side ["L1 Plugin"]
-        hb["Heartbeat\n(every 30s)"]
+        hb["Heartbeat (every 30s)"]
         hb --> down["Warn user"]
         hb --> back["Log recovery"]
         hb --> auth_fail["401 degraded"]
@@ -514,9 +514,9 @@ flowchart LR
         endpoint --> auth_check --> response
     end
 
-    token[(".auth-token\n(0600)")]
+    token[(".auth-token (0600)")]
 
-    hb -- "HTTP +\nauth token" --> endpoint
+    hb -- "HTTP + auth token" --> endpoint
     token -. "written by L0" .-> l0side
     token -. "read by L1" .-> l1side
 
@@ -530,10 +530,10 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph crash ["Crash (immediate)"]
-        panic["panic hook"] --> write["Write\n.crashed"] --> abort["abort"]
+        panic["panic hook"] --> write["Write .crashed"] --> abort["abort"]
     end
     subgraph recovery ["Recovery (next startup)"]
-        restart["Startup"] --> detect["Detect\n.crashed"] --> log["Log recovery"] --> delete["Delete marker"]
+        restart["Startup"] --> detect["Detect .crashed"] --> log["Log recovery"] --> delete["Delete marker"]
     end
 
     style crash fill:#666,stroke:#444,color:#fff
@@ -565,14 +565,14 @@ All logging across both L0 (Rust) and L1 (TypeScript) uses a **unified facade AP
 
 ```mermaid
 flowchart TB
-    macros["oo_info! / oo_warn! / oo_error!\noo_debug! / oo_audit!"]
-    subscriber["tracing subscriber\n(layered)"]
+    macros["oo_info! / oo_warn! / oo_error! / oo_debug! / oo_audit!"]
+    subscriber["tracing subscriber (layered)"]
     macros --> subscriber
 
     stderr["Stderr"]
     filelog["File rotation"]
     audit["Audit Log"]
-    crash["Crash Buffer\n(mmap ring)"]
+    crash["Crash Buffer (mmap ring)"]
 
     subscriber --> stderr
     subscriber --> filelog
@@ -601,12 +601,12 @@ flowchart TB
 
 ```mermaid
 flowchart TB
-    funcs["ooInfo / ooWarn / ooError\nooDebug / ooAudit"]
+    funcs["ooInfo / ooWarn / ooError / ooDebug / ooAudit"]
     facade["ooLog() facade"]
     funcs --> facade
 
-    console["console.*\n(PII-scrubbed)"]
-    auditlog["Audit Log\n(JSONL)"]
+    console["console.* (PII-scrubbed)"]
+    auditlog["Audit Log (JSONL)"]
 
     facade --> console
     facade --> auditlog

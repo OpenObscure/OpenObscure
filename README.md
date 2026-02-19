@@ -21,10 +21,10 @@ The proxy runs as a **sidecar process** on the same host as the AI agent. All LL
 
 ```mermaid
 flowchart LR
-    agent["AI Agent"] -- "HTTP request" --> proxy["OpenObscure Proxy\n(localhost:18790)"]
-    proxy -- "HTTPS\n(PII encrypted)" --> llm["LLM Provider"]
-    llm -- "response\n(ciphertexts)" --> proxy
-    proxy -- "response\n(PII decrypted)" --> agent
+    agent["AI Agent"] -- "HTTP request" --> proxy["OpenObscure Proxy (localhost:18790)"]
+    proxy -- "HTTPS (PII encrypted)" --> llm["LLM Provider"]
+    llm -- "response (ciphertexts)" --> proxy
+    proxy -- "response (PII decrypted)" --> agent
 
     style agent fill:#888,stroke:#666,color:#fff
     style proxy fill:#555,stroke:#333,color:#fff
@@ -43,13 +43,13 @@ OpenObscure is compiled as a **native library** and linked directly into the hos
 ```mermaid
 flowchart TB
     subgraph phone ["Mobile Device"]
-        app["Mobile App\n(Swift / Kotlin)"]
-        lib["OpenObscure lib\n(in-process)"]
+        app["Mobile App (Swift / Kotlin)"]
+        lib["OpenObscure lib (in-process)"]
         app -- "sanitize_text()" --> lib
-        lib -- "SanitizeResult\n+ mapping" --> app
+        lib -- "SanitizeResult + mapping" --> app
     end
 
-    app -- "WebSocket\n(PII encrypted)" --> gw
+    app -- "WebSocket (PII encrypted)" --> gw
     gw -- "response" --> app
     app -. "restore_text()" .-> lib
 
@@ -156,7 +156,7 @@ flowchart LR
         direction TB
         subgraph agent ["AI Agent"]
             tools["Agent Tools"]
-            L1["L1 Plugin\nPII redact"]
+            L1["L1 Plugin PII redact"]
             tools -- "tool results" --> L1
         end
         subgraph proxy ["L0 Proxy (Rust)"]
@@ -166,10 +166,10 @@ flowchart LR
             scanner --> fpe
             scanner --> img
         end
-        agent -- "HTTP\n(localhost)" --> proxy
+        agent -- "HTTP (localhost)" --> proxy
     end
-    proxy -- "sanitized\n(PII encrypted)" --> llm["LLM Providers"]
-    llm -- "response\n(ciphertexts)" --> proxy
+    proxy -- "sanitized (PII encrypted)" --> llm["LLM Providers"]
+    llm -- "response (ciphertexts)" --> proxy
 
     style device fill:#e8e8e8,stroke:#aaa,color:#333
     style agent fill:#d0d0d0,stroke:#999,color:#333
