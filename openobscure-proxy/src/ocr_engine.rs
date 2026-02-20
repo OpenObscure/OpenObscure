@@ -1,17 +1,17 @@
-//! PaddleOCR-Lite text detection and recognition via ONNX Runtime.
+//! PaddleOCR text detection and recognition via ONNX Runtime.
 //!
 //! Two-component OCR pipeline:
-//! - **Detector** (`OcrDetector`): Locates text regions as quadrilateral bounding boxes
-//! - **Recognizer** (`OcrRecognizer`): Reads characters from cropped text regions
+//! - **Detector** (`OcrDetector`): PaddleOCR v3 — locates text regions as quadrilateral bboxes
+//! - **Recognizer** (`OcrRecognizer`): PP-OCRv4 English — reads characters from cropped regions
 //!
 //! Supports two tiers configured via `ocr_tier`:
 //! - `detect_and_blur` (Tier 1): Detect text regions → blur all. No recognition needed.
 //! - `full_recognition` (Tier 2+): Detect → recognize → scan for PII → selectively blur.
 //!
 //! Model files expected:
-//! - `det_model.onnx` — text detection (~1.1MB)
-//! - `rec_model.onnx` — text recognition (~4.5MB), only needed for Tier 2
-//! - `ppocr_keys.txt` — character dictionary, only needed for Tier 2
+//! - `det_model.onnx` — PaddleOCR v3 text detection (~2.4MB)
+//! - `rec_model.onnx` — PP-OCRv4 English recognition (~7.7MB), only needed for Tier 2
+//! - `ppocr_keys.txt` — 95-char English dictionary, only needed for Tier 2
 
 use std::path::Path;
 
@@ -28,7 +28,10 @@ const DET_STRIDE: u32 = 32;
 /// Recognition model input height.
 const REC_HEIGHT: u32 = 48;
 /// Maximum width for recognition input.
-const REC_MAX_WIDTH: u32 = 320;
+/// PP-OCRv4 handles dynamic widths via SVTR architecture. Wide text lines
+/// (e.g. 600px at 25px height → 1152px at 48px height) need proportional
+/// width to avoid squishing that destroys recognition quality.
+const REC_MAX_WIDTH: u32 = 1280;
 /// Minimum confidence for a detected text region.
 const DET_THRESHOLD: f32 = 0.3;
 /// Minimum box score to keep a detection.
@@ -126,11 +129,7 @@ impl OcrDetector {
     pub fn load(model_dir: &Path) -> Result<Self, ImageError> {
         let model_path = find_det_model(model_dir)?;
 
-        let session = Session::builder()
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?
-            .with_intra_threads(1)
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?
-            .commit_from_file(&model_path)
+        let session = crate::ort_ep::build_session(&model_path)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         oo_info!(crate::oo_log::modules::OCR, "OCR detector loaded",
@@ -207,11 +206,7 @@ impl OcrRecognizer {
             )));
         };
 
-        let session = Session::builder()
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?
-            .with_intra_threads(1)
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?
-            .commit_from_file(&model_path)
+        let session = crate::ort_ep::build_session(&model_path)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         oo_info!(crate::oo_log::modules::OCR, "OCR recognizer loaded",
@@ -474,6 +469,10 @@ fn find_root(equivalences: &[u32], mut label: u32) -> u32 {
 ///
 /// The blank token is index 0, actual characters start at index 1.
 /// Returns (decoded_text, average_confidence).
+///
+/// Works with both raw logits and post-softmax probabilities:
+/// - If values are in [0,1] and sum to ~1 per timestep → probabilities (use directly)
+/// - Otherwise → logits (apply softmax for confidence)
 pub fn ctc_greedy_decode(
     logits: &[f32],
     seq_len: usize,
@@ -483,6 +482,17 @@ pub fn ctc_greedy_decode(
     if seq_len == 0 || num_classes == 0 {
         return (String::new(), 0.0);
     }
+
+    // Detect if output is post-softmax probabilities or raw logits.
+    // Post-softmax: values in [0,1], first timestep sums to ~1.
+    let is_probabilities = if num_classes > 1 {
+        let first_sum: f32 = (0..num_classes)
+            .filter_map(|c| logits.get(c).copied())
+            .sum();
+        (first_sum - 1.0).abs() < 0.1
+    } else {
+        false
+    };
 
     let mut prev_idx: usize = 0; // blank
     let mut chars = Vec::new();
@@ -503,13 +513,19 @@ pub fn ctc_greedy_decode(
             }
         }
 
-        // Softmax for confidence (just the max class)
-        let mut exp_sum = 0.0f32;
-        for c in 0..num_classes {
-            let val = logits.get(offset + c).copied().unwrap_or(f32::NEG_INFINITY);
-            exp_sum += (val - max_val).exp();
-        }
-        let confidence = 1.0 / exp_sum;
+        // Compute confidence from either probabilities or logits
+        let confidence = if is_probabilities {
+            // Output is already softmax probabilities — use max value directly
+            max_val
+        } else {
+            // Raw logits — apply softmax to get confidence
+            let mut exp_sum = 0.0f32;
+            for c in 0..num_classes {
+                let val = logits.get(offset + c).copied().unwrap_or(f32::NEG_INFINITY);
+                exp_sum += (val - max_val).exp();
+            }
+            1.0 / exp_sum
+        };
 
         // CTC decode: skip blanks (index 0) and repeated chars
         if max_idx != 0 && max_idx != prev_idx {

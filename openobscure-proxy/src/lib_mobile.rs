@@ -52,9 +52,13 @@ pub struct MobileConfig {
     #[serde(default)]
     pub image_enabled: bool,
 
-    /// Path to face detection model directory.
+    /// Path to BlazeFace model directory (Lite tier).
     #[serde(default)]
     pub face_model_dir: Option<String>,
+
+    /// Path to SCRFD model directory (Full/Standard tier).
+    #[serde(default)]
+    pub scrfd_model_dir: Option<String>,
 
     /// Path to OCR model directory.
     #[serde(default)]
@@ -91,6 +95,7 @@ impl Default for MobileConfig {
             ner_model_dir: None,
             image_enabled: false,
             face_model_dir: None,
+            scrfd_model_dir: None,
             ocr_model_dir: None,
             nsfw_model_dir: None,
             max_dimension: 960,
@@ -240,16 +245,22 @@ impl OpenObscureMobile {
                 .map(|b| b.screen_guard_enabled)
                 .unwrap_or(false);
             let nsfw_enabled = budget.as_ref().map(|b| b.nsfw_enabled).unwrap_or(false);
+            let face_model_name = budget
+                .as_ref()
+                .map(|b| b.face_model.clone())
+                .unwrap_or_else(|| "blazeface".to_string());
             let img_config = ImageConfig {
                 enabled: true,
-                face_detection: config.face_model_dir.is_some(),
+                face_detection: config.face_model_dir.is_some() || config.scrfd_model_dir.is_some(),
                 ocr_enabled: config.ocr_model_dir.is_some(),
                 ocr_tier,
                 max_dimension: config.max_dimension,
                 face_blur_sigma: 25.0,
                 text_blur_sigma: 20.0,
                 model_idle_timeout_secs: idle_timeout,
+                face_model: face_model_name,
                 face_model_dir: config.face_model_dir,
+                face_model_dir_scrfd: config.scrfd_model_dir,
                 ocr_model_dir: config.ocr_model_dir,
                 screen_guard,
                 exif_strip: true,

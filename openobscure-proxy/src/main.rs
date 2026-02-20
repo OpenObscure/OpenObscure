@@ -23,9 +23,11 @@ mod key_manager;
 mod keyword_dict;
 mod lib_mobile;
 mod mapping;
+mod ner_endpoint;
 mod ner_scanner;
 mod nsfw_detector;
 mod ocr_engine;
+mod ort_ep;
 mod pii_scrub_layer;
 mod pii_types;
 mod proxy;
@@ -160,7 +162,8 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         max_ram_mb = budget.max_ram_mb,
         ner = budget.ner_enabled,
         ensemble = budget.ensemble_enabled,
-        image = budget.image_pipeline_enabled
+        image = budget.image_pipeline_enabled,
+        onnx_ep = ort_ep::ep_name()
     );
 
     oo_info!(
@@ -206,6 +209,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         img_config.ocr_tier = budget.ocr_tier.clone();
         img_config.nsfw_detection = config.image.nsfw_detection && budget.nsfw_enabled;
         img_config.screen_guard = config.image.screen_guard && budget.screen_guard_enabled;
+        img_config.face_model = budget.face_model.clone();
         let effective_nsfw = img_config.nsfw_detection;
         let effective_screen_guard = img_config.screen_guard;
         let models = Arc::new(ImageModelManager::new(img_config));
@@ -264,6 +268,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         ocr_tier: budget.ocr_tier.clone(),
         nsfw_enabled: budget.nsfw_enabled,
         screen_guard_enabled: budget.screen_guard_enabled,
+        face_model: budget.face_model.clone(),
     };
 
     // Start server

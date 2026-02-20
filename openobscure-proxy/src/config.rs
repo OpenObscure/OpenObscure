@@ -268,9 +268,15 @@ pub struct ImageConfig {
     /// Seconds before idle face/OCR models are evicted (default: 300).
     #[serde(default = "default_model_idle_timeout")]
     pub model_idle_timeout_secs: u64,
+    /// Face detection model: "scrfd" (Full/Standard) or "blazeface" (Lite).
+    #[serde(default = "default_face_model")]
+    pub face_model: String,
     /// Path to BlazeFace model directory.
     #[serde(default)]
     pub face_model_dir: Option<String>,
+    /// Path to SCRFD model directory.
+    #[serde(default)]
+    pub face_model_dir_scrfd: Option<String>,
     /// Path to PaddleOCR model directory.
     #[serde(default)]
     pub ocr_model_dir: Option<String>,
@@ -302,7 +308,9 @@ impl Default for ImageConfig {
             face_blur_sigma: default_face_blur_sigma(),
             text_blur_sigma: default_text_blur_sigma(),
             model_idle_timeout_secs: default_model_idle_timeout(),
+            face_model: default_face_model(),
             face_model_dir: None,
+            face_model_dir_scrfd: None,
             ocr_model_dir: None,
             screen_guard: true,
             exif_strip: true,
@@ -313,6 +321,9 @@ impl Default for ImageConfig {
     }
 }
 
+fn default_face_model() -> String {
+    "blazeface".to_string()
+}
 fn default_ocr_tier() -> String {
     "detect_and_blur".to_string()
 }

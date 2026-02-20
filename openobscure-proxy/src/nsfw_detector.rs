@@ -82,11 +82,7 @@ impl NsfwDetector {
     pub fn load(model_dir: &Path, threshold: f32) -> Result<Self, ImageError> {
         let model_path = find_model_file(model_dir)?;
 
-        let session = Session::builder()
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?
-            .with_intra_threads(1)
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?
-            .commit_from_file(&model_path)
+        let session = crate::ort_ep::build_session(&model_path)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         oo_info!(crate::oo_log::modules::IMAGE, "NudeNet NSFW detector loaded",

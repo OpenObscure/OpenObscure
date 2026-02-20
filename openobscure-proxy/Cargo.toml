@@ -97,6 +97,13 @@ tracing-oslog = "0.2"
 [target.'cfg(target_os = "linux")'.dependencies]
 tracing-journald = "0.3"
 
+# Mobile ONNX Runtime execution providers (hardware acceleration)
+[target.'cfg(target_vendor = "apple")'.dependencies]
+ort = { version = "=2.0.0-rc.11", features = ["coreml"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+ort = { version = "=2.0.0-rc.11", features = ["nnapi"] }
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = ["Win32_System_SystemInformation"] }
 

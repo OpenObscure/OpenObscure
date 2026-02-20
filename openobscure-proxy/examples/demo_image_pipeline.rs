@@ -85,8 +85,16 @@ fn main() {
 
     // Configure pipeline
     let face_dir = args.models_dir.join("blazeface");
+    let scrfd_dir = args.models_dir.join("scrfd");
     let ocr_dir = args.models_dir.join("paddleocr");
     let nsfw_dir = args.models_dir.join("nudenet");
+
+    // Use SCRFD if available, otherwise BlazeFace
+    let face_model = if scrfd_dir.exists() {
+        "scrfd"
+    } else {
+        "blazeface"
+    };
 
     let config = ImageConfig {
         enabled: true,
@@ -125,6 +133,12 @@ fn main() {
             None
         },
         nsfw_threshold: 0.45,
+        face_model: face_model.to_string(),
+        face_model_dir_scrfd: if scrfd_dir.exists() {
+            Some(scrfd_dir.to_string_lossy().into_owned())
+        } else {
+            None
+        },
     };
 
     // Process

@@ -22,6 +22,9 @@ pub mod nsfw_detector;
 pub mod ocr_engine;
 pub mod screen_guard;
 
+// ONNX Runtime execution provider configuration
+pub mod ort_ep;
+
 // Detection verification framework
 pub mod detection_meta;
 pub mod detection_validators;

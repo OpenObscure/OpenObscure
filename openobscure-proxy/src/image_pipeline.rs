@@ -15,7 +15,7 @@ use image::{DynamicImage, GenericImageView, ImageFormat};
 
 use crate::config::ImageConfig;
 use crate::detection_meta::{NsfwMeta, PipelineMeta};
-use crate::face_detector::FaceDetector;
+use crate::face_detector::{FaceDetection, FaceDetector, ScrfdDetector};
 use crate::image_blur;
 use crate::keyword_dict::KeywordDict;
 use crate::nsfw_detector::NsfwDetector;
@@ -117,6 +117,7 @@ pub struct ImageStats {
 pub struct ImageModelManager {
     nsfw_detector: Mutex<Option<NsfwDetector>>,
     face_detector: Mutex<Option<FaceDetector>>,
+    scrfd_detector: Mutex<Option<ScrfdDetector>>,
     ocr_detector: Mutex<Option<OcrDetector>>,
     ocr_recognizer: Mutex<Option<OcrRecognizer>>,
     last_use: Mutex<Instant>,
@@ -128,6 +129,7 @@ impl ImageModelManager {
         Self {
             nsfw_detector: Mutex::new(None),
             face_detector: Mutex::new(None),
+            scrfd_detector: Mutex::new(None),
             ocr_detector: Mutex::new(None),
             ocr_recognizer: Mutex::new(None),
             last_use: Mutex::new(Instant::now()),
@@ -156,10 +158,23 @@ impl ImageModelManager {
             *face = None;
             oo_info!(
                 crate::oo_log::modules::IMAGE,
-                "Face model evicted (idle timeout)"
+                "BlazeFace model evicted (idle timeout)"
             );
         }
         drop(face);
+
+        let mut scrfd = self
+            .scrfd_detector
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if scrfd.is_some() {
+            *scrfd = None;
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "SCRFD model evicted (idle timeout)"
+            );
+        }
+        drop(scrfd);
 
         let mut det = self.ocr_detector.lock().unwrap_or_else(|e| e.into_inner());
         if det.is_some() {
@@ -260,76 +275,44 @@ impl ImageModelManager {
         }
 
         // Phase 1: Face detection + blur
+        // Uses SCRFD (Full/Standard) or BlazeFace (Lite) based on config.face_model.
         if self.config.face_detection {
-            if let Some(ref dir) = self.config.face_model_dir {
-                let mut guard = self.face_detector.lock().unwrap_or_else(|e| e.into_inner());
-                // Load on demand
-                if guard.is_none() {
-                    match FaceDetector::load(Path::new(dir), 0.75) {
-                        Ok(detector) => *guard = Some(detector),
-                        Err(e) => {
-                            oo_warn!(crate::oo_log::modules::FACE, "Face model load failed (fail-open)", error = %e);
-                        }
+            let faces = self.detect_faces(&dyn_img);
+
+            if !faces.is_empty() {
+                let (img_w, img_h) = (rgb.width(), rgb.height());
+                let img_area = (img_w * img_h) as f32;
+
+                meta.faces = faces.iter().map(|f| f.to_bbox_meta(img_w, img_h)).collect();
+
+                for face in &faces {
+                    let face_w = face.x_max - face.x_min;
+                    let face_h = face.y_max - face.y_min;
+                    let face_area = face_w * face_h;
+                    if face_area / img_area > 0.8 {
+                        image_blur::blur_region(
+                            &mut rgb,
+                            0,
+                            0,
+                            img_w,
+                            img_h,
+                            self.config.face_blur_sigma,
+                        );
+                    } else {
+                        let (x, y, w, h) = image_blur::expand_bbox(
+                            face.x_min, face.y_min, face.x_max, face.y_max, 0.15, img_w, img_h,
+                        );
+                        image_blur::blur_region(&mut rgb, x, y, w, h, self.config.face_blur_sigma);
                     }
                 }
-                if let Some(ref mut detector) = *guard {
-                    match detector.detect(&dyn_img) {
-                        Ok(faces) => {
-                            let (img_w, img_h) = (rgb.width(), rgb.height());
-                            let img_area = (img_w * img_h) as f32;
-
-                            // Collect face metadata for verification
-                            meta.faces =
-                                faces.iter().map(|f| f.to_bbox_meta(img_w, img_h)).collect();
-
-                            for face in &faces {
-                                let face_w = face.x_max - face.x_min;
-                                let face_h = face.y_max - face.y_min;
-                                let face_area = face_w * face_h;
-                                if face_area / img_area > 0.8 {
-                                    // Face dominates image — blur everything
-                                    image_blur::blur_region(
-                                        &mut rgb,
-                                        0,
-                                        0,
-                                        img_w,
-                                        img_h,
-                                        self.config.face_blur_sigma,
-                                    );
-                                } else {
-                                    // Selective face blur with 15% padding
-                                    let (x, y, w, h) = image_blur::expand_bbox(
-                                        face.x_min, face.y_min, face.x_max, face.y_max, 0.15,
-                                        img_w, img_h,
-                                    );
-                                    image_blur::blur_region(
-                                        &mut rgb,
-                                        x,
-                                        y,
-                                        w,
-                                        h,
-                                        self.config.face_blur_sigma,
-                                    );
-                                }
-                            }
-                            stats.faces_blurred = faces.len() as u32;
-                            if !faces.is_empty() {
-                                oo_debug!(
-                                    crate::oo_log::modules::FACE,
-                                    "Faces blurred",
-                                    count = faces.len()
-                                );
-                                // Update DynamicImage from blurred RGB for OCR phase
-                                dyn_img = DynamicImage::ImageRgb8(rgb.clone());
-                            }
-                        }
-                        Err(e) => {
-                            oo_warn!(crate::oo_log::modules::FACE, "Face detection failed (fail-open)", error = %e);
-                        }
-                    }
-                }
-                // Drop face detector guard to free RAM before OCR
-                drop(guard);
+                stats.faces_blurred = faces.len() as u32;
+                oo_debug!(
+                    crate::oo_log::modules::FACE,
+                    "Faces blurred",
+                    count = faces.len(),
+                    model = %self.config.face_model
+                );
+                dyn_img = DynamicImage::ImageRgb8(rgb.clone());
             }
         }
 
@@ -447,6 +430,68 @@ impl ImageModelManager {
     /// Get a reference to the config.
     pub fn config(&self) -> &ImageConfig {
         &self.config
+    }
+
+    /// Detect faces using the configured model (SCRFD or BlazeFace).
+    fn detect_faces(&self, img: &DynamicImage) -> Vec<FaceDetection> {
+        if self.config.face_model == "scrfd" {
+            if let Some(ref dir) = self.config.face_model_dir_scrfd {
+                let mut guard = self
+                    .scrfd_detector
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                if guard.is_none() {
+                    match ScrfdDetector::load(Path::new(dir), 0.5) {
+                        Ok(detector) => *guard = Some(detector),
+                        Err(e) => {
+                            oo_warn!(crate::oo_log::modules::FACE, "SCRFD load failed, falling back to BlazeFace", error = %e);
+                            drop(guard);
+                            return self.detect_faces_blazeface(img);
+                        }
+                    }
+                }
+                if let Some(ref mut detector) = *guard {
+                    match detector.detect(img) {
+                        Ok(faces) => return faces,
+                        Err(e) => {
+                            oo_warn!(crate::oo_log::modules::FACE, "SCRFD detection failed (fail-open)", error = %e);
+                        }
+                    }
+                }
+                drop(guard);
+            } else {
+                // No SCRFD model dir configured, fall back to BlazeFace
+                return self.detect_faces_blazeface(img);
+            }
+        } else {
+            return self.detect_faces_blazeface(img);
+        }
+        Vec::new()
+    }
+
+    /// Detect faces using BlazeFace (fallback / Lite tier).
+    fn detect_faces_blazeface(&self, img: &DynamicImage) -> Vec<FaceDetection> {
+        if let Some(ref dir) = self.config.face_model_dir {
+            let mut guard = self.face_detector.lock().unwrap_or_else(|e| e.into_inner());
+            if guard.is_none() {
+                match FaceDetector::load(Path::new(dir), 0.75) {
+                    Ok(detector) => *guard = Some(detector),
+                    Err(e) => {
+                        oo_warn!(crate::oo_log::modules::FACE, "BlazeFace load failed (fail-open)", error = %e);
+                        return Vec::new();
+                    }
+                }
+            }
+            if let Some(ref mut detector) = *guard {
+                match detector.detect(img) {
+                    Ok(faces) => return faces,
+                    Err(e) => {
+                        oo_warn!(crate::oo_log::modules::FACE, "BlazeFace detection failed (fail-open)", error = %e);
+                    }
+                }
+            }
+        }
+        Vec::new()
     }
 }
 

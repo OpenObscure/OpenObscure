@@ -1,12 +1,12 @@
-//! BlazeFace face detection via ONNX Runtime.
+//! Face detection via ONNX Runtime.
 //!
-//! Detects faces in images and returns bounding boxes for blurring.
-//! Uses the BlazeFace short-range model (128x128 input) for selfie-distance
-//! faces, which is the primary use case for chat-attached photos.
+//! Two detector backends, tier-gated:
+//! - **BlazeFace** (Lite tier): 128x128 input, ~400KB, selfie-distance faces
+//! - **SCRFD-2.5GF** (Full/Standard tier): 640x640 input, ~3.1MB, multi-scale faces
 //!
-//! Model files expected in face_model_dir:
-//! - blazeface_short.onnx (or blazeface.onnx) — ~230KB INT8
-//! - blazeface_anchors.json — pre-computed anchor boxes
+//! Model files expected:
+//! - BlazeFace: `blazeface.onnx` (~400KB) + optional `blazeface_anchors.json`
+//! - SCRFD: `scrfd_2.5g.onnx` (~3.1MB)
 
 use std::path::Path;
 
@@ -65,11 +65,7 @@ impl FaceDetector {
     pub fn load(model_dir: &Path, confidence_threshold: f32) -> Result<Self, ImageError> {
         let model_path = find_model_file(model_dir)?;
 
-        let session = Session::builder()
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?
-            .with_intra_threads(1)
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?
-            .commit_from_file(&model_path)
+        let session = crate::ort_ep::build_session(&model_path)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         let anchors_path = model_dir.join("blazeface_anchors.json");
@@ -290,6 +286,178 @@ fn generate_short_range_anchors() -> Vec<Anchor> {
     anchors
 }
 
+// ---------------------------------------------------------------------------
+// SCRFD-2.5GF face detector (Full / Standard tier)
+// ---------------------------------------------------------------------------
+
+/// SCRFD input resolution.
+const SCRFD_INPUT_SIZE: u32 = 640;
+
+/// Feature pyramid strides.
+const SCRFD_STRIDES: [u32; 3] = [8, 16, 32];
+
+/// Number of anchor points per grid cell (center-point priors).
+const SCRFD_ANCHORS_PER_CELL: usize = 2;
+
+/// SCRFD-2.5GF face detector for multi-scale detection.
+pub struct ScrfdDetector {
+    session: Session,
+    confidence_threshold: f32,
+    nms_threshold: f32,
+    /// Pre-computed grid centers for each stride: [(center_x, center_y)]
+    grid_centers: [Vec<(f32, f32)>; 3],
+}
+
+impl ScrfdDetector {
+    /// Load SCRFD ONNX model from a directory.
+    pub fn load(model_dir: &Path, confidence_threshold: f32) -> Result<Self, ImageError> {
+        let model_path = find_scrfd_model(model_dir)?;
+
+        let session = crate::ort_ep::build_session(&model_path)
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+
+        let grid_centers = generate_scrfd_centers(SCRFD_INPUT_SIZE);
+
+        oo_info!(crate::oo_log::modules::FACE, "SCRFD detector loaded",
+            model = %model_path.display(),
+            centers = grid_centers[0].len() + grid_centers[1].len() + grid_centers[2].len(),
+            confidence = confidence_threshold);
+
+        Ok(Self {
+            session,
+            confidence_threshold,
+            nms_threshold: 0.4,
+            grid_centers,
+        })
+    }
+
+    /// Detect faces in an image. Returns bounding boxes in original image coordinates.
+    pub fn detect(&mut self, img: &DynamicImage) -> Result<Vec<FaceDetection>, ImageError> {
+        let (orig_w, orig_h) = img.dimensions();
+
+        // Resize to 640x640
+        let resized = img.resize_exact(
+            SCRFD_INPUT_SIZE,
+            SCRFD_INPUT_SIZE,
+            image::imageops::FilterType::Triangle,
+        );
+        let rgb = resized.to_rgb8();
+
+        // Build input tensor [1, 3, 640, 640] with SCRFD normalization: (pixel - 127.5) / 128.0
+        let input = Array4::<f32>::from_shape_fn(
+            (1, 3, SCRFD_INPUT_SIZE as usize, SCRFD_INPUT_SIZE as usize),
+            |(_, c, h, w)| {
+                let pixel = rgb.get_pixel(w as u32, h as u32);
+                (pixel[c] as f32 - 127.5) / 128.0
+            },
+        );
+
+        let input_val = ort::value::Value::from_array(input)
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+
+        let input_name = self.session.inputs()[0].name().to_string();
+        let outputs = self
+            .session
+            .run(ort::inputs![input_name.as_str() => input_val])
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+
+        // 9 outputs: score_8, score_16, score_32, bbox_8, bbox_16, bbox_32, kps_8, kps_16, kps_32
+        // We only use scores and bboxes (indices 0-5). Keypoints (6-8) are ignored.
+        let mut detections = Vec::new();
+        let scale_x = orig_w as f32 / SCRFD_INPUT_SIZE as f32;
+        let scale_y = orig_h as f32 / SCRFD_INPUT_SIZE as f32;
+
+        for (stride_idx, &stride) in SCRFD_STRIDES.iter().enumerate() {
+            let score_idx = stride_idx;
+            let bbox_idx = stride_idx + 3;
+
+            let (_score_shape, score_data) = outputs[score_idx]
+                .try_extract_tensor::<f32>()
+                .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+            let (_bbox_shape, bbox_data) = outputs[bbox_idx]
+                .try_extract_tensor::<f32>()
+                .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+
+            let centers = &self.grid_centers[stride_idx];
+
+            for (i, &(cx, cy)) in centers.iter().enumerate() {
+                let score = score_data.get(i).copied().unwrap_or(0.0);
+                if score < self.confidence_threshold {
+                    continue;
+                }
+
+                // Decode bbox: distances [left, top, right, bottom] from center
+                let base = i * 4;
+                let d_left = bbox_data.get(base).copied().unwrap_or(0.0);
+                let d_top = bbox_data.get(base + 1).copied().unwrap_or(0.0);
+                let d_right = bbox_data.get(base + 2).copied().unwrap_or(0.0);
+                let d_bottom = bbox_data.get(base + 3).copied().unwrap_or(0.0);
+
+                let s = stride as f32;
+                let x_min = ((cx - d_left * s) * scale_x).max(0.0);
+                let y_min = ((cy - d_top * s) * scale_y).max(0.0);
+                let x_max = ((cx + d_right * s) * scale_x).min(orig_w as f32);
+                let y_max = ((cy + d_bottom * s) * scale_y).min(orig_h as f32);
+
+                if x_max > x_min && y_max > y_min {
+                    detections.push(FaceDetection {
+                        x_min,
+                        y_min,
+                        x_max,
+                        y_max,
+                        confidence: score,
+                    });
+                }
+            }
+        }
+
+        let filtered = nms(&mut detections, self.nms_threshold);
+        Ok(filtered)
+    }
+}
+
+/// Generate SCRFD grid center coordinates for each stride level.
+/// Each grid cell has `SCRFD_ANCHORS_PER_CELL` center points (identical coordinates).
+fn generate_scrfd_centers(input_size: u32) -> [Vec<(f32, f32)>; 3] {
+    let mut result = [Vec::new(), Vec::new(), Vec::new()];
+    for (idx, &stride) in SCRFD_STRIDES.iter().enumerate() {
+        let grid_h = input_size / stride;
+        let grid_w = input_size / stride;
+        let mut centers =
+            Vec::with_capacity((grid_h * grid_w * SCRFD_ANCHORS_PER_CELL as u32) as usize);
+        for y in 0..grid_h {
+            for x in 0..grid_w {
+                let cx = (x as f32 + 0.5) * stride as f32;
+                let cy = (y as f32 + 0.5) * stride as f32;
+                for _ in 0..SCRFD_ANCHORS_PER_CELL {
+                    centers.push((cx, cy));
+                }
+            }
+        }
+        result[idx] = centers;
+    }
+    result
+}
+
+/// Find SCRFD ONNX model file.
+fn find_scrfd_model(model_dir: &Path) -> Result<std::path::PathBuf, ImageError> {
+    let candidates = [
+        "scrfd_2.5g.onnx",
+        "scrfd_2.5g_bnkps_shape640x640.onnx",
+        "scrfd.onnx",
+    ];
+    for name in &candidates {
+        let path = model_dir.join(name);
+        if path.exists() {
+            return Ok(path);
+        }
+    }
+    Err(ImageError::Decode(format!(
+        "No SCRFD model found in {}",
+        model_dir.display()
+    )))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -400,6 +568,64 @@ mod tests {
     #[test]
     fn test_load_model_not_found() {
         let result = FaceDetector::load(Path::new("/nonexistent/path"), 0.75);
+        assert!(result.is_err());
+    }
+
+    // --- SCRFD tests ---
+
+    #[test]
+    fn test_scrfd_generate_centers_count() {
+        let centers = generate_scrfd_centers(640);
+        // stride 8:  80*80*2 = 12800
+        // stride 16: 40*40*2 = 3200
+        // stride 32: 20*20*2 = 800
+        assert_eq!(centers[0].len(), 12800);
+        assert_eq!(centers[1].len(), 3200);
+        assert_eq!(centers[2].len(), 800);
+    }
+
+    #[test]
+    fn test_scrfd_centers_in_range() {
+        let centers = generate_scrfd_centers(640);
+        for (stride_idx, stride_centers) in centers.iter().enumerate() {
+            for &(cx, cy) in stride_centers {
+                assert!(
+                    cx >= 0.0 && cx <= 640.0,
+                    "stride {}: cx {} out of range",
+                    SCRFD_STRIDES[stride_idx],
+                    cx
+                );
+                assert!(
+                    cy >= 0.0 && cy <= 640.0,
+                    "stride {}: cy {} out of range",
+                    SCRFD_STRIDES[stride_idx],
+                    cy
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_scrfd_centers_stride8_spacing() {
+        let centers = generate_scrfd_centers(640);
+        // First two centers at stride 8 should have the same position (2 anchors per cell)
+        assert_eq!(centers[0][0], centers[0][1]);
+        // Third center should be one stride away in x
+        let (cx0, cy0) = centers[0][0];
+        let (cx2, cy2) = centers[0][2]; // Next grid cell
+        assert!((cx2 - cx0 - 8.0).abs() < 0.01);
+        assert!((cy2 - cy0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_scrfd_load_not_found() {
+        let result = ScrfdDetector::load(Path::new("/nonexistent/path"), 0.5);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_find_scrfd_model_not_found() {
+        let result = find_scrfd_model(Path::new("/nonexistent/path"));
         assert!(result.is_err());
     }
 }

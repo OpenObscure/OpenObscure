@@ -78,11 +78,7 @@ impl NerScanner {
             11 // Default: our standard 11-label schema
         };
 
-        let session = Session::builder()
-            .map_err(|e| NerError::OnnxRuntime(e.to_string()))?
-            .with_intra_threads(1)
-            .map_err(|e| NerError::OnnxRuntime(e.to_string()))?
-            .commit_from_file(&model_path)
+        let session = crate::ort_ep::build_session(&model_path)
             .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
 
         oo_info!(crate::oo_log::modules::NER, "NER scanner loaded",

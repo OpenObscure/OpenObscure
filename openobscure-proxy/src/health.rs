@@ -181,6 +181,7 @@ pub struct FeatureBudgetSummary {
     pub ocr_tier: String,
     pub nsfw_enabled: bool,
     pub screen_guard_enabled: bool,
+    pub face_model: String,
 }
 
 /// Combined health state: stats + optional auth token for the health endpoint.
@@ -467,6 +468,7 @@ mod tests {
                 ocr_tier: "full_recognition".to_string(),
                 nsfw_enabled: true,
                 screen_guard_enabled: true,
+                face_model: "scrfd".to_string(),
             },
         };
         Router::new().route(

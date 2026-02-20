@@ -72,6 +72,8 @@ pub struct FeatureBudget {
     pub nsfw_enabled: bool,
     /// Enable screenshot detection heuristics.
     pub screen_guard_enabled: bool,
+    /// Face detection model: "scrfd" (Full/Standard) or "blazeface" (Lite).
+    pub face_model: String,
     /// Model idle timeout before eviction (seconds).
     pub model_idle_timeout_secs: u64,
 }
@@ -244,6 +246,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             ocr_tier: "full_recognition".to_string(),
             nsfw_enabled: true,
             screen_guard_enabled: true,
+            face_model: "scrfd".to_string(),
             model_idle_timeout_secs: 300,
         },
         CapabilityTier::Standard => FeatureBudget {
@@ -256,6 +259,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             ocr_tier: "full_recognition".to_string(),
             nsfw_enabled: true,
             screen_guard_enabled: true,
+            face_model: "scrfd".to_string(),
             model_idle_timeout_secs: 120,
         },
         CapabilityTier::Lite => FeatureBudget {
@@ -268,6 +272,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             ocr_tier: "detect_and_blur".to_string(),
             nsfw_enabled: false,
             screen_guard_enabled: false,
+            face_model: "blazeface".to_string(),
             model_idle_timeout_secs: 60,
         },
     }
@@ -290,6 +295,7 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             ocr_tier: "full_recognition".to_string(),
             nsfw_enabled: true,
             screen_guard_enabled: true,
+            face_model: "scrfd".to_string(),
             model_idle_timeout_secs: 300,
         },
         CapabilityTier::Standard => FeatureBudget {
@@ -302,6 +308,7 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             ocr_tier: "detect_and_blur".to_string(),
             nsfw_enabled: max_ram >= 150,
             screen_guard_enabled: true,
+            face_model: "scrfd".to_string(),
             model_idle_timeout_secs: 120,
         },
         CapabilityTier::Lite => FeatureBudget {
@@ -314,6 +321,7 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             ocr_tier: "detect_and_blur".to_string(),
             nsfw_enabled: false,
             screen_guard_enabled: false,
+            face_model: "blazeface".to_string(),
             model_idle_timeout_secs: 60,
         },
     }
@@ -439,6 +447,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "full_recognition");
         assert!(b.nsfw_enabled);
         assert!(b.screen_guard_enabled);
+        assert_eq!(b.face_model, "scrfd");
         assert_eq!(b.model_idle_timeout_secs, 300);
     }
 
@@ -454,6 +463,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "full_recognition");
         assert!(b.nsfw_enabled);
         assert!(b.screen_guard_enabled);
+        assert_eq!(b.face_model, "scrfd");
         assert_eq!(b.model_idle_timeout_secs, 120);
     }
 
@@ -469,6 +479,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "detect_and_blur");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
+        assert_eq!(b.face_model, "blazeface");
         assert_eq!(b.model_idle_timeout_secs, 60);
     }
 
@@ -487,6 +498,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "full_recognition");
         assert!(b.nsfw_enabled);
         assert!(b.screen_guard_enabled);
+        assert_eq!(b.face_model, "scrfd");
     }
 
     #[test]
@@ -501,6 +513,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "detect_and_blur");
         assert!(b.nsfw_enabled); // 275 >= 150
         assert!(b.screen_guard_enabled);
+        assert_eq!(b.face_model, "scrfd");
     }
 
     #[test]
@@ -516,6 +529,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "detect_and_blur");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
+        assert_eq!(b.face_model, "blazeface");
     }
 
     #[test]
@@ -531,6 +545,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "detect_and_blur");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
+        assert_eq!(b.face_model, "blazeface");
     }
 
     // ── Display ──────────────────────────────────────────────────────

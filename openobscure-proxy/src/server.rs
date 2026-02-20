@@ -1,11 +1,12 @@
 use std::net::SocketAddr;
 
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 
 use crate::health::{FeatureBudgetSummary, HealthState};
+use crate::ner_endpoint::NerState;
 use crate::proxy::AppState;
 
 pub async fn run(
@@ -24,10 +25,15 @@ pub async fn run(
 
     let health_state = HealthState {
         stats: state.health.clone(),
-        auth_token,
+        auth_token: auth_token.clone(),
         key_version,
         device_tier,
         feature_budget,
+    };
+
+    let ner_state = NerState {
+        scanner: state.scanner.clone(),
+        auth_token,
     };
 
     let app = Router::new()
@@ -35,6 +41,11 @@ pub async fn run(
         .route(
             "/_openobscure/health",
             get(crate::health::health_handler).with_state(health_state),
+        )
+        // NER scanning endpoint for L1 plugin
+        .route(
+            "/_openobscure/ner",
+            post(crate::ner_endpoint::ner_handler).with_state(ner_state),
         )
         // All other routes go through the proxy handler
         .fallback(crate::proxy::proxy_handler)

@@ -14,7 +14,7 @@
  */
 
 import { PluginAPI, ToolResult } from "./types";
-import { redactPii } from "./redactor";
+import { redactPii, redactPiiWithNer } from "./redactor";
 import * as fs from "fs";
 import { HeartbeatMonitor } from "./heartbeat";
 import { ooInfo, OO_MODULES } from "./oo-log";
@@ -67,35 +67,14 @@ function readAuthToken(): string | undefined {
 export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void {
   const cfg = { ...DEFAULT_CONFIG, ...config };
 
-  // 1. Register tool_result_persist hook for PII redaction
-  if (cfg.redactToolResults) {
-    api.hooks.tool_result_persist((result: ToolResult): ToolResult => {
-      // MUST be synchronous — Promise causes silent skip in OpenClaw
-      const redacted = redactPii(result.content);
+  // Read auth token early (needed by both NER and heartbeat)
+  const authToken = readAuthToken();
 
-      if (redacted.count > 0 && cfg.logStats) {
-        // Log stats without logging actual PII values
-        const typeBreakdown = Object.entries(redacted.types)
-          .map(([type, count]) => `${type}=${count}`)
-          .join(", ");
-        ooInfo(OO_MODULES.REDACTOR, "Redacted PII in tool result", {
-          count: redacted.count,
-          tool: result.tool_name,
-          types: typeBreakdown,
-        });
-      }
-
-      return {
-        ...result,
-        content: redacted.text,
-      };
-    });
-  }
-
-  // 2. Start L1 heartbeat monitor for L0 proxy health
+  // 1. Start L1 heartbeat monitor for L0 proxy health
+  //    Must start before registering the hook so state is available.
+  let monitor: HeartbeatMonitor | undefined;
   if (cfg.heartbeat) {
-    const authToken = readAuthToken();
-    const monitor = new HeartbeatMonitor({
+    monitor = new HeartbeatMonitor({
       proxyUrl: cfg.proxyUrl,
       intervalMs: cfg.heartbeatIntervalMs,
       authToken,
@@ -107,6 +86,39 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
     });
   }
 
+  // 2. Register tool_result_persist hook for PII redaction
+  if (cfg.redactToolResults) {
+    const proxyUrl = cfg.proxyUrl;
+    const logStats = cfg.logStats;
+
+    api.hooks.tool_result_persist((result: ToolResult): ToolResult => {
+      // MUST be synchronous — Promise causes silent skip in OpenClaw
+      // Use NER-enhanced redaction when L0 is healthy, regex-only otherwise
+      const useNer = monitor?.state === "active";
+      const redacted = useNer
+        ? redactPiiWithNer(result.content, proxyUrl, authToken)
+        : redactPii(result.content);
+
+      if (redacted.count > 0 && logStats) {
+        // Log stats without logging actual PII values
+        const typeBreakdown = Object.entries(redacted.types)
+          .map(([type, count]) => `${type}=${count}`)
+          .join(", ");
+        ooInfo(OO_MODULES.REDACTOR, "Redacted PII in tool result", {
+          count: redacted.count,
+          tool: result.tool_name,
+          types: typeBreakdown,
+          ner: useNer,
+        });
+      }
+
+      return {
+        ...result,
+        content: redacted.text,
+      };
+    });
+  }
+
   ooInfo(OO_MODULES.PLUGIN, "Plugin registered", {
     redactor: cfg.redactToolResults,
     heartbeat: cfg.heartbeat,
@@ -114,9 +126,9 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
 }
 
 // Re-export for direct use
-export { redactPii } from "./redactor";
+export { redactPii, redactPiiWithNer } from "./redactor";
 export type { PluginAPI, ToolResult, ToolDefinition } from "./types";
-export type { RedactionResult } from "./redactor";
+export type { RedactionResult, NerMatch } from "./redactor";
 export { HeartbeatMonitor, STATE_MESSAGES } from "./heartbeat";
 export type {
   ProxyState,

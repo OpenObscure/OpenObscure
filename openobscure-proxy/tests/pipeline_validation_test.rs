@@ -18,20 +18,34 @@ fn models_available() -> bool {
 
 fn make_pipeline_config() -> ImageConfig {
     let face_dir = Path::new("models/blazeface");
+    let scrfd_dir = Path::new("models/scrfd");
     let ocr_dir = Path::new("models/paddleocr");
     let nsfw_dir = Path::new("models/nudenet");
 
+    // Use SCRFD if available, otherwise fall back to BlazeFace
+    let face_model = if scrfd_dir.exists() {
+        "scrfd".to_string()
+    } else {
+        "blazeface".to_string()
+    };
+
     ImageConfig {
         enabled: true,
-        face_detection: face_dir.exists(),
+        face_detection: face_dir.exists() || scrfd_dir.exists(),
         ocr_enabled: ocr_dir.exists(),
         ocr_tier: "detect_and_blur".to_string(),
         max_dimension: 960,
         face_blur_sigma: 25.0,
         text_blur_sigma: 20.0,
         model_idle_timeout_secs: 300,
+        face_model,
         face_model_dir: if face_dir.exists() {
             Some(face_dir.to_string_lossy().into_owned())
+        } else {
+            None
+        },
+        face_model_dir_scrfd: if scrfd_dir.exists() {
+            Some(scrfd_dir.to_string_lossy().into_owned())
         } else {
             None
         },
@@ -243,6 +257,112 @@ fn test_nsfw_meta_consistent_when_clean() {
             issues.iter().map(|i| &i.message).collect::<Vec<_>>()
         );
     }
+}
+
+#[test]
+fn test_ocr_recognition_quality_v4() {
+    let ocr_dir = Path::new("models/paddleocr");
+    if !ocr_dir.join("rec_model.onnx").exists() || !ocr_dir.join("ppocr_keys.txt").exists() {
+        eprintln!("Skipping: OCR recognition model not available");
+        return;
+    }
+
+    // Load recognizer with new PP-OCRv4 English model
+    let mut recognizer = openobscure_proxy::ocr_engine::OcrRecognizer::load(ocr_dir)
+        .expect("Failed to load recognizer");
+
+    let bytes = std::fs::read("../docs/examples/images/text-original.jpg")
+        .expect("text-original.jpg not found");
+    let img = decode_image(&bytes).unwrap();
+    let img = resize_if_needed(img, 960);
+
+    // Detect text regions
+    let mut detector =
+        openobscure_proxy::ocr_engine::OcrDetector::load(ocr_dir).expect("Failed to load detector");
+    let regions = detector.detect(&img).unwrap();
+    assert!(
+        !regions.is_empty(),
+        "Should detect text regions in document"
+    );
+
+    // Recognize text from detected regions
+    let results = recognizer.recognize(&img, &regions).unwrap();
+
+    // Should produce non-empty results with reasonable confidence
+    assert!(
+        !results.is_empty(),
+        "Should recognize text from document (got 0 results from {} regions)",
+        regions.len()
+    );
+
+    // At least some recognized text should have confidence > 0.3
+    let good_results: Vec<_> = results.iter().filter(|r| r.confidence > 0.3).collect();
+    assert!(
+        !good_results.is_empty(),
+        "No high-confidence (>0.3) text found. Confidences: {:?}",
+        results.iter().map(|r| r.confidence).collect::<Vec<_>>()
+    );
+
+    // Print recognized text for manual inspection
+    eprintln!("\n=== OCR Recognition Quality Test (PP-OCRv4 English) ===");
+    eprintln!("  Regions detected: {}", regions.len());
+    eprintln!("  Texts recognized: {}", results.len());
+    for (i, r) in results.iter().enumerate() {
+        eprintln!("  [{}] confidence={:.3}: \"{}\"", i, r.confidence, r.text);
+    }
+
+    // Verify at least one result contains recognizable English
+    let has_english = results
+        .iter()
+        .any(|r| r.text.chars().any(|c| c.is_ascii_alphabetic()) && r.confidence > 0.3);
+    assert!(
+        has_english,
+        "No readable English text detected. Model may be incompatible."
+    );
+
+    // Average confidence should be reasonable (>0.1 for a good model)
+    let avg_conf: f32 = results.iter().map(|r| r.confidence).sum::<f32>() / results.len() as f32;
+    eprintln!("  Average confidence: {:.3}", avg_conf);
+    assert!(
+        avg_conf > 0.1,
+        "Average confidence {:.3} too low — model may be garbling text",
+        avg_conf
+    );
+}
+
+#[test]
+fn test_tier2_pii_selective_blur() {
+    let ocr_dir = Path::new("models/paddleocr");
+    if !ocr_dir.join("rec_model.onnx").exists() {
+        eprintln!("Skipping: OCR recognition model not available");
+        return;
+    }
+    if !Path::new("models/blazeface").exists() {
+        eprintln!("Skipping: BlazeFace model not available");
+        return;
+    }
+
+    // Test the full pipeline in full_recognition (Tier 2) mode
+    let mut config = make_pipeline_config();
+    config.ocr_tier = "full_recognition".to_string();
+
+    let bytes = std::fs::read("../docs/examples/images/text-original.jpg")
+        .expect("text-original.jpg not found");
+    let img = decode_image(&bytes).unwrap();
+    let img = resize_if_needed(img, 960);
+
+    let manager = ImageModelManager::new(config);
+    let (_result, stats, _meta) = manager.process_image(img).unwrap();
+
+    eprintln!("\n=== Tier 2 PII Selective Blur ===");
+    eprintln!("  Text regions found: {}", stats.text_regions_found);
+
+    // In Tier 2 (full_recognition), the pipeline recognizes text and only blurs PII.
+    // The test validates the pipeline runs without errors in Tier 2 mode.
+    assert!(
+        stats.text_regions_found >= 1,
+        "Tier 2 should still detect text regions"
+    );
 }
 
 #[test]
