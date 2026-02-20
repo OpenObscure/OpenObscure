@@ -460,7 +460,7 @@ cargo run --example demo_image_pipeline -- \
 | **Screenshot PII Blur** — Full patient record with names, SSNs, credit cards, phone numbers, emails, addresses, and medical history. PaddleOCR detects all text regions and blurs them. | ![Original screenshot](docs/examples/images/screenshot-original.png) | ![Screenshot blurred](docs/examples/images/screenshot-blurred.png) |
 | **Face Detection + Blur** — BlazeFace detects faces and applies selective Gaussian blur to face bounding boxes | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face blurred](docs/examples/images/face-blurred.jpg) |
 | **Child Face Privacy** — Automatically detects and blurs children's faces to protect minors' privacy | ![Original child photo](docs/examples/images/child-original.jpg) | ![Child face blurred](docs/examples/images/child-blurred.jpg) |
-| **OCR Text Blur** — PaddleOCR detects text in documents/photos and blurs readable content | ![Original document](docs/examples/images/text-original.jpg) | ![Text blurred](docs/examples/images/text-blurred.jpg) |
+| **OCR PII Blur** — PaddleOCR detects text regions, then PII scanner filters and blurs only sensitive values (names, SSNs, emails, phones, card numbers) while leaving non-PII text readable | ![Original document](docs/examples/images/text-original.jpg) | ![PII blurred](docs/examples/images/text-blurred.jpg) |
 
 ### Pipeline Details
 
