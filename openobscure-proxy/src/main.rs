@@ -203,11 +203,18 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
     let image_models = if config.image.enabled && budget.image_pipeline_enabled {
         let mut img_config = config.image.clone();
         img_config.model_idle_timeout_secs = budget.model_idle_timeout_secs;
+        img_config.ocr_tier = budget.ocr_tier.clone();
+        img_config.nsfw_detection = config.image.nsfw_detection && budget.nsfw_enabled;
+        img_config.screen_guard = config.image.screen_guard && budget.screen_guard_enabled;
+        let effective_nsfw = img_config.nsfw_detection;
+        let effective_screen_guard = img_config.screen_guard;
         let models = Arc::new(ImageModelManager::new(img_config));
         oo_info!(crate::oo_log::modules::IMAGE, "Image pipeline enabled",
             face_detection = config.image.face_detection,
             ocr_enabled = config.image.ocr_enabled,
-            ocr_tier = %config.image.ocr_tier,
+            ocr_tier = %budget.ocr_tier,
+            nsfw = effective_nsfw,
+            screen_guard = effective_screen_guard,
             max_dimension = config.image.max_dimension,
             idle_timeout_secs = budget.model_idle_timeout_secs);
 
@@ -254,6 +261,9 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         crf_enabled: budget.crf_enabled,
         ensemble_enabled: budget.ensemble_enabled,
         image_pipeline_enabled: budget.image_pipeline_enabled,
+        ocr_tier: budget.ocr_tier.clone(),
+        nsfw_enabled: budget.nsfw_enabled,
+        screen_guard_enabled: budget.screen_guard_enabled,
     };
 
     // Start server
@@ -583,10 +593,12 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
         }
     };
     scanner.set_respect_code_fences(code_fences);
-    scanner.set_confidence_params(
-        config.scanner.min_confidence,
-        config.scanner.agreement_bonus,
-    );
+    let effective_bonus = if budget.ensemble_enabled {
+        config.scanner.agreement_bonus
+    } else {
+        0.0
+    };
+    scanner.set_confidence_params(config.scanner.min_confidence, effective_bonus);
     scanner
 }
 

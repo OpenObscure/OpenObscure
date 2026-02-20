@@ -60,6 +60,10 @@ pub struct MobileConfig {
     #[serde(default)]
     pub ocr_model_dir: Option<String>,
 
+    /// Path to NSFW/NudeNet model directory.
+    #[serde(default)]
+    pub nsfw_model_dir: Option<String>,
+
     /// Maximum image dimension before resize.
     #[serde(default = "default_max_dimension")]
     pub max_dimension: u32,
@@ -88,6 +92,7 @@ impl Default for MobileConfig {
             image_enabled: false,
             face_model_dir: None,
             ocr_model_dir: None,
+            nsfw_model_dir: None,
             max_dimension: 960,
         }
     }
@@ -168,15 +173,17 @@ impl OpenObscureMobile {
         let fpe = FpeEngine::new(&fpe_key)?;
 
         // Determine scanner and tier via auto-detection or explicit mode
-        let (scanner, effective_mode, device_tier, idle_timeout) = if config.auto_detect
+        let (scanner, effective_mode, device_tier, budget) = if config.auto_detect
             && config.scanner_mode == "auto"
         {
             let profile = crate::device_profile::detect(true);
             let tier = crate::device_profile::tier_for_profile(&profile);
             let budget = crate::device_profile::budget_for_tier(tier, &profile);
 
-            let (scan, mode) = Self::build_scanner_from_budget(&config, &budget);
-            (scan, mode, tier.to_string(), budget.model_idle_timeout_secs)
+            let (mut scan, mode) = Self::build_scanner_from_budget(&config, &budget);
+            let effective_bonus = if budget.ensemble_enabled { 0.15 } else { 0.0 };
+            scan.set_confidence_params(0.5, effective_bonus);
+            (scan, mode, tier.to_string(), Some(budget))
         } else {
             // Explicit mode — honor scanner_mode literally
             let scanner = match config.scanner_mode.as_str() {
@@ -210,27 +217,48 @@ impl OpenObscureMobile {
                 scanner,
                 config.scanner_mode.clone(),
                 "manual".to_string(),
-                300u64,
+                None,
             )
         };
 
-        // Build image pipeline if enabled and model paths provided
-        let image_manager = if config.image_enabled {
+        // Build image pipeline if enabled and budget allows
+        let image_pipeline_allowed = budget
+            .as_ref()
+            .map(|b| b.image_pipeline_enabled)
+            .unwrap_or(true); // manual mode: no budget gating
+        let image_manager = if config.image_enabled && image_pipeline_allowed {
+            let idle_timeout = budget
+                .as_ref()
+                .map(|b| b.model_idle_timeout_secs)
+                .unwrap_or(300);
+            let ocr_tier = budget
+                .as_ref()
+                .map(|b| b.ocr_tier.clone())
+                .unwrap_or_else(|| "detect_and_blur".to_string());
+            let screen_guard = budget
+                .as_ref()
+                .map(|b| b.screen_guard_enabled)
+                .unwrap_or(false);
+            let nsfw_enabled = budget.as_ref().map(|b| b.nsfw_enabled).unwrap_or(false);
             let img_config = ImageConfig {
                 enabled: true,
                 face_detection: config.face_model_dir.is_some(),
                 ocr_enabled: config.ocr_model_dir.is_some(),
-                ocr_tier: "detect_and_blur".to_string(),
+                ocr_tier,
                 max_dimension: config.max_dimension,
                 face_blur_sigma: 25.0,
                 text_blur_sigma: 20.0,
                 model_idle_timeout_secs: idle_timeout,
                 face_model_dir: config.face_model_dir,
                 ocr_model_dir: config.ocr_model_dir,
-                screen_guard: false,
+                screen_guard,
                 exif_strip: true,
-                nsfw_detection: false,
-                nsfw_model_dir: None,
+                nsfw_detection: nsfw_enabled,
+                nsfw_model_dir: if nsfw_enabled {
+                    config.nsfw_model_dir
+                } else {
+                    None
+                },
                 nsfw_threshold: 0.45,
             };
             Some(ImageModelManager::new(img_config))

@@ -178,6 +178,9 @@ pub struct FeatureBudgetSummary {
     pub crf_enabled: bool,
     pub ensemble_enabled: bool,
     pub image_pipeline_enabled: bool,
+    pub ocr_tier: String,
+    pub nsfw_enabled: bool,
+    pub screen_guard_enabled: bool,
 }
 
 /// Combined health state: stats + optional auth token for the health endpoint.
@@ -461,6 +464,9 @@ mod tests {
                 crf_enabled: true,
                 ensemble_enabled: true,
                 image_pipeline_enabled: true,
+                ocr_tier: "full_recognition".to_string(),
+                nsfw_enabled: true,
+                screen_guard_enabled: true,
             },
         };
         Router::new().route(

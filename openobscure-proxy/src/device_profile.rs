@@ -66,6 +66,12 @@ pub struct FeatureBudget {
     pub ensemble_enabled: bool,
     /// Enable image pipeline (face blur, OCR blur, NSFW).
     pub image_pipeline_enabled: bool,
+    /// OCR processing tier: "full_recognition" or "detect_and_blur".
+    pub ocr_tier: String,
+    /// Enable NSFW/nudity detection model.
+    pub nsfw_enabled: bool,
+    /// Enable screenshot detection heuristics.
+    pub screen_guard_enabled: bool,
     /// Model idle timeout before eviction (seconds).
     pub model_idle_timeout_secs: u64,
 }
@@ -235,6 +241,9 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             crf_enabled: true,
             ensemble_enabled: true,
             image_pipeline_enabled: true,
+            ocr_tier: "full_recognition".to_string(),
+            nsfw_enabled: true,
+            screen_guard_enabled: true,
             model_idle_timeout_secs: 300,
         },
         CapabilityTier::Standard => FeatureBudget {
@@ -244,6 +253,9 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: true,
+            ocr_tier: "full_recognition".to_string(),
+            nsfw_enabled: true,
+            screen_guard_enabled: true,
             model_idle_timeout_secs: 120,
         },
         CapabilityTier::Lite => FeatureBudget {
@@ -253,6 +265,9 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: true,
+            ocr_tier: "detect_and_blur".to_string(),
+            nsfw_enabled: false,
+            screen_guard_enabled: false,
             model_idle_timeout_secs: 60,
         },
     }
@@ -272,6 +287,9 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             crf_enabled: true,
             ensemble_enabled: true,
             image_pipeline_enabled: true,
+            ocr_tier: "full_recognition".to_string(),
+            nsfw_enabled: true,
+            screen_guard_enabled: true,
             model_idle_timeout_secs: 300,
         },
         CapabilityTier::Standard => FeatureBudget {
@@ -281,6 +299,9 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: max_ram >= 100,
+            ocr_tier: "detect_and_blur".to_string(),
+            nsfw_enabled: max_ram >= 150,
+            screen_guard_enabled: true,
             model_idle_timeout_secs: 120,
         },
         CapabilityTier::Lite => FeatureBudget {
@@ -290,6 +311,9 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             crf_enabled: max_ram >= 25,
             ensemble_enabled: false,
             image_pipeline_enabled: max_ram >= 40,
+            ocr_tier: "detect_and_blur".to_string(),
+            nsfw_enabled: false,
+            screen_guard_enabled: false,
             model_idle_timeout_secs: 60,
         },
     }
@@ -412,6 +436,9 @@ mod tests {
         assert!(b.crf_enabled);
         assert!(b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
+        assert_eq!(b.ocr_tier, "full_recognition");
+        assert!(b.nsfw_enabled);
+        assert!(b.screen_guard_enabled);
         assert_eq!(b.model_idle_timeout_secs, 300);
     }
 
@@ -424,6 +451,9 @@ mod tests {
         assert!(b.ner_enabled);
         assert!(!b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
+        assert_eq!(b.ocr_tier, "full_recognition");
+        assert!(b.nsfw_enabled);
+        assert!(b.screen_guard_enabled);
         assert_eq!(b.model_idle_timeout_secs, 120);
     }
 
@@ -436,6 +466,9 @@ mod tests {
         assert!(!b.ner_enabled);
         assert!(b.crf_enabled);
         assert!(!b.ensemble_enabled);
+        assert_eq!(b.ocr_tier, "detect_and_blur");
+        assert!(!b.nsfw_enabled);
+        assert!(!b.screen_guard_enabled);
         assert_eq!(b.model_idle_timeout_secs, 60);
     }
 
@@ -451,6 +484,9 @@ mod tests {
         assert!(b.ner_enabled);
         assert!(b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
+        assert_eq!(b.ocr_tier, "full_recognition");
+        assert!(b.nsfw_enabled);
+        assert!(b.screen_guard_enabled);
     }
 
     #[test]
@@ -462,6 +498,9 @@ mod tests {
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled); // 275 >= 80
         assert!(b.image_pipeline_enabled); // 275 >= 100
+        assert_eq!(b.ocr_tier, "detect_and_blur");
+        assert!(b.nsfw_enabled); // 275 >= 150
+        assert!(b.screen_guard_enabled);
     }
 
     #[test]
@@ -474,6 +513,9 @@ mod tests {
         assert!(!b.ner_enabled);
         assert!(b.crf_enabled); // 102 >= 25
         assert!(b.image_pipeline_enabled); // 102 >= 40
+        assert_eq!(b.ocr_tier, "detect_and_blur");
+        assert!(!b.nsfw_enabled);
+        assert!(!b.screen_guard_enabled);
     }
 
     #[test]
@@ -486,6 +528,9 @@ mod tests {
         assert!(!b.ner_enabled);
         assert!(!b.crf_enabled); // 12 < 25
         assert!(!b.image_pipeline_enabled); // 12 < 40
+        assert_eq!(b.ocr_tier, "detect_and_blur");
+        assert!(!b.nsfw_enabled);
+        assert!(!b.screen_guard_enabled);
     }
 
     // ── Display ──────────────────────────────────────────────────────
