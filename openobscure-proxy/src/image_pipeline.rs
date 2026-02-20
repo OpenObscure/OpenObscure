@@ -17,8 +17,10 @@ use crate::config::ImageConfig;
 use crate::detection_meta::{NsfwMeta, PipelineMeta};
 use crate::face_detector::FaceDetector;
 use crate::image_blur;
+use crate::keyword_dict::KeywordDict;
 use crate::nsfw_detector::NsfwDetector;
 use crate::ocr_engine::{OcrDetector, OcrRecognizer, OcrTier};
+use crate::scanner::PiiScanner;
 
 /// Errors from image processing operations.
 #[derive(Debug, thiserror::Error)]
@@ -371,7 +373,7 @@ impl ImageModelManager {
                                     }
                                 }
                                 OcrTier::FullRecognition => {
-                                    // Tier 2: recognize text, blur only PII regions
+                                    // Tier 2: recognize text, scan for PII, blur only PII regions
                                     // Drop detector before loading recognizer (RAM)
                                     drop(det_guard);
 
@@ -391,13 +393,32 @@ impl ImageModelManager {
                                     if let Some(ref mut recognizer) = *rec_guard {
                                         match recognizer.recognize(&dyn_img, &regions) {
                                             Ok(texts) => {
+                                                let pii_scanner = PiiScanner::new();
+                                                let keyword_dict = KeywordDict::new();
+                                                let mut pii_count = 0u32;
                                                 for rt in &texts {
-                                                    image_blur::blur_quad_region(
-                                                        &mut rgb,
-                                                        &rt.region.points,
-                                                        self.config.text_blur_sigma,
-                                                    );
+                                                    oo_debug!(crate::oo_log::modules::OCR,
+                                                        "OCR recognized", text = %rt.text, confidence = rt.confidence);
+                                                    let has_regex_pii =
+                                                        !pii_scanner.scan_text(&rt.text).is_empty();
+                                                    let has_keyword_pii = !keyword_dict
+                                                        .scan_text(&rt.text)
+                                                        .is_empty();
+                                                    if has_regex_pii || has_keyword_pii {
+                                                        image_blur::blur_quad_region(
+                                                            &mut rgb,
+                                                            &rt.region.points,
+                                                            self.config.text_blur_sigma,
+                                                        );
+                                                        pii_count += 1;
+                                                    }
                                                 }
+                                                oo_info!(
+                                                    crate::oo_log::modules::OCR,
+                                                    "OCR Tier 2: PII-selective blur",
+                                                    pii_regions = pii_count,
+                                                    total_regions = texts.len()
+                                                );
                                             }
                                             Err(e) => {
                                                 oo_warn!(crate::oo_log::modules::OCR,
