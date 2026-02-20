@@ -18,6 +18,7 @@ use ort::session::Session;
 /// Empty on desktop Linux/Windows (CPU-only).
 /// Non-empty on Apple (CoreML) or Android (NNAPI).
 pub fn platform_eps() -> Vec<ExecutionProviderDispatch> {
+    #[allow(unused_mut)]
     let mut eps = Vec::new();
 
     // CoreML: Apple Neural Engine + GPU on iOS/macOS
