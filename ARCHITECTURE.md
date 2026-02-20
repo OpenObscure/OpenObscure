@@ -185,7 +185,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | Aspect | Detail |
 |--------|--------|
 | **What it does** | Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE, decrypts ciphertexts in responses (SSE streaming supported). Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. |
-| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: nudity (NudeNet ONNX), faces in photos (BlazeFace ONNX), text in screenshots/images (PaddleOCR ONNX). |
+| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: nudity (NudeNet ONNX), faces in photos (SCRFD-2.5GF on Full/Standard, BlazeFace on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged |
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
@@ -193,7 +193,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, keyring 3, clap 4 (CLI) |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 650+ |
+| **Tests** | 700+ (default features), 880+ (all features) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -203,8 +203,8 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
-| **PII handling** | Redaction (`[REDACTED]`), not FPE — tool results are internal, don't need format preservation |
+| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. When L0 is healthy, uses NER-enhanced redaction via `POST /_openobscure/ner` endpoint (semantic NER + regex merge); falls back to regex-only when L0 is unavailable. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
+| **PII handling** | NER-enhanced redaction (when L0 active) or regex-only redaction (`[REDACTED]`), not FPE — tool results are internal, don't need format preservation |
 | **Heartbeat** | Pings L0 `/_openobscure/health` every 30s with `X-OpenObscure-Token` auth header. Warns user when L0 is down, logs recovery. |
 | **Hook model** | Synchronous — must not return a Promise. OpenClaw-specific: OpenClaw silently skips async hooks. |
 | **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output |
@@ -378,7 +378,8 @@ Budget = 20% of total RAM, clamped to [12MB, 275MB]. Features enabled based on a
 | L0 + L1 + runtime | 115MB | Always |
 | TinyBERT INT8 NER | 55MB | Always (when tier enables NER) |
 | Health/child keyword dict | 2MB | Always |
-| BlazeFace (face detection) | 8MB | On-demand |
+| SCRFD-2.5GF (face detection, Full/Standard) | 15MB | On-demand |
+| BlazeFace (face detection, Lite fallback) | 8MB | On-demand |
 | PaddleOCR-Lite (OCR) | 35MB | On-demand |
 | Image buffer | 48MB | On-demand |
 | **Peak (Full tier)** | **224MB** | — |
@@ -400,7 +401,9 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 | **Phase 6** (complete) | **97%** | Ensemble confidence voting (cluster-based overlap resolution + agreement bonus) |
 | **Phase 7** (complete) | **97%** | Cross-platform support (Windows, Linux ARM64), mobile library API (iOS + Android via UniFFI), Embedded deployment model |
 | **Post-Phase 7** (complete) | **98%** | Network/device identifier detection (IPv4, IPv6, GPS coordinates, MAC addresses) — closes PII-06 + PII-12 |
-| **Phase 9** (complete) | **98%** | Runtime hardware capability detection — device profiler auto-selects features based on RAM; mobile devices with 8GB+ get full NER + ensemble parity with gateway |
+| **Phase 8** (complete) | **98%** | Production hardening — CI/CD matrix, mobile API gaps (breach detect, SIEM export, encrypted storage), governance feature flags |
+| **Post-Phase 8** (complete) | **99%** | Tier-gated features — SCRFD-2.5GF face detection (Full/Standard), L1 NER via L0 endpoint, CoreML/NNAPI mobile EPs, PP-OCRv4 English OCR, 99.7% recall |
+| **Phase 9** (partial) | **99%** | Runtime hardware capability detection — device profiler auto-selects features based on RAM; mobile devices with 8GB+ get full NER + ensemble parity with gateway |
 
 ## Project Layout
 
@@ -440,7 +443,8 @@ OpenObscure/
     ├── PHASE5_PLAN.md           Phase 5 plan (COMPLETE — 399 tests)
     ├── PHASE6_PLAN.md           Phase 6 plan (COMPLETE — 418 tests)
     ├── PHASE7_PLAN.md           Phase 7 plan (COMPLETE — 431 tests)
-    ├── PHASE8_PLAN.md           Phase 8 plan (future work)
+    ├── PHASE8_PLAN.md           Phase 8 plan (COMPLETE — 880 tests)
+    ├── PHASE9_PLAN.md           Phase 9 plan (partially complete — 9A done, 9C dropped)
     └── LOGGING_STRATEGY.md      Platform-specific logging strategy
 ```
 
@@ -697,7 +701,7 @@ flowchart TB
 
 **Key properties:**
 - Images processed BEFORE text so byte offsets remain correct
-- **Three-phase pipeline:** Phase 0 (NSFW check) → Phase 1 (face detection + blur) → Phase 2 (OCR text detection + blur)
+- **Three-phase pipeline:** Phase 0 (NSFW check) → Phase 1 (face detection via SCRFD or BlazeFace + blur) → Phase 2 (OCR text detection via PP-OCRv4 + blur)
 - NSFW detection: if nudity found, blur entire image with heavy sigma=30 and skip face/OCR phases
 - Face blur: if face occupies >80% of image area, blur entire image; otherwise selective blur with 15% padding
 - Sequential model loading: models loaded/used/dropped one at a time (never multiple in RAM)
@@ -710,9 +714,10 @@ flowchart TB
 | Model | Size | RAM | Purpose |
 |-------|------|-----|---------|
 | NudeNet 320n | ~12MB | ~20MB | NSFW/nudity detection (YOLOv8n, 320x320 input) |
-| BlazeFace short-range | ~408KB | ~8MB | Face detection (128x128 input, NMS) |
+| SCRFD-2.5GF | ~3MB | ~15MB | Face detection — Full/Standard tiers (640x640 input, multi-scale FPN) |
+| BlazeFace short-range | ~408KB | ~8MB | Face detection — Lite tier fallback (128x128 input, NMS) |
 | PaddleOCR det | ~2.4MB | ~15MB | Text region detection |
-| PaddleOCR rec | ~7.8MB | ~20MB | Character recognition (Tier 2 only) |
+| PaddleOCR rec (PP-OCRv4) | ~10MB | ~20MB | Character recognition (Tier 2 only, English) |
 
 **Two OCR tiers:**
 - **Tier 1 (default):** Detect text regions → blur all. No recognition model needed.
@@ -804,9 +809,12 @@ If L0 is not running, the host agent can't reach LLM providers (traffic is confi
 
 ## Future Architecture Changes
 
+Recently completed:
+- **ONNX Runtime mobile EPs** — CoreML (Apple) and NNAPI (Android) via `ort_ep.rs` — DONE
+- **SCRFD multi-scale face detection** — SCRFD-2.5GF for Full/Standard tiers, BlazeFace for Lite — DONE
+- **GLiNER NER evaluation** — DROPPED (82.78% recall, worse than TinyBERT 97%)
+
 Planned (future):
-- **ONNX Runtime mobile** — pre-built ORT for iOS (CoreML EP) and Android (NNAPI EP), `.ort` format models
-- **SCRFD multi-scale face detection** — SCRFD-2.5GF for mixed-size faces in screenshots (replaces BlazeFace on desktop)
-- **Multilingual PII detection** — FastText language identification + per-language regex/keywords for 9 languages
-- **GLiNER NER upgrade** — 99.5%+ recall on semantic PII for 16GB+ devices
-- **Voice anonymization** — Whisper-base speech-to-text + PII masking in audio (experimental, 16GB+)
+- **Multilingual PII detection** — FastText language identification + per-language regex/keywords for 9 languages (Phase 9B)
+- **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D)
+- **Voice anonymization** — Whisper-base speech-to-text + PII masking in audio (experimental, 16GB+, Phase 9E)
