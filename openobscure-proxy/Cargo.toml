@@ -19,11 +19,13 @@ path = "src/main.rs"
 [[bin]]
 name = "uniffi-bindgen"
 path = "uniffi-bindgen.rs"
-required-features = ["mobile"]
+required-features = ["bindgen"]
 
 [features]
 default = []
 mobile = ["uniffi"]
+# Enable CLI for uniffi-bindgen binary (not needed for the library itself)
+bindgen = ["mobile", "uniffi/cli"]
 
 [dependencies]
 # HTTP stack

@@ -31,10 +31,10 @@ done
 
 echo "=== OpenObscure UniFFI Binding Generation ==="
 
-# Build the library with mobile features (needed for uniffi-bindgen)
+# Build the library with bindgen features (includes mobile + cli)
 echo ""
-echo "--- Building library with mobile features ---"
-cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --features mobile --lib
+echo "--- Building library with bindgen features ---"
+cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --features bindgen --lib
 
 # Find the built library
 LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_proxy.dylib"
@@ -49,17 +49,22 @@ fi
 
 echo "Using library: $LIB_PATH"
 
+# uniffi-bindgen needs cargo metadata, which requires running from a directory
+# with a Cargo.toml. Run from within the proxy directory.
+BINDGEN_BIN="$PROXY_DIR/target/debug/uniffi-bindgen"
+
+# Build the uniffi-bindgen binary
+cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --features bindgen --bin uniffi-bindgen
+
 # Generate Swift bindings
 if [ "$GENERATE_SWIFT" = true ]; then
     echo ""
     echo "--- Generating Swift bindings ---"
     mkdir -p "$BINDINGS_DIR/swift"
-    cargo run --manifest-path "$PROXY_DIR/Cargo.toml" \
-        --features mobile \
-        --bin uniffi-bindgen -- \
-        generate --library "$LIB_PATH" \
+    (cd "$PROXY_DIR" && "$BINDGEN_BIN" generate \
+        --library "$LIB_PATH" \
         --language swift \
-        --out-dir "$BINDINGS_DIR/swift"
+        --out-dir "$BINDINGS_DIR/swift")
     echo "Swift bindings: $BINDINGS_DIR/swift/"
     ls -la "$BINDINGS_DIR/swift/" 2>/dev/null || true
 fi
@@ -69,12 +74,10 @@ if [ "$GENERATE_KOTLIN" = true ]; then
     echo ""
     echo "--- Generating Kotlin bindings ---"
     mkdir -p "$BINDINGS_DIR/kotlin"
-    cargo run --manifest-path "$PROXY_DIR/Cargo.toml" \
-        --features mobile \
-        --bin uniffi-bindgen -- \
-        generate --library "$LIB_PATH" \
+    (cd "$PROXY_DIR" && "$BINDGEN_BIN" generate \
+        --library "$LIB_PATH" \
         --language kotlin \
-        --out-dir "$BINDINGS_DIR/kotlin"
+        --out-dir "$BINDINGS_DIR/kotlin")
     echo "Kotlin bindings: $BINDINGS_DIR/kotlin/"
     ls -la "$BINDINGS_DIR/kotlin/" 2>/dev/null || true
 fi
