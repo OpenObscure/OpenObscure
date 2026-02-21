@@ -203,7 +203,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 808 (347 lib + 439 bin + 14 accuracy + 8 pipeline) |
+| **Tests** | 994 (411 lib + 561 bin + 14 accuracy + 8 pipeline) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -436,8 +436,8 @@ OpenObscure/
 ├── data/
 │   └── pii_finetune_dataset.json  TinyBERT fine-tuning dataset (500-1000 labeled PII samples)
 ├── test-apps/
-│   ├── ios/                     iOS test app (SwiftUI + XCTest, 20 tests)
-│   └── android/                 Android test app (Compose + instrumented tests, 20 tests)
+│   ├── ios/                     iOS test app (SwiftUI, 25 runner + 23 XCTest)
+│   └── android/                 Android test app (Compose, 29 instrumented + 8 UI)
 ├── openobscure-proxy/             L0: Rust PII proxy (+ embedded mobile library)
 │   ├── ARCHITECTURE.md          L0 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
@@ -833,7 +833,7 @@ Recently completed:
 - **GLiNER NER evaluation** — DROPPED (82.78% recall, worse than TinyBERT 97%)
 - **Multilingual PII detection** — `whatlang` language detection + per-language regex/keywords for 9 languages with national ID check-digit validation — DONE (Phase 10C)
 - **Voice anonymization** — Whisper-base ONNX speech-to-text + PII masking in audio segments, `voice` feature flag, desktop 16GB+ only — DONE (Phase 10D)
-- **Mobile test apps** — iOS (SwiftUI + XCTest, 20 tests) and Android (Compose + instrumented tests, 20 tests) — DONE (Phase 10A)
+- **Mobile test apps** — iOS (SwiftUI, 25 runner + 23 XCTest) and Android (Compose, 29 instrumented + 8 UI) — DONE (Phase 10A)
 - **`before_tool_call` preparation** — L1 plugin prepared handler that auto-activates when OpenClaw wires the hook — DONE (Phase 10F)
 
 Planned (future):

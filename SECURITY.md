@@ -45,7 +45,7 @@ Critical vulnerabilities (key extraction, proxy bypass, plaintext PII leaks) wil
 - Memory leaks of plaintext PII
 - Denial of service against the proxy
 - Dependency vulnerabilities with exploitable paths in OpenObscure
-- ONNX model substitution attacks (replacing BlazeFace/PaddleOCR models with malicious ones)
+- ONNX model substitution attacks (replacing SCRFD/BlazeFace/PaddleOCR models with malicious ones)
 - Image processing bypass (crafting images where faces/text aren't detected)
 - Resource exhaustion via image processing (OOM, CPU spin on adversarial inputs)
 - Base64 bomb attacks (crafted base64 strings that decode to extremely large images)

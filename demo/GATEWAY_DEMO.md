@@ -315,7 +315,7 @@ curl -s -X POST http://127.0.0.1:18790/anthropic/v1/messages \
 1. Detect base64 image in JSON
 2. Decode to DynamicImage (EXIF metadata auto-stripped)
 3. Resize if exceeds `max_dimension` (default: 960px)
-4. Face blur — BlazeFace ONNX detects faces, applies Gaussian blur (sigma=25)
+4. Face blur — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces, applies Gaussian blur (sigma=25)
 5. OCR blur — PaddleOCR ONNX detects text regions, applies Gaussian blur (sigma=20)
 6. NSFW check — NudeNet ONNX confidence score
 7. Screenshot detection — heuristics (solid color bars, pixel patterns)
