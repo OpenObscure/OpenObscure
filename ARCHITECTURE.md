@@ -176,6 +176,16 @@ flowchart TB
     style decrypt fill:#545b64,stroke:#232F3E,color:#fff
 ```
 
+## Language Choices
+
+| Layer | Language | Why |
+|-------|----------|-----|
+| **L0 Proxy** | Rust | Sits in the hot path of every LLM request — low latency and predictable memory are non-negotiable. Rust's ownership model enforces the 275MB RAM ceiling without GC pauses. ONNX model inference (face detection, OCR, NER, Whisper) requires efficient memory management with multiple models loaded simultaneously. Cross-compiles to mobile targets (iOS/Android) via UniFFI-generated Swift/Kotlin bindings. |
+| **L1 Plugin** | TypeScript | Runs in-process inside the host agent's runtime. OpenClaw (primary integration) is Node.js/TypeScript — same language means direct hook access (`tool_result_persist`, `before_tool_call`) with no FFI or IPC overhead. Lightweight by design: no ML models, no heavy computation, just regex matching and HTTP calls to L0's `/ner` endpoint. |
+| **L2 Storage** | Rust | Shares the L0 crate ecosystem. AES-256-GCM encryption and Argon2id KDF benefit from Rust's constant-time cryptography crates. |
+
+**Design principle:** L0 is Rust because it's a performance-critical network proxy with ML models. L1 is TypeScript because it must speak the host agent's language. Each layer uses the right tool for its job — not a single language forced across both.
+
 ## Layer Details
 
 ### L0 — Rust PII Proxy (`openobscure-proxy/`)
