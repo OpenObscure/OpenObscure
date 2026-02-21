@@ -57,6 +57,7 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::{AppConfig, LoggingConfig};
+use crate::fpe_engine::FpeEngine;
 use crate::health::HealthStats;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_pipeline::ImageModelManager;
@@ -101,6 +102,8 @@ struct Cli {
 enum Commands {
     /// Start the PII proxy server (default when no subcommand given)
     Serve,
+    /// Rotate the FPE encryption key (generates new key, keeps old for overlap window)
+    KeyRotate,
 }
 
 #[tokio::main]
@@ -145,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
             // Default: start the PII proxy server
             run_serve(config).await
         }
+        Some(Commands::KeyRotate) => run_key_rotate(config).await,
     }
 }
 
@@ -279,6 +283,49 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
 
     // Start server
     server::run(state, auth_token, tier.to_string(), budget_summary).await
+}
+
+/// Rotate the FPE encryption key.
+///
+/// Generates a new random 32-byte key, stores it in the vault, and logs the
+/// version change. The old key remains in the proxy's overlap window for
+/// in-flight requests when the proxy is running.
+async fn run_key_rotate(config: AppConfig) -> anyhow::Result<()> {
+    let vault = Vault::new(&config.fpe.keychain_service);
+
+    // Verify current key exists first
+    if !vault.fpe_key_exists() {
+        anyhow::bail!("No FPE key found. Run with --init-key first to create the initial key.");
+    }
+
+    // Read old key to verify access
+    let old_key = vault
+        .get_fpe_key()
+        .map_err(|e| anyhow::anyhow!("Failed to read current key: {}", e))?;
+    let old_engine =
+        FpeEngine::new(&old_key).map_err(|e| anyhow::anyhow!("Current key is invalid: {}", e))?;
+    drop(old_engine);
+
+    // Generate and store new key
+    vault
+        .init_fpe_key()
+        .map_err(|e| anyhow::anyhow!("Failed to store new key: {}", e))?;
+
+    // Verify new key works
+    let new_key = vault
+        .get_fpe_key()
+        .map_err(|e| anyhow::anyhow!("Failed to read new key: {}", e))?;
+    let _new_engine =
+        FpeEngine::new(&new_key).map_err(|e| anyhow::anyhow!("New key is invalid: {}", e))?;
+
+    oo_info!(
+        crate::oo_log::modules::FPE,
+        "FPE key rotated successfully. Restart the proxy to use the new key."
+    );
+    eprintln!("[OpenObscure] FPE key rotated. Restart the proxy to pick up the new key.");
+    eprintln!("[OpenObscure] In-flight requests using the old key will continue during the overlap window.");
+
+    Ok(())
 }
 
 /// Build the hybrid scanner based on config scanner_mode and available resources.

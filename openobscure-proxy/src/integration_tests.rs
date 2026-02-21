@@ -553,6 +553,310 @@ async fn test_non_sse_response_still_buffered() {
     );
 }
 
+/// GET method forwarded correctly.
+#[tokio::test]
+async fn test_get_method_forwarded() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"models":["gpt-4"]}"#))
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    let req = Request::get("/test/v1/models").body(Body::empty()).unwrap();
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let text = resp_body(resp).await;
+    assert!(text.contains("gpt-4"));
+}
+
+/// Query parameters preserved when forwarding.
+#[tokio::test]
+async fn test_query_params_preserved() {
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/v1/models"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    let req = Request::get("/test/v1/models?limit=10&offset=0")
+        .body(Body::empty())
+        .unwrap();
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let received = mock.received_requests().await.unwrap();
+    assert_eq!(received.len(), 1);
+    let query = received[0].url.query().unwrap_or("");
+    assert!(query.contains("limit=10"));
+    assert!(query.contains("offset=0"));
+}
+
+/// Multiple PII values in nested JSON are all encrypted.
+#[tokio::test]
+async fn test_nested_json_pii_encrypted() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(200).set_body_string(r#"{"ok":true}"#))
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    // Both SSNs must pass validation: area code not 000/666/900+
+    let body = r#"{"messages":[{"role":"user","content":"SSN: 123-45-6789"},{"role":"user","content":"SSN: 234-56-7890"}]}"#;
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let received = mock.received_requests().await.unwrap();
+    let upstream_body = String::from_utf8(received[0].body.clone()).unwrap();
+    assert!(!upstream_body.contains("123-45-6789"), "First SSN leaked");
+    assert!(!upstream_body.contains("234-56-7890"), "Second SSN leaked");
+}
+
+/// Upstream 500 error is propagated back to client.
+#[tokio::test]
+async fn test_upstream_error_propagated() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(ResponseTemplate::new(500).set_body_string(r#"{"error":"internal"}"#))
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from("{}"))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::INTERNAL_SERVER_ERROR);
+}
+
+// ── Health Endpoint ─────────────────────────────────────────────────────
+
+fn build_full_router(state: AppState, auth_token: Option<String>) -> Router {
+    use crate::health::{FeatureBudgetSummary, HealthState};
+    use crate::ner_endpoint::NerState;
+    use std::sync::atomic::AtomicU32;
+
+    let health_state = HealthState {
+        stats: state.health.clone(),
+        auth_token: auth_token.clone(),
+        key_version: Arc::new(AtomicU32::new(1)),
+        device_tier: "Full".to_string(),
+        feature_budget: FeatureBudgetSummary {
+            tier: "Full".to_string(),
+            max_ram_mb: 275,
+            ner_enabled: true,
+            crf_enabled: false,
+            ensemble_enabled: true,
+            image_pipeline_enabled: true,
+            ocr_tier: "full_recognition".to_string(),
+            nsfw_enabled: true,
+            screen_guard_enabled: true,
+            face_model: "scrfd".to_string(),
+        },
+    };
+
+    let ner_state = NerState {
+        scanner: state.scanner.clone(),
+        auth_token,
+    };
+
+    Router::new()
+        .route(
+            "/_openobscure/health",
+            axum::routing::get(crate::health::health_handler).with_state(health_state),
+        )
+        .route(
+            "/_openobscure/ner",
+            axum::routing::post(crate::ner_endpoint::ner_handler).with_state(ner_state),
+        )
+        .fallback(crate::proxy::proxy_handler)
+        .with_state(state)
+}
+
+/// Health endpoint returns OK with valid auth token.
+#[tokio::test]
+async fn test_health_endpoint_with_auth() {
+    let mock = MockServer::start().await;
+    let state = build_state(build_config(&mock.uri())).await;
+    let router = build_full_router(state, Some("test-secret-token".to_string()));
+
+    let req = Request::get("/_openobscure/health")
+        .header("x-openobscure-token", "test-secret-token")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let text = resp_body(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(json["status"], "ok");
+    assert_eq!(json["fpe_key_version"], 1);
+    assert_eq!(json["device_tier"], "Full");
+    assert!(json["feature_budget"]["ner_enabled"].as_bool().unwrap());
+}
+
+/// Health endpoint rejects missing auth token.
+#[tokio::test]
+async fn test_health_endpoint_missing_auth() {
+    let mock = MockServer::start().await;
+    let state = build_state(build_config(&mock.uri())).await;
+    let router = build_full_router(state, Some("test-secret-token".to_string()));
+
+    let req = Request::get("/_openobscure/health")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Health endpoint rejects wrong auth token.
+#[tokio::test]
+async fn test_health_endpoint_wrong_auth() {
+    let mock = MockServer::start().await;
+    let state = build_state(build_config(&mock.uri())).await;
+    let router = build_full_router(state, Some("test-secret-token".to_string()));
+
+    let req = Request::get("/_openobscure/health")
+        .header("x-openobscure-token", "wrong-token")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+/// Health endpoint works without auth when no token is configured.
+#[tokio::test]
+async fn test_health_endpoint_no_auth_required() {
+    let mock = MockServer::start().await;
+    let state = build_state(build_config(&mock.uri())).await;
+    let router = build_full_router(state, None);
+
+    let req = Request::get("/_openobscure/health")
+        .body(Body::empty())
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+}
+
+// ── NER Endpoint ────────────────────────────────────────────────────────
+
+/// NER endpoint detects PII in text.
+#[tokio::test]
+async fn test_ner_endpoint_detects_ssn() {
+    let mock = MockServer::start().await;
+    let state = build_state(build_config(&mock.uri())).await;
+    let router = build_full_router(state, Some("test-token".to_string()));
+
+    let body = r#"{"text":"My SSN is 123-45-6789"}"#;
+    let req = Request::post("/_openobscure/ner")
+        .header("content-type", "application/json")
+        .header("x-openobscure-token", "test-token")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let text = resp_body(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let matches = json.as_array().unwrap();
+    assert!(!matches.is_empty(), "NER should detect SSN");
+    assert_eq!(matches[0]["type"], "ssn");
+}
+
+/// NER endpoint returns empty array for clean text.
+#[tokio::test]
+async fn test_ner_endpoint_clean_text() {
+    let mock = MockServer::start().await;
+    let state = build_state(build_config(&mock.uri())).await;
+    let router = build_full_router(state, Some("test-token".to_string()));
+
+    let body = r#"{"text":"Hello, how are you today?"}"#;
+    let req = Request::post("/_openobscure/ner")
+        .header("content-type", "application/json")
+        .header("x-openobscure-token", "test-token")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let text = resp_body(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert!(json.as_array().unwrap().is_empty());
+}
+
+/// NER endpoint requires auth token.
+#[tokio::test]
+async fn test_ner_endpoint_requires_auth() {
+    let mock = MockServer::start().await;
+    let state = build_state(build_config(&mock.uri())).await;
+    let router = build_full_router(state, Some("test-token".to_string()));
+
+    let body = r#"{"text":"My SSN is 123-45-6789"}"#;
+    let req = Request::post("/_openobscure/ner")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+}
+
+// ── Full Router Proxy + Internal Endpoints ──────────────────────────────
+
+/// Internal endpoints don't interfere with proxy routing.
+#[tokio::test]
+async fn test_full_router_proxy_still_works() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(EchoResponder)
+        .mount(&mock)
+        .await;
+
+    let state = build_state(build_config(&mock.uri())).await;
+    let router = build_full_router(state, Some("tok".to_string()));
+
+    let body = r#"{"messages":[{"role":"user","content":"My SSN is 123-45-6789"}]}"#;
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Verify PII was decrypted in the response
+    let text = resp_body(resp).await;
+    assert!(
+        text.contains("123-45-6789"),
+        "Proxy should still decrypt PII. Got: {}",
+        text
+    );
+}
+
 /// SSE response content-type detection is case-insensitive.
 #[tokio::test]
 async fn test_sse_content_type_case_insensitive() {

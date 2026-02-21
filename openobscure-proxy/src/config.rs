@@ -397,6 +397,14 @@ fn default_skip_fields() -> Vec<String> {
 }
 
 impl AppConfig {
+    /// Parse config from a TOML string (for testing and embedded use).
+    pub fn from_toml(toml_str: &str) -> anyhow::Result<Self> {
+        let config: Self =
+            toml::from_str(toml_str).map_err(|e| anyhow::anyhow!("Failed to parse TOML: {}", e))?;
+        config.validate()?;
+        Ok(config)
+    }
+
     pub fn load(path: &Path) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("Failed to read config file {}: {}", path.display(), e))?;
@@ -425,5 +433,423 @@ impl AppConfig {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MINIMAL_CONFIG: &str = r#"
+[proxy]
+"#;
+
+    const FULL_CONFIG: &str = r#"
+[proxy]
+listen_addr = "0.0.0.0"
+port = 9090
+request_timeout_secs = 60
+max_body_bytes = 8388608
+fail_mode = "closed"
+
+[providers.anthropic]
+upstream_url = "https://api.anthropic.com"
+route_prefix = "/anthropic"
+strip_headers = ["x-internal"]
+
+[providers.openai]
+upstream_url = "https://api.openai.com"
+route_prefix = "/openai"
+
+[fpe]
+keychain_service = "my-service"
+keychain_user = "my-user"
+enabled = false
+
+[scanner]
+enabled = true
+keywords_enabled = false
+ner_enabled = false
+scanner_mode = "regex"
+min_confidence = 0.7
+agreement_bonus = 0.2
+
+[logging]
+level = "debug"
+json_output = true
+pii_scrub = false
+crash_buffer = true
+crash_buffer_size = 4194304
+
+[image]
+enabled = false
+face_detection = false
+ocr_enabled = false
+nsfw_detection = false
+"#;
+
+    // --- Defaults ---
+
+    #[test]
+    fn test_minimal_config_defaults() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert_eq!(config.proxy.listen_addr, "127.0.0.1");
+        assert_eq!(config.proxy.port, 18790);
+        assert_eq!(config.proxy.request_timeout_secs, 120);
+        assert_eq!(config.proxy.max_body_bytes, 16 * 1024 * 1024);
+        assert_eq!(config.proxy.fail_mode, FailMode::Open);
+    }
+
+    #[test]
+    fn test_fpe_defaults() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert_eq!(config.fpe.keychain_service, "openobscure");
+        assert_eq!(config.fpe.keychain_user, "fpe-master-key");
+        assert!(config.fpe.enabled);
+        assert!(config.fpe.type_overrides.is_empty());
+    }
+
+    #[test]
+    fn test_scanner_defaults() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert!(config.scanner.enabled);
+        assert!(config.scanner.keywords_enabled);
+        assert!(config.scanner.ner_enabled);
+        assert_eq!(config.scanner.scanner_mode, "auto");
+        assert_eq!(config.scanner.ner_confidence_threshold, 0.85);
+        assert_eq!(config.scanner.ram_threshold_mb, 200);
+        assert!(config.scanner.respect_code_fences);
+        assert_eq!(config.scanner.min_confidence, 0.5);
+        assert_eq!(config.scanner.agreement_bonus, 0.15);
+        assert_eq!(config.scanner.skip_fields.len(), 6);
+        assert!(config.scanner.skip_fields.contains(&"model".to_string()));
+    }
+
+    #[test]
+    fn test_logging_defaults() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert_eq!(config.logging.level, "info");
+        assert!(!config.logging.json_output);
+        assert!(config.logging.file_path.is_none());
+        assert_eq!(config.logging.max_file_size, 10 * 1024 * 1024);
+        assert_eq!(config.logging.max_files, 3);
+        assert!(config.logging.audit_log_path.is_none());
+        assert!(config.logging.pii_scrub);
+        assert!(!config.logging.crash_buffer);
+        assert_eq!(config.logging.crash_buffer_size, 2 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_image_defaults() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert!(config.image.enabled);
+        assert!(config.image.face_detection);
+        assert!(config.image.ocr_enabled);
+        assert_eq!(config.image.ocr_tier, "detect_and_blur");
+        assert_eq!(config.image.max_dimension, 960);
+        assert_eq!(config.image.face_blur_sigma, 25.0);
+        assert_eq!(config.image.text_blur_sigma, 20.0);
+        assert_eq!(config.image.model_idle_timeout_secs, 300);
+        assert_eq!(config.image.face_model, "blazeface");
+        assert!(config.image.screen_guard);
+        assert!(config.image.exif_strip);
+        assert!(config.image.nsfw_detection);
+        assert_eq!(config.image.nsfw_threshold, 0.45);
+    }
+
+    // --- Full config with overrides ---
+
+    #[test]
+    fn test_full_config_overrides() {
+        let config = AppConfig::from_toml(FULL_CONFIG).unwrap();
+        assert_eq!(config.proxy.listen_addr, "0.0.0.0");
+        assert_eq!(config.proxy.port, 9090);
+        assert_eq!(config.proxy.request_timeout_secs, 60);
+        assert_eq!(config.proxy.max_body_bytes, 8388608);
+        assert_eq!(config.proxy.fail_mode, FailMode::Closed);
+    }
+
+    #[test]
+    fn test_full_config_providers() {
+        let config = AppConfig::from_toml(FULL_CONFIG).unwrap();
+        assert_eq!(config.providers.len(), 2);
+
+        let anthropic = &config.providers["anthropic"];
+        assert_eq!(anthropic.upstream_url, "https://api.anthropic.com");
+        assert_eq!(anthropic.route_prefix, "/anthropic");
+        assert_eq!(anthropic.strip_headers, vec!["x-internal"]);
+
+        let openai = &config.providers["openai"];
+        assert_eq!(openai.upstream_url, "https://api.openai.com");
+        assert_eq!(openai.route_prefix, "/openai");
+        assert!(openai.strip_headers.is_empty());
+    }
+
+    #[test]
+    fn test_full_config_scanner_overrides() {
+        let config = AppConfig::from_toml(FULL_CONFIG).unwrap();
+        assert!(!config.scanner.keywords_enabled);
+        assert!(!config.scanner.ner_enabled);
+        assert_eq!(config.scanner.scanner_mode, "regex");
+        assert_eq!(config.scanner.min_confidence, 0.7);
+        assert_eq!(config.scanner.agreement_bonus, 0.2);
+    }
+
+    #[test]
+    fn test_full_config_logging_overrides() {
+        let config = AppConfig::from_toml(FULL_CONFIG).unwrap();
+        assert_eq!(config.logging.level, "debug");
+        assert!(config.logging.json_output);
+        assert!(!config.logging.pii_scrub);
+        assert!(config.logging.crash_buffer);
+        assert_eq!(config.logging.crash_buffer_size, 4194304);
+    }
+
+    #[test]
+    fn test_full_config_image_disabled() {
+        let config = AppConfig::from_toml(FULL_CONFIG).unwrap();
+        assert!(!config.image.enabled);
+        assert!(!config.image.face_detection);
+        assert!(!config.image.ocr_enabled);
+        assert!(!config.image.nsfw_detection);
+    }
+
+    // --- FailMode ---
+
+    #[test]
+    fn test_fail_mode_open() {
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+fail_mode = "open"
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.proxy.fail_mode, FailMode::Open);
+    }
+
+    #[test]
+    fn test_fail_mode_closed() {
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+fail_mode = "closed"
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.proxy.fail_mode, FailMode::Closed);
+    }
+
+    #[test]
+    fn test_fail_mode_case_insensitive() {
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+fail_mode = "CLOSED"
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.proxy.fail_mode, FailMode::Closed);
+    }
+
+    #[test]
+    fn test_fail_mode_invalid() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+fail_mode = "unknown"
+"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("invalid fail_mode"));
+    }
+
+    #[test]
+    fn test_fail_mode_display() {
+        assert_eq!(FailMode::Open.to_string(), "open");
+        assert_eq!(FailMode::Closed.to_string(), "closed");
+    }
+
+    // --- Validation ---
+
+    #[test]
+    fn test_validate_port_zero() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+port = 0
+"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("port must be non-zero"));
+    }
+
+    #[test]
+    fn test_validate_max_body_zero() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+max_body_bytes = 0
+"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Max body bytes must be non-zero"));
+    }
+
+    #[test]
+    fn test_validate_provider_empty_url() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[providers.bad]
+upstream_url = ""
+route_prefix = "/bad"
+"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("empty upstream_url"));
+    }
+
+    #[test]
+    fn test_validate_provider_empty_prefix() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[providers.bad]
+upstream_url = "https://example.com"
+route_prefix = ""
+"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("empty route_prefix"));
+    }
+
+    #[test]
+    fn test_validate_provider_prefix_no_slash() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[providers.bad]
+upstream_url = "https://example.com"
+route_prefix = "no-slash"
+"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("must start with '/'"));
+    }
+
+    // --- Invalid TOML ---
+
+    #[test]
+    fn test_invalid_toml_syntax() {
+        let result = AppConfig::from_toml("this is not valid toml {{{}}}");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_wrong_type_port_string() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+port = "not a number"
+"#,
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_wrong_type_enabled_string() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+[scanner]
+enabled = "yes"
+"#,
+        );
+        assert!(result.is_err());
+    }
+
+    // --- File loading ---
+
+    #[test]
+    fn test_load_nonexistent_file() {
+        let result = AppConfig::load(Path::new("/tmp/nonexistent_openobscure_config.toml"));
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to read"));
+    }
+
+    #[test]
+    fn test_load_from_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test_config.toml");
+        std::fs::write(
+            &path,
+            r#"
+[proxy]
+port = 12345
+
+[providers.test]
+upstream_url = "https://test.com"
+route_prefix = "/test"
+"#,
+        )
+        .unwrap();
+        let config = AppConfig::load(&path).unwrap();
+        assert_eq!(config.proxy.port, 12345);
+        assert_eq!(config.providers["test"].upstream_url, "https://test.com");
+    }
+
+    // --- No providers is valid ---
+
+    #[test]
+    fn test_no_providers_valid() {
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+"#,
+        )
+        .unwrap();
+        assert!(config.providers.is_empty());
+    }
+
+    // --- Custom patterns ---
+
+    #[test]
+    fn test_custom_patterns() {
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[scanner.custom_patterns.passport]
+regex = "[A-Z]{2}\\d{7}"
+radix = 36
+"#,
+        )
+        .unwrap();
+        assert!(config.scanner.custom_patterns.contains_key("passport"));
+        let p = &config.scanner.custom_patterns["passport"];
+        assert_eq!(p.radix, 36);
+        assert!(p.alphabet.is_none());
     }
 }

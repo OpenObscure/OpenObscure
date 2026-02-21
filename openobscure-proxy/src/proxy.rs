@@ -431,6 +431,12 @@ fn log_pii_stats(request_id: &uuid::Uuid, mappings: &crate::mapping::RequestMapp
         pii_breakdown = %breakdown.join(", "));
 }
 
+/// Check if request body is JSON content (public for testing).
+#[cfg(test)]
+pub fn is_json_content_pub(headers: &HeaderMap) -> bool {
+    is_json_content(headers)
+}
+
 /// Buffer the request body up to the size limit.
 async fn buffer_body(req: Request<Body>, max_bytes: usize) -> Result<Bytes, StatusCode> {
     let body = req.into_body();
@@ -449,4 +455,407 @@ async fn buffer_body(req: Request<Body>, max_bytes: usize) -> Result<Bytes, Stat
         return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{AppConfig, ProviderConfig};
+    use axum::http::{HeaderMap, HeaderValue, Method, Uri};
+    use std::collections::HashMap;
+
+    fn test_config_with_providers() -> AppConfig {
+        let mut providers = HashMap::new();
+        providers.insert(
+            "anthropic".to_string(),
+            ProviderConfig {
+                upstream_url: "https://api.anthropic.com".to_string(),
+                route_prefix: "/anthropic".to_string(),
+                strip_headers: vec!["x-internal".to_string()],
+            },
+        );
+        providers.insert(
+            "openai".to_string(),
+            ProviderConfig {
+                upstream_url: "https://api.openai.com".to_string(),
+                route_prefix: "/openai".to_string(),
+                strip_headers: vec![],
+            },
+        );
+        providers.insert(
+            "openai_v2".to_string(),
+            ProviderConfig {
+                upstream_url: "https://api.openai.com/v2".to_string(),
+                route_prefix: "/openai/v2".to_string(),
+                strip_headers: vec![],
+            },
+        );
+        AppConfig {
+            proxy: crate::config::ProxyConfig::default(),
+            providers,
+            fpe: crate::config::FpeConfig::default(),
+            scanner: crate::config::ScannerConfig::default(),
+            logging: crate::config::LoggingConfig::default(),
+            image: crate::config::ImageConfig::default(),
+        }
+    }
+
+    // --- resolve_provider ---
+
+    #[test]
+    fn test_resolve_provider_matches_prefix() {
+        let config = test_config_with_providers();
+        let uri: Uri = "/anthropic/v1/messages".parse().unwrap();
+        let result = resolve_provider(&config, &uri);
+        assert!(result.is_some());
+        let (name, provider) = result.unwrap();
+        assert_eq!(name, "anthropic");
+        assert_eq!(provider.upstream_url, "https://api.anthropic.com");
+    }
+
+    #[test]
+    fn test_resolve_provider_longest_prefix_wins() {
+        let config = test_config_with_providers();
+        let uri: Uri = "/openai/v2/chat".parse().unwrap();
+        let result = resolve_provider(&config, &uri);
+        assert!(result.is_some());
+        let (name, _) = result.unwrap();
+        assert_eq!(name, "openai_v2");
+    }
+
+    #[test]
+    fn test_resolve_provider_short_prefix() {
+        let config = test_config_with_providers();
+        let uri: Uri = "/openai/v1/completions".parse().unwrap();
+        let result = resolve_provider(&config, &uri);
+        assert!(result.is_some());
+        let (name, _) = result.unwrap();
+        assert_eq!(name, "openai");
+    }
+
+    #[test]
+    fn test_resolve_provider_no_match() {
+        let config = test_config_with_providers();
+        let uri: Uri = "/unknown/api".parse().unwrap();
+        let result = resolve_provider(&config, &uri);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_resolve_provider_root_path_no_match() {
+        let config = test_config_with_providers();
+        let uri: Uri = "/".parse().unwrap();
+        assert!(resolve_provider(&config, &uri).is_none());
+    }
+
+    #[test]
+    fn test_resolve_provider_empty_providers() {
+        let mut config = test_config_with_providers();
+        config.providers.clear();
+        let uri: Uri = "/anthropic/v1/messages".parse().unwrap();
+        assert!(resolve_provider(&config, &uri).is_none());
+    }
+
+    // --- is_json_content ---
+
+    #[test]
+    fn test_is_json_application_json() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        assert!(is_json_content(&headers));
+    }
+
+    #[test]
+    fn test_is_json_with_charset() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json; charset=utf-8"),
+        );
+        assert!(is_json_content(&headers));
+    }
+
+    #[test]
+    fn test_is_json_plus_json_suffix() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/vnd.api+json"),
+        );
+        assert!(is_json_content(&headers));
+    }
+
+    #[test]
+    fn test_is_json_missing_content_type() {
+        let headers = HeaderMap::new();
+        assert!(is_json_content(&headers));
+    }
+
+    #[test]
+    fn test_is_not_json_text_plain() {
+        let mut headers = HeaderMap::new();
+        headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
+        assert!(!is_json_content(&headers));
+    }
+
+    #[test]
+    fn test_is_not_json_multipart() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("multipart/form-data"),
+        );
+        assert!(!is_json_content(&headers));
+    }
+
+    #[test]
+    fn test_is_not_json_octet_stream() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/octet-stream"),
+        );
+        assert!(!is_json_content(&headers));
+    }
+
+    // --- is_event_stream ---
+
+    #[test]
+    fn test_is_event_stream_true() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/event-stream"),
+        );
+        assert!(is_event_stream(&headers));
+    }
+
+    #[test]
+    fn test_is_event_stream_false() {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        assert!(!is_event_stream(&headers));
+    }
+
+    #[test]
+    fn test_is_event_stream_missing() {
+        let headers = HeaderMap::new();
+        assert!(!is_event_stream(&headers));
+    }
+
+    // --- build_upstream_request ---
+
+    #[test]
+    fn test_build_upstream_strips_prefix() {
+        let provider = ProviderConfig {
+            upstream_url: "https://api.anthropic.com".to_string(),
+            route_prefix: "/anthropic".to_string(),
+            strip_headers: vec![],
+        };
+        let uri: Uri = "/anthropic/v1/messages".parse().unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("application/json"),
+        );
+        let body = Bytes::from(r#"{"test":true}"#);
+        let vault = Vault::new("test");
+
+        let req = build_upstream_request(
+            Method::POST,
+            &uri,
+            &provider,
+            "anthropic",
+            &headers,
+            &body,
+            &vault,
+        )
+        .unwrap();
+
+        assert_eq!(
+            req.uri().to_string(),
+            "https://api.anthropic.com/v1/messages"
+        );
+        assert_eq!(req.method(), Method::POST);
+    }
+
+    #[test]
+    fn test_build_upstream_preserves_query() {
+        let provider = ProviderConfig {
+            upstream_url: "https://api.example.com".to_string(),
+            route_prefix: "/api".to_string(),
+            strip_headers: vec![],
+        };
+        let uri: Uri = "/api/search?q=test&limit=10".parse().unwrap();
+        let headers = HeaderMap::new();
+        let body = Bytes::new();
+        let vault = Vault::new("test");
+
+        let req =
+            build_upstream_request(Method::GET, &uri, &provider, "api", &headers, &body, &vault)
+                .unwrap();
+
+        assert!(req.uri().to_string().contains("?q=test&limit=10"));
+    }
+
+    #[test]
+    fn test_build_upstream_strips_hop_by_hop() {
+        let provider = ProviderConfig {
+            upstream_url: "https://api.example.com".to_string(),
+            route_prefix: "/api".to_string(),
+            strip_headers: vec![],
+        };
+        let uri: Uri = "/api/endpoint".parse().unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert("connection", HeaderValue::from_static("keep-alive"));
+        headers.insert("keep-alive", HeaderValue::from_static("timeout=5"));
+        headers.insert("transfer-encoding", HeaderValue::from_static("chunked"));
+        headers.insert("authorization", HeaderValue::from_static("Bearer sk-test"));
+        let body = Bytes::from("{}");
+        let vault = Vault::new("test");
+
+        let req = build_upstream_request(
+            Method::POST,
+            &uri,
+            &provider,
+            "api",
+            &headers,
+            &body,
+            &vault,
+        )
+        .unwrap();
+
+        // Hop-by-hop headers should be stripped
+        assert!(!req.headers().contains_key("connection"));
+        assert!(!req.headers().contains_key("keep-alive"));
+        assert!(!req.headers().contains_key("transfer-encoding"));
+        // Auth header should be forwarded (passthrough-first)
+        assert!(req.headers().contains_key("authorization"));
+    }
+
+    #[test]
+    fn test_build_upstream_strips_provider_headers() {
+        let provider = ProviderConfig {
+            upstream_url: "https://api.example.com".to_string(),
+            route_prefix: "/api".to_string(),
+            strip_headers: vec!["x-internal".to_string(), "x-debug".to_string()],
+        };
+        let uri: Uri = "/api/endpoint".parse().unwrap();
+        let mut headers = HeaderMap::new();
+        headers.insert("x-internal", HeaderValue::from_static("secret"));
+        headers.insert("x-debug", HeaderValue::from_static("true"));
+        headers.insert("x-custom", HeaderValue::from_static("keep-me"));
+        let body = Bytes::from("{}");
+        let vault = Vault::new("test");
+
+        let req = build_upstream_request(
+            Method::POST,
+            &uri,
+            &provider,
+            "api",
+            &headers,
+            &body,
+            &vault,
+        )
+        .unwrap();
+
+        assert!(!req.headers().contains_key("x-internal"));
+        assert!(!req.headers().contains_key("x-debug"));
+        assert!(req.headers().contains_key("x-custom"));
+    }
+
+    #[test]
+    fn test_build_upstream_sets_content_length() {
+        let provider = ProviderConfig {
+            upstream_url: "https://api.example.com".to_string(),
+            route_prefix: "/api".to_string(),
+            strip_headers: vec![],
+        };
+        let uri: Uri = "/api/endpoint".parse().unwrap();
+        let headers = HeaderMap::new();
+        let body = Bytes::from(r#"{"messages":[]}"#);
+        let vault = Vault::new("test");
+
+        let req = build_upstream_request(
+            Method::POST,
+            &uri,
+            &provider,
+            "api",
+            &headers,
+            &body,
+            &vault,
+        )
+        .unwrap();
+
+        let cl = req
+            .headers()
+            .get("content-length")
+            .unwrap()
+            .to_str()
+            .unwrap();
+        assert_eq!(cl, "15");
+    }
+
+    #[test]
+    fn test_build_upstream_defaults_json_content_type() {
+        let provider = ProviderConfig {
+            upstream_url: "https://api.example.com".to_string(),
+            route_prefix: "/api".to_string(),
+            strip_headers: vec![],
+        };
+        let uri: Uri = "/api/endpoint".parse().unwrap();
+        let headers = HeaderMap::new(); // No content-type
+        let body = Bytes::from("{}");
+        let vault = Vault::new("test");
+
+        let req = build_upstream_request(
+            Method::POST,
+            &uri,
+            &provider,
+            "api",
+            &headers,
+            &body,
+            &vault,
+        )
+        .unwrap();
+
+        assert_eq!(
+            req.headers().get("content-type").unwrap().to_str().unwrap(),
+            "application/json"
+        );
+    }
+
+    // --- buffer_body ---
+
+    #[tokio::test]
+    async fn test_buffer_body_within_limit() {
+        let body = Body::from("hello");
+        let req = Request::builder().body(body).unwrap();
+        let result = buffer_body(req, 1024).await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Bytes::from("hello"));
+    }
+
+    #[tokio::test]
+    async fn test_buffer_body_exceeds_limit() {
+        let body = Body::from("a]".repeat(1000));
+        let req = Request::builder().body(body).unwrap();
+        let result = buffer_body(req, 100).await;
+        assert_eq!(result.unwrap_err(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test]
+    async fn test_buffer_body_empty() {
+        let body = Body::empty();
+        let req = Request::builder().body(body).unwrap();
+        let result = buffer_body(req, 1024).await;
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_empty());
+    }
 }
