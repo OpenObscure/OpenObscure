@@ -418,5 +418,27 @@
   {"text": "My 10 year old son, email timothy.walker@accounts.co, SSN 298-34-5678, Prozac prescription.", "expected": [{"type": "ChildKeyword", "value": "10 year old", "start": 3, "end": 14}, {"type": "Email", "value": "timothy.walker@accounts.co", "start": 26, "end": 52}, {"type": "Ssn", "value": "298-34-5678", "start": 58, "end": 69}, {"type": "HealthKeyword", "value": "Prozac", "start": 71, "end": 77}, {"type": "HealthKeyword", "value": "prescription", "start": 78, "end": 90}]},
   {"text": "Ravi Subramanian, phone 415-555-0168, key AKIAMNOPQRSTUVWX1234, card 5539578763621483.", "expected": [{"type": "PersonName", "value": "Ravi Subramanian", "start": 0, "end": 16}, {"type": "PhoneNumber", "value": "415-555-0168", "start": 24, "end": 36}, {"type": "ApiKey", "value": "AKIAMNOPQRSTUVWX1234", "start": 42, "end": 64}, {"type": "CreditCard", "value": "5539578763621483", "start": 71, "end": 87}]},
   {"text": "The thread pool size is 8 with a queue depth of 256.", "expected": []},
-  {"text": "Memory allocation peaked at 1.2 GB during the stress test.", "expected": []}
+  {"text": "Memory allocation peaked at 1.2 GB during the stress test.", "expected": []},
+
+  {"text": "Mi número de DNI es 12345678Z y vivo en Madrid, España.", "lang": "es", "expected": [{"type": "Ssn", "value": "12345678Z", "start": 21, "end": 30}]},
+  {"text": "Llámame al teléfono +34 612 345 678 para confirmar la reserva en Barcelona.", "lang": "es", "expected": [{"type": "PhoneNumber", "value": "+34 612 345 678", "start": 22, "end": 37}]},
+  {"text": "La transferencia bancaria al IBAN ES9121000418450200051332 ha sido completada.", "lang": "es", "expected": [{"type": "CreditCard", "value": "ES9121000418450200051332", "start": 34, "end": 58}]},
+  {"text": "Veuillez contacter notre bureau au +33 6 12 34 56 78 pour toute question.", "lang": "fr", "expected": [{"type": "PhoneNumber", "value": "+33 6 12 34 56 78", "start": 35, "end": 52}]},
+  {"text": "Appelez-moi au numéro 06 12 34 56 78 si vous avez des questions.", "lang": "fr", "expected": [{"type": "PhoneNumber", "value": "06 12 34 56 78", "start": 23, "end": 37}]},
+  {"text": "Bitte rufen Sie mich unter +49 170 1234567 an, um den Termin zu bestätigen.", "lang": "de", "expected": [{"type": "PhoneNumber", "value": "+49 170 1234567", "start": 27, "end": 42}]},
+  {"text": "Meine Steuer-Identifikationsnummer ist 65929970489 und ich wohne in Berlin.", "lang": "de", "expected": [{"type": "Ssn", "value": "65929970489", "start": 39, "end": 50}]},
+  {"text": "Meu CPF é 123.456.789-09 e moro em São Paulo, Brasil.", "lang": "pt", "expected": [{"type": "Ssn", "value": "123.456.789-09", "start": 11, "end": 25}]},
+  {"text": "Por favor, ligue para +55 11 91234-5678 para agendar a consulta.", "lang": "pt", "expected": [{"type": "PhoneNumber", "value": "+55 11 91234-5678", "start": 22, "end": 39}]},
+  {"text": "お問い合わせは+81 90 1234 5678までご連絡ください。受付時間は平日のみです。", "lang": "ja", "expected": [{"type": "PhoneNumber", "value": "+81 90 1234 5678", "start": 21, "end": 37}]},
+  {"text": "携帯電話番号は090-1234-5678です。お気軽にお電話ください。", "lang": "ja", "expected": [{"type": "PhoneNumber", "value": "090-1234-5678", "start": 21, "end": 34}]},
+  {"text": "请拨打客服电话+86 138 0013 8000进行咨询，工作时间为每天上午九点到下午六点。", "lang": "zh", "expected": [{"type": "PhoneNumber", "value": "+86 138 0013 8000", "start": 21, "end": 38}]},
+  {"text": "我的身份证号码是11010519491231002X，请核实个人信息是否正确。", "lang": "zh", "expected": [{"type": "Ssn", "value": "11010519491231002X", "start": 24, "end": 42}]},
+  {"text": "고객센터 전화번호는 +82 10 1234 5678이며 평일 오전 아홉시부터 오후 여섯시까지 운영합니다.", "lang": "ko", "expected": [{"type": "PhoneNumber", "value": "+82 10 1234 5678", "start": 29, "end": 45}]},
+  {"text": "제 핸드폰 번호는 010-1234-5678입니다. 언제든지 연락 주세요.", "lang": "ko", "expected": [{"type": "PhoneNumber", "value": "010-1234-5678", "start": 24, "end": 37}]},
+  {"text": "يرجى الاتصال بنا على الرقم +966 50 123 4567 لمزيد من المعلومات والاستفسارات.", "lang": "ar", "expected": [{"type": "PhoneNumber", "value": "+966 50 123 4567", "start": 49, "end": 65}]},
+  {"text": "للتواصل مع خدمة العملاء يرجى الاتصال على +971 50 123 4567 خلال ساعات العمل.", "lang": "ar", "expected": [{"type": "PhoneNumber", "value": "+971 50 123 4567", "start": 75, "end": 91}]},
+  {"text": "東京タワーは日本で最も有名な観光スポットの一つです。毎年多くの観光客が訪れます。", "lang": "ja", "expected": []},
+  {"text": "La paella es un plato típico de Valencia que se prepara con arroz, mariscos y azafrán.", "lang": "es", "expected": []},
+  {"text": "서울에서 부산까지 고속열차로 약 두시간 삼십분이 걸립니다. 아주 편리합니다.", "lang": "ko", "expected": []},
+  {"text": "Die Berliner Mauer wurde im November 1989 geöffnet und markierte das Ende des Kalten Krieges.", "lang": "de", "expected": []}
 ]

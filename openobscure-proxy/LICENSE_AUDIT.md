@@ -1,8 +1,8 @@
 # OpenObscure Proxy — Dependency License Audit
 
-> **Audit date:** 2026-02-17
+> **Audit date:** 2026-02-20
 > **Project license:** MIT OR Apache-2.0
-> **Verdict:** All dependencies are open source with permissive licenses. No copyleft (GPL/LGPL/AGPL/MPL) found.
+> **Verdict:** All dependencies are open source. MPL-2.0 deps (`symphonia`, `uniffi`) are optional features only — file-level copyleft, no project-level impact. No GPL/LGPL/AGPL found.
 
 ---
 
@@ -44,21 +44,35 @@
 | 32 | `image` | 0.25 | MIT OR Apache-2.0 | Phase 3 | OK |
 | 33 | `base64` | 0.22 | MIT OR Apache-2.0 | Phase 3 | OK |
 | 34 | `kamadak-exif` | 0.5 | BSD-2-Clause | Phase 3 | OK |
+| 35 | `futures-util` | 0.3 | MIT OR Apache-2.0 | Phase 5 | OK |
+| 36 | `whatlang` | 0.16 | MIT | Phase 10 | OK |
+| 37 | `symphonia` | 0.5 | MPL-2.0 | Phase 10 (voice, optional) | **Review** |
+| 38 | `symphonia-format-ogg` | 0.5 | MPL-2.0 | Phase 10 (voice, optional) | **Review** |
+| 39 | `symphonia-codec-vorbis` | 0.5 | MPL-2.0 | Phase 10 (voice, optional) | **Review** |
+| 40 | `rubato` | 0.15 | MIT | Phase 10 (voice, optional) | OK |
+
+UniFFI (optional, mobile feature):
+
+| # | Crate | Version | License | Added | Status |
+|---|-------|---------|---------|-------|--------|
+| 41 | `uniffi` | 0.29 | MPL-2.0 | Phase 7 | **Review** |
 
 Platform-specific:
 
 | # | Crate | Version | License | Platform | Added | Status |
 |---|-------|---------|---------|----------|-------|--------|
-| 35 | `tracing-oslog` | 0.2 | MIT | macOS | Phase 3 | OK |
-| 36 | `tracing-journald` | 0.3 | MIT OR Apache-2.0 | Linux | Phase 3 | OK |
+| 42 | `tracing-oslog` | 0.2 | MIT | macOS | Phase 3 | OK |
+| 43 | `tracing-journald` | 0.3 | MIT OR Apache-2.0 | Linux | Phase 3 | OK |
+| 44 | `windows` | 0.62 | MIT OR Apache-2.0 | Windows | Phase 7 | OK |
 
 Dev-only:
 
 | # | Crate | Version | License | Status |
 |---|-------|---------|---------|--------|
-| 37 | `tokio-test` | 0.4 | MIT | OK |
-| 38 | `tempfile` | 3.x | MIT OR Apache-2.0 | OK |
-| 39 | `wiremock` | 0.6 | MIT OR Apache-2.0 | OK |
+| 45 | `tokio-test` | 0.4 | MIT | OK |
+| 46 | `tempfile` | 3.x | MIT OR Apache-2.0 | OK |
+| 47 | `wiremock` | 0.6 | MIT OR Apache-2.0 | OK |
+| 48 | `criterion` | 0.5 | Apache-2.0 OR MIT | OK |
 
 ---
 
@@ -79,17 +93,18 @@ Dev-only:
 
 ---
 
-## License Distribution (~140 transitive crates)
+## License Distribution (~150 transitive crates)
 
 | License | Count | Examples |
 |---------|-------|---------|
-| MIT OR Apache-2.0 | ~80 | serde, clap, RustCrypto, rand, keyring, image, ndarray |
-| MIT | ~25 | axum, hyper, tokio, tower, tracing, tracing-appender |
+| MIT OR Apache-2.0 | ~85 | serde, clap, RustCrypto, rand, keyring, image, ndarray, rubato, windows |
+| MIT | ~28 | axum, hyper, tokio, tower, tracing, tracing-appender, whatlang |
 | Apache-2.0 | ~3 | ort |
 | Apache-2.0 OR ISC OR MIT | ~4 | rustls, hyper-rustls |
 | ISC | ~3 | rustls-webpki, untrusted |
 | Apache-2.0 AND ISC | 1 | ring |
 | ISC AND (Apache-2.0 OR ISC) AND OpenSSL | 1 | aws-lc-sys |
+| MPL-2.0 | ~4 | symphonia, symphonia-format-ogg, symphonia-codec-vorbis, uniffi |
 | CDLA-Permissive-2.0 | 1 | webpki-roots |
 | BSD-3-Clause | 1 | subtle |
 | BSD-2-Clause | 1 | kamadak-exif |
@@ -98,8 +113,9 @@ Dev-only:
 
 ## Action Items
 
-1. **THIRD_PARTY_LICENSES file created** — includes OpenSSL, ISC, BSD-3-Clause, BSD-2-Clause, and CDLA-Permissive-2.0 license texts
-2. No copyleft dependencies — project can be released under MIT OR Apache-2.0
+1. **THIRD_PARTY_LICENSES file created** — includes OpenSSL, ISC, BSD-3-Clause, BSD-2-Clause, MPL-2.0, and CDLA-Permissive-2.0 license texts
+2. **MPL-2.0 dependencies** — `symphonia` (voice feature, optional) and `uniffi` (mobile feature, optional) are MPL-2.0. MPL-2.0 is file-level copyleft (not project-level like GPL). Modifications to symphonia/uniffi source files must remain MPL-2.0, but the rest of the project is unaffected. No issue for binary distribution.
 3. Binary distribution requires OpenSSL attribution notice (from `aws-lc-sys`)
 4. `ort` pulls ONNX Runtime as a pre-compiled native library (MIT). The `ort-sys` build script downloads platform-specific binaries — verify these don't bundle additional non-permissive licenses on each target platform
 5. `kamadak-exif` is **BSD-2-Clause** (not MIT/Apache) — still permissive, attribution required
+6. `whatlang` is MIT — no concerns

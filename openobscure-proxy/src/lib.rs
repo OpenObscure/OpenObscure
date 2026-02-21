@@ -13,6 +13,10 @@ pub mod pii_types;
 pub mod scanner;
 pub mod wordpiece;
 
+// Multilingual PII detection
+pub mod lang_detect;
+pub mod multilingual;
+
 // Image pipeline modules — exported for examples and integration tests
 pub mod config;
 pub mod face_detector;
@@ -21,6 +25,11 @@ pub mod image_pipeline;
 pub mod nsfw_detector;
 pub mod ocr_engine;
 pub mod screen_guard;
+
+// Voice anonymization pipeline
+pub mod voice_detect;
+pub mod voice_pipeline;
+pub mod whisper_engine;
 
 // ONNX Runtime execution provider configuration
 pub mod ort_ep;

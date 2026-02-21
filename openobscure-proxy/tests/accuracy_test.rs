@@ -19,6 +19,9 @@ use openobscure_proxy::scanner::PiiScanner;
 struct CorpusEntry {
     text: String,
     expected: Vec<ExpectedMatch>,
+    /// If present, this entry requires multilingual detection (not base regex).
+    #[serde(default)]
+    lang: Option<String>,
 }
 
 #[derive(serde::Deserialize, Debug, Clone)]
@@ -101,6 +104,11 @@ fn test_regex_scanner_recall() {
     let mut missed: Vec<(usize, String, String)> = Vec::new(); // (line, type, value)
 
     for (idx, entry) in corpus.iter().enumerate() {
+        // Skip multilingual entries — they require language detection, not base regex
+        if entry.lang.is_some() {
+            continue;
+        }
+
         // Only test regex-detectable types
         let expected_regex: Vec<&ExpectedMatch> = entry
             .expected
@@ -267,6 +275,11 @@ fn test_f1_score() {
     let mut fn_count = 0usize;
 
     for entry in &corpus {
+        // Skip multilingual entries — they require language detection, not base regex
+        if entry.lang.is_some() {
+            continue;
+        }
+
         let expected_regex: Vec<&ExpectedMatch> = entry
             .expected
             .iter()
@@ -636,4 +649,84 @@ fn test_pii_types_are_known() {
             );
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// Multilingual PII recall test
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_multilingual_recall() {
+    let corpus = load_corpus();
+    let scanner = HybridScanner::new(true, None);
+
+    let mut total_expected = 0usize;
+    let mut total_found = 0usize;
+    let mut missed: Vec<(usize, String, String, String)> = Vec::new(); // (line, lang, type, value)
+
+    for (idx, entry) in corpus.iter().enumerate() {
+        let lang = match &entry.lang {
+            Some(l) => l.clone(),
+            None => continue, // Skip non-multilingual entries
+        };
+
+        let expected_pii: Vec<&ExpectedMatch> = entry
+            .expected
+            .iter()
+            .filter(|e| is_regex_type(&e.pii_type))
+            .collect();
+
+        if expected_pii.is_empty() {
+            continue;
+        }
+
+        let detected = scanner.scan_text(&entry.text);
+
+        for exp in &expected_pii {
+            total_expected += 1;
+            let found = detected.iter().any(|d| {
+                let expected_type = parse_pii_type(&exp.pii_type);
+                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
+            });
+            if found {
+                total_found += 1;
+            } else {
+                missed.push((
+                    idx + 1,
+                    lang.clone(),
+                    exp.pii_type.clone(),
+                    exp.value.clone(),
+                ));
+            }
+        }
+    }
+
+    let recall = if total_expected > 0 {
+        total_found as f64 / total_expected as f64
+    } else {
+        1.0
+    };
+
+    eprintln!("\n=== Multilingual Recall ===");
+    eprintln!(
+        "  Found: {}/{} ({:.1}%)",
+        total_found,
+        total_expected,
+        recall * 100.0
+    );
+    if !missed.is_empty() {
+        eprintln!("  Missed:");
+        for (line, lang, pii_type, value) in &missed {
+            eprintln!("    line {} [{}]: {} \"{}\"", line, lang, pii_type, value);
+        }
+    }
+
+    // Target 70% for now — language detection may miss some short texts
+    assert!(
+        recall >= 0.70,
+        "Multilingual recall {:.3} is below target 0.70. Missed {}/{}.",
+        recall,
+        total_expected - total_found,
+        total_expected
+    );
 }

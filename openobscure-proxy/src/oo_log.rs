@@ -31,6 +31,7 @@ pub mod modules {
     pub const OCR: &str = "ocr_engine";
     pub const SCREEN: &str = "screen_guard";
     pub const DEVICE: &str = "device_profile";
+    pub const VOICE: &str = "voice_pipeline";
     #[allow(dead_code)]
     pub const WATCHDOG: &str = "watchdog";
 }

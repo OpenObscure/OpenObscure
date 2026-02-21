@@ -5,6 +5,8 @@ use serde_json::Value;
 
 use crate::crf_scanner::CrfScanner;
 use crate::keyword_dict::KeywordDict;
+use crate::lang_detect;
+use crate::multilingual;
 use crate::ner_scanner::NerScanner;
 use crate::pii_types::PiiType;
 use crate::scanner::{PiiMatch, PiiScanner};
@@ -153,6 +155,23 @@ impl HybridScanner {
                     pii_match: m,
                     source: ScannerSource::Semantic,
                 });
+            }
+        }
+
+        // 1d. Multilingual patterns (language-specific national IDs, phones, IBANs)
+        // Run detected language first; if non-English detected, also try closely
+        // related languages (e.g., Portuguese ↔ Spanish) since whatlang can
+        // confuse them on short texts. Validation functions prevent FPs.
+        {
+            let detected = lang_detect::detect_language(&effective_text);
+            let langs = multilingual::languages_to_scan(detected.as_ref());
+            for lang in langs {
+                for m in multilingual::scan_with_lang(&effective_text, lang) {
+                    tagged.push(TaggedMatch {
+                        pii_match: m,
+                        source: ScannerSource::Regex,
+                    });
+                }
             }
         }
 

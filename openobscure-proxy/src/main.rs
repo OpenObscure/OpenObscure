@@ -21,8 +21,11 @@ mod image_detect;
 mod image_pipeline;
 mod key_manager;
 mod keyword_dict;
+mod lang_detect;
+
 mod lib_mobile;
 mod mapping;
+mod multilingual;
 mod ner_endpoint;
 mod ner_scanner;
 mod nsfw_detector;
@@ -35,6 +38,9 @@ mod scanner;
 mod screen_guard;
 mod server;
 mod vault;
+mod voice_detect;
+mod voice_pipeline;
+mod whisper_engine;
 mod wordpiece;
 
 #[cfg(test)]

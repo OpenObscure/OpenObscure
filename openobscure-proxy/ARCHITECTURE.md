@@ -72,32 +72,56 @@ flowchart LR
 ```
 src/
 ├── main.rs              Entry point: CLI (clap subcommands), config, vault init, auth token, server startup, model eviction
-├── config.rs            TOML config deserialization and validation (including ImageConfig)
-├── server.rs            axum Router, middleware stack, graceful shutdown
+├── config.rs            TOML config deserialization and validation (ImageConfig, VoiceConfig)
+├── server.rs            axum Router, middleware stack, graceful shutdown, NER endpoint
 ├── proxy.rs             Reverse proxy handler (the core request/response loop)
 │
 │   ── Text PII ──
 ├── scanner.rs           PII regex scanner (RegexSet + individual Regex)
-├── hybrid_scanner.rs    Hybrid scanner: regex → keywords → NER/CRF, dedup, nested JSON, code fences
-├── keyword_dict.rs      Health/child keyword dictionary (~700 terms, HashSet O(1) lookup)
+├── hybrid_scanner.rs    Hybrid scanner: regex → keywords → NER/CRF, dedup, nested JSON, code fences, ensemble voting
+├── keyword_dict.rs      Health/child keyword dictionary (~700 terms, HashSet O(1) lookup, multilingual)
 ├── ner_scanner.rs       TinyBERT INT8 ONNX NER (BIO tags → PII spans)
+├── ner_endpoint.rs      POST /_openobscure/ner — semantic PII scan endpoint for L1 plugin
 ├── crf_scanner.rs       CRF fallback classifier (delegates RAM detection to device_profile)
 ├── wordpiece.rs         WordPiece tokenizer for NER input
 ├── fpe_engine.rs        FF1 FPE encrypt/decrypt engine
+├── key_manager.rs       FPE key rotation: versioned vault keys, RwLock, 30s overlap window
 ├── pii_types.rs         PII type definitions, alphabet mappers, format templates
 ├── mapping.rs           Per-request FPE mapping store for response decryption
-├── body.rs              Two-pass body processing: images first, then text PII scanning
+├── body.rs              Three-pass body processing: images → voice → text PII scanning
+│
+│   ── Multilingual PII (Phase 10C) ──
+├── lang_detect.rs       Language detection via whatlang (9 languages, fallback to English)
+├── multilingual/
+│   ├── mod.rs           Per-language pattern registry + scan dispatch
+│   ├── es.rs            Spanish: DNI, NIE, phone, IBAN (check-digit validation)
+│   ├── fr.rs            French: NIR, phone, IBAN (modulus 97 validation)
+│   ├── de.rs            German: Personalausweis, phone, IBAN
+│   ├── pt.rs            Portuguese/Brazilian: CPF, CNPJ, phone (mod 11 check digits)
+│   ├── ja.rs            Japanese: My Number, phone (weighted mod 11)
+│   ├── zh.rs            Chinese: Citizen ID 18-digit, phone (weighted mod 11 + X)
+│   ├── ko.rs            Korean: RRN, phone (weighted mod 11)
+│   └── ar.rs            Arabic: national ID patterns, Gulf/Egypt phone formats
 │
 │   ── Visual PII (Phase 3) ──
 ├── image_detect.rs      Base64 image detection in JSON (Anthropic + OpenAI formats)
-├── image_pipeline.rs    ImageModelManager orchestrator: decode → resize → face → OCR → encode
-├── face_detector.rs     BlazeFace ONNX face detection (128x128, NMS, anchor decoding)
-├── ocr_engine.rs        PaddleOCR det+rec ONNX (text region detection, CTC decode)
+├── image_pipeline.rs    ImageModelManager orchestrator: decode → resize → NSFW → face → OCR → encode
+├── face_detector.rs     SCRFD-2.5GF (Full/Standard, 640x640) + BlazeFace (Lite, 128x128) face detection
+├── nsfw_detector.rs     NudeNet 320n ONNX NSFW/nudity detection (YOLOv8n, 320x320)
+├── ocr_engine.rs        PaddleOCR PP-OCRv4 det+rec ONNX (text region detection, CTC decode)
 ├── image_blur.rs        Gaussian blur for face and text regions (sub-image extract/paste)
 ├── screen_guard.rs      Screenshot heuristics (EXIF, resolution, status bar uniformity)
+├── detection_meta.rs    BboxMeta, NsfwMeta, ScreenshotMeta detection metadata types
+├── detection_validators.rs  Detection verification framework (bbox sanity, NSFW consistency)
+│
+│   ── Voice PII (Phase 10D, `voice` feature) ──
+├── voice_detect.rs      Base64 audio detection in JSON (WAV/MP3/OGG/WebM MIME detection)
+├── whisper_engine.rs    Whisper-base ONNX inference (speech-to-text with timestamps)
+├── voice_pipeline.rs    Transcribe → scan → mask orchestration (silence/beep masking)
 │
 │   ── Infrastructure ──
 ├── device_profile.rs    Hardware profiler: detect RAM/cores, classify tier (Full/Standard/Lite), derive FeatureBudget
+├── ort_ep.rs            ONNX Runtime EP selection: CoreML (Apple), NNAPI (Android), CPU fallback
 ├── vault.rs             OS keychain + env var bridge (FPE key + API keys)
 ├── health.rs            Health endpoint, HealthStats, crash marker, image counters, device tier + feature budget
 ├── oo_log.rs            Unified logging macros (oo_info!, oo_warn!, oo_audit!) + module constants
@@ -107,7 +131,7 @@ src/
 ├── integration_tests.rs E2E tests (wiremock + tower::oneshot)
 │
 │   ── Mobile Library (Phase 7+, Embedded Model) ──
-├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats)
+├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats, detect_audio)
 └── uniffi_bindings.rs   UniFFI interface definitions for Swift/Kotlin (feature-gated: "mobile")
 ```
 
@@ -126,10 +150,17 @@ src/
    │   a. Walk JSON tree for base64 image content blocks
    │      (Anthropic: type="image" + source.data, OpenAI: type="image_url" + data: URI)
    │   b. For each image: decode base64 → screen guard check → resize (960px max)
-   │   c. Face detection: BlazeFace ONNX → NMS → Gaussian blur face regions
-   │   d. OCR: PaddleOCR det → text regions → blur (Tier 1) or recognize+scan (Tier 2)
-   │   e. Encode processed image → replace base64 in JSON
-   │   f. Sequential model loading: face model dropped before OCR loaded
+   │   c. NSFW check: NudeNet 320n → if nudity detected, full-image blur (sigma=30), skip face/OCR
+   │   d. Face detection: SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) → NMS → Gaussian blur face regions
+   │   e. OCR: PaddleOCR PP-OCRv4 det → text regions → blur (Tier 1) or recognize+scan (Tier 2)
+   │   f. Encode processed image → replace base64 in JSON
+   │   g. Sequential model loading: face model dropped before OCR loaded
+   │
+5b. Pass 1b: Voice processing (if voice feature enabled, 16GB+ only)
+   │   a. Walk JSON tree for base64 audio content blocks (WAV/MP3/OGG/WebM)
+   │   b. Whisper-base ONNX → speech-to-text with segment timestamps
+   │   c. PII scan on transcribed text (existing HybridScanner)
+   │   d. Mask PII segments (silence or beep tone) → re-encode audio → replace in JSON
    │
 6. Pass 2: Text PII scanning
    │   hybrid_scanner.scan_json() — multi-layer scan
@@ -321,7 +352,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **650+** |
+| Test count | — | **808** (347 lib + 439 bin + 14 accuracy + 8 pipeline) |
 
 ## Technology Stack
 
@@ -337,6 +368,9 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Base64 | base64 0.22 | Image content decode/encode |
 | EXIF reading | kamadak-exif 0.5 | Screenshot detection (pre-strip analysis) |
 | Regex | regex (RegexSet) | Linear time, multi-pattern in one pass |
+| Language detection | whatlang 0.16 | Trigram-based language identification, no model download needed |
+| Audio decode | symphonia 0.5 (optional) | WAV/MP3/OGG/Vorbis decode for voice pipeline |
+| Audio resample | rubato 0.15 (optional) | Resample to 16kHz mono for Whisper input |
 | Config | serde + toml | Human-readable, Rust ecosystem standard |
 | Keychain | keyring 3 | Cross-platform OS credential storage |
 | Hex encoding | hex 0.4 | Env var key decoding (headless deployments) |
@@ -363,7 +397,19 @@ pub struct ImageModelManager {
 
 ### Face Detection (`face_detector.rs`)
 
-BlazeFace short-range ONNX model for selfie-distance face detection.
+Tier-gated face detection: SCRFD-2.5GF for Full/Standard tiers (multi-scale), BlazeFace for Lite tier (selfie-distance). Auto-fallback from SCRFD to BlazeFace on error.
+
+**SCRFD-2.5GF (Full/Standard tier):**
+
+| Property | Value |
+|----------|-------|
+| Model | SCRFD-2.5GF (~3MB) |
+| Input | `[1, 3, 640, 640]` float32, RGB |
+| Output | 9 tensors: score/bbox/kps at strides 8/16/32, 2 anchors per cell |
+| Post-processing | Score threshold + NMS (IoU 0.4) |
+| Strengths | Multi-scale FPN: detects 20px–400px faces in same image |
+
+**BlazeFace (Lite tier fallback):**
 
 | Property | Value |
 |----------|-------|
@@ -375,12 +421,12 @@ BlazeFace short-range ONNX model for selfie-distance face detection.
 
 ### OCR Engine (`ocr_engine.rs`)
 
-PaddleOCR-Lite text detection and recognition via ONNX Runtime.
+PaddleOCR PP-OCRv4 text detection and recognition via ONNX Runtime.
 
 | Component | Model | Input | Output |
 |-----------|-------|-------|--------|
-| Detector | det_model.onnx (~1.1MB) | `[1, 3, H, W]` BGR, ImageNet norm | Probability map → binary mask → connected components → text regions |
-| Recognizer | rec_model.onnx (~4.5MB) | `[B, 3, 48, W]` cropped regions | Logits → CTC greedy decode with dictionary |
+| Detector | det_model.onnx (~2.4MB) | `[1, 3, H, W]` BGR, ImageNet norm | Probability map → binary mask → connected components → text regions |
+| Recognizer | rec_model.onnx (PP-OCRv4, ~10MB) | `[B, 3, 48, W]` cropped regions | Logits → CTC greedy decode with dictionary |
 
 **Two tiers:**
 - **DetectAndBlur (Tier 1, default):** Detect text regions → blur all. No recognition model needed.
@@ -410,7 +456,16 @@ The proxy crate produces both a **binary** and a **library**:
 
 The `mobile` feature flag enables UniFFI bindings. The binary target always compiles the full server; the library target can exclude server deps via feature flags.
 
+## Recently Completed
+
+- **SCRFD-2.5GF** — multi-scale face detection for Full/Standard tiers (640x640 input, FPN, 20px–400px faces)
+- **CoreML/NNAPI EPs** — `ort_ep.rs` consolidates all ONNX session building with hardware-accelerated inference on mobile
+- **Multilingual PII** — 9 languages with check-digit validated national IDs via `lang_detect.rs` + `multilingual/`
+- **Voice anonymization** — Whisper-base ONNX speech-to-text + PII masking via `voice_pipeline.rs` (desktop 16GB+)
+- **NER endpoint** — `POST /_openobscure/ner` for L1 plugin semantic scanning
+- **PP-OCRv4** — English recognition model upgrade replacing PaddleOCR-Lite
+
 ## Future Work
 
-- **SCRFD upgrade:** SCRFD-2.5GF for multi-scale face detection on screenshots with mixed-size faces
-- **ONNX mobile EPs:** CoreML (iOS) and NNAPI (Android) execution providers for hardware-accelerated inference
+- **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D, deferred)
+- **DeBERTa-v3-small NER** — potential TinyBERT upgrade for better domain-specific recall (if fine-tuned TinyBERT plateaus)

@@ -15,7 +15,7 @@ graph TD
         AgentTool["Agent Tool (Web, File, API)"]
         subgraph HookContainer ["tool_result_persist hook"]
             direction TB
-            Redactor["OpenObscure PII Redactor (Regex + Luhn + SSN)"]
+            Redactor["OpenObscure PII Redactor (Regex + NER via L0)"]
         end
     end
 
@@ -31,14 +31,16 @@ graph TD
 
 ```
 src/
-├── index.ts                Plugin entry point — register(), hook wiring, tool registration, auth token
-├── redactor.ts             PII Redactor — regex detection with Luhn/SSN validation
+├── index.ts                Plugin entry point — register(), hook wiring, tool registration, auth token, before_tool_call
+├── core.ts                 Agent-agnostic API — exports redactPii, redactPiiWithNer, logging without framework wiring
+├── redactor.ts             PII Redactor — regex detection + NER-enhanced redaction via L0 endpoint
 ├── heartbeat.ts            L1 Heartbeat Monitor — pings L0 health endpoint with auth token
 ├── oo-log.ts               Unified logging API — ooInfo/ooWarn/ooError/ooDebug/ooAudit + PII scrub
 ├── types.ts                OpenClaw plugin API type definitions
-├── redactor.test.ts        Redactor tests (9 cases)
-├── heartbeat.test.ts       Heartbeat monitor + auth token tests (12 cases)
-└── oo-log.test.ts          Logging API tests (17 cases)
+├── redactor.test.ts        Redactor tests (regex + NER-enhanced)
+├── heartbeat.test.ts       Heartbeat monitor + auth token tests
+├── oo-log.test.ts          Logging API + PII scrubbing + audit log + module constants tests
+└── before-tool-call.test.ts  Prepared before_tool_call handler tests
 ```
 
 ## Components
@@ -56,6 +58,8 @@ Scans tool result text for PII and replaces matches with `[REDACTED]` placeholde
 | API Key | Known prefixes: `sk-`, `AKIA`, `ghp_`, etc. | Prefix match |
 
 **Key difference from L0:** L1 uses **redaction** (`[REDACTED]`), not FPE encryption. Tool results are internal to OpenClaw and don't need format-preserving properties. Redaction is simpler and guarantees PII removal.
+
+**NER-enhanced mode:** When L0 is healthy (heartbeat `active`), the redactor calls `POST /_openobscure/ner` to get semantic PII spans (person names, addresses, organizations) that regex misses, then merges both result sets. Falls back to regex-only when L0 is unavailable.
 
 ```typescript
 const result = redactPii("My SSN is 123-45-6789");
@@ -125,13 +129,18 @@ Tool executes → tool_result_persist fires → PII Redactor scans → redacted 
 
 ## Test Coverage
 
-| Module | Tests | What's Covered |
-|--------|-------|----------------|
-| `redactor` | 9 | SSN, CC (Luhn valid/invalid), email, phone, API key, multiple PII, invalid SSN areas, clean text |
-| `heartbeat` | 12 | Initial state, healthy check, degraded transition, consecutive failures, recovery flow, stop/disabled, non-200 status, auth token sent, missing auth -> 401/degraded, lastHealth preservation |
-| `state-messages` | 2 | Message content for each state, active silence |
-| `oo-log` | 17 | Logging facade, PII scrubbing in logs, JSON/plain output, audit routing, module constants |
-| **Total** | **40** | |
+| Suite | What's Covered |
+|-------|----------------|
+| `PII Redactor` | SSN, CC (Luhn valid/invalid), email, phone, API key, multiple PII, invalid SSN areas, clean text |
+| `NER-Enhanced Redaction` | NER type labels cover all L0 PII types, NER-enhanced redaction merge |
+| `HeartbeatMonitor` | Initial state, healthy check, degraded transition, consecutive failures, recovery, auth token |
+| `STATE_MESSAGES` | Message content for each state, active silence |
+| `ooLog` | Logging facade, PII scrubbing, JSON/plain output |
+| `PII scrubbing` | Defense-in-depth PII scrub in all log string fields |
+| `GDPR audit log` | Audit routing to separate JSONL file |
+| `OO_MODULES constants` | Module constant values and coverage |
+| `before_tool_call handler` | Prepared handler registration, feature check, fallback behavior |
+| **Total** | **50 tests across 9 suites** |
 
 ## Resource Budget
 
@@ -174,7 +183,12 @@ This exports core logic (PII redaction, health monitoring, logging) without any 
 The `register()` function and OpenClaw-specific tool definitions remain available
 via the default entry point (`openobscure-plugin`).
 
+## Recently Completed
+
+- **NER-enhanced redaction:** When L0 is healthy, redactor calls `POST /_openobscure/ner` for semantic PII spans (names, addresses, orgs) merged with regex results — DONE
+- **`before_tool_call` handler:** Prepared handler that auto-activates when OpenClaw wires the hook, upgrading from soft to hard enforcement — DONE (Phase 10F)
+- **Agent-agnostic API (`core.ts`):** Exports core functions without framework wiring for non-OpenClaw integrations — DONE
+
 ## Future Work
 
-- **Streaming redaction:** Handle streamed tool results (e.g., large file reads) incrementally
-- **NER in redactor:** Add TinyBERT semantic detection alongside regex in L1 redaction (currently regex-only; L0 has hybrid scanner)
+- **Streaming redaction:** Handle streamed tool results (e.g., large file reads) incrementally (blocked by OpenClaw's synchronous hook API)

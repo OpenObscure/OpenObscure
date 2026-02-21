@@ -185,15 +185,15 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | Aspect | Detail |
 |--------|--------|
 | **What it does** | Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE, decrypts ciphertexts in responses (SSE streaming supported). Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. |
-| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms). Visual: nudity (NudeNet ONNX), faces in photos (SCRFD-2.5GF on Full/Standard, BlazeFace on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). |
+| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (NudeNet ONNX), faces in photos (SCRFD-2.5GF on Full/Standard, BlazeFace on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: speech-to-text PII masking via Whisper-base ONNX (desktop, 16GB+, `voice` feature). |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged |
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
 | **Fail mode** | Configurable fail-open (default) or fail-closed. Vault unavailable always blocks (503) |
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
-| **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, keyring 3, clap 4 (CLI) |
+| **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 700+ (default features), 880+ (all features) |
+| **Tests** | 808 (347 lib + 439 bin + 14 accuracy + 8 pipeline) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -203,14 +203,14 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. When L0 is healthy, uses NER-enhanced redaction via `POST /_openobscure/ner` endpoint (semantic NER + regex merge); falls back to regex-only when L0 is unavailable. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
+| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. When L0 is healthy, uses NER-enhanced redaction via `POST /_openobscure/ner` endpoint (semantic NER + regex merge); falls back to regex-only when L0 is unavailable. Prepared `before_tool_call` handler activates when host agent supports it. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
 | **PII handling** | NER-enhanced redaction (when L0 active) or regex-only redaction (`[REDACTED]`), not FPE — tool results are internal, don't need format preservation |
 | **Heartbeat** | Pings L0 `/_openobscure/health` every 30s with `X-OpenObscure-Token` auth header. Warns user when L0 is down, logs recovery. |
-| **Hook model** | Synchronous — must not return a Promise. OpenClaw-specific: OpenClaw silently skips async hooks. |
+| **Hook model** | Synchronous — must not return a Promise. OpenClaw-specific: OpenClaw silently skips async hooks. Prepared `before_tool_call` handler (hard enforcement) activates automatically when wired upstream. |
 | **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output |
 | **Stack** | TypeScript 5.4, CommonJS |
 | **Resource** | ~25MB RAM (within the host agent's process), ~3MB storage |
-| **Tests** | 96 (9 redactor + 12 heartbeat + 2 state-messages + 17 oo-log) |
+| **Tests** | 50 (9 suites: redactor, heartbeat, state-messages, oo-log, PII scrubbing, audit log, modules, NER-enhanced redaction, before-tool-call) |
 | **Docs** | [openobscure-plugin/ARCHITECTURE.md](openobscure-plugin/ARCHITECTURE.md) |
 
 **Process watchdog** (install templates):
@@ -403,7 +403,8 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 | **Post-Phase 7** (complete) | **98%** | Network/device identifier detection (IPv4, IPv6, GPS coordinates, MAC addresses) — closes PII-06 + PII-12 |
 | **Phase 8** (complete) | **98%** | Production hardening — CI/CD matrix, mobile API gaps (breach detect, SIEM export, encrypted storage), governance feature flags |
 | **Post-Phase 8** (complete) | **99%** | Tier-gated features — SCRFD-2.5GF face detection (Full/Standard), L1 NER via L0 endpoint, CoreML/NNAPI mobile EPs, PP-OCRv4 English OCR, 99.7% recall |
-| **Phase 9** (partial) | **99%** | Runtime hardware capability detection — device profiler auto-selects features based on RAM; mobile devices with 8GB+ get full NER + ensemble parity with gateway |
+| **Phase 9** (complete) | **99%** | Runtime hardware capability detection — device profiler auto-selects features based on RAM; mobile devices with 8GB+ get full NER + ensemble parity with gateway |
+| **Phase 10** (complete) | **99.5%** | Multilingual PII (9 languages, national ID validation), voice anonymization (Whisper-base, desktop 16GB+), mobile test apps (iOS + Android), UniFFI binding automation, TinyBERT fine-tuning dataset, OpenClaw `before_tool_call` preparation |
 
 ## Project Layout
 
@@ -415,16 +416,22 @@ OpenObscure/
 │   ├── ci.yml                   CI: proxy-test matrix, cross-arm64, mobile-build, plugin, lint
 │   └── release.yml              Release: binary matrix + iOS XCFramework + UniFFI bindings
 ├── scripts/
-│   ├── download_models.sh       Download ONNX models for image pipeline
+│   ├── download_models.sh       Download ONNX models for image + voice pipeline
 │   ├── generate_screenshot.py   Generate synthetic PII screenshot for demos
 │   ├── build_ios.sh             Build iOS static library + XCFramework
 │   ├── build_android.sh         Build Android shared library via cargo-ndk
-│   └── generate_bindings.sh     Generate UniFFI Swift/Kotlin bindings
+│   ├── generate_bindings.sh     Generate UniFFI Swift/Kotlin bindings
+│   └── check_openclaw_hooks.sh  Monitor OpenClaw for before_tool_call hook wiring
 ├── docs/examples/images/        Before/after visual PII examples
+├── data/
+│   └── pii_finetune_dataset.json  TinyBERT fine-tuning dataset (500-1000 labeled PII samples)
+├── test-apps/
+│   ├── ios/                     iOS test app (SwiftUI + XCTest, 20 tests)
+│   └── android/                 Android test app (Compose + instrumented tests, 20 tests)
 ├── openobscure-proxy/             L0: Rust PII proxy (+ embedded mobile library)
 │   ├── ARCHITECTURE.md          L0 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
-│   ├── src/                     Rust source
+│   ├── src/                     Rust source (48 modules incl. multilingual/)
 │   ├── examples/                Demo binaries (demo_image_pipeline)
 │   ├── models/                  ONNX models (git-ignored, download via script)
 │   ├── config/openobscure.toml    Default configuration
@@ -433,7 +440,7 @@ OpenObscure/
 ├── openobscure-plugin/            L1: Gateway plugin
 │   ├── ARCHITECTURE.md          L1 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
-│   └── src/                     TypeScript source (redactor, heartbeat, oo-log)
+│   └── src/                     TypeScript source (redactor, heartbeat, oo-log, core, before-tool-call)
 └── project-plan/
     ├── MASTER_PLAN.md           Full design reference (single source of truth)
     ├── PHASE1_PLAN.md           Phase 1 plan (COMPLETE — 75 tests)
@@ -444,7 +451,8 @@ OpenObscure/
     ├── PHASE6_PLAN.md           Phase 6 plan (COMPLETE — 418 tests)
     ├── PHASE7_PLAN.md           Phase 7 plan (COMPLETE — 431 tests)
     ├── PHASE8_PLAN.md           Phase 8 plan (COMPLETE — 880 tests)
-    ├── PHASE9_PLAN.md           Phase 9 plan (partially complete — 9A done, 9C dropped)
+    ├── PHASE9_PLAN.md           Phase 9 plan (COMPLETE — 9A done, 9C dropped)
+    ├── PHASE10_PLAN.md          Phase 10 plan (COMPLETE — 874 tests)
     └── LOGGING_STRATEGY.md      Platform-specific logging strategy
 ```
 
@@ -618,7 +626,7 @@ flowchart TB
 | **Audit log** | Audit trail — only `oo_audit!` events routed to separate JSONL | `logging.audit_log_path` |
 | **Crash buffer** | mmap ring buffer (default 2MB) — kernel flushes pages even on hard crash | `logging.crash_buffer`, `crash_buffer_size` |
 
-**Module tagging:** Every log line includes a `module` field (PROXY, SCANNER, HYBRID, FPE, VAULT, HEALTH, CONFIG, NER, CRF, BODY, SERVER, MAPPING, DEVICE) for structured filtering.
+**Module tagging:** Every log line includes a `module` field (PROXY, SCANNER, HYBRID, FPE, VAULT, HEALTH, CONFIG, NER, CRF, BODY, SERVER, MAPPING, DEVICE, VOICE, LANG, MULTILINGUAL, BREACH, NSFW, IMAGE, KEY_MANAGER) for structured filtering.
 
 ### L1 Logging Stack
 
@@ -813,8 +821,11 @@ Recently completed:
 - **ONNX Runtime mobile EPs** — CoreML (Apple) and NNAPI (Android) via `ort_ep.rs` — DONE
 - **SCRFD multi-scale face detection** — SCRFD-2.5GF for Full/Standard tiers, BlazeFace for Lite — DONE
 - **GLiNER NER evaluation** — DROPPED (82.78% recall, worse than TinyBERT 97%)
+- **Multilingual PII detection** — `whatlang` language detection + per-language regex/keywords for 9 languages with national ID check-digit validation — DONE (Phase 10C)
+- **Voice anonymization** — Whisper-base ONNX speech-to-text + PII masking in audio segments, `voice` feature flag, desktop 16GB+ only — DONE (Phase 10D)
+- **Mobile test apps** — iOS (SwiftUI + XCTest, 20 tests) and Android (Compose + instrumented tests, 20 tests) — DONE (Phase 10A)
+- **`before_tool_call` preparation** — L1 plugin prepared handler that auto-activates when OpenClaw wires the hook — DONE (Phase 10F)
 
 Planned (future):
-- **Multilingual PII detection** — FastText language identification + per-language regex/keywords for 9 languages (Phase 9B)
-- **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D)
-- **Voice anonymization** — Whisper-base speech-to-text + PII masking in audio (experimental, 16GB+, Phase 9E)
+- **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D, deferred)
+- **Streaming redaction** — Incremental redaction for large tool results (blocked by OpenClaw's synchronous hook API)
