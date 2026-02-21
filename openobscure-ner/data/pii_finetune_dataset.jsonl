@@ -1,0 +1,740 @@
+{"tokens": ["Jacob", "Watanabe", "lives", "at", "2348", "Lake", "Lane", "in", "Nashville", ",", "Delaware", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Valentina", "Cox", "was", "diagnosed", "with", "breast", "cancer", "and", "takes", "hydrochlorothiazide", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Debra", "Lopez", "ordered", "a", "CABG", "for", "Debra", "Lopez", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "B-PER", "I-PER", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "Colorado", "Springs", ",", "Ohio", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Victoria", "Lopez", "lives", "at", "3737", "Creek", "Road", "in", "Los", "Angeles", ",", "Nebraska", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Steven", "Taylor", "met", "Anthony", "Gomez", "at", "World", "Health", "Organization", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "daughter", "Diane", "has", "strep", "throat", "and", "the", "pediatrician", "prescribed", "acetaminophen", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Joyce", "Allen", "was", "treated", "at", "Mayo", "Clinic", "for", "Alzheimer's", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Richard", "Gray", "has", "a", "position", "at", "Tesla", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Kathleen", "Allen", "graduated", "from", "UC", "Berkeley", "in", "San", "Jose", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["The", "retry", "policy", "uses", "exponential", "backoff", "with", "jitter", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Dr.", "Adam", "Murphy", "ordered", "a", "PET", "scan", "at", "Wells Fargo", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["My", "adolescent", "Yuki", "was", "diagnosed", "with", "asthma", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "conference", "will", "be", "held", "in", "San", "Diego", ",", "Wyoming", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Ingrid", "Wilson", "and", "Katherine", "Walker", "work", "at", "Northrop", "Grumman", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Layla", "Kim", "graduated", "from", "UC", "Berkeley", "in", "Philadelphia", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["My", "10-year-old", "daughter", "Jason", "started", "scouting", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Stephanie", "Volkov", "was", "treated", "at", "Mayo", "Clinic", "for", "hypothyroidism", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["Scott", ",", "my", "kindergartner", ",", "is", "enrolled", "at", "Riverside", "High", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Susan", "Gray", "'s", "ALT", "is", "295.3", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Joseph", "Robinson", "was", "diagnosed", "with", "asthma", "and", "takes", "Keytruda", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Li", "Moore", "and", "Christine", "Ward", "work", "at", "Initech", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Priya", "Reyes", "at", "AstraZeneca", "in", "El", "Paso", "was", "treated", "for", "chronic", "kidney", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Our", "teenager", "goes", "to", "Springdale", "Academy", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Stephanie", "Thomas", "at", "Bank", "of", "America", "in", "Phoenix", "was", "treated", "for", "multiple", "sclerosis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Benjamin", "Hernandez", "was", "diagnosed", "with", "prostate", "cancer", "and", "takes", "losartan", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Hans", "Patel", "serves", "at", "Initech", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Natasha", "Williams", "was", "diagnosed", "with", "pneumonia", "and", "takes", "fluoxetine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Address", ":", "249", "Magnolia", "Place", ",", "Milwaukee", ",", "Mississippi", "17923", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Aisha", "Mitchell", "lives", "at", "9185", "Birch", "Place", "in", "San", "Diego", ",", "Maine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "15-year-old", "child", "Kenneth", "started", "gymnastics", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Rev.", "Donald", "Jones", "from", "SpaceX", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["The", "oncologist", "recommended", "chemotherapy", "for", "the", "cancer", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Matthew", "Rodriguez", "at", "Globex", "Industries", "in", "Las", "Vegas", "was", "treated", "for", "migraine", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Alexander", "Reyes", "is", "scheduled", "for", "a", "stress", "test", "at", "Massachusetts General Hospital", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Dr.", "Matthew", "Rivera", "referred", "Greta", "Lopez", "to", "Mount", "Sinai", "Hospital", "for", "a", "second", "opinion", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "6-month-old", "son", "Pierre", "is", "in", "little", "league", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Yuki", "Ortiz", "was", "diagnosed", "with", "leukemia", "and", "takes", "oxycodone", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Charles", "Hernandez", "referred", "Justin", "Martin", "to", "Massachusetts", "General", "Hospital", "for", "a", "second", "opinion", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O", "O"]}
+{"tokens": ["I", "ran", "into", "Diego", "Martin", "at", "the", "store", "in", "Los", "Angeles", "."], "ner_tags": ["O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Patricia", "Lopez", "'s", "ESR", "is", "226.1", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Kenneth", "Evans", "introduced", "Ryan", "Evans", "to", "the", "team", "at", "Merck", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Mei", "O'Brien", "'s", "D-dimer", "is", "256.8", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Omar", "Baker", "'s", "portfolio", "at", "Morgan", "Stanley", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "doctor", "recommended", "bone", "scan", "for", "Charles", "Collins", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-PER", "I-PER", "O"]}
+{"tokens": ["The", "conference", "will", "be", "held", "in", "Cleveland", ",", "Pennsylvania", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Stephanie", "Patel", "was", "diagnosed", "with", "pancreatic", "cancer", "and", "takes", "meloxicam", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Joyce", "Cooper", "graduated", "from", "Harvard", "University", "in", "Boston", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Margaret", "Martinez", "'s", "PSA", "is", "64.0", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "child", "Isabelle", "has", "asthma", "and", "the", "pediatrician", "prescribed", "amoxicillin", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Sven", "Young", "ordered", "a", "pacemaker", "implant", "for", "Sven", "Young", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-PER", "I-PER", "O"]}
+{"tokens": ["Please", "submit", "the", "report", "by", "end", "of", "day", "Friday", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Natasha", "told", "me", "that", "Shirley", "Bennett", "is", "moving", "to", "Sacramento", "."], "ner_tags": ["B-PER", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "B-LOC", "O"]}
+{"tokens": ["My", "son", "Janet", "has", "allergies", "and", "the", "pediatrician", "prescribed", "prednisolone", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Located", "at", "1019", "Main", "Boulevard", ",", "Philadelphia", ",", "New", "York", "66873", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "I-LOC", "B-LOC", "O"]}
+{"tokens": ["Ahmed", "Ortiz", "at", "SpaceX", "in", "Cleveland", "was", "treated", "for", "autism", "spectrum", "disorder", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Please", "contact", "Deborah", "Thompson", "for", "more", "information", "."], "ner_tags": ["O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Address", ":", "8280", "Forest", "Lane", ",", "New", "Orleans", ",", "New", "York", "94108", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "B-LOC", "O"]}
+{"tokens": ["The", "doctor", "recommended", "appendectomy", "at", "SpaceX", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["William", "Richardson", "'s", "white", "blood", "cell", "count", "is", "125.8", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "13-year-old", "daughter", "Alexander", "is", "in", "summer", "camp", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Paul", "King", "met", "Catherine", "Sato", "at", "Amnesty", "International", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["George", "Patel", "at", "Lockheed", "Martin", "in", "Philadelphia", "was", "treated", "for", "cystic", "fibrosis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Hans", "Perez", "was", "diagnosed", "with", "leukemia", "and", "takes", "clopidogrel", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Samantha", "Tanaka", "lives", "at", "5662", "Poplar", "Road", "in", "Cleveland", ",", "Hawaii", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Automated", "alerts", "trigger", "when", "error", "rates", "exceed", "1", "percent", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Amir", "Torres", "'s", "HDL", "is", "209.0", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Yuki", "Weber", "at", "Target", "in", "Dallas", "was", "treated", "for", "hypothyroidism", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "newborn", "Pierre", "was", "diagnosed", "with", "strep", "throat", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Sven", "James", "'s", "bilirubin", "is", "146.1", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "son", "Pamela", "attends", "Jefferson", "High", "School", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["We", "are", "moving", "to", "Oklahoma", "City", ",", "Georgia", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Takeshi", "Bennett", "works", "at", "Globex", "Industries", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Ahmed", "Ramirez", "'s", "portfolio", "at", "Wells", "Fargo", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Benjamin", ",", "my", "daughter", ",", "is", "enrolled", "at", "Northside", "High", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Kenneth", ",", "my", "daughter", ",", "is", "enrolled", "at", "Kennedy", "Elementary", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Soo-Yeon", "Green", "'s", "ESR", "is", "78.3", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Steven", "Reed", "'s", "potassium", "is", "173.7", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Betty", "Morales", "works", "at", "Lockheed", "Martin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Connection", "pooling", "reduces", "database", "overhead", "significantly", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Send", "mail", "to", "204", "Hill", "Boulevard", ",", "Long", "Beach", ",", "Iowa", "18908", "."], "ner_tags": ["O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Dennis", "Watanabe", "transferred", "funds", "from", "Bank", "of", "America", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Lisa", "Tanaka", "is", "employed", "at", "AstraZeneca", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Kenneth", "Nelson", "lives", "at", "1435", "Willow", "Road", "in", "Washington", ",", "Tennessee", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["I", "ran", "into", "Ryan", "Gutierrez", "at", "the", "store", "in", "El", "Paso", "."], "ner_tags": ["O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["My", "15-year-old", "child", "Elizabeth", "started", "little", "league", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Rebecca", "Bennett", "was", "diagnosed", "with", "lymphoma", "and", "takes", "zolpidem", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Virginia", "Green", "has", "a", "position", "at", "MIT", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["I", "recently", "visited", "Phoenix", ",", "Delaware", "."], "ner_tags": ["O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Betty", "Ward", "opened", "an", "account", "at", "Wells", "Fargo", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Kevin", "Collins", "was", "diagnosed", "with", "diabetes", "and", "takes", "quetiapine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Linda", "Roberts", "was", "treated", "at", "Johns", "Hopkins", "Hospital", "for", "sickle", "cell", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Jennifer", "Adams", "lives", "at", "2915", "Washington", "Road", "in", "Philadelphia", ",", "Nevada", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Sven", "Lewis", "was", "diagnosed", "with", "cystic", "fibrosis", "and", "takes", "citalopram", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "workflow", "engine", "processes", "up", "to", "10000", "events", "per", "second", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Jacob", "Reed", "was", "diagnosed", "with", "migraine", "and", "takes", "citalopram", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Judge", "Jose", "Carter", "from", "Tesla", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Karen", "Rogers", "lives", "at", "1968", "Adams", "Place", "in", "Fort", "Worth", ",", "Wyoming", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["I", "ran", "into", "Min-Jun", "Thompson", "at", "the", "store", "in", "Austin", "."], "ner_tags": ["O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-LOC", "O"]}
+{"tokens": ["My", "nephew", "Amir", "was", "diagnosed", "with", "speech", "delay", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "11-year-old", "child", "William", "is", "in", "swimming", "lessons", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["My", "newborn", "Kimberly", "was", "diagnosed", "with", "speech", "delay", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Valentina", "Cox", "was", "diagnosed", "with", "hypertension", "and", "takes", "oxycodone", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Our", "stepdaughter", "goes", "to", "Pinecrest", "Academy", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "child", "was", "diagnosed", "with", "autism", "spectrum", "disorder", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Steven", "Brooks", "will", "follow", "up", "with", "Pamela", "Mitchell", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Wei", "Jones", "at", "Bank", "of", "America", "in", "Phoenix", "was", "treated", "for", "colon", "cancer", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "baby", "Diego", "has", "allergies", "and", "the", "pediatrician", "prescribed", "prednisolone", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Kyle", "Gonzalez", "is", "employed", "at", "World", "Health", "Organization", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Brandon", "Johansson", "at", "Tesla", "in", "San", "Francisco", "was", "treated", "for", "breast", "cancer", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Sandra", "Sato", "volunteers", "at", "Yale", "University", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "toddler", "Ryan", "has", "fever", "and", "the", "pediatrician", "prescribed", "montelukast", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Isabelle", "Ortiz", "opened", "an", "account", "at", "Fidelity", "Investments", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "foster", "child", "Scott", "attends", "Kennedy", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Li", "Walker", "'s", "sodium", "is", "200.7", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Kenneth", "Robinson", "was", "treated", "at", "Massachusetts", "General", "Hospital", "for", "fibromyalgia", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "kindergartner", "Yuki", "was", "diagnosed", "with", "ear", "infection", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["The", "backup", "process", "runs", "every", "6", "hours", "automatically", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Our", "preschooler", "goes", "to", "Roosevelt", "Academy", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Daniel", "Ortiz", "will", "follow", "up", "with", "Raj", "Ortiz", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["My", "toddler", "Joyce", "has", "croup", "and", "the", "pediatrician", "prescribed", "cetirizine", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "Jacksonville", ",", "Texas", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Dr.", "Donna", "Shah", "referred", "Diane", "Green", "to", "Johns", "Hopkins", "Hospital", "for", "evaluation", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O"]}
+{"tokens": ["Katherine", "Nguyen", "graduated", "from", "UCLA", "in", "Minneapolis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Larry", "Yamamoto", "was", "treated", "at", "Cleveland", "Clinic", "for", "hyperthyroidism", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["Donna", "Chen", "was", "treated", "at", "Cleveland", "Clinic", "for", "heart", "failure", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "baby", "Lisa", "has", "allergies", "and", "the", "pediatrician", "prescribed", "cetirizine", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["I", "ran", "into", "Raymond", "Kim", "at", "the", "store", "in", "Raleigh", "."], "ner_tags": ["O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-LOC", "O"]}
+{"tokens": ["Raj", "Moore", "'s", "HDL", "is", "55.1", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Version", "2.0", "of", "the", "application", "was", "released", "yesterday", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Hana", "Flores", "met", "Hana", "Williams", "at", "Tesla", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "O"]}
+{"tokens": ["Mei", "Wood", "'s", "portfolio", "at", "Citibank", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["My", "14-year-old", "daughter", "Debra", "started", "speech", "therapy", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["My", "granddaughter", "Shirley", "was", "diagnosed", "with", "asthma", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Docker", "containers", "are", "configured", "with", "resource", "limits", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Address", ":", "2022", "Lincoln", "Drive", ",", "Minneapolis", ",", "Rhode", "Island", "36805", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "I-LOC", "B-LOC", "O"]}
+{"tokens": ["Ashley", "Sanchez", "at", "Bank", "of", "America", "in", "Indianapolis", "was", "treated", "for", "rheumatoid", "arthritis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Gary", "Wright", "was", "treated", "at", "Massachusetts", "General", "Hospital", "for", "rheumatoid", "arthritis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Dr.", "Amanda", "Morgan", "from", "Amnesty", "International", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["John", "Tanaka", "was", "treated", "at", "Mayo", "Clinic", "for", "bipolar", "disorder", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "daughter", "Donald", "has", "ear", "infection", "and", "the", "pediatrician", "prescribed", "ibuprofen", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Alexander", "Torres", "opened", "an", "account", "at", "Goldman", "Sachs", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Joshua", "Reed", "works", "at", "Amnesty", "International", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Daniel", "Adams", "is", "employed", "at", "Netflix", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Shirley", "Taylor", "'s", "ESR", "is", "104.8", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Laura", "Wood", "was", "treated", "at", "Mayo", "Clinic", "for", "sepsis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["Please", "contact", "Raj", "Yamamoto", "for", "more", "information", "."], "ner_tags": ["O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Donna", "James", "is", "employed", "at", "Pfizer", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Sakura", "Nguyen", "volunteers", "at", "Northrop", "Grumman", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Rev.", "Ryan", "Patel", "from", "Home", "Depot", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["I", "ran", "into", "Ingrid", "Diaz", "at", "the", "store", "in", "Charlotte", "."], "ner_tags": ["O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-LOC", "O"]}
+{"tokens": ["Dr.", "Heather", "Hernandez", "referred", "Pamela", "Weber", "to", "Cleveland", "Clinic", "for", "a", "second", "opinion", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "18-month-old", "daughter", "Natasha", "is", "in", "kindergarten", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Address", ":", "374", "Adams", "Lane", ",", "Mesa", ",", "Maine", "12246", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Fatima", "Jackson", "was", "diagnosed", "with", "leukemia", "and", "takes", "gabapentin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "preschooler", "Amy", "attends", "Jefferson", "High", "School", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Kevin", "Fischer", "was", "diagnosed", "with", "cystic", "fibrosis", "and", "takes", "tamsulosin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Samuel", "Watanabe", "'s", "portfolio", "at", "Citibank", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Address", ":", "9316", "Poplar", "Boulevard", ",", "Los", "Angeles", ",", "Kentucky", "82523", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Henry", "Yamamoto", "graduated", "from", "Columbia", "University", "in", "Louisville", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Charles", "Taylor", "at", "Initech", "in", "Virginia", "Beach", "was", "treated", "for", "heart", "failure", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Address", ":", "7650", "Spruce", "Road", ",", "Austin", ",", "Florida", "81636", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Scott", "Brooks", "at", "Apple", "in", "Phoenix", "was", "treated", "for", "sickle", "cell", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "11-year-old", "child", "Pierre", "is", "in", "gymnastics", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Dr.", "Sven", "Bailey", "referred", "Li", "Evans", "to", "Mayo", "Clinic", "for", "evaluation", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O"]}
+{"tokens": ["Henry", "Cook", "and", "William", "Garcia", "work", "at", "Amazon", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Wei", "Ortiz", "lives", "at", "8664", "Spruce", "Road", "in", "Boston", ",", "Maine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "foster", "child", "Aaron", "attends", "Mountain", "Ridge", "High", "School", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Sakura", "Lee", "'s", "hematocrit", "is", "288.2", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "Baltimore", ",", "South", "Carolina", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["My", "niece", "Samuel", "was", "diagnosed", "with", "depression", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Barbara", "Reed", "graduated", "from", "UC", "Berkeley", "in", "Oakland", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Mr.", "Virginia", "Bailey", "from", "Johnson", "&", "Johnson", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "child", "Omar", "was", "diagnosed", "with", "anxiety", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "doctor", "recommended", "colonoscopy", "next", "week", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Please", "contact", "Jessica", "Bennett", "for", "more", "information", "."], "ner_tags": ["O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["My", "son", "Anthony", "has", "allergies", "and", "the", "pediatrician", "prescribed", "prednisolone", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Greta", "Scott", "at", "Bank", "of", "America", "in", "Long", "Beach", "was", "treated", "for", "pancreatic", "cancer", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Sandra", "M\u00fcller", "was", "treated", "at", "Cleveland", "Clinic", "for", "pancreatic", "cancer", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "Indianapolis", ",", "Maryland", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "niece", "Melissa", "attends", "Pinecrest", "Academy", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Richard", "Anderson", "was", "diagnosed", "with", "hepatitis", "C", "and", "takes", "clonazepam", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "MRI", "showed", "a", "herniated", "disc", "in", "my", "lower", "back", "."], "ner_tags": ["O", "B-HEALTH", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O", "O", "O"]}
+{"tokens": ["Mr.", "Laura", "Petrov", "from", "Microsoft", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Hiroshi", "White", "was", "treated", "at", "Mayo", "Clinic", "for", "leukemia", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["Christine", "Baker", "was", "treated", "at", "Massachusetts", "General", "Hospital", "for", "lymphoma", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["Hey", ",", "have", "you", "talked", "to", "Melissa", "White", "lately", "?"], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Julie", "Singh", "was", "treated", "at", "Cleveland", "Clinic", "for", "Parkinson's", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Cache", "invalidation", "is", "handled", "by", "the", "pub/sub", "system", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Ahmed", "Johansson", "serves", "at", "Amnesty", "International", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Angela", "Patel", "will", "follow", "up", "with", "Melissa", "Johnson", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["The", "build", "system", "supports", "incremental", "compilation", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Paul", "King", "'s", "platelet", "count", "is", "266.9", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["Hey", ",", "have", "you", "talked", "to", "Mark", "Nguyen", "lately", "?"], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["My", "son", "Christine", "attends", "Cedar", "Park", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "9-month-old", "child", "Jose", "goes", "to", "little", "league", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["My", "baby", "Samantha", "was", "diagnosed", "with", "ADHD", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Mrs.", "Jessica", "Bailey", "from", "Home", "Depot", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "2-month-old", "son", "Amir", "is", "in", "soccer", "practice", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Hiroshi", "Edwards", "lives", "at", "716", "Maple", "Road", "in", "Denver", ",", "California", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Amir", "Tanaka", "will", "follow", "up", "with", "Maria", "Turner", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "Indianapolis", ",", "Washington", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Dr.", "Victoria", "Scott", "referred", "Joyce", "Hill", "to", "Massachusetts", "General", "Hospital", "for", "evaluation", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O"]}
+{"tokens": ["Nancy", "Cook", "lives", "at", "2927", "Elm", "Drive", "in", "Tampa", ",", "New", "Hampshire", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Natasha", ",", "my", "teenager", ",", "is", "enrolled", "at", "Mountain", "Ridge", "High", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "conference", "will", "be", "held", "in", "Dallas", ",", "Arizona", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Shirley", "Ward", "opened", "an", "account", "at", "Fidelity", "Investments", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "infant", "Heather", "was", "diagnosed", "with", "autism", "spectrum", "disorder", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Carlos", "Torres", "met", "Layla", "Johnson", "at", "Goldman", "Sachs", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Hey", ",", "have", "you", "talked", "to", "Jason", "Edwards", "lately", "?"], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["My", "grandson", "Brian", "was", "diagnosed", "with", "speech", "delay", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Jack", "Volkov", "at", "Costco", "in", "Chicago", "was", "treated", "for", "hypertension", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "at", "7792", "Mountain", "Drive", ",", "Boston", ",", "Massachusetts", "64254", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["My", "preschooler", "Barbara", "was", "diagnosed", "with", "asthma", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Frank", "Walker", "was", "diagnosed", "with", "COPD", "and", "takes", "ibuprofen", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Stephanie", "Ramos", "graduated", "from", "Northwestern", "University", "in", "Jacksonville", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Sarah", "Jones", "'s", "D-dimer", "is", "99.2", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Mark", "Kelly", "is", "employed", "at", "Merck", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["My", "kindergartner", "Pamela", "was", "diagnosed", "with", "ADHD", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Timothy", "Petrov", "lives", "at", "2812", "Creek", "Street", "in", "Memphis", ",", "Mississippi", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "8-year-old", "daughter", "Olivia", "goes", "to", "gymnastics", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Li", "Adams", "will", "follow", "up", "with", "Matthew", "Phillips", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["My", "adolescent", "Richard", "was", "diagnosed", "with", "asthma", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Melissa", "Murphy", "at", "Johnson", "&", "Johnson", "in", "Boston", "was", "treated", "for", "Crohn's", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "adopted", "son", "Brandon", "attends", "Maple", "Grove", "Middle", "School", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Maria", "Sato", "was", "diagnosed", "with", "HIV", "and", "takes", "aspirin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Zachary", "Ramirez", "was", "diagnosed", "with", "ulcerative", "colitis", "and", "takes", "lithium", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Olivia", "Baker", "serves", "at", "Northrop", "Grumman", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Omar", "Lopez", "at", "Merck", "in", "Virginia", "Beach", "was", "treated", "for", "HIV", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Henry", "Morgan", "graduated", "from", "Northwestern", "University", "in", "Minneapolis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["We", "need", "to", "refactor", "the", "authentication", "module", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Carlos", "Johansson", "'s", "portfolio", "at", "Goldman", "Sachs", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Steven", "King", "at", "MIT", "in", "Tampa", "was", "treated", "for", "multiple", "sclerosis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Justin", "Weber", "at", "Tesla", "in", "Tulsa", "was", "treated", "for", "epilepsy", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "newborn", "is", "breastfeeding", "well", "after", "the", "hospital", "stay", "."], "ner_tags": ["O", "B-CHILD", "O", "B-CHILD", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "baby", "Brian", "was", "diagnosed", "with", "scoliosis", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "granddaughter", "Ivan", "was", "diagnosed", "with", "anxiety", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Debra", "Weber", "and", "Sofia", "Gutierrez", "work", "at", "Northrop", "Grumman", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Dr.", "Brenda", "Schmidt", "referred", "Priya", "Morales", "to", "Cleveland", "Clinic", "for", "further", "testing", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["The", "office", "is", "at", "7469", "Sunset", "Avenue", ",", "Mesa", ",", "Washington", "34966", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Linda", "Lopez", "was", "diagnosed", "with", "lung", "cancer", "and", "takes", "tramadol", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "doctor", "recommended", "cardiac", "catheterization", "at", "Mayo Clinic", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Jonathan", "Lewis", "was", "diagnosed", "with", "chronic", "kidney", "disease", "and", "takes", "olanzapine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "quarterly", "earnings", "exceeded", "analyst", "expectations", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Samuel", "James", "'s", "platelet", "count", "is", "281.7", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["Dr.", "Paul", "Hill", "referred", "Alexander", "Cox", "to", "Stanford", "Medical", "Center", "for", "evaluation", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O"]}
+{"tokens": ["Nancy", "Sato", "lives", "at", "2726", "River", "Court", "in", "Fresno", ",", "Georgia", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Ashley", "Kelly", "transferred", "funds", "from", "Charles", "Schwab", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "17-year-old", "child", "Aisha", "goes", "to", "occupational", "therapy", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Hans", "Stewart", "will", "follow", "up", "with", "Layla", "Weber", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Elizabeth", "James", "lives", "at", "5617", "Cherry", "Way", "in", "San", "Jose", ",", "Hawaii", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Laura", ",", "my", "foster", "child", ",", "is", "enrolled", "at", "Mountain", "Ridge", "High", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["We", "are", "moving", "to", "Mesa", ",", "Michigan", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "10-year-old", "daughter", "Brandon", "started", "little", "league", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["My", "teenager", "sees", "a", "child", "psychologist", "weekly", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-CHILD", "I-CHILD", "O", "O"]}
+{"tokens": ["Please", "contact", "Kevin", "Phillips", "for", "more", "information", "."], "ner_tags": ["O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Our", "team", "completed", "the", "sprint", "ahead", "of", "schedule", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Ms.", "Dennis", "Martin", "from", "Yale", "University", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Maria", "Lewis", "lives", "at", "561", "Mountain", "Avenue", "in", "Tampa", ",", "Tennessee", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "4-year-old", "son", "Min-Jun", "is", "in", "occupational", "therapy", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Kevin", "Mitchell", "has", "a", "position", "at", "Globex", "Industries", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Dr.", "Valentina", "Morales", "ordered", "a", "biopsy", "at", "Tesla", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Julie", "Campbell", "at", "Merck", "in", "Arlington", "was", "treated", "for", "cystic", "fibrosis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Patrick", "Patel", "opened", "an", "account", "at", "Fidelity", "Investments", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "doctor", "recommended", "dialysis", "next", "week", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Mark", ",", "my", "adopted", "son", ",", "is", "enrolled", "at", "Lakewood", "Middle", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Rebecca", "Cruz", "graduated", "from", "Cornell", "University", "in", "Denver", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Betty", "Young", "lives", "at", "7238", "Garden", "Place", "in", "Philadelphia", ",", "Montana", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "niece", "Fatima", "was", "diagnosed", "with", "speech", "delay", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Jerry", "Bennett", "works", "at", "Boeing", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["GraphQL", "queries", "are", "validated", "against", "the", "schema", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["I", "take", "sertraline", "for", "depression", "and", "anxiety", "."], "ner_tags": ["O", "O", "B-HEALTH", "O", "B-HEALTH", "O", "B-HEALTH", "O"]}
+{"tokens": ["Frank", ",", "my", "granddaughter", ",", "is", "enrolled", "at", "Lakewood", "Middle", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "doctor", "diagnosed", "me", "with", "hypertension", "last", "month", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Justin", "Edwards", "and", "Amy", "Jackson", "work", "at", "Goldman", "Sachs", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Nathan", "Ward", "introduced", "Samuel", "Ramos", "to", "the", "team", "at", "Umbrella", "Corporation", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Ronald", "Nguyen", "'s", "GFR", "is", "290.6", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "17-year-old", "son", "Ryan", "loves", "karate", "class", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Prof.", "Heather", "Sullivan", "from", "Harvard", "University", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "9-month-old", "son", "Kenneth", "loves", "karate", "class", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Dr.", "Virginia", "Bailey", "ordered", "a", "MRI", "at", "Meta", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["The", "doctor", "recommended", "hip", "replacement", "for", "Amanda", "Weber", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-PER", "I-PER", "O"]}
+{"tokens": ["Network", "latency", "between", "data", "centers", "is", "under", "10", "milliseconds", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Richard", "Howard", "'s", "TSH", "is", "150.9", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["The", "office", "is", "at", "8304", "Meadow", "Street", ",", "San", "Antonio", ",", "Nevada", "40427", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["My", "8-year-old", "daughter", "Sarah", "has", "ADHD", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "child", "Li", "has", "croup", "and", "the", "pediatrician", "prescribed", "amoxicillin", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Mr.", "Charles", "Garcia", "from", "Boeing", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Mrs.", "Hiroshi", "Gray", "from", "Walmart", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Eric", "Cruz", "lives", "at", "4768", "Creek", "Drive", "in", "Mesa", ",", "Kansas", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Dr.", "Hans", "Edwards", "ordered", "a", "cardiac", "catheterization", "next", "week", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["The", "application", "supports", "dark", "mode", "and", "light", "mode", "themes", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "5-year-old", "son", "Brian", "goes", "to", "tutoring", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Daniel", "Peterson", "was", "diagnosed", "with", "melanoma", "and", "takes", "Eliquis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Ruth", "Allen", "from", "Microsoft", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "daughter", "Peter", "has", "fever", "and", "the", "pediatrician", "prescribed", "montelukast", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Mark", "Taylor", "referred", "Matthew", "White", "to", "Massachusetts", "General", "Hospital", "for", "further", "testing", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Rev.", "Richard", "Young", "from", "Amazon", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "child", "Douglas", "has", "fever", "and", "the", "pediatrician", "prescribed", "ibuprofen", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Jason", "Patel", "was", "diagnosed", "with", "anemia", "and", "takes", "zolpidem", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "6-month-old", "child", "Brenda", "is", "in", "scouting", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Ms.", "David", "Torres", "from", "SpaceX", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Emma", "Young", "at", "JPMorgan", "Chase", "in", "Los", "Angeles", "was", "treated", "for", "deep", "vein", "thrombosis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "granddaughter", "Pamela", "was", "diagnosed", "with", "depression", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Barbara", "Kumar", "has", "a", "position", "at", "AstraZeneca", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Located", "at", "4021", "Mountain", "Lane", ",", "Portland", ",", "New", "Jersey", "79946", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "I-LOC", "B-LOC", "O"]}
+{"tokens": ["Anna", "Walker", "was", "treated", "at", "Johns", "Hopkins", "Hospital", "for", "anxiety", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["Our", "niece", "goes", "to", "Riverside", "High", "School", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["George", "Fischer", "at", "World", "Health", "Organization", "in", "Fresno", "was", "treated", "for", "prostate", "cancer", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Katherine", "Cooper", "was", "treated", "at", "Mayo", "Clinic", "for", "chronic", "kidney", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Sarah", "Young", "'s", "cholesterol", "is", "85.6", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Dr.", "Greta", "Carter", "referred", "Kyle", "White", "to", "Stanford", "Medical", "Center", "for", "a", "second", "opinion", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O", "O"]}
+{"tokens": ["Hans", "Cooper", "at", "Acme", "Corporation", "in", "Washington", "was", "treated", "for", "HIV", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Johnson", "at", "Mayo", "Clinic", "reviewed", "my", "lab", "results", "."], "ner_tags": ["O", "B-PER", "O", "B-ORG", "I-ORG", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Donald", "Turner", "and", "Frank", "Fischer", "work", "at", "Warner", "Bros", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Maria", "Cruz", "was", "diagnosed", "with", "Crohn's", "disease", "and", "takes", "duloxetine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Donald", "Harris", "met", "John", "Cruz", "at", "Initech", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "O"]}
+{"tokens": ["Donna", "Walker", "was", "treated", "at", "Cleveland", "Clinic", "for", "Alzheimer's", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "Sacramento", ",", "Mississippi", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Matthew", "Ramos", "was", "diagnosed", "with", "epilepsy", "and", "takes", "atorvastatin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Donald", "Torres", "serves", "at", "Home", "Depot", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Sven", "Brown", "has", "a", "position", "at", "Netflix", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Mark", "Gray", "was", "diagnosed", "with", "deep", "vein", "thrombosis", "and", "takes", "aspirin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["William", "Torres", "transferred", "funds", "from", "JPMorgan", "Chase", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "weather", "forecast", "predicts", "rain", "for", "tomorrow", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Christine", "Carter", "graduated", "from", "Princeton", "University", "in", "Las", "Vegas", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["The", "deployment", "pipeline", "runs", "automated", "tests", "before", "each", "release", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "preschooler", "Ruth", "was", "diagnosed", "with", "asthma", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Shirley", "Tanaka", "was", "diagnosed", "with", "type", "2", "diabetes", "and", "takes", "tamsulosin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Michael", "Thompson", "is", "scheduled", "for", "a", "knee", "replacement", "at", "SpaceX", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Charles", "Chen", "'s", "ALT", "is", "17.8", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Angela", "Watanabe", "was", "treated", "at", "Johns", "Hopkins", "Hospital", "for", "HIV", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["Lisa", "Petrov", "works", "at", "Tesla", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Tyler", "Martinez", "will", "follow", "up", "with", "Donald", "Davis", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["I", "recently", "visited", "Cleveland", ",", "Utah", "."], "ner_tags": ["O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Jose", "Turner", "has", "a", "position", "at", "Northrop", "Grumman", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "San", "Francisco", ",", "West", "Virginia", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Lisa", "Ward", "lives", "at", "9833", "Madison", "Way", "in", "Milwaukee", ",", "Pennsylvania", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "8-year-old", "child", "Karen", "started", "swimming", "lessons", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Wei", "Reyes", "lives", "at", "4716", "Spring", "Place", "in", "Sacramento", ",", "Nebraska", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Heather", "Scott", "was", "diagnosed", "with", "Parkinson's", "disease", "and", "takes", "clonazepam", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Michelle", "McCarthy", "lives", "at", "3371", "Cherry", "Lane", "in", "Houston", ",", "Tennessee", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Raj", "Kim", "graduated", "from", "Duke", "University", "in", "Omaha", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["I", "recently", "visited", "Minneapolis", ",", "Florida", "."], "ner_tags": ["O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Anthony", "Rivera", "was", "diagnosed", "with", "bipolar", "disorder", "and", "takes", "fentanyl", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "6-year-old", "child", "Amir", "loves", "daycare", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Emma", "told", "me", "that", "Jacob", "Clark", "is", "moving", "to", "New", "Orleans", "."], "ner_tags": ["B-PER", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Greta", "Brooks", "at", "Home", "Depot", "in", "Jacksonville", "was", "treated", "for", "sepsis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["I", "ran", "into", "Gary", "Edwards", "at", "the", "store", "in", "Las", "Vegas", "."], "ner_tags": ["O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["My", "5-year-old", "has", "his", "first", "dental", "appointment", "today", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O"]}
+{"tokens": ["Send", "mail", "to", "7954", "Magnolia", "Road", ",", "Washington", ",", "Alabama", "37762", "."], "ner_tags": ["O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["The", "webhook", "endpoint", "accepts", "POST", "requests", "only", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Send", "mail", "to", "4936", "Willow", "Drive", ",", "Oklahoma", "City", ",", "Iowa", "59786", "."], "ner_tags": ["O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["The", "code", "review", "identified", "three", "potential", "issues", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Douglas", "Harris", "'s", "platelet", "count", "is", "29.2", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["Dr.", "Elizabeth", "Andersson", "ordered", "a", "blood", "transfusion", "next", "week", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "9-year-old", "child", "Kathleen", "loves", "play", "therapy", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["My", "7-year-old", "child", "Patrick", "is", "in", "summer", "camp", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Pull", "request", "1234", "has", "been", "approved", "and", "merged", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "10-year-old", "child", "Kevin", "started", "tutoring", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Jacob", "Cooper", "'s", "creatinine", "is", "217.0", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["I", "was", "prescribed", "lisinopril", "for", "high", "blood", "pressure", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Karen", "Nguyen", "lives", "at", "1757", "Madison", "Place", "in", "Arlington", ",", "North", "Dakota", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Tyler", "Peterson", "introduced", "Anna", "Martinez", "to", "the", "team", "at", "United", "Nations", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Betty", "Hall", "has", "a", "position", "at", "Target", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["The", "conference", "will", "be", "held", "in", "El", "Paso", ",", "California", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Rachel", "Anderson", "was", "diagnosed", "with", "melanoma", "and", "takes", "tamsulosin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Lisa", "Smith", "referred", "Frank", "Cruz", "to", "Johns", "Hopkins", "Hospital", "for", "further", "testing", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "son", "Andrew", "has", "ADHD", "and", "the", "pediatrician", "prescribed", "prednisolone", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Fatima", "Chavez", "works", "at", "Google", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Ms.", "Cynthia", "Cooper", "from", "Massachusetts", "General", "Hospital", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Emma", "O'Brien", "was", "diagnosed", "with", "diabetes", "and", "takes", "lithium", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Jacob", "Ward", "at", "Acme", "Corporation", "in", "Minneapolis", "was", "treated", "for", "rheumatoid", "arthritis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "daughter", "Thomas", "has", "strep", "throat", "and", "the", "pediatrician", "prescribed", "cetirizine", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "9-year-old", "daughter", "Daniel", "loves", "swimming", "lessons", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Robert", "Wang", "was", "diagnosed", "with", "stroke", "and", "takes", "albuterol", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "toddler", "Mark", "attends", "Cedar", "Park", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Shirley", "Wood", "at", "Massachusetts", "General", "Hospital", "in", "Cleveland", "was", "treated", "for", "type", "1", "diabetes", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Kenneth", "Cooper", "is", "scheduled", "for", "a", "CT", "scan", "at", "Home Depot", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Kevin", "Zhang", "was", "diagnosed", "with", "epilepsy", "and", "takes", "montelukast", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Isabelle", "Stewart", "at", "MIT", "in", "Chicago", "was", "treated", "for", "pulmonary", "embolism", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Alexander", "Chen", "at", "Harvard", "University", "in", "El", "Paso", "was", "treated", "for", "Crohn's", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "at", "6752", "Washington", "Drive", ",", "Minneapolis", ",", "Iowa", "49318", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Ingrid", "Nelson", "serves", "at", "JPMorgan", "Chase", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Melissa", "Murphy", "at", "AstraZeneca", "in", "Portland", "was", "treated", "for", "celiac", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["The", "API", "response", "time", "averaged", "45", "milliseconds", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Rev.", "Peter", "Evans", "from", "Wells", "Fargo", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Kyle", "Gonzalez", "volunteers", "at", "JPMorgan", "Chase", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "daughter", "Dorothy", "has", "RSV", "and", "the", "pediatrician", "prescribed", "acetaminophen", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "baby", "Scott", "has", "allergies", "and", "the", "pediatrician", "prescribed", "amoxicillin", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["I", "ran", "into", "Joshua", "Hall", "at", "the", "store", "in", "Oklahoma", "City", "."], "ner_tags": ["O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Daniel", "Parker", "at", "Netflix", "in", "Jacksonville", "was", "treated", "for", "ulcerative", "colitis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Peter", "Evans", "was", "treated", "at", "Johns", "Hopkins", "Hospital", "for", "ulcerative", "colitis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Hey", ",", "have", "you", "talked", "to", "Anthony", "Cruz", "lately", "?"], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Ahmed", "Hall", "transferred", "funds", "from", "Citibank", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Hans", "Brown", "graduated", "from", "UCLA", "in", "Milwaukee", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["My", "12-year-old", "child", "Samuel", "loves", "gymnastics", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Catherine", "Lee", "was", "diagnosed", "with", "schizophrenia", "and", "takes", "rosuvastatin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "doctor", "recommended", "CABG", "next", "week", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Ronald", "Torres", "at", "Red", "Cross", "in", "Cleveland", "was", "treated", "for", "COPD", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "at", "4541", "Elm", "Avenue", ",", "Oakland", ",", "Louisiana", "81176", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Jack", "Williams", "was", "diagnosed", "with", "type", "2", "diabetes", "and", "takes", "oxycodone", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Ryan", "Baker", "introduced", "Joshua", "Green", "to", "the", "team", "at", "Initech", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Prof.", "Katherine", "Kelly", "from", "Netflix", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Hana", "Moore", "graduated", "from", "UC", "Berkeley", "in", "Washington", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["My", "child", "Jonathan", "has", "cough", "and", "the", "pediatrician", "prescribed", "montelukast", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Wei", "Nelson", "referred", "Kyle", "McCarthy", "to", "UCSF", "Medical", "Center", "for", "a", "second", "opinion", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "son", "Ronald", "attends", "Maple", "Grove", "Middle", "School", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Address", ":", "3038", "Mountain", "Street", ",", "Columbus", ",", "Pennsylvania", "28899", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Dr.", "Chen", "Edwards", "from", "Apple", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Jerry", ",", "my", "foster", "child", ",", "is", "enrolled", "at", "Pinecrest", "Academy", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Sofia", "King", "introduced", "Nicholas", "Singh", "to", "the", "team", "at", "Apple", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Cynthia", "Morgan", "opened", "an", "account", "at", "Goldman", "Sachs", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Laura", "O'Brien", "volunteers", "at", "Boeing", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Pagination", "is", "implemented", "using", "cursor-based", "navigation", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Priya", "Sato", "introduced", "Hans", "Scott", "to", "the", "team", "at", "Disney", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["My", "9-year-old", "child", "Chen", "started", "soccer", "practice", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Our", "stepson", "goes", "to", "Sunset", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Nathan", "Taylor", "lives", "at", "9849", "Cedar", "Lane", "in", "Kansas", "City", ",", "Missouri", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Emma", "Martin", "was", "diagnosed", "with", "lung", "cancer", "and", "takes", "lithium", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Donald", "Brown", "was", "diagnosed", "with", "deep", "vein", "thrombosis", "and", "takes", "furosemide", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Samuel", "Collins", "'s", "HbA1c", "is", "278.7", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Deborah", "Phillips", "is", "scheduled", "for", "a", "EKG", "next", "week", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["John", "Smith", "lives", "at", "123", "Oak", "Street", "in", "Springfield", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Fatima", "Morgan", "was", "diagnosed", "with", "pneumonia", "and", "takes", "trazodone", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "toddler", "Pamela", "was", "diagnosed", "with", "autism", "spectrum", "disorder", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Barbara", "Phillips", "and", "Susan", "Reed", "work", "at", "Target", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Sarah", "Garcia", "was", "diagnosed", "with", "sickle", "cell", "disease", "and", "takes", "tramadol", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Scott", "Ramos", "lives", "at", "1020", "Meadow", "Place", "in", "Phoenix", ",", "Maryland", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "5-year-old", "child", "William", "goes", "to", "scouting", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Carolyn", "Hall", "lives", "at", "2519", "Park", "Avenue", "in", "San", "Jose", ",", "Kentucky", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Margaret", "Davis", "'s", "LDL", "is", "218.5", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Sharon", "Parker", "is", "employed", "at", "Lockheed", "Martin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "grandson", "Kyle", "was", "diagnosed", "with", "depression", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "microservice", "architecture", "enables", "independent", "deployments", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "baby", "Melissa", "attends", "Northside", "High", "School", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "stepson", "Eric", "was", "diagnosed", "with", "ear", "infection", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["I", "recently", "visited", "Long", "Beach", ",", "South", "Carolina", "."], "ner_tags": ["O", "O", "O", "B-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Our", "stepdaughter", "goes", "to", "Riverside", "High", "School", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Sakura", "Smith", "was", "diagnosed", "with", "gestational", "diabetes", "and", "takes", "citalopram", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Betty", "Nelson", "transferred", "funds", "from", "Citibank", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["William", "Yamamoto", "was", "treated", "at", "Mayo", "Clinic", "for", "colon", "cancer", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "toddler", "started", "daycare", "this", "week", "."], "ner_tags": ["O", "B-CHILD", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["My", "adolescent", "Ruth", "was", "diagnosed", "with", "anxiety", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Tyler", "Kelly", "was", "diagnosed", "with", "breast", "cancer", "and", "takes", "aripiprazole", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Nancy", "Singh", "referred", "Ingrid", "Young", "to", "Mount", "Sinai", "Hospital", "for", "a", "second", "opinion", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "toddler", "Jennifer", "has", "ear", "infection", "and", "the", "pediatrician", "prescribed", "montelukast", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "at", "8093", "Oak", "Street", ",", "Mesa", ",", "Oklahoma", "63914", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Amy", "Scott", "opened", "an", "account", "at", "Citibank", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Thomas", "Roberts", "was", "diagnosed", "with", "PTSD", "and", "takes", "fentanyl", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "niece", "Victoria", "attends", "Kennedy", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Mrs.", "Heather", "Schmidt", "from", "AstraZeneca", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Dr.", "Zachary", "Petrov", "ordered", "a", "biopsy", "next", "week", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Zachary", "Rogers", "lives", "at", "6028", "Oak", "Road", "in", "Washington", ",", "Idaho", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Diane", "Evans", "lives", "at", "5643", "Maple", "Road", "in", "Phoenix", ",", "Michigan", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Isabelle", "Turner", "was", "diagnosed", "with", "prostate", "cancer", "and", "takes", "duloxetine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Michael", "Campbell", "at", "Target", "in", "Atlanta", "was", "treated", "for", "schizophrenia", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Jason", "Jackson", "ordered", "a", "MRI", "next", "week", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Our", "teenager", "goes", "to", "Jefferson", "High", "School", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Feature", "flags", "allow", "gradual", "rollout", "to", "users", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Jacob", "Phillips", "'s", "CRP", "is", "17.7", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "11-year-old", "daughter", "Rachel", "started", "karate", "class", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["My", "child", "Shirley", "has", "croup", "and", "the", "pediatrician", "prescribed", "albuterol", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "16-year-old", "son", "Katherine", "is", "in", "gymnastics", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Chen", "Morgan", "met", "Natasha", "Chen", "at", "Costco", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "O"]}
+{"tokens": ["Dr.", "Mary", "Yamamoto", "ordered", "a", "angioplasty", "for", "Mary", "Yamamoto", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "B-PER", "I-PER", "O"]}
+{"tokens": ["We", "are", "moving", "to", "Minneapolis", ",", "New", "Mexico", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["My", "son", "Thomas", "has", "strep", "throat", "and", "the", "pediatrician", "prescribed", "albuterol", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Unit", "test", "coverage", "increased", "from", "78", "percent", "to", "92", "percent", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["The", "conference", "will", "be", "held", "in", "Louisville", ",", "Alabama", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "grandson", "is", "in", "kindergarten", "at", "Sunrise", "Academy", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-CHILD", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Donna", "Wang", "works", "at", "Pfizer", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Sofia", "Cook", "lives", "at", "2571", "Maple", "Court", "in", "San", "Antonio", ",", "Michigan", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Rev.", "Soo-Yeon", "Lewis", "from", "SpaceX", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "child", "Betty", "has", "allergies", "and", "the", "pediatrician", "prescribed", "albuterol", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Valentina", "Collins", "met", "Kathleen", "Ramirez", "at", "Home", "Depot", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Katherine", "Bennett", "at", "Red", "Cross", "in", "Tampa", "was", "treated", "for", "heart", "failure", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "granddaughter", "Lisa", "was", "diagnosed", "with", "depression", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Send", "mail", "to", "4498", "Spring", "Street", ",", "Phoenix", ",", "Illinois", "87015", "."], "ner_tags": ["O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Amy", "Smith", "sent", "an", "email", "to", "Larry", "Roberts", "regarding", "the", "project", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Omar", "Kumar", "was", "diagnosed", "with", "colon", "cancer", "and", "takes", "sertraline", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Hey", ",", "have", "you", "talked", "to", "Betty", "Johnson", "lately", "?"], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["The", "logging", "framework", "captures", "both", "errors", "and", "warnings", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Dr.", "Emily", "Parker", "ordered", "a", "echocardiogram", "next", "week", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Donna", "Perez", "at", "Disney", "in", "Tulsa", "was", "treated", "for", "gestational", "diabetes", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Cynthia", "Miller", "transferred", "funds", "from", "JPMorgan", "Chase", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Please", "contact", "Anthony", "White", "for", "more", "information", "."], "ner_tags": ["O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Patricia", ",", "my", "infant", ",", "is", "enrolled", "at", "Oakdale", "Elementary", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Richard", "Miller", "introduced", "Brandon", "Murphy", "to", "the", "team", "at", "Netflix", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Our", "stepson", "goes", "to", "Roosevelt", "Academy", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Nancy", "Miller", "is", "employed", "at", "Wells", "Fargo", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "kindergartner", "George", "was", "diagnosed", "with", "epilepsy", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Shirley", "Cook", "was", "diagnosed", "with", "pulmonary", "embolism", "and", "takes", "acetaminophen", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Virginia", "Kelly", "lives", "at", "6726", "Hill", "Lane", "in", "San", "Diego", ",", "Montana", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Sarah", "Sato", "was", "diagnosed", "with", "ulcerative", "colitis", "and", "takes", "lamotrigine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Amy", "Tanaka", "was", "diagnosed", "with", "celiac", "disease", "and", "takes", "aspirin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Pamela", "Adams", "at", "Goldman", "Sachs", "in", "Philadelphia", "was", "treated", "for", "depression", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Hiroshi", "Carter", "was", "diagnosed", "with", "lymphoma", "and", "takes", "clonazepam", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Charles", "Johnson", "'s", "triglycerides", "is", "186.4", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["The", "conference", "will", "be", "held", "in", "Long", "Beach", ",", "Missouri", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Charles", ",", "my", "granddaughter", ",", "is", "enrolled", "at", "Cedar", "Park", "Elementary", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Christine", "James", "'s", "portfolio", "at", "Fidelity", "Investments", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "son", "Elizabeth", "has", "eczema", "and", "the", "pediatrician", "prescribed", "albuterol", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Sofia", ",", "my", "adopted", "son", ",", "is", "enrolled", "at", "Hillside", "Middle", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "I-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "database", "migration", "completed", "successfully", "with", "zero", "downtime", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Dr.", "David", "Edwards", "from", "Netflix", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Nicholas", "Cook", "lives", "at", "9254", "Meadow", "Avenue", "in", "Las", "Vegas", ",", "West", "Virginia", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["My", "child", "Sharon", "has", "strep", "throat", "and", "the", "pediatrician", "prescribed", "albuterol", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Raymond", "Walker", "'s", "sodium", "is", "118.8", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Peter", "Volkov", "opened", "an", "account", "at", "Bank", "of", "America", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Heather", "Adams", "was", "treated", "at", "Cleveland", "Clinic", "for", "Parkinson's", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Elizabeth", "Nguyen", "at", "Johns", "Hopkins", "Hospital", "in", "Chicago", "was", "treated", "for", "breast", "cancer", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Yuki", "Turner", "was", "treated", "at", "Mayo", "Clinic", "for", "lung", "cancer", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Jose", "Green", "transferred", "funds", "from", "Bank", "of", "America", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Daniel", "Hernandez", "was", "diagnosed", "with", "stroke", "and", "takes", "levothyroxine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "James", "Hill", "ordered", "a", "mammogram", "at", "Boeing", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Linda", "Anderson", "is", "scheduled", "for", "a", "cardiac", "catheterization", "at", "Cleveland Clinic", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Jason", "Thompson", "lives", "at", "9969", "Willow", "Avenue", "in", "Jacksonville", ",", "Wyoming", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["The", "doctor", "recommended", "chemotherapy", "next", "week", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "child", "Laura", "was", "diagnosed", "with", "strep", "throat", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Mei", "Turner", "is", "employed", "at", "Yale", "University", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Configuration", "values", "are", "stored", "in", "environment", "variables", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Sarah", "Gray", "'s", "D-dimer", "is", "70.6", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Dr.", "Nicole", "Wright", "referred", "Kenji", "Jackson", "to", "Mayo", "Clinic", "for", "evaluation", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O"]}
+{"tokens": ["Hiroshi", "Young", "'s", "D-dimer", "is", "277.0", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["The", "CI", "pipeline", "takes", "approximately", "12", "minutes", "to", "complete", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "16-year-old", "daughter", "Carlos", "started", "tutoring", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Andrew", "Taylor", "was", "diagnosed", "with", "sickle", "cell", "disease", "and", "takes", "insulin", "glargine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Min-Jun", "Martin", "at", "Globex", "Industries", "in", "Austin", "was", "treated", "for", "HIV", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Rebecca", "Li", "transferred", "funds", "from", "Fidelity", "Investments", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["We", "are", "moving", "to", "Long", "Beach", ",", "North", "Carolina", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Dr.", "Dorothy", "Brooks", "ordered", "a", "biopsy", "at", "Lockheed Martin", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Gary", "Lewis", "sent", "an", "email", "to", "Paul", "Morris", "regarding", "the", "project", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["She", "works", "at", "Acme", "Corporation", "as", "a", "manager", "."], "ner_tags": ["O", "O", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Hey", ",", "have", "you", "talked", "to", "Catherine", "Adams", "lately", "?"], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Henry", "Tanaka", "at", "Lockheed", "Martin", "in", "Portland", "was", "treated", "for", "anxiety", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Kimberly", "Gutierrez", "'s", "portfolio", "at", "Wells", "Fargo", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "12-year-old", "child", "Jessica", "loves", "summer", "camp", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Dr.", "Jason", "Collins", "referred", "Betty", "Moore", "to", "Johns", "Hopkins", "Hospital", "for", "evaluation", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O"]}
+{"tokens": ["Nicholas", "Ramos", "was", "diagnosed", "with", "prostate", "cancer", "and", "takes", "metformin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dorothy", "Parker", "at", "Merck", "in", "Houston", "was", "treated", "for", "pneumonia", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Our", "newborn", "goes", "to", "Oakdale", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["I", "have", "diabetes", "and", "take", "metformin", "daily", "."], "ner_tags": ["O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O", "O"]}
+{"tokens": ["The", "office", "is", "at", "5153", "Lake", "Road", ",", "Fresno", ",", "New", "York", "71080", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "I-LOC", "B-LOC", "O"]}
+{"tokens": ["Margaret", "Miller", "'s", "ALT", "is", "299.8", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Mr.", "Li", "Turner", "from", "Northrop", "Grumman", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "17-year-old", "son", "Yuki", "is", "in", "tutoring", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["The", "monitoring", "dashboard", "shows", "real-time", "metrics", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Patrick", "McCarthy", "lives", "at", "2193", "Adams", "Avenue", "in", "Virginia", "Beach", ",", "Texas", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Henry", "Campbell", "was", "diagnosed", "with", "prostate", "cancer", "and", "takes", "gabapentin", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Address", ":", "1360", "Valley", "Boulevard", ",", "Atlanta", ",", "Kansas", "84277", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Gary", "Gomez", "lives", "at", "9919", "Maple", "Street", "in", "Columbus", ",", "Maryland", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Min-Jun", "told", "me", "that", "Chen", "Tanaka", "is", "moving", "to", "Kansas", "City", "."], "ner_tags": ["B-PER", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["My", "17-year-old", "son", "Donna", "goes", "to", "gymnastics", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Joshua", "Shah", "works", "at", "Warner", "Bros", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Rev.", "Joyce", "Mitchell", "from", "United", "Nations", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "toddler", "Sakura", "was", "diagnosed", "with", "food", "allergy", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Kathleen", "Scott", "was", "treated", "at", "Massachusetts", "General", "Hospital", "for", "heart", "failure", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "foster", "child", "Amir", "was", "diagnosed", "with", "ear", "infection", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "at", "6463", "Park", "Lane", ",", "Columbus", ",", "Michigan", "94765", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Our", "teenager", "goes", "to", "Cedar", "Park", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "office", "is", "at", "8956", "Forest", "Way", ",", "New", "Orleans", ",", "West", "Virginia", "28343", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "B-LOC", "O"]}
+{"tokens": ["My", "daughter", "has", "asthma", "and", "takes", "albuterol", "."], "ner_tags": ["O", "B-CHILD", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Catherine", "Campbell", "at", "United", "Nations", "in", "Atlanta", "was", "treated", "for", "asthma", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Dr.", "Ruth", "Nelson", "referred", "Heather", "Weber", "to", "UCSF", "Medical", "Center", "for", "further", "testing", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Scott", "Watanabe", "was", "treated", "at", "Massachusetts", "General", "Hospital", "for", "hyperthyroidism", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "doctor", "recommended", "endoscopy", "at", "Stanford University", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["I", "live", "at", "456", "Elm", "Avenue", ",", "Portland", ",", "Oregon", "."], "ner_tags": ["O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Sakura", "Campbell", "at", "Amnesty", "International", "in", "Nashville", "was", "treated", "for", "anemia", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Pierre", "Davis", "'s", "albumin", "is", "94.2", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Raymond", "Phillips", "was", "diagnosed", "with", "lymphoma", "and", "takes", "metoprolol", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Jacob", "Wood", "was", "diagnosed", "with", "rheumatoid", "arthritis", "and", "takes", "meloxicam", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Peter", "Kumar", "has", "a", "position", "at", "Goldman", "Sachs", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Hey", ",", "have", "you", "talked", "to", "Thomas", "Kelly", "lately", "?"], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Dr.", "Carolyn", "Flores", "ordered", "a", "CABG", "for", "Carolyn", "Flores", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "B-PER", "I-PER", "O"]}
+{"tokens": ["Please", "contact", "Donald", "Nelson", "for", "more", "information", "."], "ner_tags": ["O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Thomas", "Taylor", "volunteers", "at", "Yale", "University", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "preschooler", "Adam", "was", "diagnosed", "with", "eczema", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "daughter", "Patrick", "has", "cough", "and", "the", "pediatrician", "prescribed", "montelukast", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Natasha", "Kelly", "graduated", "from", "Cornell", "University", "in", "Indianapolis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["SSL", "certificates", "are", "renewed", "automatically", "30", "days", "before", "expiry", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Scott", ",", "my", "newborn", ",", "is", "enrolled", "at", "Cedar", "Park", "Elementary", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "Portland", ",", "New", "Mexico", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Dr.", "Tyler", "Allen", "referred", "Amy", "Singh", "to", "Stanford", "Medical", "Center", "for", "further", "testing", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Jacob", "Baker", "lives", "at", "8067", "Hickory", "Drive", "in", "Dallas", ",", "Georgia", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Richard", "Bennett", "'s", "portfolio", "at", "Wells", "Fargo", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Valentina", "Wilson", "was", "diagnosed", "with", "hyperthyroidism", "and", "takes", "doxycycline", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Linda", "White", "has", "a", "position", "at", "Yale", "University", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Mei", "Sato", "at", "Meta", "in", "Atlanta", "was", "treated", "for", "chronic", "kidney", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Judge", "John", "Walker", "from", "Massachusetts", "General", "Hospital", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "son", "goes", "to", "Lincoln", "Elementary", "School", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "child", "John", "has", "cough", "and", "the", "pediatrician", "prescribed", "acetaminophen", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Isabelle", "Nguyen", "at", "Paramount", "in", "Washington", "was", "treated", "for", "Alzheimer's", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Kevin", "Brown", "at", "Wells", "Fargo", "in", "Colorado", "Springs", "was", "treated", "for", "cystic", "fibrosis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Li", "Anderson", "serves", "at", "Red", "Cross", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "adopted", "son", "Cynthia", "was", "diagnosed", "with", "strep", "throat", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Emily", "Sullivan", "introduced", "Jonathan", "Jones", "to", "the", "team", "at", "Costco", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Samantha", "O'Brien", "lives", "at", "7784", "Hickory", "Road", "in", "Oakland", ",", "Oregon", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Eric", "Perez", "'s", "HDL", "is", "145.7", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Steven", "Young", "was", "diagnosed", "with", "prostate", "cancer", "and", "takes", "metoprolol", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["William", "Kumar", "at", "Red", "Cross", "in", "Raleigh", "was", "treated", "for", "epilepsy", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["William", "Parker", "lives", "at", "407", "Washington", "Avenue", "in", "Nashville", ",", "Oregon", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["The", "conference", "will", "be", "held", "in", "Philadelphia", ",", "Alaska", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["My", "child", "Margaret", "was", "diagnosed", "with", "epilepsy", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Rev.", "Pierre", "Moore", "from", "Paramount", "reviewed", "the", "case", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["George", "Ward", "is", "scheduled", "for", "a", "radiation", "therapy", "at", "Amnesty International", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["The", "meeting", "has", "been", "rescheduled", "to", "next", "Tuesday", "at", "3", "PM", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Anthony", "Bailey", "lives", "at", "6433", "Highland", "Lane", "in", "Tulsa", ",", "Texas", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Dr.", "Carol", "Wang", "referred", "Heather", "Perez", "to", "Cleveland", "Clinic", "for", "further", "testing", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["My", "toddler", "Rebecca", "has", "croup", "and", "the", "pediatrician", "prescribed", "ibuprofen", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "doctor", "recommended", "dialysis", "at", "Warner Bros", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["My", "9-month-old", "daughter", "Lisa", "started", "ballet", "class", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Carolyn", "Chavez", "is", "scheduled", "for", "a", "dialysis", "next", "week", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Dr.", "Donna", "Walker", "ordered", "a", "angioplasty", "next", "week", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "adopted", "daughter", "Hana", "was", "diagnosed", "with", "food", "allergy", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Address", ":", "619", "Cedar", "Way", ",", "Portland", ",", "Missouri", "82443", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["I", "recently", "visited", "Chicago", ",", "Maine", "."], "ner_tags": ["O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["The", "doctor", "recommended", "physical", "therapy", "next", "week", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["Heather", "Smith", "'s", "LDL", "is", "79.6", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Ahmed", "Perez", "met", "Takeshi", "Watson", "at", "Disney", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "O"]}
+{"tokens": ["My", "foster", "child", "Sarah", "was", "diagnosed", "with", "ADHD", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Catherine", "Anderson", "graduated", "from", "University", "of", "Pennsylvania", "in", "Atlanta", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["My", "teenager", "Gary", "was", "diagnosed", "with", "depression", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Jerry", "Perez", "graduated", "from", "UC", "Berkeley", "in", "Raleigh", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["My", "toddler", "James", "has", "eczema", "and", "the", "pediatrician", "prescribed", "montelukast", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["Zachary", "Fischer", "graduated", "from", "University", "of", "Chicago", "in", "Phoenix", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Sofia", "Morris", "transferred", "funds", "from", "Wells", "Fargo", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Send", "mail", "to", "2465", "Washington", "Street", ",", "Kansas", "City", ",", "Nebraska", "64592", "."], "ner_tags": ["O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["My", "preschooler", "Charles", "was", "diagnosed", "with", "allergies", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Brenda", "Bailey", "opened", "an", "account", "at", "Citibank", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Dr.", "Rachel", "Cox", "referred", "Ruth", "M\u00fcller", "to", "Johns", "Hopkins", "Hospital", "for", "evaluation", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O"]}
+{"tokens": ["Dr.", "Ingrid", "Reyes", "from", "Globex", "Industries", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Layla", "Yamamoto", "was", "diagnosed", "with", "lymphoma", "and", "takes", "lamotrigine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Jerry", "told", "me", "that", "Sandra", "Hall", "is", "moving", "to", "Milwaukee", "."], "ner_tags": ["B-PER", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "B-LOC", "O"]}
+{"tokens": ["Zachary", ",", "my", "stepdaughter", ",", "is", "enrolled", "at", "Hillside", "Middle", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Ashley", "Singh", "is", "scheduled", "for", "a", "cardiac", "catheterization", "next", "week", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["Located", "at", "8725", "Lake", "Road", ",", "Seattle", ",", "Montana", "20357", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Joyce", "Roberts", "was", "treated", "at", "Mayo", "Clinic", "for", "pulmonary", "embolism", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["The", "office", "is", "located", "in", "Sacramento", ",", "Ohio", "."], "ner_tags": ["O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["The", "office", "is", "at", "3115", "Franklin", "Street", ",", "Sacramento", ",", "Arizona", "19742", "."], "ner_tags": ["O", "O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Anna", "Kim", "has", "a", "position", "at", "Globex", "Industries", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Mr.", "Diego", "Nguyen", "from", "Harvard", "University", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Our", "teenager", "goes", "to", "Roosevelt", "Academy", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "11-year-old", "son", "Lisa", "started", "ballet", "class", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["The", "search", "index", "is", "rebuilt", "nightly", "for", "optimal", "performance", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["I", "recently", "visited", "Dallas", ",", "California", "."], "ner_tags": ["O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Betty", "Young", "'s", "GFR", "is", "57.1", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Sven", "Davis", "volunteers", "at", "Home", "Depot", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "16-year-old", "child", "Donna", "is", "in", "kindergarten", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["Pamela", "Flores", "at", "Lockheed", "Martin", "in", "Colorado", "Springs", "was", "treated", "for", "migraine", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Betty", "Watanabe", "graduated", "from", "Yale", "University", "in", "Miami", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Static", "analysis", "tools", "catch", "common", "programming", "errors", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "12-year-old", "daughter", "Ivan", "started", "summer", "camp", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Daniel", "Johansson", "'s", "BUN", "is", "20.6", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["I", "recently", "visited", "Indianapolis", ",", "Oregon", "."], "ner_tags": ["O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Our", "adopted", "son", "goes", "to", "Oakdale", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Valentina", "Reyes", "opened", "an", "account", "at", "Citibank", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["William", "Green", "at", "Globex", "Industries", "in", "Fresno", "was", "treated", "for", "ADHD", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Charles", "Cox", "was", "diagnosed", "with", "hyperthyroidism", "and", "takes", "sertraline", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Ruth", "Schmidt", "opened", "an", "account", "at", "Fidelity", "Investments", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Mei", "James", "serves", "at", "Boeing", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Benjamin", "Jones", "transferred", "funds", "from", "Goldman", "Sachs", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["My", "teenager", "Nicholas", "was", "diagnosed", "with", "developmental", "delay", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Sakura", "Johnson", "'s", "AST", "is", "245.1", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Rev.", "Thomas", "Cooper", "from", "Apple", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Wei", "Petrov", "'s", "PSA", "is", "211.1", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["The", "load", "balancer", "distributes", "traffic", "across", "4", "instances", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Jack", "Fischer", "will", "follow", "up", "with", "Pamela", "Reed", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Raymond", "Harris", "met", "Kevin", "Murphy", "at", "Merck", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "O"]}
+{"tokens": ["Christine", "Andersson", "sent", "an", "email", "to", "Soo-Yeon", "Cruz", "regarding", "the", "project", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Donna", "Gray", "at", "Lockheed", "Martin", "in", "Boston", "was", "treated", "for", "schizophrenia", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Layla", "Tanaka", "was", "treated", "at", "Cleveland", "Clinic", "for", "rheumatoid", "arthritis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["The", "software", "update", "includes", "performance", "improvements", "and", "bug", "fixes", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["The", "encryption", "algorithm", "uses", "AES-256", "in", "GCM", "mode", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["My", "15-year-old", "daughter", "Mei", "is", "in", "tutoring", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "B-CHILD", "O", "O", "O"]}
+{"tokens": ["My", "nephew", "Carol", "was", "diagnosed", "with", "allergies", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Shirley", "O'Brien", "was", "diagnosed", "with", "asthma", "and", "takes", "quetiapine", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "niece", "Catherine", "was", "diagnosed", "with", "ADHD", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "adolescent", "Sandra", "attends", "Cedar", "Park", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Jack", "Wilson", "was", "diagnosed", "with", "coronary", "artery", "disease", "and", "takes", "trazodone", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Valentina", "Sanchez", "sent", "an", "email", "to", "Layla", "Martin", "regarding", "the", "project", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Sofia", "Young", "'s", "troponin", "is", "141.9", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Samuel", "Yamamoto", "was", "treated", "at", "Massachusetts", "General", "Hospital", "for", "autism", "spectrum", "disorder", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Jonathan", "O'Brien", "and", "Julie", "Hill", "work", "at", "Northrop", "Grumman", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Patrick", "Wright", "at", "JPMorgan", "Chase", "in", "Boston", "was", "treated", "for", "epilepsy", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["I", "recently", "visited", "Columbus", ",", "Georgia", "."], "ner_tags": ["O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Dennis", "Phillips", "introduced", "Dorothy", "Sato", "to", "the", "team", "at", "World", "Health", "Organization", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Susan", "Gomez", "lives", "at", "8324", "Sunset", "Drive", "in", "Portland", ",", "Colorado", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Benjamin", "Roberts", "met", "Joyce", "Young", "at", "Mayo", "Clinic", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["Sarah", "McCarthy", "graduated", "from", "Brown", "University", "in", "Memphis", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "I-ORG", "O", "B-LOC", "O"]}
+{"tokens": ["Sven", "Campbell", "introduced", "Joshua", "Sanchez", "to", "the", "team", "at", "Netflix", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Sharon", "Sato", "will", "follow", "up", "with", "Amy", "Wang", "tomorrow", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Kenneth", "Cruz", "lives", "at", "1218", "Lincoln", "Court", "in", "Long", "Beach", ",", "Maryland", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Our", "niece", "goes", "to", "Mountain", "Ridge", "High", "School", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-ORG", "I-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "doctor", "recommended", "CT", "scan", "for", "Ronald", "Allen", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-PER", "I-PER", "O"]}
+{"tokens": ["Daniel", "Garcia", "at", "Paramount", "in", "Cleveland", "was", "treated", "for", "type", "1", "diabetes", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "O", "B-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "baby", "has", "a", "fever", "and", "we", "called", "the", "pediatrician", "."], "ner_tags": ["O", "B-CHILD", "O", "O", "B-HEALTH", "O", "O", "O", "O", "B-CHILD", "O"]}
+{"tokens": ["Jack", "Hall", "is", "employed", "at", "Microsoft", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "O"]}
+{"tokens": ["Chen", "Murphy", "was", "diagnosed", "with", "coronary", "artery", "disease", "and", "takes", "lithium", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O", "O", "B-HEALTH", "O"]}
+{"tokens": ["Address", ":", "9370", "Birch", "Place", ",", "Chicago", ",", "Iowa", "37710", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["Virginia", "Perez", "at", "Lockheed", "Martin", "in", "El", "Paso", "was", "treated", "for", "multiple", "sclerosis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["My", "daughter", "Tyler", "has", "fever", "and", "the", "pediatrician", "prescribed", "cetirizine", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "granddaughter", "Jason", "attends", "Valley", "View", "Elementary", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "doctor", "recommended", "PET", "scan", "at", "Acme Corporation", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["My", "adopted", "daughter", "Anna", "was", "diagnosed", "with", "celiac", "disease", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Jessica", "Lee", "met", "Wei", "Turner", "at", "Pfizer", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "O"]}
+{"tokens": ["Heather", "Morris", "was", "treated", "at", "Mayo", "Clinic", "for", "bipolar", "disorder", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Robert", "King", "sent", "an", "email", "to", "Tyler", "Li", "regarding", "the", "project", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O"]}
+{"tokens": ["Michael", "Hernandez", "was", "treated", "at", "Massachusetts", "General", "Hospital", "for", "chronic", "kidney", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Ahmed", "Green", "graduated", "from", "MIT", "in", "Las", "Vegas", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-ORG", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Kimberly", "Smith", "transferred", "funds", "from", "Bank", "of", "America", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["Dr.", "Christine", "Roberts", "referred", "Patricia", "Nguyen", "to", "Massachusetts", "General", "Hospital", "for", "further", "testing", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Peter", "Richardson", "at", "Warner", "Bros", "in", "Los", "Angeles", "was", "treated", "for", "rheumatoid", "arthritis", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "B-LOC", "I-LOC", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Samantha", ",", "my", "baby", ",", "is", "enrolled", "at", "Lincoln", "Elementary", "School", "."], "ner_tags": ["B-PER", "O", "O", "B-CHILD", "O", "O", "O", "O", "B-ORG", "I-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "conference", "will", "be", "held", "in", "Tampa", ",", "Georgia", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Kenji", "Reyes", "lives", "at", "9336", "Creek", "Road", "in", "Long", "Beach", ",", "Massachusetts", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "I-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Judge", "Paul", "Watanabe", "from", "Paramount", "published", "a", "paper", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Kyle", "Rodriguez", "is", "scheduled", "for", "a", "speech", "therapy", "next", "week", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "O", "O"]}
+{"tokens": ["Located", "at", "6267", "Ash", "Place", ",", "Albuquerque", ",", "Kansas", "39536", "."], "ner_tags": ["O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["I", "recently", "visited", "Houston", ",", "Kansas", "."], "ner_tags": ["O", "O", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Greta", "Fischer", "lives", "at", "772", "Creek", "Drive", "in", "Nashville", ",", "Rhode", "Island", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Sofia", "McCarthy", "introduced", "John", "Mitchell", "to", "the", "team", "at", "Umbrella", "Corporation", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-ORG", "I-ORG", "O"]}
+{"tokens": ["The", "doctor", "recommended", "bone", "scan", "at", "United Nations", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "I-HEALTH", "O", "B-ORG", "O"]}
+{"tokens": ["Memory", "usage", "peaked", "at", "256", "megabytes", "during", "load", "testing", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Mary", "Murphy", "lives", "at", "7155", "Ash", "Boulevard", "in", "Portland", ",", "Ohio", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "O"]}
+{"tokens": ["Sandra", "Reed", "was", "treated", "at", "Cleveland", "Clinic", "for", "Parkinson's", "disease", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Greta", "Martin", "'s", "sodium", "is", "84.6", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "son", "Ingrid", "has", "asthma", "and", "the", "pediatrician", "prescribed", "prednisolone", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["My", "6-month-old", "child", "Mei", "loves", "karate", "class", "this", "year", "."], "ner_tags": ["O", "B-CHILD", "I-CHILD", "B-PER", "O", "B-CHILD", "I-CHILD", "O", "O", "O"]}
+{"tokens": ["Dr.", "Rebecca", "Patel", "ordered", "a", "EKG", "next", "week", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["My", "baby", "Douglas", "has", "eczema", "and", "the", "pediatrician", "prescribed", "amoxicillin", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "B-HEALTH", "O", "O", "B-CHILD", "O", "B-HEALTH", "O"]}
+{"tokens": ["The", "doctor", "recommended", "ultrasound", "next", "week", "."], "ner_tags": ["O", "O", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["I", "ran", "into", "Samuel", "Garcia", "at", "the", "store", "in", "Los", "Angeles", "."], "ner_tags": ["O", "O", "O", "B-PER", "I-PER", "O", "O", "O", "O", "B-LOC", "I-LOC", "O"]}
+{"tokens": ["Kyle", "Rivera", "'s", "HDL", "is", "123.4", "."], "ner_tags": ["B-PER", "I-PER", "O", "B-HEALTH", "O", "O", "O"]}
+{"tokens": ["Judge", "Alexander", "Walker", "from", "Globex", "Industries", "presented", "the", "findings", "."], "ner_tags": ["O", "B-PER", "I-PER", "O", "B-ORG", "I-ORG", "O", "O", "O", "O"]}
+{"tokens": ["Send", "mail", "to", "3037", "Birch", "Avenue", ",", "Sacramento", ",", "Georgia", "41584", "."], "ner_tags": ["O", "O", "O", "B-LOC", "I-LOC", "I-LOC", "O", "B-LOC", "O", "B-LOC", "B-LOC", "O"]}
+{"tokens": ["My", "adolescent", "Pamela", "was", "diagnosed", "with", "celiac", "disease", "."], "ner_tags": ["O", "B-CHILD", "B-PER", "O", "O", "O", "B-HEALTH", "I-HEALTH", "O"]}
+{"tokens": ["Rate", "limiting", "is", "set", "to", "100", "requests", "per", "minute", "."], "ner_tags": ["O", "O", "O", "O", "O", "O", "O", "O", "O", "O"]}
+{"tokens": ["Hey", ",", "have", "you", "talked", "to", "Betty", "Gray", "lately", "?"], "ner_tags": ["O", "O", "O", "O", "O", "O", "B-PER", "I-PER", "O", "O"]}
+{"tokens": ["Andrew", "Richardson", "was", "treated", "at", "Mayo", "Clinic", "for", "ADHD", "."], "ner_tags": ["B-PER", "I-PER", "O", "O", "O", "B-ORG", "I-ORG", "O", "B-HEALTH", "O"]}

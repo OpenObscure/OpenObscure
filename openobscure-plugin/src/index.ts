@@ -13,7 +13,7 @@
  * use the "openobscure-plugin/core" entry point instead.
  */
 
-import { PluginAPI, ToolResult } from "./types";
+import { PluginAPI, ToolCall, ToolResult } from "./types";
 import { redactPii, redactPiiWithNer } from "./redactor";
 import * as fs from "fs";
 import { HeartbeatMonitor } from "./heartbeat";
@@ -119,6 +119,40 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
     });
   }
 
+  // 3. Try to register before_tool_call hook (hard enforcement)
+  //    This hook is defined in the PluginAPI type but NOT YET WIRED
+  //    in OpenClaw. When it becomes available, we get pre-execution
+  //    PII redaction — tool arguments are sanitized BEFORE the tool runs.
+  if (cfg.redactToolResults && api.hooks.before_tool_call) {
+    try {
+      const proxyUrlBtc = cfg.proxyUrl;
+      api.hooks.before_tool_call((call: ToolCall): ToolCall | null => {
+        // Serialize arguments to text for PII scanning
+        const argsText = JSON.stringify(call.arguments);
+        const useNer = monitor?.state === "active";
+        const redacted = useNer
+          ? redactPiiWithNer(argsText, proxyUrlBtc, authToken)
+          : redactPii(argsText);
+
+        if (redacted.count > 0) {
+          ooInfo(OO_MODULES.REDACTOR, "Redacted PII in tool call (hard enforcement)", {
+            count: redacted.count,
+            tool: call.tool_name,
+          });
+          return {
+            ...call,
+            arguments: JSON.parse(redacted.text),
+          };
+        }
+        return call;
+      });
+      ooInfo(OO_MODULES.PLUGIN, "before_tool_call hook registered — hard enforcement active");
+    } catch {
+      // Hook not wired yet — fall back to tool_result_persist only
+      ooInfo(OO_MODULES.PLUGIN, "before_tool_call hook not available — soft enforcement only");
+    }
+  }
+
   ooInfo(OO_MODULES.PLUGIN, "Plugin registered", {
     redactor: cfg.redactToolResults,
     heartbeat: cfg.heartbeat,
@@ -127,7 +161,7 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
 
 // Re-export for direct use
 export { redactPii, redactPiiWithNer } from "./redactor";
-export type { PluginAPI, ToolResult, ToolDefinition } from "./types";
+export type { PluginAPI, ToolCall, ToolResult, ToolDefinition } from "./types";
 export type { RedactionResult, NerMatch } from "./redactor";
 export { HeartbeatMonitor, STATE_MESSAGES } from "./heartbeat";
 export type {

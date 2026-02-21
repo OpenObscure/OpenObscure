@@ -33,11 +33,28 @@ export interface ParameterDef {
   required?: boolean;
 }
 
+/** Tool call before execution (for pre-execution interception). */
+export interface ToolCall {
+  /** Tool name to be called. */
+  tool_name: string;
+  /** Tool arguments (may contain PII). */
+  arguments: Record<string, unknown>;
+  /** Optional metadata. */
+  metadata?: Record<string, unknown>;
+}
+
 /** The plugin API provided to register(). */
 export interface PluginAPI {
   hooks: {
     /** Modify tool results synchronously before transcript persistence. */
     tool_result_persist: (handler: (result: ToolResult) => ToolResult) => void;
+    /**
+     * Intercept tool calls before execution (hard enforcement).
+     * NOT YET WIRED in OpenClaw — defined in types but never invoked.
+     * When this hook becomes available, it enables pre-execution PII
+     * redaction: tool arguments are sanitized BEFORE the tool runs.
+     */
+    before_tool_call?: (handler: (call: ToolCall) => ToolCall | null) => void;
   };
   /** Register a custom tool the agent can call. */
   registerTool: (tool: ToolDefinition) => void;

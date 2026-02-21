@@ -13,6 +13,9 @@
 export { redactPii } from "./redactor";
 export type { RedactionResult } from "./redactor";
 
+// Tool types (for before_tool_call integration)
+export type { ToolCall } from "./types";
+
 // Health Monitoring
 export { HeartbeatMonitor, STATE_MESSAGES } from "./heartbeat";
 export type { ProxyState, HealthResponse, HeartbeatConfig } from "./heartbeat";
