@@ -285,4 +285,91 @@ class OpenObscureInstrumentedTest {
         // is harder to measure without Debug.getNativeHeapAllocatedSize()).
         assertTrue("Managed heap growth ${usedMb}MB exceeds 60MB", usedMb < 60)
     }
+
+    // ── Image Pipeline (#11) ──
+
+    @Test
+    fun imageDisabledRejectsValidJpeg() {
+        // With image_enabled=false (default), even valid image bytes are rejected
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        try {
+            sanitizeImage(handle = handle, imageBytes = byteArrayOf(
+                0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte()
+            ))
+            fail("Expected error for disabled image pipeline")
+        } catch (e: MobileBindingException.Processing) {
+            assertTrue("Wrong error: ${e.v1}", e.v1.contains("not enabled"))
+        }
+    }
+
+    @Test
+    fun imageEnabledRejectsTruncatedJpeg() {
+        // With image_enabled=true, truncated JPEG should fail with decode error
+        val config = """{"image_enabled": true}"""
+        val handle = createOpenobscure(configJson = config, fpeKeyHex = testKeyHex)
+        try {
+            sanitizeImage(handle = handle, imageBytes = byteArrayOf(
+                0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(),
+                0x00, 0x10
+            ))
+            fail("Expected error for truncated JPEG")
+        } catch (e: MobileBindingException) {
+            // Expected — truncated image can't be decoded
+        }
+    }
+
+    @Test
+    fun imageEnabledRejectsTruncatedPng() {
+        // With image_enabled=true, truncated PNG should fail with decode error
+        val config = """{"image_enabled": true}"""
+        val handle = createOpenobscure(configJson = config, fpeKeyHex = testKeyHex)
+        try {
+            sanitizeImage(handle = handle, imageBytes = byteArrayOf(
+                0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A // PNG magic only
+            ))
+            fail("Expected error for truncated PNG")
+        } catch (e: MobileBindingException) {
+            // Expected — truncated image can't be decoded
+        }
+    }
+
+    @Test
+    fun imageEnabledRejectsEmptyData() {
+        val config = """{"image_enabled": true}"""
+        val handle = createOpenobscure(configJson = config, fpeKeyHex = testKeyHex)
+        try {
+            sanitizeImage(handle = handle, imageBytes = byteArrayOf())
+            fail("Expected error for empty image data")
+        } catch (e: MobileBindingException) {
+            // Expected — empty data can't be an image
+        }
+    }
+
+    @Test
+    fun imageEnabledRejectsRandomBytes() {
+        val config = """{"image_enabled": true}"""
+        val handle = createOpenobscure(configJson = config, fpeKeyHex = testKeyHex)
+        try {
+            sanitizeImage(handle = handle, imageBytes = ByteArray(256) { it.toByte() })
+            fail("Expected error for random bytes")
+        } catch (e: MobileBindingException) {
+            // Expected — random bytes aren't a valid image
+        }
+    }
+
+    @Test
+    fun imageStatsZeroWhenDisabled() {
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        val stats = getStats(handle = handle)
+        assertEquals(0uL, stats.totalImagesProcessed)
+        assertFalse(stats.imagePipelineAvailable)
+    }
+
+    @Test
+    fun imageStatsShowPipelineAvailableWhenEnabled() {
+        val config = """{"image_enabled": true}"""
+        val handle = createOpenobscure(configJson = config, fpeKeyHex = testKeyHex)
+        val stats = getStats(handle = handle)
+        assertTrue("imagePipelineAvailable should be true", stats.imagePipelineAvailable)
+    }
 }

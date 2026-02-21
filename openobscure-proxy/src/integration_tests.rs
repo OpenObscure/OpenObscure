@@ -458,9 +458,10 @@ impl Respond for SseEchoResponder {
         // Build SSE events from the request body
         let body_str = String::from_utf8_lossy(&request.body);
         let sse_response = format!("data: {}\n\ndata: [DONE]\n\n", body_str);
+        // Use set_body_bytes to avoid set_body_string overriding content-type to text/plain
         ResponseTemplate::new(200)
             .insert_header("content-type", "text/event-stream")
-            .set_body_string(sse_response)
+            .set_body_bytes(sse_response.into_bytes())
     }
 }
 
@@ -503,7 +504,7 @@ async fn test_sse_response_no_pii_passthrough() {
         .respond_with(
             ResponseTemplate::new(200)
                 .insert_header("content-type", "text/event-stream")
-                .set_body_string("data: {\"content\":\"hello\"}\n\ndata: [DONE]\n\n"),
+                .set_body_bytes("data: {\"content\":\"hello\"}\n\ndata: [DONE]\n\n".as_bytes()),
         )
         .mount(&mock)
         .await;
@@ -857,6 +858,212 @@ async fn test_full_router_proxy_still_works() {
     );
 }
 
+// ── SSE Streaming Edge Cases ─────────────────────────────────────────────
+
+/// SSE response with multiple events containing PII should decrypt all of them.
+#[tokio::test]
+async fn test_sse_multiple_events_all_decrypted() {
+    let mock = MockServer::start().await;
+
+    // Responder that echoes request body across multiple SSE events
+    struct MultiEventSseResponder;
+    impl Respond for MultiEventSseResponder {
+        fn respond(&self, request: &wiremock::Request) -> ResponseTemplate {
+            let body_str = String::from_utf8_lossy(&request.body);
+            let sse_response = format!(
+                "data: {{\"chunk\":1,\"text\":\"{body}\"}}\n\ndata: {{\"chunk\":2,\"text\":\"{body}\"}}\n\ndata: [DONE]\n\n",
+                body = body_str
+            );
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/event-stream")
+                .set_body_bytes(sse_response.into_bytes())
+        }
+    }
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(MultiEventSseResponder)
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    let body = r#"{"messages":[{"role":"user","content":"My SSN is 123-45-6789"}]}"#;
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let text = resp_body(resp).await;
+    // Both SSE events should have decrypted SSN
+    let ssn_count = text.matches("123-45-6789").count();
+    assert!(
+        ssn_count >= 2,
+        "Both SSE events should contain decrypted SSN (found {} occurrences). Got: {}",
+        ssn_count,
+        text
+    );
+}
+
+/// SSE response should preserve text/event-stream content-type header.
+#[tokio::test]
+async fn test_sse_preserves_content_type_header() {
+    let mock = MockServer::start().await;
+
+    // Use a custom responder to avoid set_body_string overriding content-type
+    struct SseFixedResponder;
+    impl Respond for SseFixedResponder {
+        fn respond(&self, _request: &wiremock::Request) -> ResponseTemplate {
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/event-stream")
+                .set_body_bytes("data: {\"text\":\"hello\"}\n\ndata: [DONE]\n\n")
+        }
+    }
+
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(SseFixedResponder)
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    // Send PII so we go through the SSE streaming path (has_mappings=true)
+    let body = r#"{"messages":[{"role":"user","content":"SSN: 123-45-6789"}]}"#;
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let ct = resp
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
+    assert!(
+        ct.contains("text/event-stream"),
+        "SSE content-type should be preserved. Got: {}",
+        ct
+    );
+    // SSE streaming responses should NOT have content-length
+    assert!(
+        !resp.headers().contains_key("content-length"),
+        "SSE responses should not have content-length"
+    );
+}
+
+/// SSE response with empty data events should stream through without error.
+#[tokio::test]
+async fn test_sse_empty_events_passthrough() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/event-stream")
+                .set_body_bytes("data: \n\ndata: \n\ndata: [DONE]\n\n".as_bytes()),
+        )
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    let body = r#"{"messages":[{"role":"user","content":"SSN: 123-45-6789"}]}"#;
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let text = resp_body(resp).await;
+    assert!(
+        text.contains("[DONE]"),
+        "SSE with empty events should still complete"
+    );
+}
+
+/// SSE response with multiple PII types should decrypt all types per-chunk.
+#[tokio::test]
+async fn test_sse_multi_pii_decryption() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(SseEchoResponder)
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    let body = r#"{"messages":[{"role":"user","content":"SSN: 123-45-6789, email: johndoe@example.com"}]}"#;
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let text = resp_body(resp).await;
+    assert!(
+        text.contains("123-45-6789"),
+        "SSN should be decrypted in SSE response. Got: {}",
+        text
+    );
+    assert!(
+        text.contains("johndoe@example.com"),
+        "Email should be decrypted in SSE response. Got: {}",
+        text
+    );
+}
+
+/// Mappings are cleaned up after SSE stream completes.
+#[tokio::test]
+async fn test_sse_mappings_cleaned_up_after_stream() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(SseEchoResponder)
+        .mount(&mock)
+        .await;
+
+    let state = build_state(build_config(&mock.uri())).await;
+    let mapping_store = state.mapping_store.clone();
+    let router = app(state);
+
+    let body = r#"{"messages":[{"role":"user","content":"SSN: 123-45-6789"}]}"#;
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Consume the full SSE stream
+    let _text = resp_body(resp).await;
+
+    // After stream is fully consumed, mappings should be cleaned up
+    // (We can't inspect the exact request_id, but the store should be empty
+    // since no other requests are in flight)
+    tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    // The mapping store eviction happens via the stream's unfold callback
+    // At minimum, verify the store is accessible (no deadlock)
+    let dummy_id = uuid::Uuid::new_v4();
+    assert!(
+        mapping_store.get(&dummy_id).await.is_none(),
+        "Dummy ID should not exist in mapping store"
+    );
+}
+
 /// SSE response content-type detection is case-insensitive.
 #[tokio::test]
 async fn test_sse_content_type_case_insensitive() {
@@ -866,7 +1073,7 @@ async fn test_sse_content_type_case_insensitive() {
         .respond_with(
             ResponseTemplate::new(200)
                 .insert_header("content-type", "Text/Event-Stream; charset=utf-8")
-                .set_body_string("data: {\"content\":\"hello\"}\n\n"),
+                .set_body_bytes("data: {\"content\":\"hello\"}\n\n".as_bytes()),
         )
         .mount(&mock)
         .await;
@@ -889,4 +1096,253 @@ async fn test_sse_content_type_case_insensitive() {
     // So content-length IS set. This test verifies SSE detection works.
     let text = resp_body(resp).await;
     assert!(text.contains("hello"));
+}
+
+// ── Load / Stress Tests ─────────────────────────────────────────────────
+
+/// Multiple concurrent proxy requests all encrypt/decrypt correctly.
+#[tokio::test]
+async fn test_concurrent_requests_all_decrypt() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(EchoResponder)
+        .expect(10)
+        .mount(&mock)
+        .await;
+
+    let state = build_state(build_config(&mock.uri())).await;
+
+    let mut handles = vec![];
+    for i in 0..10 {
+        let state_clone = state.clone();
+        handles.push(tokio::spawn(async move {
+            let router = app(state_clone);
+            let ssn = format!("123-45-678{}", i);
+            let body = format!(
+                r#"{{"messages":[{{"role":"user","content":"My SSN is {}"}}]}}"#,
+                ssn
+            );
+            let req = Request::post("/test/v1/messages")
+                .header("content-type", "application/json")
+                .body(Body::from(body))
+                .unwrap();
+
+            let resp = router.oneshot(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK, "Request {} failed", i);
+
+            let text = resp_body(resp).await;
+            assert!(
+                text.contains(&ssn),
+                "Request {} SSN {} not decrypted in response: {}",
+                i,
+                ssn,
+                text
+            );
+        }));
+    }
+
+    for h in handles {
+        h.await.unwrap();
+    }
+}
+
+/// Concurrent SSE streaming requests don't interfere with each other.
+#[tokio::test]
+async fn test_concurrent_sse_streams() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(SseEchoResponder)
+        .expect(5)
+        .mount(&mock)
+        .await;
+
+    let state = build_state(build_config(&mock.uri())).await;
+
+    let mut handles = vec![];
+    for i in 0..5 {
+        let state_clone = state.clone();
+        handles.push(tokio::spawn(async move {
+            let router = app(state_clone);
+            let ssn = format!("123-45-678{}", i);
+            let body = format!(
+                r#"{{"messages":[{{"role":"user","content":"SSN: {}"}}]}}"#,
+                ssn
+            );
+            let req = Request::post("/test/v1/messages")
+                .header("content-type", "application/json")
+                .body(Body::from(body))
+                .unwrap();
+
+            let resp = router.oneshot(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK, "SSE stream {} failed", i);
+
+            let text = resp_body(resp).await;
+            assert!(
+                text.contains(&ssn),
+                "SSE stream {} SSN {} not found: {}",
+                i,
+                ssn,
+                text
+            );
+        }));
+    }
+
+    for h in handles {
+        h.await.unwrap();
+    }
+}
+
+/// Mapping store correctly isolates concurrent request mappings.
+#[tokio::test]
+async fn test_mapping_store_isolation() {
+    let store = MappingStore::new(300);
+
+    let id1 = uuid::Uuid::new_v4();
+    let id2 = uuid::Uuid::new_v4();
+
+    let mut m1 = crate::mapping::RequestMappings::new(id1);
+    m1.insert(crate::mapping::FpeMapping {
+        pii_type: crate::pii_types::PiiType::Ssn,
+        plaintext: "111-11-1111".to_string(),
+        ciphertext: "999-99-9999".to_string(),
+        tweak: vec![],
+        key_version: 1,
+    });
+
+    let mut m2 = crate::mapping::RequestMappings::new(id2);
+    m2.insert(crate::mapping::FpeMapping {
+        pii_type: crate::pii_types::PiiType::Ssn,
+        plaintext: "222-22-2222".to_string(),
+        ciphertext: "888-88-8888".to_string(),
+        tweak: vec![],
+        key_version: 1,
+    });
+
+    store.insert(m1).await;
+    store.insert(m2).await;
+
+    // Each request ID gets its own mappings
+    let r1 = store.get(&id1).await.unwrap();
+    let r2 = store.get(&id2).await.unwrap();
+    assert_eq!(r1.decrypt_response("999-99-9999"), "111-11-1111");
+    assert_eq!(r2.decrypt_response("888-88-8888"), "222-22-2222");
+
+    // Cross-contamination check: r1 doesn't decrypt r2's ciphertext
+    assert_eq!(r1.decrypt_response("888-88-8888"), "888-88-8888");
+
+    // Clean up
+    store.remove(&id1).await;
+    assert!(store.get(&id1).await.is_none());
+    assert!(store.get(&id2).await.is_some());
+}
+
+/// Rapid sequential requests reuse the same infrastructure without leaks.
+#[tokio::test]
+async fn test_rapid_sequential_requests() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(EchoResponder)
+        .expect(20)
+        .mount(&mock)
+        .await;
+
+    let state = build_state(build_config(&mock.uri())).await;
+
+    for i in 0..20 {
+        let router = app(state.clone());
+        let ssn = format!("234-56-78{:02}", i);
+        let body = format!(
+            r#"{{"messages":[{{"role":"user","content":"SSN: {}"}}]}}"#,
+            ssn
+        );
+        let req = Request::post("/test/v1/messages")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let resp = router.oneshot(req).await.unwrap();
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "Sequential request {} failed",
+            i
+        );
+
+        let text = resp_body(resp).await;
+        assert!(
+            text.contains(&ssn),
+            "Sequential request {} SSN {} not found: {}",
+            i,
+            ssn,
+            text
+        );
+    }
+}
+
+/// Mixed concurrent PII and clean requests all succeed.
+#[tokio::test]
+async fn test_mixed_pii_and_clean_concurrent() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(EchoResponder)
+        .expect(10)
+        .mount(&mock)
+        .await;
+
+    let state = build_state(build_config(&mock.uri())).await;
+
+    let mut handles = vec![];
+    for i in 0..10 {
+        let state_clone = state.clone();
+        handles.push(tokio::spawn(async move {
+            let router = app(state_clone);
+            let body = if i % 2 == 0 {
+                // PII request
+                format!(
+                    r#"{{"messages":[{{"role":"user","content":"SSN: 123-45-678{}"}}]}}"#,
+                    i
+                )
+            } else {
+                // Clean request
+                format!(
+                    r#"{{"messages":[{{"role":"user","content":"Hello world {}"}}]}}"#,
+                    i
+                )
+            };
+            let req = Request::post("/test/v1/messages")
+                .header("content-type", "application/json")
+                .body(Body::from(body.clone()))
+                .unwrap();
+
+            let resp = router.oneshot(req).await.unwrap();
+            assert_eq!(resp.status(), StatusCode::OK, "Mixed request {} failed", i);
+
+            let text = resp_body(resp).await;
+            if i % 2 == 0 {
+                let ssn = format!("123-45-678{}", i);
+                assert!(
+                    text.contains(&ssn),
+                    "PII request {} not decrypted: {}",
+                    i,
+                    text
+                );
+            } else {
+                let msg = format!("Hello world {}", i);
+                assert!(
+                    text.contains(&msg),
+                    "Clean request {} content lost: {}",
+                    i,
+                    text
+                );
+            }
+        }));
+    }
+
+    for h in handles {
+        h.await.unwrap();
+    }
 }

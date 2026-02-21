@@ -211,6 +211,61 @@ test("imageNotEnabledReturnsError") {
     }
 }
 
+test("imageEnabledRejectsTruncatedJpeg") {
+    let handle = try createOpenobscure(
+        configJson: #"{"image_enabled": true}"#,
+        fpeKeyHex: testKeyHex
+    )
+    do {
+        _ = try sanitizeImage(handle: handle, imageBytes: Data([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10]))
+        throw TestError.assertion("Expected error for truncated JPEG")
+    } catch is MobileBindingError {
+        // expected — truncated image can't be decoded
+    }
+}
+
+test("imageEnabledRejectsTruncatedPng") {
+    let handle = try createOpenobscure(
+        configJson: #"{"image_enabled": true}"#,
+        fpeKeyHex: testKeyHex
+    )
+    do {
+        _ = try sanitizeImage(handle: handle, imageBytes: Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
+        throw TestError.assertion("Expected error for truncated PNG")
+    } catch is MobileBindingError {
+        // expected — truncated image can't be decoded
+    }
+}
+
+test("imageEnabledRejectsEmptyData") {
+    let handle = try createOpenobscure(
+        configJson: #"{"image_enabled": true}"#,
+        fpeKeyHex: testKeyHex
+    )
+    do {
+        _ = try sanitizeImage(handle: handle, imageBytes: Data())
+        throw TestError.assertion("Expected error for empty image data")
+    } catch is MobileBindingError {
+        // expected — empty data isn't a valid image
+    }
+}
+
+test("imageStatsZeroWhenDisabled") {
+    let handle = try createOpenobscure(configJson: "{}", fpeKeyHex: testKeyHex)
+    let stats = getStats(handle: handle)
+    try expect(stats.totalImagesProcessed == 0, "totalImagesProcessed should be 0")
+    try expect(!stats.imagePipelineAvailable, "imagePipelineAvailable should be false")
+}
+
+test("imageStatsShowPipelineAvailableWhenEnabled") {
+    let handle = try createOpenobscure(
+        configJson: #"{"image_enabled": true}"#,
+        fpeKeyHex: testKeyHex
+    )
+    let stats = getStats(handle: handle)
+    try expect(stats.imagePipelineAvailable, "imagePipelineAvailable should be true")
+}
+
 // -- FPE Format Preservation --
 
 print("\nFPE Format Preservation:")

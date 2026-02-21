@@ -508,4 +508,144 @@ mod tests {
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].pii_type, PiiType::MacAddress);
     }
+
+    // ── Regression Suite ─────────────────────────────────────────────────
+    // Tests for previously fixed bugs to prevent regressions.
+
+    /// Regression: bare 10-digit runs must NOT match as phone numbers.
+    /// Fix: phone regex requires separators or leading +.
+    #[test]
+    fn test_regression_phone_bare_digits_no_match() {
+        let scanner = PiiScanner::new();
+        // Bare digit runs should not be detected as phone numbers
+        assert!(
+            !scanner
+                .scan_text("Bare digits 5551234567 are not a phone number.")
+                .iter()
+                .any(|m| m.pii_type == PiiType::PhoneNumber),
+            "bare 10-digit run should not match as phone"
+        );
+        assert!(
+            !scanner
+                .scan_text("Sequence 1234567890 is just ten digits.")
+                .iter()
+                .any(|m| m.pii_type == PiiType::PhoneNumber),
+            "sequential digits should not match as phone"
+        );
+        assert!(
+            !scanner
+                .scan_text("Order ID: 9876543210")
+                .iter()
+                .any(|m| m.pii_type == PiiType::PhoneNumber),
+            "order ID should not match as phone"
+        );
+    }
+
+    /// Regression: phone numbers WITH separators must still be detected.
+    #[test]
+    fn test_regression_phone_with_separators_matches() {
+        let scanner = PiiScanner::new();
+        // Separators: dash, dot, space, parens
+        for input in &[
+            "Call 555-123-4567",
+            "Call 555.123.4567",
+            "Call (555) 123-4567",
+            "Call +1-555-123-4567",
+        ] {
+            let matches = scanner.scan_text(input);
+            assert!(
+                matches.iter().any(|m| m.pii_type == PiiType::PhoneNumber),
+                "Phone with separators should match: {}",
+                input
+            );
+        }
+    }
+
+    /// Regression: SSN area code 000 must be rejected.
+    #[test]
+    fn test_regression_ssn_area_000_rejected() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("SSN: 000-12-3456");
+        assert!(
+            !matches.iter().any(|m| m.pii_type == PiiType::Ssn),
+            "SSN area 000 must be rejected"
+        );
+    }
+
+    /// Regression: SSN area code 666 must be rejected.
+    #[test]
+    fn test_regression_ssn_area_666_rejected() {
+        let scanner = PiiScanner::new();
+        let matches = scanner.scan_text("SSN: 666-12-3456");
+        assert!(
+            !matches.iter().any(|m| m.pii_type == PiiType::Ssn),
+            "SSN area 666 must be rejected"
+        );
+    }
+
+    /// Regression: SSN area codes 900+ must be rejected.
+    #[test]
+    fn test_regression_ssn_area_900_plus_rejected() {
+        let scanner = PiiScanner::new();
+        for area in &["900", "950", "987", "999"] {
+            let text = format!("SSN: {}-45-6789", area);
+            let matches = scanner.scan_text(&text);
+            assert!(
+                !matches.iter().any(|m| m.pii_type == PiiType::Ssn),
+                "SSN area {} must be rejected",
+                area
+            );
+        }
+    }
+
+    /// Regression: credit card numbers that fail Luhn must not match.
+    #[test]
+    fn test_regression_cc_luhn_failure_rejected() {
+        let scanner = PiiScanner::new();
+        // 4111-1111-1111-1112 fails Luhn (last digit should be 1)
+        let matches = scanner.scan_text("Card: 4111-1111-1111-1112");
+        assert!(
+            !matches.iter().any(|m| m.pii_type == PiiType::CreditCard),
+            "CC failing Luhn should be rejected"
+        );
+    }
+
+    /// Regression: valid credit card numbers that pass Luhn must match.
+    #[test]
+    fn test_regression_cc_luhn_pass_matches() {
+        let scanner = PiiScanner::new();
+        // 4111-1111-1111-1111 passes Luhn
+        let matches = scanner.scan_text("Card: 4111-1111-1111-1111");
+        assert!(
+            matches.iter().any(|m| m.pii_type == PiiType::CreditCard),
+            "CC passing Luhn should match"
+        );
+    }
+
+    /// Regression: bare digit runs inside CC-like patterns should not match as phone.
+    #[test]
+    fn test_regression_cc_digits_not_phone() {
+        let scanner = PiiScanner::new();
+        let text = "Card: 4111-1111-1111-1111";
+        let matches = scanner.scan_text(text);
+        assert!(
+            !matches.iter().any(|m| m.pii_type == PiiType::PhoneNumber),
+            "CC number should not also match as phone"
+        );
+    }
+
+    /// Regression: valid SSN with valid area code must be detected.
+    #[test]
+    fn test_regression_ssn_valid_area_matches() {
+        let scanner = PiiScanner::new();
+        for area in &["001", "123", "456", "665", "899"] {
+            let text = format!("SSN: {}-45-6789", area);
+            let matches = scanner.scan_text(&text);
+            assert!(
+                matches.iter().any(|m| m.pii_type == PiiType::Ssn),
+                "SSN area {} should match",
+                area
+            );
+        }
+    }
 }

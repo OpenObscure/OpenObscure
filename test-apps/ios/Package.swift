@@ -31,5 +31,11 @@ let package = Package(
             dependencies: ["OpenObscure"],
             path: "OpenObscureTests"
         ),
+        // XCTest target for Xcode CI (xcodebuild test)
+        .testTarget(
+            name: "OpenObscureXCTests",
+            dependencies: ["OpenObscure"],
+            path: "XCTests"
+        ),
     ]
 )

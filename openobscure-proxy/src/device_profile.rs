@@ -556,4 +556,133 @@ mod tests {
         assert_eq!(format!("{}", CapabilityTier::Standard), "standard");
         assert_eq!(format!("{}", CapabilityTier::Lite), "lite");
     }
+
+    // ── Cross-Platform Validation (#6) ──────────────────────────────
+    //
+    // These tests validate that the platform-agnostic logic paths
+    // (tier classification, budget derivation, display/serialize) work
+    // identically regardless of OS. On Windows, total_ram_mb() and
+    // available_ram_mb() use GlobalMemoryStatusEx via the `windows`
+    // crate — the same logic then feeds into tier_for_profile() and
+    // budget_for_tier() which are tested below with synthetic profiles
+    // simulating Windows hardware configurations.
+
+    #[test]
+    fn test_cross_platform_detect_fallback_when_ram_unknown() {
+        // Simulates a platform where hardware detection returns None
+        // (e.g., exotic OS or sandboxed environment). detect() should
+        // still produce a valid profile with 0 RAM.
+        let profile = DeviceProfile {
+            total_ram_mb: 0,
+            available_ram_mb: None,
+            cpu_cores: cpu_cores(),
+            embedded: false,
+        };
+        let tier = tier_for_profile(&profile);
+        assert_eq!(tier, CapabilityTier::Lite);
+        let budget = budget_for_tier(tier, &profile);
+        assert!(!budget.ner_enabled);
+        assert_eq!(budget.max_ram_mb, 80);
+    }
+
+    #[test]
+    fn test_cross_platform_windows_typical_16gb_desktop() {
+        // Simulates a typical Windows 11 desktop with 16GB RAM
+        let profile = DeviceProfile {
+            total_ram_mb: 16384,
+            available_ram_mb: Some(8000),
+            cpu_cores: 8,
+            embedded: false,
+        };
+        let tier = tier_for_profile(&profile);
+        assert_eq!(tier, CapabilityTier::Full);
+        let budget = budget_for_tier(tier, &profile);
+        assert!(budget.ner_enabled);
+        assert!(budget.ensemble_enabled);
+        assert!(budget.image_pipeline_enabled);
+        assert_eq!(budget.face_model, "scrfd");
+        assert_eq!(budget.max_ram_mb, 275);
+    }
+
+    #[test]
+    fn test_cross_platform_windows_8gb_laptop() {
+        // Simulates a Windows laptop with 8GB RAM (Full tier boundary)
+        let profile = DeviceProfile {
+            total_ram_mb: 8192,
+            available_ram_mb: Some(3000),
+            cpu_cores: 4,
+            embedded: false,
+        };
+        let tier = tier_for_profile(&profile);
+        assert_eq!(tier, CapabilityTier::Full);
+    }
+
+    #[test]
+    fn test_cross_platform_windows_4gb_low_end() {
+        // Simulates a low-end Windows device with 4GB RAM
+        let profile = DeviceProfile {
+            total_ram_mb: 4096,
+            available_ram_mb: Some(1500),
+            cpu_cores: 2,
+            embedded: false,
+        };
+        let tier = tier_for_profile(&profile);
+        assert_eq!(tier, CapabilityTier::Standard);
+        let budget = budget_for_tier(tier, &profile);
+        assert!(budget.ner_enabled);
+        assert!(!budget.ensemble_enabled);
+        assert_eq!(budget.model_idle_timeout_secs, 120);
+    }
+
+    #[test]
+    fn test_cross_platform_profile_serializes_to_json() {
+        // Verify DeviceProfile + FeatureBudget serialize correctly
+        // (important for Windows logging/diagnostics)
+        let profile = DeviceProfile {
+            total_ram_mb: 16384,
+            available_ram_mb: Some(8000),
+            cpu_cores: 8,
+            embedded: false,
+        };
+        let json = serde_json::to_string(&profile).unwrap();
+        assert!(json.contains("\"total_ram_mb\":16384"));
+        assert!(json.contains("\"cpu_cores\":8"));
+
+        let tier = tier_for_profile(&profile);
+        let budget = budget_for_tier(tier, &profile);
+        let budget_json = serde_json::to_string(&budget).unwrap();
+        assert!(budget_json.contains("\"tier\":\"full\""));
+        assert!(budget_json.contains("\"ner_enabled\":true"));
+    }
+
+    #[test]
+    fn test_cross_platform_tier_serde_roundtrip() {
+        // Verify CapabilityTier serializes as lowercase strings
+        let tiers = [
+            CapabilityTier::Full,
+            CapabilityTier::Standard,
+            CapabilityTier::Lite,
+        ];
+        let expected = ["\"full\"", "\"standard\"", "\"lite\""];
+        for (tier, exp) in tiers.iter().zip(expected.iter()) {
+            let json = serde_json::to_string(tier).unwrap();
+            assert_eq!(&json, exp);
+        }
+    }
+
+    #[test]
+    fn test_cross_platform_available_ram_none_still_works() {
+        // available_ram_mb can be None on any platform — budget
+        // derivation must not depend on it
+        let profile = DeviceProfile {
+            total_ram_mb: 8192,
+            available_ram_mb: None,
+            cpu_cores: 4,
+            embedded: false,
+        };
+        let tier = tier_for_profile(&profile);
+        let budget = budget_for_tier(tier, &profile);
+        assert_eq!(tier, CapabilityTier::Full);
+        assert!(budget.ner_enabled);
+    }
 }

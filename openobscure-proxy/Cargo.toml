@@ -132,6 +132,10 @@ harness = false
 name = "fpe_bench"
 harness = false
 
+[[bench]]
+name = "image_bench"
+harness = false
+
 [[example]]
 name = "demo_image_pipeline"
 

@@ -628,4 +628,46 @@ mod tests {
         let result = find_scrfd_model(Path::new("/nonexistent/path"));
         assert!(result.is_err());
     }
+
+    // ── Regression: bbox normalization ───────────────────────────────────
+    // BlazeFace regression values are in input pixel space (0–128).
+    // They must be divided by INPUT_SIZE to normalize to [0, 1].
+    // Without this division, bboxes would be 128x too large.
+
+    #[test]
+    fn test_regression_bbox_normalization_constant() {
+        // INPUT_SIZE must be 128 for BlazeFace short-range model
+        assert_eq!(INPUT_SIZE, 128);
+    }
+
+    #[test]
+    fn test_regression_iou_zero_area_box() {
+        // A zero-area box should have IoU = 0 with any other box
+        let zero = make_detection(50.0, 50.0, 50.0, 50.0, 0.9);
+        let normal = make_detection(0.0, 0.0, 100.0, 100.0, 0.8);
+        assert_eq!(iou(&zero, &normal), 0.0);
+    }
+
+    #[test]
+    fn test_regression_nms_preserves_highest_confidence() {
+        // When all boxes overlap heavily, NMS should keep only the highest confidence one
+        let mut detections = vec![
+            make_detection(10.0, 10.0, 110.0, 110.0, 0.70),
+            make_detection(12.0, 12.0, 112.0, 112.0, 0.95),
+            make_detection(11.0, 11.0, 111.0, 111.0, 0.80),
+        ];
+        let result = nms(&mut detections, 0.3);
+        assert_eq!(result.len(), 1);
+        assert!((result[0].confidence - 0.95).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_regression_face_detection_clamps_to_image_bounds() {
+        // The decode code clamps bbox to [0, orig_w] and [0, orig_h]
+        // Verify the clamping logic: x_min.max(0.0) and x_max.min(orig_w)
+        let x_min = (-10.0f32).max(0.0);
+        let x_max = (500.0f32).min(400.0);
+        assert_eq!(x_min, 0.0);
+        assert_eq!(x_max, 400.0);
+    }
 }

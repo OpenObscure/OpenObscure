@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -36,10 +37,6 @@ android {
         compose = true
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
-    }
-
     // Packaging: avoid conflicts with JNA's native libs
     packaging {
         jniLibs {
@@ -61,4 +58,8 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
+
+    // Compose UI testing
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.6")
+    debugImplementation("androidx.compose.ui:ui-test-manifest:1.7.6")
 }

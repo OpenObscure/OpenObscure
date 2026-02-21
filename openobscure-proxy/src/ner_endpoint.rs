@@ -263,4 +263,63 @@ mod tests {
             );
         }
     }
+
+    #[tokio::test]
+    async fn test_ner_payload_too_large() {
+        let app = ner_app(None);
+        // Build a text just over 64KB
+        let big_text = "a".repeat(65_537);
+        let body = serde_json::json!({"text": big_text});
+        let req = Request::post("/_openobscure/ner")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    }
+
+    #[tokio::test]
+    async fn test_ner_exactly_64kb_allowed() {
+        let app = ner_app(None);
+        let text = "a".repeat(65_536);
+        let body = serde_json::json!({"text": text});
+        let req = Request::post("/_openobscure/ner")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_ner_missing_text_field() {
+        let app = ner_app(None);
+        let body = serde_json::json!({"data": "not the right field"});
+        let req = Request::post("/_openobscure/ner")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn test_ner_no_auth_when_not_configured() {
+        let app = ner_app(None);
+        let body = serde_json::json!({"text": "SSN: 123-45-6789"});
+        let req = Request::post("/_openobscure/ner")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let matches: Vec<NerMatch> = serde_json::from_slice(&body).unwrap();
+        assert!(matches.iter().any(|m| m.pii_type == "ssn"));
+    }
 }
