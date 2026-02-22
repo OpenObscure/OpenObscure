@@ -17,7 +17,8 @@
 8. [Test Scripts Reference](#test-scripts-reference)
 9. [Output Format](#output-format)
 10. [Pass/Fail Validation](#passfail-validation)
-11. [Troubleshooting](#troubleshooting)
+11. [Managing Test Data & Validation](#managing-test-data--validation)
+12. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -886,6 +887,340 @@ Beyond the automated pass/fail checks, these criteria apply to manual review of 
 | **Phone separators** | Bare digit runs NOT matched (requires `-`, `.`, ` `, or `+`) |
 | **Confidence scores** | Regex matches = 1.0, NER matches >= 0.85 |
 | **Code fence awareness** | PII inside ``` blocks detected per `respect_code_fences` setting |
+
+---
+
+## Managing Test Data & Validation
+
+This section covers the full lifecycle: adding new test files, generating mock data,
+updating thresholds, regenerating snapshots, and removing obsolete tests.
+
+---
+
+### Adding a New Text PII Test File
+
+**1. Create the input file:**
+
+```bash
+# Place in the appropriate category folder
+vim test/data/input/PII_Detection/Passport_Numbers.txt
+```
+
+Use synthetic data only. Each file should have a comment header explaining what PII types
+it contains. Refer to `test/data/input/DATA_COLLECTION_PROMPTS.md` for guidelines on
+sourcing and formatting test data for each category.
+
+**2. Run the test suite to get actual detection counts:**
+
+```bash
+# Start proxy + echo server if not running
+OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
+  ./target/release/openobscure-proxy --config test/config/test_fpe.toml serve &
+node test/scripts/echo_server.mjs &
+
+# Run gateway tests (processes all input files)
+./test/scripts/test_gateway_all.sh
+
+# Check what the scanner found
+jq '{total_matches, type_summary}' \
+  test/data/output/PII_Detection/json/Passport_Numbers_gateway.json
+```
+
+**3. Add an entry to `test/expected_results.json`:**
+
+```json
+"PII_Detection/Passport_Numbers.txt": {
+  "min_matches": 17,
+  "expected_types": ["passport"],
+  "must_detect": [
+    {"text": "C01234567", "type": "passport"}
+  ]
+}
+```
+
+Set `min_matches` to ~85% of the actual count. Add 1-2 `expected_types` that must
+appear. Optionally add `must_detect` entries for high-value PII strings.
+
+Update `_meta.total_files` count in the same file.
+
+**4. Validate threshold mode passes:**
+
+```bash
+./test/scripts/validate_results.sh
+# Should show PASS for the new file
+```
+
+**5. Regenerate the snapshot and verify strict mode:**
+
+```bash
+./test/scripts/generate_snapshot.sh
+./test/scripts/validate_results.sh --strict
+```
+
+**6. Commit the new file + updated manifest + snapshot:**
+
+```bash
+git add test/data/input/PII_Detection/Passport_Numbers.txt \
+        test/expected_results.json test/snapshot.json
+git commit -m "Add passport number PII test corpus"
+```
+
+---
+
+### Adding a New Visual Test Image
+
+**1. Place the image in the correct subcategory:**
+
+```bash
+# Subcategories: Faces, Documents, EXIF, NSFW, Screenshots
+cp photo.jpg test/data/input/Visual_PII/Faces/face_sunglasses_01.jpg
+```
+
+Images are tracked via Git LFS (`.gitattributes` handles jpg/png/gif/webp patterns).
+Use synthetic or open-license images only. Strip real EXIF GPS coordinates before adding.
+
+**2. Run the visual test suite:**
+
+```bash
+./test/scripts/test_visual.sh
+# Check the output
+jq . test/data/output/Visual_PII/json/face_sunglasses_01_visual.json
+```
+
+**3. Add a visual entry to `test/expected_results.json`:**
+
+```json
+"visual_files": {
+  "face_sunglasses_01.jpg": {
+    "subcategory": "Faces",
+    "min_faces": 1,
+    "min_text_regions": 0,
+    "nsfw_expected": false,
+    "screenshot_expected": false
+  }
+}
+```
+
+Update `_meta.total_visual_files` count.
+
+**4. Regenerate snapshot and validate:**
+
+```bash
+./test/scripts/generate_snapshot.sh
+./test/scripts/validate_results.sh          # threshold
+./test/scripts/validate_results.sh --strict  # exact counts
+```
+
+---
+
+### Adding a New Audio Test File
+
+**1. Place the audio file:**
+
+```bash
+cp recording.wav test/data/input/Audio_PII/audio_dob_single.wav
+```
+
+Audio files are tracked via Git LFS. Supported formats: WAV, MP3, OGG.
+
+**2. Run audio tests:**
+
+```bash
+./test/scripts/test_audio.sh
+jq . test/data/output/Audio_PII/json/audio_dob_single_wav_audio.json
+```
+
+**3. Audio entries are captured automatically by `generate_snapshot.sh`.** No entry
+in `expected_results.json` is needed — audio validation is snapshot-only (strict mode).
+
+**4. Regenerate snapshot:**
+
+```bash
+./test/scripts/generate_snapshot.sh
+./test/scripts/validate_results.sh --strict
+```
+
+---
+
+### Generating Mock Test Data
+
+Mock data generators live in `test/scripts/mock/`:
+
+| Script | Produces | Usage |
+|--------|----------|-------|
+| `generate_screenshot.py` | Synthetic PII screenshot (PNG) | `python3 test/scripts/mock/generate_screenshot.py --output test/data/input/Visual_PII/Screenshots/screenshot_pii_01.png` |
+| `generate_mock_ner_model.py` | Mock ONNX NER model (~50KB) | `python3 test/scripts/mock/generate_mock_ner_model.py --output_dir openobscure-ner/models/mock` |
+| `generate_mock_crf_model.py` | Mock CRF model JSON | `python3 test/scripts/mock/generate_mock_crf_model.py --output_dir openobscure-ner/models/crf_mock` |
+| `generate_finetune_dataset.py` | Labeled PII JSONL (~600 samples) | `python3 test/scripts/mock/generate_finetune_dataset.py` |
+
+These scripts produce deterministic output from synthetic data — no real PII is used
+or required. For new text test files, write them by hand with clearly synthetic data
+(fake names, test card numbers like `4242424242424242`, RFC 5737 IP addresses like
+`198.51.100.x`).
+
+---
+
+### Updating Thresholds After Scanner Changes
+
+When the scanner is improved (new regex patterns, NER model update, etc.), detection
+counts will change. To update:
+
+**1. Run all tests with the updated scanner:**
+
+```bash
+./test/scripts/test_gateway_all.sh
+./test/scripts/test_visual.sh
+./test/scripts/test_audio.sh
+```
+
+**2. Check which thresholds need updating:**
+
+```bash
+# This will show FAILs where actual counts dropped below old thresholds
+./test/scripts/validate_results.sh
+```
+
+**3. Update `test/expected_results.json`:**
+
+For each file, inspect the actual count and set `min_matches` to ~85%:
+
+```bash
+# Quick way to see all actual counts
+for f in test/data/output/*/json/*_gateway.json; do
+  key=$(jq -r '"\(.file)"' "$f")
+  total=$(jq '.total_matches' "$f")
+  echo "$key: $total"
+done
+```
+
+**4. Regenerate snapshot and verify both modes:**
+
+```bash
+./test/scripts/generate_snapshot.sh
+./test/scripts/validate_results.sh           # threshold — should all pass
+./test/scripts/validate_results.sh --strict   # strict — should all pass
+```
+
+**5. If counts increased** (scanner improvement), raise `min_matches` to keep
+the ~85% threshold meaningful. If counts decreased, investigate whether the
+scanner regressed before lowering thresholds.
+
+---
+
+### Removing a Test File
+
+**1. Delete the input file:**
+
+```bash
+rm test/data/input/PII_Detection/Obsolete_File.txt
+```
+
+**2. Remove its entry from `test/expected_results.json`:**
+
+Delete the corresponding key from the JSON. Update `_meta.total_files` (or
+`total_visual_files` for images).
+
+**3. Clean up stale outputs (if present):**
+
+```bash
+rm -f test/data/output/PII_Detection/json/Obsolete_File_gateway.json
+rm -f test/data/output/PII_Detection/json/Obsolete_File_embedded.json
+rm -f test/data/output/PII_Detection/redacted/Obsolete_File.txt
+```
+
+**4. Regenerate snapshot:**
+
+```bash
+./test/scripts/generate_snapshot.sh
+./test/scripts/validate_results.sh --strict
+```
+
+---
+
+### Renaming or Moving a Test File
+
+Since both `expected_results.json` and `snapshot.json` key by `Category/filename`:
+
+**1. Move the file:**
+
+```bash
+mv test/data/input/PII_Detection/Old_Name.txt test/data/input/PII_Detection/New_Name.txt
+```
+
+**2. Update the key in `test/expected_results.json`:**
+
+```json
+// Change: "PII_Detection/Old_Name.txt": { ... }
+// To:     "PII_Detection/New_Name.txt": { ... }
+```
+
+**3. Rerun tests, regenerate snapshot:**
+
+```bash
+./test/scripts/test_gateway_all.sh
+./test/scripts/generate_snapshot.sh
+./test/scripts/validate_results.sh --strict
+```
+
+---
+
+### Adding a New Test Category
+
+**1. Create the input directory:**
+
+```bash
+mkdir -p test/data/input/Financial_PII
+```
+
+**2. Add test files following existing naming conventions.**
+
+**3. The test scripts auto-discover categories.** `test_gateway_all.sh` iterates over
+all subdirectories of `test/data/input/` (excluding `Visual_PII` and `Audio_PII` which
+have dedicated scripts). No script changes needed.
+
+**4. Add entries to `expected_results.json` for each new file and regenerate snapshot.**
+
+---
+
+### End-to-End Workflow Summary
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Add / Modify Test Data                    │
+│                                                             │
+│  1. Create/edit files in test/data/input/                   │
+│  2. Run test suite:                                         │
+│     ./test/scripts/test_gateway_all.sh                      │
+│     ./test/scripts/test_visual.sh     (if images)           │
+│     ./test/scripts/test_audio.sh      (if audio)            │
+│                                                             │
+│  3. Check actual detection counts in output JSON            │
+│  4. Update test/expected_results.json (~85% thresholds)     │
+│  5. Validate threshold mode:                                │
+│     ./test/scripts/validate_results.sh                      │
+│                                                             │
+│  6. Regenerate snapshot:                                    │
+│     ./test/scripts/generate_snapshot.sh                     │
+│  7. Validate strict mode:                                   │
+│     ./test/scripts/validate_results.sh --strict             │
+│                                                             │
+│  8. Commit: input files + expected_results.json             │
+│            + snapshot.json                                   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  After Scanner Changes                       │
+│                                                             │
+│  1. Run all test suites                                     │
+│  2. Check for threshold failures (validate_results.sh)      │
+│  3. If counts increased: raise min_matches (~85% of new)    │
+│     If counts decreased: investigate regression first       │
+│  4. Regenerate snapshot + verify strict mode                 │
+│  5. Commit: expected_results.json + snapshot.json            │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
