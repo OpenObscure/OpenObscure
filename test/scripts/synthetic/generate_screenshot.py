@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Generate a synthetic screenshot containing PII text for OpenObscure demo.
+Generate a synthetic screenshot containing PII text for OpenObscure testing.
 
 Creates a realistic-looking multi-section document with names, SSNs, credit cards,
 phone numbers, emails, addresses, and medical info — all fictitious. This lets
 the OCR pipeline demonstrate text-region blurring on sensitive content.
 
 Usage:
-    python3 scripts/generate_screenshot.py [--output docs/examples/images/screenshot-original.png]
+    python3 test/scripts/synthetic/generate_screenshot.py [--output docs/examples/images/screenshot-original.png]
 """
 
 import argparse

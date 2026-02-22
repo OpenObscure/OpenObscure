@@ -427,7 +427,7 @@ OpenObscure/
 │   └── release.yml              Release: binary matrix + iOS XCFramework + UniFFI bindings
 ├── build/
 │   ├── download_models.sh       Download ONNX models for image + voice pipeline
-│   ├── generate_screenshot.py   Generate synthetic PII screenshot for demos
+│   ├── download_kws_models.sh   Download sherpa-onnx KWS models for voice pipeline
 │   ├── build_ios.sh             Build iOS static library + XCFramework
 │   ├── build_android.sh         Build Android shared library via cargo-ndk
 │   ├── generate_bindings.sh     Generate UniFFI Swift/Kotlin bindings
@@ -444,6 +444,7 @@ OpenObscure/
 │   │   ├── input/               PII test corpus (45 files across 8 categories)
 │   │   └── output/              Gateway/embedded JSON results
 │   ├── scripts/                 Test runners, validators, echo server
+│   │   └── synthetic/           Synthetic data generators (screenshots, mock models, datasets)
 │   ├── expected_results.json    Threshold-based validation manifest (v2.0, ~85%)
 │   ├── snapshot.json            Exact-count snapshot for --strict regression mode
 │   ├── TESTING_GUIDE.md         Testing documentation
