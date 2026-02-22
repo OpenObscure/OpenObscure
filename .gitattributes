@@ -1,0 +1,7 @@
+test/data/input/Audio_PII/*.wav filter=lfs diff=lfs merge=lfs -text
+test/data/input/Audio_PII/*.mp3 filter=lfs diff=lfs merge=lfs -text
+test/data/input/Audio_PII/*.ogg filter=lfs diff=lfs merge=lfs -text
+test/data/input/Visual_PII/**/*.jpg filter=lfs diff=lfs merge=lfs -text
+test/data/input/Visual_PII/**/*.png filter=lfs diff=lfs merge=lfs -text
+test/data/input/Visual_PII/**/*.gif filter=lfs diff=lfs merge=lfs -text
+test/data/input/Visual_PII/**/*.webp filter=lfs diff=lfs merge=lfs -text

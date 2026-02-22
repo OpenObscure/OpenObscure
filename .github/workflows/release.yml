@@ -55,7 +55,7 @@ jobs:
           workspaces: openobscure-proxy
 
       - name: Build iOS XCFramework
-        run: ./scripts/build_ios.sh --release --xcframework
+        run: ./build/build_ios.sh --release --xcframework
 
       - name: Upload XCFramework
         uses: actions/upload-artifact@v4
@@ -74,7 +74,7 @@ jobs:
           workspaces: openobscure-proxy
 
       - name: Generate bindings
-        run: ./scripts/generate_bindings.sh
+        run: ./build/generate_bindings.sh
 
       - name: Upload Swift bindings
         uses: actions/upload-artifact@v4

@@ -1,0 +1,125 @@
+============================================================
+  PII Detection Test Data — Phone Numbers
+  Source: Synthetic (non-real numbers using 555 exchange + others)
+  Coverage: US domestic, international +country, parens, dots, dashes
+  Note: Scanner requires separator or leading + to avoid false positives
+============================================================
+
+--- US formats with parentheses ---
+
+Call me at (415) 555-0132 after 3pm.
+
+For questions, contact our main office at (212) 555-0198.
+
+Emergency contact: (800) 555-0199 — available 24/7.
+
+Her home phone is (503) 555-0147 and her work phone is (503) 555-0293.
+
+--- US formats with dashes ---
+
+My cell number is 415-555-0132.
+
+Please reach out to 212-555-0198 for scheduling.
+
+The customer's callback number is 310-555-0274.
+
+Technical support: 888-555-0156 (Mon-Fri 9am-5pm EST).
+
+--- US formats with dots ---
+
+You can reach me at 415.555.0132.
+
+Contact sales at 800.555.0199 or email sales@company.com.
+
+Office direct line: 650.555.0341.
+
+--- International format with + prefix ---
+
+My international number is +1-415-555-0132.
+
+UK office: +44-20-7946-0958.
+
+Please call our Germany office at +49-30-1234-5678.
+
+Australian support line: +61-2-9876-5432.
+
+The Tokyo branch can be reached at +81-3-5555-1234.
+
+For our India team, call +91-22-5555-6789.
+
+Brazilian office: +55-11-5555-4321.
+
+French customer service: +33-1-5555-9876.
+
+--- In paragraphs / documents ---
+
+PATIENT INTAKE FORM
+
+Name: Angela Martinez
+Date of Birth: 06/14/1982
+Home Phone: (305) 555-0188
+Mobile Phone: 305-555-0244
+Emergency Contact: Carlos Martinez (spouse)
+Emergency Phone: (305) 555-0377
+Insurance Provider: BlueCross BlueShield
+Member ID: BCB-998412
+
+---
+
+Dear Mr. Thompson,
+
+Your appointment with Dr. Rebecca Chen is confirmed for February 24, 2026 at 2:30 PM.
+If you need to reschedule, please call us at (650) 555-0341 at least 24 hours in advance.
+For urgent matters, Dr. Chen can be reached at her direct line: 650.555.0442.
+
+Best regards,
+Mountain View Medical Center
+Main: (650) 555-0100
+Fax: (650) 555-0101
+
+---
+
+EMPLOYEE DIRECTORY (excerpt)
+
+Name                | Department      | Extension | Direct Line
+-----------------------------------------------------------------
+Alice Johnson       | Engineering     | x4421     | 512-555-0187
+Bob Nakamura        | Product         | x4422     | 512-555-0203
+Carol Washington    | HR              | x4430     | 512-555-0311
+David Kim           | Finance         | x4440     | 512-555-0456
+Elena Rodriguez     | Legal           | x4450     | 512-555-0502
+
+Main switchboard: (512) 555-0100
+After-hours: +1-512-555-0199
+
+---
+
+--- Customer support chat ---
+
+Customer: Hi, my order hasn't arrived. Can someone call me back?
+Agent: Of course! What's the best number to reach you?
+Customer: 310-555-0274. I'm available after 2pm Pacific.
+Agent: Got it. You'll receive a call from (310) 555-0300 within the hour.
+
+---
+
+--- Multiple phones in running text ---
+
+John provided three contact numbers: his mobile (917) 555-0188, his work line 212-555-0345,
+and his wife's phone +1-646-555-0299. He said to try the mobile first.
+
+---
+
+--- Toll-free and special ---
+
+Call 800-555-0199 for sales, 888-555-0156 for support, or 877-555-0234 for billing.
+
+Our TTY line for hearing-impaired callers is (800) 555-0177.
+
+--- Edge cases ---
+
+The number +44-20-7946-0958 is a UK landline, while +44-7911-123456 is a UK mobile.
+
+Multiple formats same number: (415) 555-0132 = 415-555-0132 = 415.555.0132 = +1-415-555-0132.
+
+Mixed in a sentence: Call +49-30-1234-5678 (Berlin) or +33-1-5555-9876 (Paris) for European support.

@@ -1,0 +1,13 @@
+{
+  "model": "gpt-4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What API keys are configured in the system?"
+    },
+    {
+      "role": "assistant",
+      "content": "I found the following API keys configured in the system:\n\n1. Anthropic: sk-ant-api03-OpenAIFormatKey123456789012345678901234567890abc\n2. OpenAI: sk-OpenAIFormatKey1234567890abcdefghijklmnop\n3. AWS: AKIAIOSFODNN7EXAMPLE\n4. GitHub: ghp_OpenAIFormatGitHubToken12345678901234ab\n5. Slack Bot: xoxb-123456789012-1234567890123-OpenAIFormatSlack\n6. Slack User: xoxp-123456789012-123456789012-1234567890123-abcdef1234567890abcdef1234567890ab\n\nThe server at 203.0.113.50 (MAC: 00:1A:2B:3C:4D:5E) has all these configured. Contact admin@meridian-tech.com or call 415-555-0132 if you need rotations."
+    }
+  ]
+}

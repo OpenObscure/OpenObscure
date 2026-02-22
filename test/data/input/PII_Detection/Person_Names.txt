@@ -1,0 +1,137 @@
+============================================================
+  PII Detection Test Data — Person Names
+  Source: Synthetic (fictitious individuals, diverse name patterns)
+  Coverage: Full names, partial names, titles, multi-cultural names
+  Detection: NER/CRF model (B-PER / I-PER tags), variable confidence
+============================================================
+
+--- Simple full names ---
+
+Please forward this to James Henderson at the main office.
+
+I spoke with Sarah Mitchell about the project timeline yesterday.
+
+The report was prepared by Dr. Rebecca Chen and reviewed by Michael Thompson.
+
+Contact Robert Williams or Patricia Gomez for more information.
+
+--- Names with titles and suffixes ---
+
+Dear Mr. David Chen,
+
+We are pleased to inform you that your application has been approved. Please
+contact Dr. Angela Martinez at your earliest convenience to schedule a
+follow-up appointment.
+
+Sincerely,
+Prof. William J. Blackwell III
+Department Chair
+
+---
+
+The keynote speaker will be Gen. James R. Mattis (Ret.).
+
+Senator Maria Lopez introduced the bill alongside Rep. Thomas Park.
+
+The Honorable Justice Ruth B. Washington will preside over the hearing.
+
+--- Multi-cultural and international names ---
+
+Our international team includes:
+- Yuki Tanaka (Tokyo office)
+- Hans-Peter Muller (Berlin office)
+- Priya Krishnamurthy (Bangalore office)
+- Jean-Luc Dubois (Paris office)
+- Fatima Al-Rashid (Dubai office)
+- Oleksandr Kovalenko (Kyiv office)
+- Carlos Eduardo da Silva (Sao Paulo office)
+- Seo-Yeon Kim (Seoul office)
+- Wei Zhang (Shanghai office)
+- Alejandro Garcia-Rodriguez (Mexico City office)
+
+---
+
+The research paper was co-authored by Dr. Kenji Watanabe, Prof. Amara Okafor,
+and Dr. Svetlana Ivanova. Peer review was conducted by Prof. Mohammed Al-Farsi
+and Dr. Ingrid Johansson.
+
+--- Names in formal documents ---
+
+MEETING MINUTES — Board of Directors
+Date: February 15, 2026
+
+Attendees:
+- Chairperson: Elizabeth Warren-Baker
+- CEO: Marcus A. Johnson
+- CFO: Linda Chen-Nakamura
+- CTO: Rajesh Patel
+- General Counsel: Sofia Ruiz-Morales
+- Board Members: Thomas O'Brien, Aisha Mohammed, Robert Fitzgerald
+
+Marcus A. Johnson presented Q4 earnings. Linda Chen-Nakamura reported a 12%
+increase in revenue. Rajesh Patel outlined the technology roadmap for 2026.
+Thomas O'Brien raised concerns about cybersecurity spending.
+
+Motion to approve the Q1 budget was proposed by Sofia Ruiz-Morales, seconded
+by Aisha Mohammed. Vote: 6-1 in favor. Robert Fitzgerald dissented, citing
+concerns about R&D allocation.
+
+---
+
+LETTER OF RECOMMENDATION
+
+To Whom It May Concern,
+
+I am writing to recommend Sarah Jennifer Mitchell for the Senior Software
+Engineer position. I have worked with Sarah for the past three years at
+Meridian Technologies, where she reported directly to me.
+
+Sarah consistently demonstrated exceptional technical skills and leadership.
+She mentored junior developers including David Chen and Elena Rodriguez,
+both of whom have since been promoted.
+
+Please feel free to contact me at (206) 555-0312 for further discussion.
+
+Sincerely,
+Robert T. Williams
+Director of Engineering, Meridian Technologies Inc.
+
+--- Names in informal context ---
+
+Hey, did you hear that Bob is transferring to the Seattle office? Carol
+mentioned it at lunch yesterday. Apparently Mike and Elena are also moving.
+
+I ran into Alice Johnson at the coffee shop this morning. She said she's
+leaving TechCorp to join a startup. Bob Nakamura might go with her.
+
+Tom O'Brien called — he wants to set up a meeting with you and Aisha.
+Can you check if Raj is available Thursday afternoon?
+
+--- Names near other PII (cross-type context) ---
+
+Employee records:
+- James Henderson (SSN: 287-65-4321, phone: 206-555-0312)
+- Sarah Mitchell (email: s.mitchell@gmail.com, ID: EMP-4421)
+- David Chen (badge MAC: 3C:22:FB:7A:B1:90, office IP: 10.0.1.50)
+
+The package addressed to Patricia Gomez was delivered to GPS 25.7617, -80.1918.
+
+Dr. Rebecca Chen can be reached at rebecca.chen.md@healthcare-provider.org
+or by calling (650) 555-0341.
+
+--- Edge cases ---
+
+Single first name: Ask Jennifer about the deadline.
+
+Single last name: The Thompson report is due Friday.
+
+Hyphenated: Mary-Jane Watson-Parker submitted the forms.
+
+Initials: Contact R.T. Williams or J.R. Henderson for approval.
+
+Possessive: Henderson's report was submitted. Mitchell's review is pending.
+
+In a list: Cc: James Henderson, Sarah Mitchell, David Chen, Patricia Gomez.
+
+Adjacent names: I met Sarah Mitchell and Robert Williams at the conference
+where Dr. Angela Martinez presented alongside Prof. Kenji Watanabe.

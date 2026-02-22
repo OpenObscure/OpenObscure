@@ -1,0 +1,146 @@
+============================================================
+  PII Detection Test Data — Social Security Numbers
+  Source: Synthetic (valid-range SSNs, no real individuals)
+  Coverage: Dash-separated, space-separated, tax form contexts
+  Validation: No area 000/666/900+, no group 00, no serial 0000
+============================================================
+
+--- Standard dash-separated SSNs ---
+
+My social security number is 123-45-6789.
+
+Applicant SSN: 078-05-1120
+
+For tax purposes, please provide your SSN. Mine is 219-09-9999.
+
+--- Space-separated SSNs ---
+
+My social is 323 45 6789. Is that what you need?
+
+SSN on file: 468 12 3456
+
+The employee's social security number is 531 87 2154.
+
+--- Tax Form Context (1040-style) ---
+
+FORM 1040 — U.S. Individual Income Tax Return (2025)
+
+Your first name and middle initial: James R.
+Last name: Henderson
+Your social security number: 287-65-4321
+
+If joint return, spouse's first name: Maria L.
+Spouse's last name: Henderson
+Spouse's social security number: 452-18-7733
+
+Filing Status: Married Filing Jointly
+Home address: 4521 Maple Drive, Austin, TX 78701
+
+Wages, salaries, tips (W-2, Box 1): $87,450.00
+Interest income: $1,234.56
+Total income: $88,684.56
+Federal income tax withheld: $14,892.00
+
+---
+
+W-2 WAGE AND TAX STATEMENT — 2025
+
+Employer: Meridian Technologies Inc.
+Employer Identification Number (EIN): 36-4217890
+Employee: Robert T. Williams
+Employee SSN: 154-32-8877
+Wages, tips, other compensation: $112,500.00
+Federal income tax withheld: $22,180.00
+Social security wages: $112,500.00
+Social security tax withheld: $6,975.00
+Medicare wages: $112,500.00
+Medicare tax withheld: $1,631.25
+
+---
+
+--- Application / Onboarding Context ---
+
+EMPLOYMENT APPLICATION
+
+Full Legal Name: Sarah J. Mitchell
+Date of Birth: March 15, 1988
+Social Security Number: 378-22-9104
+Address: 892 Oak Street, Portland, OR 97201
+Phone: (503) 555-0147
+Email: s.mitchell@email.com
+Position Applied For: Senior Software Engineer
+Are you legally authorized to work in the United States? Yes
+
+---
+
+BACKGROUND CHECK AUTHORIZATION
+
+I, David Chen, hereby authorize a background check. My SSN is 256-71-4489 and my
+date of birth is 07/22/1991. I understand this information will be used solely for
+employment verification purposes.
+
+Signature: David Chen
+Date: 02/10/2026
+
+---
+
+--- Customer Support Context ---
+
+Customer: I need to verify my identity. My social security number is 412-55-8823.
+Agent: Thank you. Can you also confirm the last four digits of your SSN?
+Customer: 8823.
+Agent: Identity verified. How can I help you today?
+
+---
+
+ACCOUNT RECOVERY REQUEST
+
+Account holder: Patricia Gomez
+SSN for verification: 189-44-6712
+Last four of SSN: 6712
+Date of birth: 11/03/1975
+Mother's maiden name: Rodriguez
+
+---
+
+--- Financial / Loan Application ---
+
+MORTGAGE PRE-APPROVAL APPLICATION
+
+Borrower Information:
+Name: Michael A. Thompson
+SSN: 267-83-1945
+Annual Income: $145,000
+Employment: Director of Engineering, TechCorp Solutions
+Years at current employer: 7
+
+Co-Borrower Information:
+Name: Jennifer L. Thompson
+SSN: 518-36-7721
+Annual Income: $92,000
+Employment: Senior Analyst, DataStream Analytics
+Years at current employer: 4
+
+Requested loan amount: $485,000
+Property address: 1234 Birch Lane, Denver, CO 80202
+
+---
+
+--- Edge cases ---
+
+Multiple SSNs: primary taxpayer 287-65-4321, spouse 452-18-7733, dependent 612-90-3344.
+
+The SSN 078-05-1120 was famously used in a Woolworth wallet advertisement in 1938.
+
+Please do NOT use 000-12-3456 as that is an invalid SSN (area code 000).
+
+Similarly, 666-45-1234 is invalid (area code 666 is reserved).
+
+And 989-12-3456 would be invalid (area codes 900-999 are not issued).
+
+SSNs in a list:
+- Employee #1: 154-32-8877
+- Employee #2: 378-22-9104
+- Employee #3: 256-71-4489
+- Employee #4: 412-55-8823
+- Employee #5: 189-44-6712

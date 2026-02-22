@@ -1,0 +1,89 @@
+============================================================
+  PII Detection Test Data — Spanish (es) Multilingual PII
+  Source: Synthetic (check-digit validated)
+  Coverage: DNI, NIE, phone (+34), IBAN (ES)
+  Validation: mod-23 check letter for DNI/NIE, mod-97 for IBAN
+============================================================
+
+--- DNI (Documento Nacional de Identidad) ---
+
+Mi número de DNI es 12345678Z. Lo necesito para el trámite bancario.
+
+El solicitante presentó su DNI: 00000000T como identificación.
+
+Por favor, introduzca su DNI. El mío es 45678901M.
+
+Datos del empleado: nombre: Carlos García, DNI: 71923456A.
+
+El testigo identificado con DNI 23456789D prestó declaración ante el juez.
+
+Formato con guión: mi DNI es 12345678-Z y mi esposa tiene el 00000000-T.
+
+--- NIE (Número de Identidad de Extranjero) ---
+
+Mi NIE es X0000000T. Soy residente en España desde 2020.
+
+El trabajador extranjero presentó su NIE: Y1234567B para el contrato.
+
+Número de identificación de extranjero: Z9876543V (residente temporal).
+
+NIE con guiones: X-0000000-T, Y-1234567-B, Z-9876543-V.
+
+La solicitud de residencia requiere el NIE del solicitante: X0000000T.
+
+--- Teléfono (+34) ---
+
+Llámame al +34 612 345 678 cuando llegues.
+
+Número de contacto: +34 912 345 678 (oficina de Madrid).
+
+Mi móvil es +34 687 654 321. Prefiero WhatsApp.
+
+Urgencias: +34 611 222 333. Disponible las 24 horas.
+
+Para citas, llame al +34 934 567 890 (Barcelona).
+
+--- IBAN (ES, mod-97 validated) ---
+
+Mi IBAN es ES91 2100 0418 4502 0005 1332. Puede hacer la transferencia.
+
+Datos bancarios para la nómina:
+Titular: María López Fernández
+IBAN: ES79 2100 0813 6101 2345 6789
+BIC/SWIFT: CAIXESBBXXX
+
+Por favor, realice el pago a la cuenta ES68 0049 0001 5321 1234 5678 (Santander).
+
+El alquiler se domicilia en la cuenta IBAN ES12 2038 1234 0600 0012 3456.
+
+--- Documentos mixtos ---
+
+CONTRATO DE TRABAJO
+
+Empresa: TechSolutions Madrid S.L.
+CIF: B12345678
+
+Datos del empleado:
+Nombre completo: Alejandro García Rodríguez
+DNI: 71923456A
+NIE (si extranjero): N/A
+Teléfono: +34 612 345 678
+IBAN para nómina: ES91 2100 0418 4502 0005 1332
+
+Fecha de inicio: 1 de marzo de 2026
+Salario bruto anual: 42.000€
+
+---
+
+FORMULARIO DE RECLAMACIÓN
+
+Reclamante: Laura Martínez Sánchez
+DNI: 45678901M
+Teléfono: +34 687 654 321
+Dirección: Calle Gran Vía 42, 3ºB, 28013 Madrid
+
+Datos bancarios para devolución:
+IBAN: ES79 2100 0813 6101 2345 6789
+
+Descripción de la reclamación: El día 15 de febrero de 2026 se realizó un cargo
+no autorizado de 847,33€ en mi cuenta. Solicito la devolución inmediata.

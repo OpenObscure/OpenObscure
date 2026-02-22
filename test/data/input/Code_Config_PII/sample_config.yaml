@@ -1,0 +1,61 @@
+# Application configuration — CONTAINS SENSITIVE DATA
+# DO NOT commit to version control
+
+server:
+  host: 10.0.0.55
+  port: 8080
+  public_ip: 203.0.113.50
+  ipv6: "2001:db8:85a3::8a2e:370:7334"
+
+api_keys:
+  anthropic: sk-ant-api03-ConfigKey123456789012345678901234567890abc
+  openai: sk-TestOpenAIKeyDoNotUse1234567890abcdef
+  aws:
+    access_key: AKIAIOSFODNN7EXAMPLE
+    secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+github:
+  token: ghp_ConfigFileTokenThatShouldNeverBeCommitted12
+  oauth: gho_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234
+
+slack:
+  bot_token: xoxb-123456789012-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx
+  user_token: xoxp-123456789012-123456789012-1234567890123-abcdef1234567890abcdef1234567890ab
+
+database:
+  primary:
+    host: 10.0.0.55
+    port: 5432
+    username: db_admin
+    password: SuperSecret123!
+    name: production_db
+  replica:
+    host: 10.0.0.56
+    port: 5432
+
+cache:
+  host: 10.0.0.60
+  port: 6379
+
+admin:
+  email: admin@meridian-tech.com
+  phone: "415-555-0132"
+  backup_email: ops-team@meridian-tech.com
+
+monitoring:
+  endpoints:
+    - url: https://203.0.113.50/health
+      mac_filter: "00:1A:2B:3C:4D:5E"
+    - url: https://[2001:db8:85a3::8a2e:370:7334]/health
+  alert_email: alerts@meridian-tech.com
+  gps_office: "47.6062, -122.3321"
+
+network:
+  allowed_macs:
+    - "00:1A:2B:3C:4D:5E"
+    - "3C:22:FB:7A:B1:90"
+    - "48:D7:05:F3:A2:81"
+  gateway: 10.0.1.1
+  dns:
+    - 8.8.8.8
+    - 8.8.4.4

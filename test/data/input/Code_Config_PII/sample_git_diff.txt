@@ -1,0 +1,56 @@
+diff --git a/.env.production b/.env.production
+index a1b2c3d..e4f5g6h 100644
+--- a/.env.production
++++ b/.env.production
+@@ -1,8 +1,8 @@
+ # Production environment variables
+-ANTHROPIC_API_KEY=sk-ant-api03-OldKey123456789012345678901234567890abc
++ANTHROPIC_API_KEY=sk-ant-api03-NewKey987654321098765432109876543210xyz
+-OPENAI_API_KEY=sk-OldOpenAIKey1234567890abcdefghijklmnop
++OPENAI_API_KEY=sk-NewOpenAIKey0987654321zyxwvutsrqponmlkji
+ AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE
+ DB_HOST=10.0.0.55
+-ADMIN_EMAIL=old.admin@company.com
++ADMIN_EMAIL=admin@meridian-tech.com
+ ADMIN_PHONE=415-555-0132
+
+diff --git a/config/production.yaml b/config/production.yaml
+index h8i9j0k..l1m2n3o 100644
+--- a/config/production.yaml
++++ b/config/production.yaml
+@@ -3,10 +3,12 @@ server:
+   port: 8080
+   public_ip: 203.0.113.50
++  ipv6: "2001:db8:85a3::8a2e:370:7334"
+
+ github:
+-  token: ghp_OldTokenThatWasRotated12345678901234abcd
++  token: ghp_NewRotatedToken98765432109876543210zyxw
+
+ slack:
+-  bot_token: xoxb-old-111222333444-OldSlackToken
++  bot_token: xoxb-123456789012-1234567890123-NewRotatedSlackToken
+
+ network:
+   allowed_macs:
+     - "00:1A:2B:3C:4D:5E"
++    - "3C:22:FB:7A:B1:90"
+   gateway: 10.0.1.1
+
+diff --git a/src/seed_data.py b/src/seed_data.py
+index p4q5r6s..t7u8v9w 100644
+--- a/src/seed_data.py
++++ b/src/seed_data.py
+@@ -5,6 +5,12 @@ TEST_USERS = [
+         "email": "james.henderson@email.com",
+         "phone": "(206) 555-0312",
+         "ssn": "287-65-4321",
++        "card": "4532015112830366",
++    },
++    {
++        "name": "Sarah Mitchell",
++        "email": "s.mitchell@gmail.com",
++        "phone": "(503) 555-0147",
++        "ssn": "378-22-9104",
+     },
+ ]

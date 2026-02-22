@@ -52,6 +52,8 @@ pub struct AppConfig {
     pub logging: LoggingConfig,
     #[serde(default)]
     pub image: ImageConfig,
+    #[serde(default)]
+    pub voice: VoiceConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -319,6 +321,57 @@ impl Default for ImageConfig {
             nsfw_threshold: default_nsfw_threshold(),
         }
     }
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct VoiceConfig {
+    /// Enable voice PII detection pipeline (default: false).
+    /// When enabled and KWS models are available, audio blocks are scanned
+    /// for PII keywords. Blocks with PII are stripped; clean audio passes through.
+    /// When KWS models are unavailable, audio passes through unscanned.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Directory containing KWS Zipformer ONNX models (encoder/decoder/joiner + tokens.txt).
+    #[serde(default = "default_kws_model_dir")]
+    pub kws_model_dir: String,
+
+    /// Path to tokenized PII keywords file.
+    #[serde(default = "default_kws_keywords_file")]
+    pub kws_keywords_file: String,
+
+    /// KWS detection threshold (0-1). Lower = more sensitive. Default: 0.1.
+    #[serde(default = "default_kws_threshold")]
+    pub kws_threshold: f32,
+
+    /// KWS keyword boosting score. Higher = easier to trigger. Default: 3.0.
+    #[serde(default = "default_kws_score")]
+    pub kws_score: f32,
+}
+
+impl Default for VoiceConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            kws_model_dir: default_kws_model_dir(),
+            kws_keywords_file: default_kws_keywords_file(),
+            kws_threshold: default_kws_threshold(),
+            kws_score: default_kws_score(),
+        }
+    }
+}
+
+fn default_kws_model_dir() -> String {
+    "models/kws".to_string()
+}
+fn default_kws_keywords_file() -> String {
+    "models/kws/keywords.txt".to_string()
+}
+fn default_kws_threshold() -> f32 {
+    0.1
+}
+fn default_kws_score() -> f32 {
+    3.0
 }
 
 fn default_face_model() -> String {

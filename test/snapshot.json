@@ -1,0 +1,867 @@
+{
+  "_meta": {
+    "version": "1.0",
+    "generated": "2026-02-22T19:02:42Z",
+    "description": "Exact detection counts for regression testing. Regenerate with: ./test/scripts/generate_snapshot.sh",
+    "gateway_files": 45,
+    "audio_files": 13,
+    "visual_files": 45
+  },
+  "gateway": {
+    "Agent_Tool_Results/agent_anthropic_multi_text.json": {
+      "total_matches": 12,
+      "type_summary": {
+        "api_key": 2,
+        "email": 2,
+        "ipv4_address": 1,
+        "mac_address": 1,
+        "person": 2,
+        "phone": 2,
+        "ssn": 2
+      }
+    },
+    "Agent_Tool_Results/agent_anthropic_text_pii.json": {
+      "total_matches": 11,
+      "type_summary": {
+        "credit_card": 1,
+        "email": 1,
+        "gps_coordinate": 1,
+        "ipv4_address": 1,
+        "location": 3,
+        "mac_address": 1,
+        "person": 1,
+        "phone": 1,
+        "ssn": 1
+      }
+    },
+    "Agent_Tool_Results/agent_code_fence_credentials.json": {
+      "total_matches": 11,
+      "type_summary": {
+        "api_key": 5,
+        "email": 1,
+        "ipv4_address": 3,
+        "mac_address": 1,
+        "phone": 1
+      }
+    },
+    "Agent_Tool_Results/agent_deeply_nested_json.json": {
+      "total_matches": 5,
+      "type_summary": {
+        "email": 1,
+        "ipv4_address": 1,
+        "mac_address": 1,
+        "phone": 1,
+        "ssn": 1
+      }
+    },
+    "Agent_Tool_Results/agent_multimodal_mixed.json": {
+      "total_matches": 15,
+      "type_summary": {
+        "api_key": 4,
+        "email": 1,
+        "gps_coordinate": 2,
+        "ipv4_address": 2,
+        "ipv6_address": 1,
+        "location": 1,
+        "mac_address": 1,
+        "person": 1,
+        "phone": 1,
+        "ssn": 1
+      }
+    },
+    "Agent_Tool_Results/agent_openai_text_apikey.json": {
+      "total_matches": 10,
+      "type_summary": {
+        "api_key": 6,
+        "email": 1,
+        "ipv4_address": 1,
+        "mac_address": 1,
+        "phone": 1
+      }
+    },
+    "Agent_Tool_Results/agent_tool_result_database_query.json": {
+      "total_matches": 28,
+      "type_summary": {
+        "credit_card": 2,
+        "email": 3,
+        "health_keyword": 15,
+        "person": 2,
+        "phone": 3,
+        "ssn": 3
+      }
+    },
+    "Agent_Tool_Results/agent_tool_result_nested_pii.json": {
+      "total_matches": 11,
+      "type_summary": {
+        "credit_card": 1,
+        "email": 1,
+        "gps_coordinate": 1,
+        "ipv4_address": 1,
+        "location": 3,
+        "mac_address": 1,
+        "person": 1,
+        "phone": 1,
+        "ssn": 1
+      }
+    },
+    "Agent_Tool_Results/agent_tool_result_network_scan.json": {
+      "total_matches": 22,
+      "type_summary": {
+        "api_key": 2,
+        "email": 4,
+        "gps_coordinate": 4,
+        "ipv4_address": 4,
+        "ipv6_address": 4,
+        "mac_address": 4
+      }
+    },
+    "Code_Config_PII/sample_access.log": {
+      "total_matches": 42,
+      "type_summary": {
+        "api_key": 4,
+        "credit_card": 2,
+        "email": 4,
+        "ipv4_address": 20,
+        "ipv6_address": 2,
+        "mac_address": 1,
+        "organization": 5,
+        "phone": 2,
+        "ssn": 2
+      }
+    },
+    "Code_Config_PII/sample_config.yaml": {
+      "total_matches": 27,
+      "type_summary": {
+        "api_key": 7,
+        "email": 3,
+        "gps_coordinate": 1,
+        "ipv4_address": 9,
+        "ipv6_address": 2,
+        "mac_address": 4,
+        "phone": 1
+      }
+    },
+    "Code_Config_PII/sample_deploy.sh": {
+      "total_matches": 22,
+      "type_summary": {
+        "api_key": 4,
+        "email": 5,
+        "gps_coordinate": 1,
+        "ipv4_address": 6,
+        "ipv6_address": 1,
+        "mac_address": 1,
+        "phone": 3,
+        "ssn": 1
+      }
+    },
+    "Code_Config_PII/sample_docs.md": {
+      "total_matches": 13,
+      "type_summary": {
+        "email": 2,
+        "gps_coordinate": 1,
+        "ipv4_address": 3,
+        "ipv6_address": 3,
+        "mac_address": 3,
+        "phone": 1
+      }
+    },
+    "Code_Config_PII/sample.env": {
+      "total_matches": 14,
+      "type_summary": {
+        "api_key": 4,
+        "email": 3,
+        "gps_coordinate": 1,
+        "ipv4_address": 3,
+        "ipv6_address": 1,
+        "mac_address": 1,
+        "phone": 1
+      }
+    },
+    "Code_Config_PII/sample_git_diff.txt": {
+      "total_matches": 24,
+      "type_summary": {
+        "api_key": 8,
+        "credit_card": 1,
+        "email": 4,
+        "ipv4_address": 3,
+        "ipv6_address": 1,
+        "mac_address": 2,
+        "phone": 3,
+        "ssn": 2
+      }
+    },
+    "Code_Config_PII/sample_python.py": {
+      "total_matches": 24,
+      "type_summary": {
+        "api_key": 4,
+        "credit_card": 2,
+        "email": 4,
+        "gps_coordinate": 1,
+        "ipv4_address": 5,
+        "ipv6_address": 1,
+        "mac_address": 2,
+        "phone": 3,
+        "ssn": 2
+      }
+    },
+    "Code_Config_PII/sample_terraform.json": {
+      "total_matches": 16,
+      "type_summary": {
+        "api_key": 1,
+        "email": 2,
+        "ipv4_address": 8,
+        "ipv6_address": 1,
+        "mac_address": 2,
+        "phone": 2
+      }
+    },
+    "Multilingual_PII/ar_Arabic_PII.txt": {
+      "total_matches": 33,
+      "type_summary": {
+        "email": 1,
+        "location": 3,
+        "phone": 14,
+        "ssn": 15
+      }
+    },
+    "Multilingual_PII/de_German_PII.txt": {
+      "total_matches": 23,
+      "type_summary": {
+        "credit_card": 4,
+        "email": 1,
+        "organization": 1,
+        "phone": 10,
+        "ssn": 7
+      }
+    },
+    "Multilingual_PII/es_Spanish_PII.txt": {
+      "total_matches": 21,
+      "type_summary": {
+        "credit_card": 4,
+        "organization": 1,
+        "person": 1,
+        "phone": 7,
+        "ssn": 8
+      }
+    },
+    "Multilingual_PII/fr_French_PII.txt": {
+      "total_matches": 17,
+      "type_summary": {
+        "credit_card": 5,
+        "email": 1,
+        "organization": 1,
+        "phone": 10
+      }
+    },
+    "Multilingual_PII/ja_Japanese_PII.txt": {
+      "total_matches": 19,
+      "type_summary": {
+        "email": 1,
+        "phone": 13,
+        "ssn": 5
+      }
+    },
+    "Multilingual_PII/ko_Korean_PII.txt": {
+      "total_matches": 16,
+      "type_summary": {
+        "email": 1,
+        "phone": 8,
+        "ssn": 7
+      }
+    },
+    "Multilingual_PII/pt_Portuguese_PII.txt": {
+      "total_matches": 31,
+      "type_summary": {
+        "organization": 5,
+        "person": 1,
+        "phone": 12,
+        "ssn": 13
+      }
+    },
+    "Multilingual_PII/zh_Chinese_PII.txt": {
+      "total_matches": 16,
+      "type_summary": {
+        "email": 1,
+        "phone": 12,
+        "ssn": 3
+      }
+    },
+    "PII_Detection/API_Keys_Tokens.txt": {
+      "total_matches": 30,
+      "type_summary": {
+        "api_key": 28,
+        "email": 1,
+        "organization": 1
+      }
+    },
+    "PII_Detection/Child_Keywords.txt": {
+      "total_matches": 135,
+      "type_summary": {
+        "child_keyword": 127,
+        "health_keyword": 4,
+        "person": 2,
+        "phone": 2
+      }
+    },
+    "PII_Detection/Credit_Card_Numbers.txt": {
+      "total_matches": 17,
+      "type_summary": {
+        "credit_card": 17
+      }
+    },
+    "PII_Detection/Email_Addresses.txt": {
+      "total_matches": 47,
+      "type_summary": {
+        "email": 44,
+        "phone": 3
+      }
+    },
+    "PII_Detection/GPS_Coordinates.txt": {
+      "total_matches": 42,
+      "type_summary": {
+        "child_keyword": 1,
+        "gps_coordinate": 35,
+        "location": 5,
+        "organization": 1
+      }
+    },
+    "PII_Detection/Health_Keywords.txt": {
+      "total_matches": 177,
+      "type_summary": {
+        "child_keyword": 1,
+        "health_keyword": 176
+      }
+    },
+    "PII_Detection/IPv4_Addresses.txt": {
+      "total_matches": 50,
+      "type_summary": {
+        "child_keyword": 3,
+        "ipv4_address": 47
+      }
+    },
+    "PII_Detection/IPv6_Addresses.txt": {
+      "total_matches": 34,
+      "type_summary": {
+        "ipv4_address": 3,
+        "ipv6_address": 31
+      }
+    },
+    "PII_Detection/Locations.txt": {
+      "total_matches": 61,
+      "type_summary": {
+        "child_keyword": 2,
+        "location": 58,
+        "organization": 1
+      }
+    },
+    "PII_Detection/MAC_Addresses.txt": {
+      "total_matches": 55,
+      "type_summary": {
+        "ipv4_address": 8,
+        "mac_address": 46,
+        "organization": 1
+      }
+    },
+    "PII_Detection/Mixed_Structured_PII.txt": {
+      "total_matches": 82,
+      "type_summary": {
+        "api_key": 8,
+        "credit_card": 4,
+        "email": 14,
+        "gps_coordinate": 7,
+        "health_keyword": 4,
+        "ipv4_address": 11,
+        "ipv6_address": 4,
+        "location": 4,
+        "mac_address": 4,
+        "organization": 1,
+        "phone": 12,
+        "ssn": 9
+      }
+    },
+    "PII_Detection/Organizations.txt": {
+      "total_matches": 48,
+      "type_summary": {
+        "child_keyword": 2,
+        "health_keyword": 11,
+        "location": 1,
+        "organization": 34
+      }
+    },
+    "PII_Detection/Person_Names.txt": {
+      "total_matches": 32,
+      "type_summary": {
+        "email": 2,
+        "gps_coordinate": 1,
+        "ipv4_address": 1,
+        "location": 5,
+        "mac_address": 1,
+        "person": 18,
+        "phone": 3,
+        "ssn": 1
+      }
+    },
+    "PII_Detection/Phone_Numbers.txt": {
+      "total_matches": 49,
+      "type_summary": {
+        "email": 1,
+        "health_keyword": 1,
+        "location": 7,
+        "phone": 40
+      }
+    },
+    "PII_Detection/Social_Security_Numbers.txt": {
+      "total_matches": 30,
+      "type_summary": {
+        "email": 1,
+        "location": 1,
+        "organization": 1,
+        "person": 2,
+        "phone": 1,
+        "ssn": 24
+      }
+    },
+    "Structured_Data_PII/customer_database.csv": {
+      "total_matches": 53,
+      "type_summary": {
+        "credit_card": 5,
+        "email": 8,
+        "gps_coordinate": 8,
+        "location": 17,
+        "person": 7,
+        "phone": 8
+      }
+    },
+    "Structured_Data_PII/employee_roster.csv": {
+      "total_matches": 69,
+      "type_summary": {
+        "email": 10,
+        "gps_coordinate": 10,
+        "ipv4_address": 10,
+        "mac_address": 10,
+        "organization": 2,
+        "person": 7,
+        "phone": 10,
+        "ssn": 10
+      }
+    },
+    "Structured_Data_PII/network_inventory.tsv": {
+      "total_matches": 56,
+      "type_summary": {
+        "email": 10,
+        "gps_coordinate": 10,
+        "ipv4_address": 10,
+        "ipv6_address": 10,
+        "location": 2,
+        "mac_address": 10,
+        "organization": 4
+      }
+    },
+    "Structured_Data_PII/patient_records.csv": {
+      "total_matches": 77,
+      "type_summary": {
+        "email": 8,
+        "gps_coordinate": 8,
+        "health_keyword": 33,
+        "person": 12,
+        "phone": 8,
+        "ssn": 8
+      }
+    },
+    "Structured_Data_PII/transactions.csv": {
+      "total_matches": 51,
+      "type_summary": {
+        "credit_card": 6,
+        "email": 10,
+        "gps_coordinate": 10,
+        "ipv4_address": 10,
+        "person": 5,
+        "phone": 10
+      }
+    }
+  },
+  "audio": {
+    "Audio_PII/audio_address_single.wav": {
+      "pii_detected": true,
+      "keywords": "MY ADDRESS",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_cc_visa.wav": {
+      "pii_detected": true,
+      "keywords": "VISA CARD",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_customer_service.mp3": {
+      "pii_detected": true,
+      "keywords": "MASTERCARD, CARD NUMBER, SOCIAL SECURITY",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_customer_service.wav": {
+      "pii_detected": true,
+      "keywords": "MASTERCARD, CARD NUMBER, SOCIAL SECURITY",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_email_single.wav": {
+      "pii_detected": false,
+      "keywords": "",
+      "action": "CLEAN"
+    },
+    "Audio_PII/audio_job_screening.wav": {
+      "pii_detected": true,
+      "keywords": "SOCIAL SECURITY",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_medical_intake.ogg": {
+      "pii_detected": true,
+      "keywords": "DATE OF BIRTH, SOCIAL SECURITY, CONTACT NUMBER",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_medical_intake.wav": {
+      "pii_detected": true,
+      "keywords": "DATE OF BIRTH, SOCIAL SECURITY, CONTACT NUMBER",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_name_single.wav": {
+      "pii_detected": false,
+      "keywords": "",
+      "action": "CLEAN"
+    },
+    "Audio_PII/audio_phone_us.ogg": {
+      "pii_detected": true,
+      "keywords": "REACH ME AT",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_phone_us.wav": {
+      "pii_detected": true,
+      "keywords": "REACH ME AT",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_ssn_single.mp3": {
+      "pii_detected": true,
+      "keywords": "SOCIAL SECURITY",
+      "action": "PII_DETECTED"
+    },
+    "Audio_PII/audio_ssn_single.wav": {
+      "pii_detected": true,
+      "keywords": "SOCIAL SECURITY",
+      "action": "PII_DETECTED"
+    }
+  },
+  "visual": {
+    "Visual_PII/doc_business_card_01.jpg": {
+      "subcategory": "Documents",
+      "faces_blurred": 0,
+      "text_regions_detected": 9,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/doc_credit_card_01.jpg": {
+      "subcategory": "Documents",
+      "faces_blurred": 0,
+      "text_regions_detected": 6,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/doc_drivers_license_01.jpg": {
+      "subcategory": "Documents",
+      "faces_blurred": 0,
+      "text_regions_detected": 25,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/doc_insurance_card_01.jpg": {
+      "subcategory": "Documents",
+      "faces_blurred": 0,
+      "text_regions_detected": 21,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/doc_medical_record_01.jpg": {
+      "subcategory": "Documents",
+      "faces_blurred": 0,
+      "text_regions_detected": 31,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/doc_passport_01.jpg": {
+      "subcategory": "Documents",
+      "faces_blurred": 0,
+      "text_regions_detected": 25,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/doc_ssn_card_01.png": {
+      "subcategory": "Documents",
+      "faces_blurred": 0,
+      "text_regions_detected": 10,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/doc_w2_form_01.jpg": {
+      "subcategory": "Documents",
+      "faces_blurred": 0,
+      "text_regions_detected": 27,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/exif_camera_no_gps.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/exif_no_metadata_control.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 2,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/exif_screenshot_cleanshot.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/exif_screenshot_flameshot.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 3,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/exif_screenshot_gnome.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/exif_screenshot_screencapture.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 2,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/exif_screenshot_sharex.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/exif_screenshot_snipping_tool.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/exif_smartphone_no_gps.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/exif_stripped_control.jpg": {
+      "subcategory": "EXIF",
+      "faces_blurred": 0,
+      "text_regions_detected": 2,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_group_01.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 0,
+      "text_regions_detected": 5,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_group_02.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 3,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_group_03.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_single_frontal_01.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_single_frontal_02.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 1,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_single_frontal_03.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 2,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_single_frontal_04.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_single_frontal_05.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_single_frontal_06.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 4,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_single_frontal_07.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_single_profile_01.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 1,
+      "text_regions_detected": 2,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_small_landscape_01.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 2,
+      "text_regions_detected": 1,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/face_small_landscape_02.jpg": {
+      "subcategory": "Faces",
+      "faces_blurred": 0,
+      "text_regions_detected": 4,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/nsfw_positive_placeholder_01.jpg": {
+      "subcategory": "NSFW",
+      "faces_blurred": 0,
+      "text_regions_detected": 3,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/nsfw_positive_placeholder_02.jpg": {
+      "subcategory": "NSFW",
+      "faces_blurred": 0,
+      "text_regions_detected": 3,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/nsfw_safe_landscape_01.jpg": {
+      "subcategory": "NSFW",
+      "faces_blurred": 0,
+      "text_regions_detected": 1,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/nsfw_safe_landscape_02.jpg": {
+      "subcategory": "NSFW",
+      "faces_blurred": 0,
+      "text_regions_detected": 1,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/nsfw_safe_object_01.jpg": {
+      "subcategory": "NSFW",
+      "faces_blurred": 0,
+      "text_regions_detected": 11,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/nsfw_safe_portrait_01.jpg": {
+      "subcategory": "NSFW",
+      "faces_blurred": 1,
+      "text_regions_detected": 1,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/nsfw_safe_portrait_02.jpg": {
+      "subcategory": "NSFW",
+      "faces_blurred": 1,
+      "text_regions_detected": 10,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/screenshot_android_form_1080x2340.png": {
+      "subcategory": "Screenshots",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/screenshot_email_inbox_1920x1080.png": {
+      "subcategory": "Screenshots",
+      "faces_blurred": 0,
+      "text_regions_detected": 15,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/screenshot_ide_code_1920x1080.png": {
+      "subcategory": "Screenshots",
+      "faces_blurred": 0,
+      "text_regions_detected": 22,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/screenshot_mobile_chat_1170x2532.png": {
+      "subcategory": "Screenshots",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/screenshot_spreadsheet_2880x1800.png": {
+      "subcategory": "Screenshots",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/screenshot_terminal_logs_2560x1440.png": {
+      "subcategory": "Screenshots",
+      "faces_blurred": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": true
+    },
+    "Visual_PII/screenshot_web_form_1440x900.png": {
+      "subcategory": "Screenshots",
+      "faces_blurred": 0,
+      "text_regions_detected": 17,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    }
+  }
+}

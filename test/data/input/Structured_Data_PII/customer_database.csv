@@ -1,0 +1,9 @@
+CustomerID,Name,Email,Phone,CreditCard,BillingAddress,GPS,AccountCreated
+CUST-001,Michael Thompson,m.thompson@outlook.com,+1-303-555-0188,5425233430109903,"1234 Birch Lane, Denver, CO 80202","39.7392, -104.9903",2024-06-15
+CUST-002,Angela Martinez,a.martinez82@gmail.com,(305) 555-0188,4532015112830366,"1456 Palm Boulevard, Miami, FL 33101","25.7617, -80.1918",2024-08-22
+CUST-003,James Henderson,j.henderson@email.com,(206) 555-0312,6011111111111117,"7842 Cedar Avenue, Seattle, WA 98101","47.6062, -122.3321",2023-11-01
+CUST-004,Sarah Mitchell,s.mitchell@gmail.com,(503) 555-0147,3714496353984310,"892 Oak Street, Apt 4B, Portland, OR 97201","45.5231, -122.6765",2025-01-10
+CUST-005,Patricia Gomez,p.gomez@company.com,(305) 555-0377,4916338506082832,"2890 Sunset Drive, Miami, FL 33139","25.7902, -80.2103",2024-03-30
+CUST-006,Robert Williams,r.williams@email.com,(206) 555-0312,5133080092882455,"7842 Cedar Avenue, Seattle, WA 98101","47.6062, -122.3321",2023-07-18
+CUST-007,David Chen,d.chen@company.com,512-555-0456,4024007171239865,"1100 Congress Ave, Austin, TX 78701","30.2672, -97.7431",2025-02-01
+CUST-008,Elena Rodriguez,e.rodriguez@company.com,(512) 555-0502,5206840103402891,"456 Barton Springs Rd, Austin, TX 78704","30.2620, -97.7560",2024-12-05

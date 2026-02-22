@@ -96,14 +96,14 @@ jobs:
           workspaces: openobscure-proxy
 
       - name: Regenerate bindings
-        run: ./scripts/generate_bindings.sh
+        run: ./build/generate_bindings.sh
 
       - name: Check for drift
         run: |
           if ! git diff --exit-code bindings/; then
             echo ""
             echo "ERROR: UniFFI bindings are out of date."
-            echo "Run './scripts/generate_bindings.sh' locally and commit the updated bindings."
+            echo "Run './build/generate_bindings.sh' locally and commit the updated bindings."
             exit 1
           fi
           echo "Bindings are up to date."

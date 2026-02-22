@@ -100,6 +100,8 @@ pub struct HealthStats {
     images_processed_total: Arc<AtomicU64>,
     faces_blurred_total: Arc<AtomicU64>,
     text_regions_total: Arc<AtomicU64>,
+    nsfw_blocked_total: Arc<AtomicU64>,
+    screenshots_detected_total: Arc<AtomicU64>,
     pub scan_latency: LatencyHistogram,
     pub request_latency: LatencyHistogram,
 }
@@ -113,6 +115,8 @@ impl HealthStats {
             images_processed_total: Arc::new(AtomicU64::new(0)),
             faces_blurred_total: Arc::new(AtomicU64::new(0)),
             text_regions_total: Arc::new(AtomicU64::new(0)),
+            nsfw_blocked_total: Arc::new(AtomicU64::new(0)),
+            screenshots_detected_total: Arc::new(AtomicU64::new(0)),
             scan_latency: LatencyHistogram::new(),
             request_latency: LatencyHistogram::new(),
         }
@@ -144,6 +148,17 @@ impl HealthStats {
         self.text_regions_total.fetch_add(count, Ordering::Relaxed);
     }
 
+    /// Record NSFW images blocked.
+    pub fn record_nsfw_blocked(&self, count: u64) {
+        self.nsfw_blocked_total.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Record screenshots detected.
+    pub fn record_screenshots_detected(&self, count: u64) {
+        self.screenshots_detected_total
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
     pub fn uptime_secs(&self) -> u64 {
         self.start_time.elapsed().as_secs()
     }
@@ -166,6 +181,14 @@ impl HealthStats {
 
     pub fn text_regions_total(&self) -> u64 {
         self.text_regions_total.load(Ordering::Relaxed)
+    }
+
+    pub fn nsfw_blocked_total(&self) -> u64 {
+        self.nsfw_blocked_total.load(Ordering::Relaxed)
+    }
+
+    pub fn screenshots_detected_total(&self) -> u64 {
+        self.screenshots_detected_total.load(Ordering::Relaxed)
     }
 }
 
@@ -205,6 +228,8 @@ pub struct HealthResponse {
     pub images_processed_total: u64,
     pub faces_blurred_total: u64,
     pub text_regions_total: u64,
+    pub nsfw_blocked_total: u64,
+    pub screenshots_detected_total: u64,
     pub fpe_key_version: u32,
     pub scan_latency_p50_us: u64,
     pub scan_latency_p95_us: u64,
@@ -244,6 +269,8 @@ pub async fn health_handler(
         images_processed_total: stats.images_processed_total(),
         faces_blurred_total: stats.faces_blurred_total(),
         text_regions_total: stats.text_regions_total(),
+        nsfw_blocked_total: stats.nsfw_blocked_total(),
+        screenshots_detected_total: stats.screenshots_detected_total(),
         fpe_key_version: health_state
             .key_version
             .load(std::sync::atomic::Ordering::Relaxed),

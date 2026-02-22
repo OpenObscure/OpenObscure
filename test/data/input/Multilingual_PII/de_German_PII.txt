@@ -1,0 +1,92 @@
+============================================================
+  PII Detection Test Data — German (de) Multilingual PII
+  Source: Synthetic (check-digit validated)
+  Coverage: Steueridentifikationsnummer (Tax ID), phone (+49), IBAN (DE)
+  Validation: 11-digit tax ID with digit frequency rules, mod-97 IBAN
+============================================================
+
+--- Steueridentifikationsnummer (Tax ID, 11 digits) ---
+
+Meine Steuer-ID ist 65929970489. Bitte verwenden Sie diese für die Steuererklärung.
+
+Steueridentifikationsnummer des Arbeitnehmers: 12345678912.
+
+Die Steuer-ID meiner Frau lautet 98765432198.
+
+Für den Lohnsteuerabzug benötigen wir Ihre Steuer-ID: 65929970489.
+
+Bitte tragen Sie Ihre Identifikationsnummer 12345678912 in Zeile 4 ein.
+
+--- Telefon (+49) ---
+
+Rufen Sie mich bitte an: +49 30 1234 5678 (Büro Berlin).
+
+Meine Handynummer ist +49 170 1234567. Am besten per SMS.
+
+Kundendienst: +49 89 9876 5432 (München, Mo-Fr 9-17 Uhr).
+
+Notfallkontakt: +49 40 5555 6789 (Hamburg).
+
+Für technischen Support: +49 221 4567 890 (Köln).
+
+Mobil: +49 151 23456789. Festnetz: +49 30 98765432.
+
+--- IBAN (DE, mod-97 validated) ---
+
+Meine IBAN lautet DE89 3704 0044 0532 0130 00. Bitte überweisen Sie den Betrag.
+
+Bankverbindung:
+Kontoinhaber: Hans-Peter Müller
+IBAN: DE27 1007 0724 0612 3456 78
+BIC: DEUTDEDBBER
+
+Die Miete überweisen Sie bitte an IBAN DE89 3704 0044 0532 0130 00 (Commerzbank).
+
+Für die Gehaltsüberweisung verwenden Sie bitte: DE27 1007 0724 0612 3456 78.
+
+--- Gemischte Dokumente ---
+
+ARBEITSVERTRAG
+
+Arbeitgeber: Meridian Technologie GmbH
+Handelsregisternummer: HRB 123456
+
+Arbeitnehmer:
+Name: Hans-Peter Müller
+Steuer-ID: 65929970489
+Telefon: +49 170 1234567
+Bankverbindung:
+  IBAN: DE89 3704 0044 0532 0130 00
+  BIC: COBADEFFXXX
+
+Beginn des Arbeitsverhältnisses: 1. März 2026
+Bruttogehalt: 65.000€ pro Jahr
+
+---
+
+MELDEBESCHEINIGUNG
+
+Familienname: Müller
+Vorname: Hans-Peter
+Steueridentifikationsnummer: 65929970489
+Anschrift: Friedrichstraße 123, 10117 Berlin
+Telefon: +49 30 1234 5678
+E-Mail: h.mueller@email.de
+
+Bankverbindung für Steuererstattung:
+IBAN: DE27 1007 0724 0612 3456 78
+
+---
+
+RECHNUNGSSTELLUNG
+
+Rechnungsnummer: RE-2026-04421
+Datum: 18. Februar 2026
+Betrag: 1.249,00€ (inkl. 19% MwSt.)
+
+Bitte überweisen Sie den Betrag innerhalb von 14 Tagen an:
+Kontoinhaber: Meridian Technologie GmbH
+IBAN: DE89 3704 0044 0532 0130 00
+Verwendungszweck: RE-2026-04421
+
+Bei Rückfragen erreichen Sie uns unter +49 30 98765432.

@@ -28,9 +28,10 @@ pub mod ocr_engine;
 pub mod screen_guard;
 
 // Voice anonymization pipeline
+pub mod audio_decode;
+pub mod kws_engine;
 pub mod voice_detect;
 pub mod voice_pipeline;
-pub mod whisper_engine;
 
 // ONNX Runtime execution provider configuration
 pub mod ort_ep;

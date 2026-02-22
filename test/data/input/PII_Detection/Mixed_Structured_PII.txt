@@ -1,0 +1,268 @@
+============================================================
+  PII Detection Test Data — Mixed Structured PII
+  Source: Synthetic multi-type documents
+  Coverage: ALL 9 structured PII types mixed in realistic documents
+  Types: CC, SSN, Phone, Email, API Key, IPv4, IPv6, GPS, MAC
+============================================================
+
+
+==============================
+ DOCUMENT 1: IRS 1040 + W-2
+==============================
+
+FORM 1040 — U.S. Individual Income Tax Return (2025)
+
+Your first name and middle initial: Robert A.
+Last name: Williams
+Your social security number: 154-32-8877
+
+Spouse's first name: Linda M.
+Spouse's last name: Williams
+Spouse's social security number: 531-87-2154
+
+Home address: 7842 Cedar Avenue, Seattle, WA 98101
+Phone: (206) 555-0312
+Email: r.williams@email.com
+
+Filing Status: [X] Married Filing Jointly
+
+W-2 INFORMATION:
+Employer: Meridian Technologies Inc.
+Employer EIN: 36-4217890
+Employee SSN: 154-32-8877
+Wages: $112,500.00
+Federal tax withheld: $22,180.00
+
+BANK ACCOUNT FOR DIRECT DEPOSIT:
+Routing number: 021000021
+Account number: ****4589
+Type: Checking
+
+Payment of $3,247.00 refund to Visa card 4532015112830366 is not available.
+Refund will be deposited to bank account on file.
+
+
+==============================
+ DOCUMENT 2: EMPLOYEE ONBOARDING
+==============================
+
+NEW HIRE PACKET — Meridian Technologies Inc.
+
+PERSONAL INFORMATION:
+Full Legal Name: Sarah Jennifer Mitchell
+SSN: 378-22-9104
+Date of Birth: 03/15/1988
+Home Address: 892 Oak Street, Apt 4B, Portland, OR 97201
+Personal Email: s.mitchell@gmail.com
+Work Email: sarah.mitchell@meridian-tech.com
+Mobile Phone: (503) 555-0147
+Emergency Contact: Thomas Mitchell (brother), 503-555-0298
+
+IT SETUP:
+Assigned Laptop: Dell Latitude 5540
+MAC Address: 3C:22:FB:7A:B1:90
+IP Assignment: 10.0.1.50 (static, VLAN 10)
+VPN Profile: IPv6 tunnel endpoint 2001:db8:1::50
+Building Wi-Fi: Connect to "MeridianCorp" network
+
+DEVELOPER ACCESS:
+GitHub Token: ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234
+AWS IAM Access Key: AKIAIOSFODNN7EXAMPLE
+Anthropic API Key: sk-ant-api03-NewHire123Key456For789Sarah012Mitchell345Test678abc
+
+Parking spot GPS coordinates: 45.5231, -122.6765 (Level 2, Spot B-14)
+
+
+==============================
+ DOCUMENT 3: CUSTOMER SUPPORT TICKET
+==============================
+
+TICKET #SUP-2026-04421
+Priority: HIGH
+Category: Billing / Unauthorized Charge
+Agent: Carol Washington
+
+Customer: Michael A. Thompson
+Email: m.thompson@outlook.com
+Phone: +1-303-555-0188
+Account #: CUST-88412
+
+Transcript:
+----------
+[14:32:01] Customer: Hi, I see a charge of $2,847.33 on my Visa ending in 9903.
+           I didn't make this purchase.
+
+[14:32:15] Agent: I'm sorry to hear that, Michael. Let me look into this. Can you
+           confirm the full card number for verification?
+
+[14:32:28] Customer: It's 5425233430109903. It's actually a Mastercard, sorry.
+
+[14:32:45] Agent: No problem. I can see the charge from "ELECTROMART ONLINE" on
+           Feb 15. I'll initiate a dispute. For our records, can you confirm
+           your SSN last four?
+
+[14:33:02] Customer: Last four is 1945. Full SSN is 267-83-1945 if you need it.
+
+[14:33:15] Agent: Just the last four is fine. I've flagged the transaction and
+           a temporary credit of $2,847.33 will appear within 24 hours.
+           You'll receive confirmation at m.thompson@outlook.com.
+
+[14:33:30] Customer: Thank you. My backup card is AmEx 3714 496353 98431 if
+           you need to switch the recurring charges.
+
+[14:33:45] Agent: Noted. Is there anything else I can help with?
+
+[14:33:52] Customer: No, that's all. Thanks Carol.
+
+[14:34:00] Agent: You're welcome. Ticket #SUP-2026-04421 created. Have a good day!
+
+
+==============================
+ DOCUMENT 4: SECURITY INCIDENT
+==============================
+
+INCIDENT REPORT — IR-2026-0218
+
+Classification: HIGH SEVERITY
+Date: February 18, 2026
+Reported by: David Kim, Security Analyst
+Email: d.kim@meridian-tech.com
+Phone: 512-555-0456
+
+SUMMARY:
+Credentials exposed in public GitHub repository. Developer accidentally pushed
+.env.production containing:
+
+  ANTHROPIC_API_KEY=sk-ant-api03-Compromised123Key456That789Should012Be345Rotated678Immediately901abc
+  AWS_ACCESS_KEY_ID=AKIA2OGYBAH6CEXAMPLE
+  GITHUB_TOKEN=ghp_CompromisedGitHubTokenRotateImmediately12
+  SLACK_BOT_TOKEN=xoxb-123456789012-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx
+
+AFFECTED INFRASTRUCTURE:
+  Web server: 203.0.113.50 (IPv6: 2001:db8:85a3::8a2e:370:7334)
+  Database: 10.0.0.55
+  Cache: 10.0.0.60
+
+TIMELINE:
+  03:22 UTC — Credentials pushed to public repo
+  03:45 UTC — Automated scanner detected exposure
+  03:47 UTC — Incident ticket created
+  04:00 UTC — All keys rotated
+  04:15 UTC — CloudTrail audit: no unauthorized API calls detected
+  04:30 UTC — Repo history rewritten, force-push to remove secrets
+
+EMPLOYEE INVOLVED:
+  Name: Elena Rodriguez
+  SSN (for HR record): 189-44-6712
+  Employee ID: EMP-4450
+  Device MAC: 54:E1:AD:B8:C9:D0
+  Last known IP: 10.0.1.75
+  Work email: e.rodriguez@meridian-tech.com
+  Phone: (512) 555-0502
+
+FORENSIC NOTES:
+  Access originated from IP 185.220.101.33 (external, Tor exit node)
+  Secondary probe from 2a02:c7d:3e4f:1200:5e6f:7a8b:9c0d:1e2f
+  No data exfiltration confirmed
+
+
+==============================
+ DOCUMENT 5: MEDICAL REFERRAL
+==============================
+
+PATIENT REFERRAL FORM
+
+Referring Provider: Dr. Rebecca Chen
+Provider Email: rebecca.chen.md@healthcare-provider.org
+Provider Phone: (650) 555-0341
+Provider NPI: 1234567890
+
+PATIENT INFORMATION:
+Name: Angela Martinez
+SSN: 412-55-8823
+Date of Birth: 06/14/1982
+Home Phone: (305) 555-0188
+Mobile: 305-555-0244
+Email: a.martinez82@gmail.com
+Address: 1456 Palm Boulevard, Miami, FL 33101
+
+INSURANCE:
+Provider: BlueCross BlueShield
+Member ID: BCB-998412
+Group #: GRP-55201
+
+REFERRAL DETAILS:
+Referred to: Dr. James Park, Cardiology
+Facility: Miami Heart Institute
+Facility GPS: 25.7617, -80.1918
+Appointment: March 5, 2026 at 10:00 AM
+
+Patient was advised to bring photo ID, insurance card, and payment method.
+Card on file for copay: Discover 6011111111111117.
+
+Please send records to specialist at j.park.md@miami-heart.org.
+For IT connectivity issues with the referral portal, contact help desk
+at support@healthcare-provider.org — server 10.0.2.100, MAC 00:50:56:C0:00:08.
+
+
+==============================
+ DOCUMENT 6: RESUME / CV
+==============================
+
+ROBERT T. WILLIAMS
+7842 Cedar Avenue, Seattle, WA 98101
+(206) 555-0312 | r.williams@email.com | linkedin.com/in/rtwilliams
+
+PROFESSIONAL SUMMARY
+Senior software engineer with 12+ years of experience in distributed systems,
+cloud infrastructure, and security engineering. Currently building privacy-first
+AI tools at Meridian Technologies.
+
+EXPERIENCE
+
+Meridian Technologies Inc. — Senior Engineer (2019-Present)
+- Designed microservices architecture serving 2M+ requests/day
+- Managed AWS infrastructure (access key AKIA... rotated quarterly)
+- Implemented CI/CD pipeline with GitHub Actions (token ghp_... managed via vault)
+- Production cluster: 203.0.113.50 (primary), 10.0.0.55-57 (backend)
+
+DataStream Analytics — Software Engineer (2015-2019)
+- Built real-time data pipeline processing 500GB/day
+- API integrations with Anthropic (sk-ant-...) and OpenAI (sk-...)
+
+EDUCATION
+M.S. Computer Science, University of Washington, 2015
+B.S. Computer Science, Oregon State University, 2013
+
+PERSONAL
+SSN: 154-32-8877 (for background check)
+Phone: (206) 555-0312
+Backup email: rob.williams.dev@protonmail.com
+
+
+==============================
+ DOCUMENT 7: IoT / FLEET TRACKING
+==============================
+
+FLEET MANAGEMENT REPORT — February 18, 2026
+
+Vehicle ID: VAN-042
+Driver: Patricia Gomez (SSN: 189-44-6712, for DOT compliance)
+Phone: (305) 555-0188
+Tracking device MAC: D4:6E:0E:1F:2A:3B
+Cellular modem IP: 198.51.100.17
+IPv6: 2607:f8b0:4004:800::200e
+
+Route log:
+  08:00 — Departed warehouse at 25.7751, -80.1948
+  08:45 — Stop 1: 25.7617, -80.1918 (delivery confirmed)
+  09:30 — Stop 2: 25.7902, -80.2103 (delivery confirmed)
+  10:15 — Stop 3: 25.8100, -80.1855 (customer not home, left at door)
+  11:00 — Returned to warehouse at 25.7751, -80.1948
+
+Customer payment collected at Stop 1: Visa 4916338506082832
+Customer payment collected at Stop 2: Cash ($45.00)
+Customer email for receipt (Stop 3): customer42@example.com
+
+API call for route optimization used key: sk-ant-api03-FleetOpt789Key012For345Routing678Only901abc
+Telemetry server: 10.0.3.200 (GPS data endpoint)

@@ -23,6 +23,8 @@ mod key_manager;
 mod keyword_dict;
 mod lang_detect;
 
+mod audio_decode;
+mod kws_engine;
 mod lib_mobile;
 mod mapping;
 mod multilingual;
@@ -40,7 +42,6 @@ mod server;
 mod vault;
 mod voice_detect;
 mod voice_pipeline;
-mod whisper_engine;
 mod wordpiece;
 
 #[cfg(test)]
@@ -192,6 +193,9 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         "FPE engine initialized (FF1, AES-256)"
     );
 
+    // Install rustls CryptoProvider before building HTTPS connector
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // Build HTTPS client for upstream connections
     let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
         .with_native_roots()
@@ -252,6 +256,28 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         None
     };
 
+    // Voice pipeline: KWS-based PII detection
+    let kws_engine = if config.voice.enabled {
+        match kws_engine::KwsEngine::new(&config.voice) {
+            Ok(engine) => {
+                oo_info!(
+                    crate::oo_log::modules::VOICE,
+                    "Voice KWS engine loaded — PII keyword detection active"
+                );
+                Some(Arc::new(engine))
+            }
+            Err(e) => {
+                oo_warn!(crate::oo_log::modules::VOICE,
+                    "KWS models not found, audio will pass through unscanned",
+                    error = %e);
+                None
+            }
+        }
+    } else {
+        oo_info!(crate::oo_log::modules::VOICE, "Voice pipeline disabled");
+        None
+    };
+
     // Build application state
     let state = AppState {
         config: Arc::new(config),
@@ -262,6 +288,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         vault,
         health: HealthStats::new(),
         image_models,
+        kws_engine,
     };
 
     // Resolve auth token for health endpoint

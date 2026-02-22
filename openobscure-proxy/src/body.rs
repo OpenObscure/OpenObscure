@@ -9,7 +9,9 @@ use crate::fpe_engine::{FpeEngine, FpeResult, TweakGenerator};
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_detect;
 use crate::image_pipeline::{self, ImageModelManager, ImageStats, OutputFormat};
+use crate::kws_engine::KwsEngine;
 use crate::mapping::{FpeMapping, RequestMappings};
+use crate::voice_pipeline;
 
 /// Process a request body: scan for PII, FPE-encrypt or redact matches, return modified body + mappings.
 ///
@@ -18,6 +20,7 @@ use crate::mapping::{FpeMapping, RequestMappings};
 /// 2. Text pass: scan JSON string values for PII, FPE-encrypt or redact
 ///
 /// Images are processed FIRST so that byte offsets in the text pass remain correct.
+#[allow(clippy::too_many_arguments)]
 pub fn process_request_body(
     body: &Bytes,
     request_id: &Uuid,
@@ -26,6 +29,7 @@ pub fn process_request_body(
     key_version: u32,
     skip_fields: &[String],
     image_models: Option<&Arc<ImageModelManager>>,
+    kws_engine: Option<&Arc<KwsEngine>>,
 ) -> Result<(Bytes, RequestMappings, Vec<ImageStats>), BodyError> {
     let mut json: Value = serde_json::from_slice(body).map_err(BodyError::Json)?;
 
@@ -40,12 +44,20 @@ pub fn process_request_body(
         Vec::new()
     };
 
+    // Pass 1.5: Scan audio blocks for PII keywords (KWS-gated)
+    let voice_modified = if let Some(engine) = kws_engine {
+        let result = voice_pipeline::scan_and_strip_audio_blocks(&mut json, engine);
+        result.blocks_stripped > 0
+    } else {
+        false
+    };
+
     let matches = scanner.scan_json(&json, skip_fields);
-    if matches.is_empty() && image_stats.is_empty() {
+    if matches.is_empty() && image_stats.is_empty() && !voice_modified {
         return Ok((body.clone(), RequestMappings::new(*request_id), image_stats));
     }
     if matches.is_empty() {
-        // Images were modified but no text PII found — re-serialize the image-modified JSON
+        // Images/audio were modified but no text PII found — re-serialize the modified JSON
         let modified = serde_json::to_vec(&json).map_err(BodyError::Json)?;
         return Ok((
             Bytes::from(modified),

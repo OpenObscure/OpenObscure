@@ -1,0 +1,5 @@
+{
+  "role": "tool",
+  "tool_use_id": "toolu_03DBquery56789012",
+  "content": "{\"query\": \"SELECT * FROM patients WHERE id IN (1,2,3)\", \"rows\": [{\"id\": 1, \"name\": \"Angela Martinez\", \"ssn\": \"412-55-8823\", \"email\": \"a.martinez82@gmail.com\", \"phone\": \"(305) 555-0188\", \"diagnosis\": \"hypertension, diabetes\", \"medication\": \"metformin, lisinopril\", \"card_on_file\": \"4532015112830366\"}, {\"id\": 2, \"name\": \"Michael Thompson\", \"ssn\": \"267-83-1945\", \"email\": \"m.thompson@outlook.com\", \"phone\": \"+1-303-555-0188\", \"diagnosis\": \"arrhythmia, angina\", \"medication\": \"metoprolol, aspirin\", \"card_on_file\": \"5425233430109903\"}, {\"id\": 3, \"name\": \"Patricia Gomez\", \"ssn\": \"189-44-6712\", \"email\": \"p.gomez@company.com\", \"phone\": \"(305) 555-0188\", \"diagnosis\": \"asthma, arthritis\", \"medication\": \"albuterol, ibuprofen\", \"card_on_file\": \"3714496353984310\"}], \"total\": 3}"
+}

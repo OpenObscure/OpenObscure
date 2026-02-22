@@ -7,29 +7,35 @@ use crate::pii_types::PiiType;
 use crate::scanner::PiiMatch;
 use crate::wordpiece::WordPieceTokenizer;
 
-/// BIO label IDs matching the training pipeline's label_map.json.
-const LABEL_O: usize = 0;
-const LABEL_B_PER: usize = 1;
-const LABEL_I_PER: usize = 2;
-const LABEL_B_LOC: usize = 3;
-const LABEL_I_LOC: usize = 4;
-const LABEL_B_ORG: usize = 5;
-const LABEL_I_ORG: usize = 6;
-const LABEL_B_HEALTH: usize = 7;
-const LABEL_I_HEALTH: usize = 8;
-const LABEL_B_CHILD: usize = 9;
-const LABEL_I_CHILD: usize = 10;
+/// BIO tag classification for a label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BioTag {
+    O,
+    B,
+    I,
+}
+
+/// Mapping entry for a single label ID → (BIO tag, optional PII type).
+#[derive(Debug, Clone)]
+struct LabelInfo {
+    tag: BioTag,
+    pii_type: Option<PiiType>,
+}
 
 /// NER scanner using TinyBERT ONNX model via ONNX Runtime.
 ///
 /// Loaded once at startup and shared via `Arc`. Runs inference on text
 /// to detect semantic PII: person names, locations, organizations,
 /// health references, and child references.
+///
+/// Label mapping is loaded dynamically from label_map.json so the scanner
+/// works with any BIO-tagged NER model (dslim/bert-base-NER, custom fine-tuned, etc.).
 pub struct NerScanner {
     session: Session,
     tokenizer: WordPieceTokenizer,
     confidence_threshold: f32,
     num_labels: usize,
+    label_map: Vec<LabelInfo>,
 }
 
 /// A detected NER entity span before conversion to PiiMatch.
@@ -46,6 +52,7 @@ impl NerScanner {
     /// Load NER model and tokenizer from a directory containing:
     /// - model_int8.onnx (or model.onnx)
     /// - vocab.txt
+    /// - label_map.json (optional — falls back to default 11-label schema)
     pub fn load(model_dir: &Path, confidence_threshold: f32) -> Result<Self, NerError> {
         let model_path = model_dir.join("model_int8.onnx");
         let model_path = if model_path.exists() {
@@ -63,20 +70,10 @@ impl NerScanner {
         let tokenizer = WordPieceTokenizer::from_file(&vocab_path)
             .map_err(|e| NerError::Tokenizer(e.to_string()))?;
 
-        // Load label map to determine num_labels
+        // Load label map — determines num_labels and BIO→PiiType mapping
         let label_map_path = model_dir.join("label_map.json");
-        let num_labels = if label_map_path.exists() {
-            let content = std::fs::read_to_string(&label_map_path)
-                .map_err(|e| NerError::Io(e.to_string()))?;
-            let map: serde_json::Value =
-                serde_json::from_str(&content).map_err(|e| NerError::Io(e.to_string()))?;
-            map.get("labels")
-                .and_then(|v| v.as_array())
-                .map(|a| a.len())
-                .unwrap_or(11)
-        } else {
-            11 // Default: our standard 11-label schema
-        };
+        let label_map = build_label_map(&label_map_path)?;
+        let num_labels = label_map.len();
 
         let session = crate::ort_ep::build_session(&model_path)
             .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
@@ -91,7 +88,27 @@ impl NerScanner {
             tokenizer,
             confidence_threshold,
             num_labels,
+            label_map,
         })
+    }
+
+    /// Check if a label ID is a B-* (begin) tag.
+    fn is_b_tag(&self, label_id: usize) -> bool {
+        self.label_map
+            .get(label_id)
+            .is_some_and(|info| info.tag == BioTag::B)
+    }
+
+    /// Check if a label ID is an I-* (inside) tag.
+    fn is_i_tag(&self, label_id: usize) -> bool {
+        self.label_map
+            .get(label_id)
+            .is_some_and(|info| info.tag == BioTag::I)
+    }
+
+    /// Map a label ID to its PII type (if any).
+    fn bio_to_pii_type(&self, label_id: usize) -> Option<PiiType> {
+        self.label_map.get(label_id).and_then(|info| info.pii_type)
     }
 
     /// Run NER inference on a text string.
@@ -145,7 +162,8 @@ impl NerScanner {
             let mut labels: Vec<(usize, f32)> = Vec::with_capacity(seq_len);
             for i in 0..seq_len {
                 if encoded.attention_mask[i] == 0 {
-                    labels.push((LABEL_O, 0.0));
+                    // Padding token — assign label 0 (filtered by word_ids anyway)
+                    labels.push((0, 0.0));
                     continue;
                 }
 
@@ -172,7 +190,7 @@ impl NerScanner {
         // 5. Decode BIO tags into entity spans, using word_ids alignment
         let entities = self.decode_bio_tags(&token_labels, &encoded.word_ids, &encoded.words, text);
 
-        // 7. Convert to PiiMatch
+        // 6. Convert to PiiMatch
         let matches = entities
             .into_iter()
             .filter(|e| e.confidence >= self.confidence_threshold)
@@ -199,19 +217,19 @@ impl NerScanner {
     ) -> Vec<NerEntity> {
         let mut entities = Vec::new();
         let mut current_entity: Option<(PiiType, usize, usize, f32, usize)> = None;
-        // (type, word_start_idx, word_end_idx, min_confidence, count)
+        // (type, word_start_idx, word_end_idx, total_confidence, count)
 
         for (token_idx, &(label_id, confidence)) in token_labels.iter().enumerate() {
             let word_idx = match word_ids.get(token_idx).copied().flatten() {
                 Some(idx) => idx,
                 None => {
                     // Special token — flush current entity
-                    if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
+                    if let Some((pii_type, ws, we, total_conf, count)) = current_entity.take() {
                         if let Some(entity) = build_entity(
                             pii_type,
                             ws,
                             we,
-                            min_conf / count as f32,
+                            total_conf / count as f32,
                             words,
                             original_text,
                         ) {
@@ -231,17 +249,17 @@ impl NerScanner {
                 continue; // Skip continuation sub-tokens
             }
 
-            let entity_type = bio_to_pii_type(label_id);
+            let entity_type = self.bio_to_pii_type(label_id);
 
             match (label_id, &mut current_entity) {
                 // B-* tag: start new entity (flush previous if any)
-                (l, _) if is_b_tag(l) => {
-                    if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
+                (l, _) if self.is_b_tag(l) => {
+                    if let Some((pii_type, ws, we, total_conf, count)) = current_entity.take() {
                         if let Some(entity) = build_entity(
                             pii_type,
                             ws,
                             we,
-                            min_conf / count as f32,
+                            total_conf / count as f32,
                             words,
                             original_text,
                         ) {
@@ -254,20 +272,20 @@ impl NerScanner {
                 }
                 // I-* tag: continue current entity if same type
                 (l, Some((cur_type, _, ref mut we, ref mut total_conf, ref mut count)))
-                    if is_i_tag(l) && entity_type == Some(*cur_type) =>
+                    if self.is_i_tag(l) && entity_type == Some(*cur_type) =>
                 {
                     *we = word_idx;
                     *total_conf += confidence;
                     *count += 1;
                 }
                 // I-* tag but no current entity or type mismatch → treat as B
-                (l, _) if is_i_tag(l) => {
-                    if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
+                (l, _) if self.is_i_tag(l) => {
+                    if let Some((pii_type, ws, we, total_conf, count)) = current_entity.take() {
                         if let Some(entity) = build_entity(
                             pii_type,
                             ws,
                             we,
-                            min_conf / count as f32,
+                            total_conf / count as f32,
                             words,
                             original_text,
                         ) {
@@ -280,12 +298,12 @@ impl NerScanner {
                 }
                 // O tag: flush
                 _ => {
-                    if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
+                    if let Some((pii_type, ws, we, total_conf, count)) = current_entity.take() {
                         if let Some(entity) = build_entity(
                             pii_type,
                             ws,
                             we,
-                            min_conf / count as f32,
+                            total_conf / count as f32,
                             words,
                             original_text,
                         ) {
@@ -297,12 +315,12 @@ impl NerScanner {
         }
 
         // Flush remaining entity
-        if let Some((pii_type, ws, we, min_conf, count)) = current_entity.take() {
+        if let Some((pii_type, ws, we, total_conf, count)) = current_entity.take() {
             if let Some(entity) = build_entity(
                 pii_type,
                 ws,
                 we,
-                min_conf / count as f32,
+                total_conf / count as f32,
                 words,
                 original_text,
             ) {
@@ -314,29 +332,94 @@ impl NerScanner {
     }
 }
 
-fn is_b_tag(label_id: usize) -> bool {
-    matches!(
-        label_id,
-        LABEL_B_PER | LABEL_B_LOC | LABEL_B_ORG | LABEL_B_HEALTH | LABEL_B_CHILD
-    )
-}
-
-fn is_i_tag(label_id: usize) -> bool {
-    matches!(
-        label_id,
-        LABEL_I_PER | LABEL_I_LOC | LABEL_I_ORG | LABEL_I_HEALTH | LABEL_I_CHILD
-    )
-}
-
-fn bio_to_pii_type(label_id: usize) -> Option<PiiType> {
-    match label_id {
-        LABEL_B_PER | LABEL_I_PER => Some(PiiType::Person),
-        LABEL_B_LOC | LABEL_I_LOC => Some(PiiType::Location),
-        LABEL_B_ORG | LABEL_I_ORG => Some(PiiType::Organization),
-        LABEL_B_HEALTH | LABEL_I_HEALTH => Some(PiiType::HealthKeyword),
-        LABEL_B_CHILD | LABEL_I_CHILD => Some(PiiType::ChildKeyword),
-        _ => None,
+/// Parse a BIO label name (e.g. "B-PER", "I-LOC", "O") into a LabelInfo.
+fn parse_label_name(name: &str) -> LabelInfo {
+    if name == "O" {
+        return LabelInfo {
+            tag: BioTag::O,
+            pii_type: None,
+        };
     }
+    if let Some(entity) = name.strip_prefix("B-") {
+        return LabelInfo {
+            tag: BioTag::B,
+            pii_type: entity_to_pii_type(entity),
+        };
+    }
+    if let Some(entity) = name.strip_prefix("I-") {
+        return LabelInfo {
+            tag: BioTag::I,
+            pii_type: entity_to_pii_type(entity),
+        };
+    }
+    // Unknown label — treat as O
+    LabelInfo {
+        tag: BioTag::O,
+        pii_type: None,
+    }
+}
+
+/// Map a NER entity suffix (e.g. "PER", "LOC") to a PiiType.
+fn entity_to_pii_type(entity: &str) -> Option<PiiType> {
+    match entity {
+        "PER" => Some(PiiType::Person),
+        "LOC" => Some(PiiType::Location),
+        "ORG" => Some(PiiType::Organization),
+        "HEALTH" => Some(PiiType::HealthKeyword),
+        "CHILD" => Some(PiiType::ChildKeyword),
+        _ => None, // MISC, etc. — no PII mapping
+    }
+}
+
+/// Build a label map from label_map.json, falling back to default schema.
+fn build_label_map(label_map_path: &Path) -> Result<Vec<LabelInfo>, NerError> {
+    if label_map_path.exists() {
+        let content =
+            std::fs::read_to_string(label_map_path).map_err(|e| NerError::Io(e.to_string()))?;
+        let map: serde_json::Value =
+            serde_json::from_str(&content).map_err(|e| NerError::Io(e.to_string()))?;
+
+        // Prefer "labels" array (ordered), fall back to "id2label" map
+        if let Some(labels) = map.get("labels").and_then(|v| v.as_array()) {
+            return Ok(labels
+                .iter()
+                .map(|v| parse_label_name(v.as_str().unwrap_or("O")))
+                .collect());
+        }
+        if let Some(id2label) = map.get("id2label").and_then(|v| v.as_object()) {
+            let max_id = id2label
+                .keys()
+                .filter_map(|k| k.parse::<usize>().ok())
+                .max()
+                .unwrap_or(0);
+            let mut result = vec![
+                LabelInfo {
+                    tag: BioTag::O,
+                    pii_type: None,
+                };
+                max_id + 1
+            ];
+            for (k, v) in id2label {
+                if let Ok(id) = k.parse::<usize>() {
+                    result[id] = parse_label_name(v.as_str().unwrap_or("O"));
+                }
+            }
+            return Ok(result);
+        }
+    }
+    // Default: 11-label schema for backward compatibility
+    Ok(default_label_map())
+}
+
+/// Default 11-label schema matching the original hardcoded constants.
+fn default_label_map() -> Vec<LabelInfo> {
+    [
+        "O", "B-PER", "I-PER", "B-LOC", "I-LOC", "B-ORG", "I-ORG", "B-HEALTH", "I-HEALTH",
+        "B-CHILD", "I-CHILD",
+    ]
+    .iter()
+    .map(|name| parse_label_name(name))
+    .collect()
 }
 
 /// Build a NerEntity from a span of word indices.
@@ -387,33 +470,109 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_bio_to_pii_type() {
-        assert_eq!(bio_to_pii_type(LABEL_B_PER), Some(PiiType::Person));
-        assert_eq!(bio_to_pii_type(LABEL_I_PER), Some(PiiType::Person));
-        assert_eq!(bio_to_pii_type(LABEL_B_LOC), Some(PiiType::Location));
-        assert_eq!(bio_to_pii_type(LABEL_B_ORG), Some(PiiType::Organization));
-        assert_eq!(
-            bio_to_pii_type(LABEL_B_HEALTH),
-            Some(PiiType::HealthKeyword)
-        );
-        assert_eq!(bio_to_pii_type(LABEL_B_CHILD), Some(PiiType::ChildKeyword));
-        assert_eq!(bio_to_pii_type(LABEL_O), None);
+    fn test_parse_label_name() {
+        let info = parse_label_name("B-PER");
+        assert_eq!(info.tag, BioTag::B);
+        assert_eq!(info.pii_type, Some(PiiType::Person));
+
+        let info = parse_label_name("I-LOC");
+        assert_eq!(info.tag, BioTag::I);
+        assert_eq!(info.pii_type, Some(PiiType::Location));
+
+        let info = parse_label_name("O");
+        assert_eq!(info.tag, BioTag::O);
+        assert_eq!(info.pii_type, None);
+
+        let info = parse_label_name("B-MISC");
+        assert_eq!(info.tag, BioTag::B);
+        assert_eq!(info.pii_type, None); // MISC has no PII mapping
+
+        let info = parse_label_name("I-ORG");
+        assert_eq!(info.tag, BioTag::I);
+        assert_eq!(info.pii_type, Some(PiiType::Organization));
     }
 
     #[test]
-    fn test_is_b_tag() {
-        assert!(is_b_tag(LABEL_B_PER));
-        assert!(is_b_tag(LABEL_B_LOC));
-        assert!(!is_b_tag(LABEL_I_PER));
-        assert!(!is_b_tag(LABEL_O));
+    fn test_entity_to_pii_type() {
+        assert_eq!(entity_to_pii_type("PER"), Some(PiiType::Person));
+        assert_eq!(entity_to_pii_type("LOC"), Some(PiiType::Location));
+        assert_eq!(entity_to_pii_type("ORG"), Some(PiiType::Organization));
+        assert_eq!(entity_to_pii_type("HEALTH"), Some(PiiType::HealthKeyword));
+        assert_eq!(entity_to_pii_type("CHILD"), Some(PiiType::ChildKeyword));
+        assert_eq!(entity_to_pii_type("MISC"), None);
+        assert_eq!(entity_to_pii_type("UNKNOWN"), None);
     }
 
     #[test]
-    fn test_is_i_tag() {
-        assert!(is_i_tag(LABEL_I_PER));
-        assert!(is_i_tag(LABEL_I_LOC));
-        assert!(!is_i_tag(LABEL_B_PER));
-        assert!(!is_i_tag(LABEL_O));
+    fn test_default_label_map() {
+        let map = default_label_map();
+        assert_eq!(map.len(), 11);
+        assert_eq!(map[0].tag, BioTag::O);
+        assert_eq!(map[0].pii_type, None);
+        assert_eq!(map[1].tag, BioTag::B);
+        assert_eq!(map[1].pii_type, Some(PiiType::Person));
+        assert_eq!(map[2].tag, BioTag::I);
+        assert_eq!(map[2].pii_type, Some(PiiType::Person));
+        assert_eq!(map[3].tag, BioTag::B);
+        assert_eq!(map[3].pii_type, Some(PiiType::Location));
+        assert_eq!(map[4].tag, BioTag::I);
+        assert_eq!(map[4].pii_type, Some(PiiType::Location));
+        assert_eq!(map[5].tag, BioTag::B);
+        assert_eq!(map[5].pii_type, Some(PiiType::Organization));
+    }
+
+    #[test]
+    fn test_build_label_map_from_labels_array() {
+        let dir = std::env::temp_dir().join("oo_test_label_map_array");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("label_map.json");
+        std::fs::write(
+            &path,
+            r#"{"labels": ["O", "B-MISC", "I-MISC", "B-PER", "I-PER", "B-ORG", "I-ORG", "B-LOC", "I-LOC"]}"#,
+        )
+        .unwrap();
+
+        let map = build_label_map(&path).unwrap();
+        assert_eq!(map.len(), 9);
+        assert_eq!(map[0].tag, BioTag::O);
+        assert_eq!(map[1].tag, BioTag::B);
+        assert_eq!(map[1].pii_type, None); // B-MISC → no PII mapping
+        assert_eq!(map[3].tag, BioTag::B);
+        assert_eq!(map[3].pii_type, Some(PiiType::Person)); // B-PER
+        assert_eq!(map[5].tag, BioTag::B);
+        assert_eq!(map[5].pii_type, Some(PiiType::Organization)); // B-ORG
+        assert_eq!(map[7].tag, BioTag::B);
+        assert_eq!(map[7].pii_type, Some(PiiType::Location)); // B-LOC
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_build_label_map_from_id2label() {
+        let dir = std::env::temp_dir().join("oo_test_label_map_id2label");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("label_map.json");
+        std::fs::write(
+            &path,
+            r#"{"id2label": {"0": "O", "1": "B-PER", "2": "I-PER", "3": "B-LOC", "4": "I-LOC"}}"#,
+        )
+        .unwrap();
+
+        let map = build_label_map(&path).unwrap();
+        assert_eq!(map.len(), 5);
+        assert_eq!(map[0].tag, BioTag::O);
+        assert_eq!(map[1].pii_type, Some(PiiType::Person));
+        assert_eq!(map[3].pii_type, Some(PiiType::Location));
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn test_build_label_map_missing_file() {
+        let path = Path::new("/tmp/nonexistent_label_map_12345.json");
+        let map = build_label_map(path).unwrap();
+        // Falls back to default 11-label schema
+        assert_eq!(map.len(), 11);
     }
 
     #[test]

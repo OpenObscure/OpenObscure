@@ -1,0 +1,113 @@
+============================================================
+  PII Detection Test Data — MAC Addresses
+  Source: Synthetic (using common OUI prefixes)
+  Coverage: Colon-separated, dash-separated, dot-separated (Cisco)
+  Note: Scanner matches all three separator formats, case-insensitive
+============================================================
+
+--- Colon-separated (most common) ---
+
+The device's MAC address is 00:1A:2B:3C:4D:5E.
+
+Network adapter: Intel Wi-Fi — MAC 3C:22:FB:7A:B1:90
+
+New device connected to the network: 48:D7:05:F3:A2:81
+
+ARP table entry: 192.168.1.105 is at 00:50:56:C0:00:08
+
+Bluetooth pairing with device at A4:C1:38:2D:E7:F0.
+
+--- Dash-separated (Windows format) ---
+
+Physical Address: 00-1A-2B-3C-4D-5E
+
+ipconfig output:
+   Ethernet adapter Local Area Connection:
+   Physical Address. . . . . . . . . : 3C-22-FB-7A-B1-90
+
+Device registered: MAC 48-D7-05-F3-A2-81 (Samsung Galaxy)
+
+Access point BSSID: D4-6E-0E-1F-2A-3B
+
+--- Dot-separated (Cisco format) ---
+
+Switch port Gi0/1: 001a.2b3c.4d5e
+
+Router interface MAC: 3c22.fb7a.b190
+
+show mac address-table output:
+  Vlan  Mac Address      Type    Ports
+  ----  ---------------  ------  -----
+  10    001a.2b3c.4d5e   DYNAMIC Gi0/1
+  10    48d7.05f3.a281   DYNAMIC Gi0/2
+  20    d46e.0e1f.2a3b   DYNAMIC Gi0/3
+
+--- In DHCP / network admin ---
+
+DHCP LEASE TABLE
+
+IP Address      MAC Address        Hostname         Lease Expires
+-----------------------------------------------------------------
+192.168.1.100   00:1A:2B:3C:4D:5E  desktop-james    2026-02-19 14:32
+192.168.1.101   3C:22:FB:7A:B1:90  laptop-sarah     2026-02-19 09:15
+192.168.1.102   48:D7:05:F3:A2:81  phone-mike       2026-02-18 23:45
+192.168.1.103   A4:C1:38:2D:E7:F0  tablet-kids      2026-02-19 11:00
+192.168.1.104   D4:6E:0E:1F:2A:3B  smart-tv         2026-02-19 16:20
+
+---
+
+Wi-Fi ACCESS CONTROL LIST
+
+Allowed devices:
+  - 00:1A:2B:3C:4D:5E  (James's Desktop)
+  - 3C:22:FB:7A:B1:90  (Sarah's Laptop)
+  - 48:D7:05:F3:A2:81  (Mike's Phone)
+  - A4:C1:38:2D:E7:F0  (Kids Tablet)
+
+Blocked devices:
+  - B8:27:EB:AA:BB:CC  (Unknown Raspberry Pi)
+  - DE:AD:BE:EF:CA:FE  (Suspicious device)
+
+--- In security / incident context ---
+
+NETWORK FORENSICS REPORT
+
+Rogue device detected on VLAN 20:
+  MAC: DE:AD:BE:EF:CA:FE
+  First seen: 2026-02-18 03:22:14 UTC
+  Last seen: 2026-02-18 04:15:33 UTC
+  Associated IP: 192.168.20.199 (DHCP assigned)
+  Connected port: Switch-2, Gi0/24
+
+ARP spoofing detected:
+  Attacker MAC: DE:AD:BE:EF:CA:FE
+  Spoofed as gateway: 00:50:56:C0:00:01 (legitimate gateway MAC)
+  Affected hosts: 00:1A:2B:3C:4D:5E, 3C:22:FB:7A:B1:90, 48:D7:05:F3:A2:81
+
+Action taken: Port Gi0/24 shut down at 04:16:00 UTC.
+
+--- In device registration / inventory ---
+
+IT ASSET INVENTORY
+
+Asset Tag  | Device              | MAC Address       | Assigned To
+------------------------------------------------------------------------
+IT-001     | Dell Latitude 5540  | 3C:22:FB:7A:B1:90 | Sarah Mitchell
+IT-002     | HP EliteDesk 800    | 00:1A:2B:3C:4D:5E | James Henderson
+IT-003     | MacBook Pro 16"     | A8:66:7F:12:34:56 | David Chen
+IT-004     | Lenovo ThinkPad X1  | 54:E1:AD:B8:C9:D0 | Patricia Gomez
+IT-005     | Surface Pro 9       | 28:6C:07:E4:F5:A6 | Michael Thompson
+
+--- Edge cases ---
+
+Uppercase: 00:1A:2B:3C:4D:5E
+Lowercase: 00:1a:2b:3c:4d:5e
+Mixed case: 00:1A:2b:3C:4d:5E
+
+All same separator in one doc — colon: 00:1A:2B:3C:4D:5E, dash: 00-1A-2B-3C-4D-5E, dot: 001a.2b3c.4d5e.
+
+Multiple MACs in text: Traffic between 00:1A:2B:3C:4D:5E and 3C:22:FB:7A:B1:90 on port 443.
+
+MAC next to IP: Host 192.168.1.100 (MAC 00:1A:2B:3C:4D:5E) sent 1.2GB in the last hour.
+
+Broadcast MAC FF:FF:FF:FF:FF:FF is not PII and should ideally be skipped.

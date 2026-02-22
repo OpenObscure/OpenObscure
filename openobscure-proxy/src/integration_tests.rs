@@ -56,6 +56,7 @@ fn build_config_ext(upstream_url: &str, fail_mode: FailMode) -> AppConfig {
         scanner: ScannerConfig::default(),
         logging: LoggingConfig::default(),
         image: crate::config::ImageConfig::default(),
+        voice: crate::config::VoiceConfig::default(),
     }
 }
 
@@ -83,6 +84,7 @@ async fn build_state(config: AppConfig) -> AppState {
         vault: Arc::new(Vault::new("openobscure-test")),
         health: HealthStats::new(),
         image_models: None,
+        kws_engine: None,
     }
 }
 

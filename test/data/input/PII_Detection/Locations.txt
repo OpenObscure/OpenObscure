@@ -1,0 +1,152 @@
+============================================================
+  PII Detection Test Data — Locations
+  Source: Synthetic text with real geographic location names
+  Coverage: Cities, states, countries, addresses, landmarks, regions
+  Detection: NER/CRF model (B-LOC / I-LOC tags), variable confidence
+============================================================
+
+--- US cities and states ---
+
+The company is headquartered in San Francisco, California with regional
+offices in Austin, Texas and Denver, Colorado.
+
+Our new warehouse is located in Portland, Oregon near the industrial district.
+
+The conference will be held in New York City at the Javits Convention Center.
+
+Shipping delays are affecting customers in Miami, Florida and Atlanta, Georgia.
+
+She relocated from Boston, Massachusetts to Seattle, Washington for the new role.
+
+--- Full street addresses ---
+
+Please send the documents to our main office:
+4521 Maple Drive, Suite 200
+Austin, TX 78701
+United States
+
+The property at 892 Oak Street, Apt 4B, Portland, OR 97201 has been listed for sale.
+
+Deliver to: 1234 Birch Lane, Denver, CO 80202 (gate code: #4421).
+
+The incident occurred at 7842 Cedar Avenue, Seattle, WA 98101 at approximately
+10:30 PM on February 15, 2026.
+
+--- International locations ---
+
+Our global offices:
+
+  Europe:
+  - 42 Rue de Rivoli, Paris, France
+  - Friedrichstrasse 123, Berlin, Germany
+  - 10 Downing Street area, London, United Kingdom
+
+  Asia:
+  - Shibuya-ku, Tokyo, Japan
+  - Gangnam District, Seoul, South Korea
+  - Pudong New District, Shanghai, China
+
+  Americas:
+  - Av. Paulista 1578, Sao Paulo, Brazil
+  - Paseo de la Reforma, Mexico City, Mexico
+
+  Middle East:
+  - Dubai Internet City, Dubai, UAE
+  - King Fahd Road, Riyadh, Saudi Arabia
+
+---
+
+The shipment departed from Hong Kong, transited through Singapore, and arrived
+in Los Angeles last Tuesday. Customs clearance in Long Beach, California took
+48 hours longer than expected.
+
+--- Locations in business context ---
+
+QUARTERLY MARKET ANALYSIS
+
+North America:
+Revenue from the United States grew 15% YoY, driven by strong performance in
+California, Texas, and New York. The Canadian market (primarily Toronto and
+Vancouver) contributed $2.3M in Q4.
+
+Europe:
+The UK market declined 3% post-Brexit adjustments. Germany and France remain
+stable. We're expanding into the Netherlands and Sweden in Q2 2026.
+
+Asia-Pacific:
+Japan and South Korea lead APAC growth. India (Mumbai and Bangalore) shows
+the highest growth potential. Australia (Sydney and Melbourne) steady.
+
+---
+
+REAL ESTATE LISTING
+
+Property: 1234 Birch Lane, Denver, Colorado 80202
+Neighborhood: Capitol Hill
+County: Denver County
+State: Colorado
+ZIP: 80202
+
+Nearby:
+- Cheesman Park (0.3 miles)
+- Denver Botanic Gardens (0.5 miles)
+- Downtown Denver (1.2 miles)
+- Denver International Airport (25 miles)
+
+School district: Denver Public Schools
+Fire district: Denver Fire Department, Station #7
+
+--- Locations in incident / legal context ---
+
+POLICE REPORT — Incident #2026-02-18-4421
+
+Location: 4521 Maple Drive, Austin, Texas 78701
+Cross streets: Maple Drive and 46th Street
+Jurisdiction: Austin Police Department, Central District
+
+Suspect vehicle last seen heading northbound on Interstate 35 toward
+Round Rock, Texas. BOLO issued to Travis County Sheriff and Williamson
+County law enforcement.
+
+Witness statement taken at the Starbucks on Congress Avenue, downtown Austin.
+
+---
+
+TRAVEL ITINERARY
+
+Feb 20: Depart San Francisco International Airport (SFO) → Tokyo Narita (NRT)
+Feb 21: Arrive Tokyo, Japan. Hotel: Park Hyatt Tokyo, Shinjuku
+Feb 23: Bullet train Tokyo → Kyoto. Hotel: Ritz-Carlton Kyoto
+Feb 25: Fly Osaka Kansai (KIX) → Seoul Incheon (ICN)
+Feb 26: Meetings in Gangnam District, Seoul, South Korea
+Feb 28: Return flight Seoul → San Francisco via Shanghai Pudong (PVG)
+
+--- Locations in everyday context ---
+
+I'm moving from Brooklyn, New York to the Bay Area next month. Found a great
+apartment in Oakland, close to the BART station.
+
+We spent our vacation in Maui, Hawaii. The beaches near Lahaina were beautiful.
+Next year we're thinking about Tuscany, Italy or the Greek Islands.
+
+The restaurant on Market Street in San Francisco was amazing. If you're ever
+in the Mission District, you have to try the tacos at that place on Valencia.
+
+Our kid's soccer tournament is in Sacramento this weekend. Teams are coming
+from all over Northern California — Davis, Stockton, Modesto, and Fresno.
+
+--- Edge cases ---
+
+Abbreviated: Send it to our SF office or the NYC branch.
+
+Ambiguous: Portland could be Portland, Oregon or Portland, Maine.
+
+With ZIP: Austin, TX 78701 vs Denver, CO 80202.
+
+Compound: New York City, Salt Lake City, San Luis Obispo, Corpus Christi.
+
+Countries only: Operations span the United States, Canada, United Kingdom,
+Germany, France, Japan, South Korea, Australia, Brazil, and India.
+
+Multiple in one sentence: Flights available from Los Angeles to Chicago,
+Dallas, Phoenix, and Philadelphia starting at $199 one-way.

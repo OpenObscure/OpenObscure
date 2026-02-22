@@ -1,0 +1,123 @@
+============================================================
+  PII Detection Test Data — Email Addresses
+  Source: Synthetic (non-real addresses using example domains)
+  Coverage: Personal, corporate, subdomains, special chars, edge cases
+============================================================
+
+--- Personal email addresses ---
+
+My email is john.doe@gmail.com. Please send the documents there.
+
+You can reach me at sarah_mitchell88@yahoo.com for any follow-up questions.
+
+Forward the invoice to mike.chen+invoices@outlook.com please.
+
+I prefer to use my personal email: alexandra.petrov@protonmail.com.
+
+--- Corporate / work emails ---
+
+For business inquiries, contact sales@meridian-tech.com.
+
+The project manager's email is r.williams@techcorp-solutions.io.
+
+Please CC legal@datastream-analytics.com on all contract correspondence.
+
+My work email is jennifer.thompson@company.co.uk.
+
+Our CTO can be reached at d.nakamura@startup.ai.
+
+--- With special characters ---
+
+The user account is tied to user.name+tag@example.com.
+
+Reach the admin team at admin_support@sub.domain.org.
+
+That bounced. Try firstname.lastname@very-long-domain-name.co.jp instead.
+
+The alias is info%team@legacy-system.net (percent-encoded local part).
+
+--- In documents / forms ---
+
+ACCOUNT REGISTRATION
+
+Full Name: Patricia Gomez
+Email Address: p.gomez75@gmail.com
+Confirm Email: p.gomez75@gmail.com
+Password: ********
+Phone: (305) 555-0188
+
+---
+
+CONTACT US
+
+General Inquiries: info@openobscure.dev
+Technical Support: support@openobscure.dev
+Security Reports: security@openobscure.dev
+Press: press@openobscure.dev
+Careers: jobs@openobscure.dev
+
+---
+
+Dear Angela,
+
+Thank you for reaching out. I've forwarded your request to our specialist team
+at specialist-team@healthcare-provider.org. You should receive a response within
+2 business days. If you need immediate assistance, please email
+urgent-care@healthcare-provider.org or call (650) 555-0341.
+
+Best regards,
+Dr. Rebecca Chen
+rebecca.chen.md@healthcare-provider.org
+
+---
+
+--- Mailing list / newsletter context ---
+
+You are subscribed to our weekly digest. This email was sent to subscriber42@example.com.
+To unsubscribe, click the link below or email unsubscribe@newsletter.example.com.
+
+---
+
+--- Multiple emails in running text ---
+
+The team includes alice.johnson@eng.company.com (lead), bob.nakamura@product.company.com
+(PM), and carol.washington@hr.company.com (HR liaison). For group communication, use
+project-alpha@groups.company.com.
+
+---
+
+--- IT / incident context ---
+
+SECURITY INCIDENT REPORT
+
+Affected user accounts:
+- j.smith@corporate.example.com (compromised 02/15/2026)
+- m.davis@corporate.example.com (phishing target)
+- admin@corporate.example.com (credentials rotated)
+
+Attacker used spoofed sender: ceo@c0rporate-example.com (note the zero)
+Legitimate CEO email: ceo@corporate.example.com
+
+---
+
+--- Edge cases ---
+
+An email with numbers: user1234@service99.com.
+
+Hyphenated local part: first-last@example-domain.com.
+
+Multiple dots: first.middle.last@mail.example.com.
+
+Underscore heavy: __test__account__@test.io.
+
+Short TLD: admin@company.ai.
+
+Long TLD: contact@organization.museum.
+
+Plus addressing: user+folder+subfolder@gmail.com.
+
+All lowercase: JOHN.DOE@GMAIL.COM should still be detected as an email.
+
+Embedded in URL-like text: mailto:helpdesk@support.example.com.
+
+Mixed with other PII: Contact john.henderson@email.com or call 512-555-0187.

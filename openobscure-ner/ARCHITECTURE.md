@@ -362,7 +362,7 @@ The L1 plugin calls this endpoint synchronously (via `execFileSync(curl)`) when 
 
 ## Model Files
 
-All models are stored in `openobscure-proxy/models/` (git-ignored, downloaded via `scripts/download_models.sh`):
+All models are stored in `openobscure-proxy/models/` (git-ignored, downloaded via `build/download_models.sh`):
 
 | File | Size | Purpose |
 |------|------|---------|

@@ -1,0 +1,9 @@
+{
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "I found the customer's information in the database:\n\nName: James Henderson\nSSN: 287-65-4321\nEmail: j.henderson@email.com\nPhone: (206) 555-0312\nCredit Card: 4532015112830366 (Visa)\nAddress: 7842 Cedar Avenue, Seattle, WA 98101\nIP on file: 203.0.113.42\nDevice MAC: 3C:22:FB:7A:B1:90\nLast known location: 47.6062, -122.3321"
+    }
+  ]
+}

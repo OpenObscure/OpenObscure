@@ -6,15 +6,21 @@
 # OS
 .DS_Store
 
+# IDE
+.vscode/
+
 # Local Claude Code config
 .claude/
 
-# ONNX models (download via scripts/download_models.sh)
+# ONNX models (download via build/download_models.sh)
 openobscure-proxy/models/
 !openobscure-ner/models/mock/
 
 # Enterprise features (not committed to repository)
 enterprise/
+
+# Test outputs (regenerable — run test scripts to produce)
+test/data/output/
 
 # Local reference (not committed)
 project-plan/

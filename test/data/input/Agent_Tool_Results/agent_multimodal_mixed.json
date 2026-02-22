@@ -1,0 +1,13 @@
+{
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "I analyzed the document you uploaded. Here's what I found:\n\nEmployee: Robert Williams\nSSN: 154-32-8877\nEmail: r.williams@email.com\nPhone: (206) 555-0312\nCredit Card: 5133080092882455\nOffice IP: 10.0.1.55\nDevice MAC: A8:66:7F:12:34:56\nOffice GPS: 47.6062, -122.3321\n\nThe document also contained an API key: sk-ant-api03-DocAnalysis123456789012345678901234567890abc\nAWS key: AKIAIOSFODNN7EXAMPLE\n\nI've also detected a face in the attached image and sensitive text in the screenshot."
+    },
+    {
+      "type": "text",
+      "text": "Note: The image contained EXIF GPS data at coordinates 47.6062, -122.3321 which matches the Seattle office location. The screenshot showed the following additional PII:\n- GitHub token: ghp_MultimodalTestGitHubToken12345678901234ab\n- Slack token: xoxb-123456789012-1234567890123-MultimodalTest\n- Server: 203.0.113.50 / 2001:db8:85a3::8a2e:370:7334"
+    }
+  ]
+}

@@ -1,0 +1,229 @@
+============================================================
+  PII Detection Test Data — Child Keywords
+  Source: Synthetic text with child-related keyword dictionary terms
+  Coverage: Child references, school/education, age indicators, care terms
+  Detection: Keyword dictionary (~200 terms), confidence 1.0
+============================================================
+
+--- Direct child references ---
+
+My son just turned 8 and is in third grade at Lincoln Elementary.
+
+My daughter has a soccer game this Saturday at the community field.
+
+Our children attend the same school — my son is in fifth grade and my daughter
+is in second grade.
+
+We took our baby to the pediatrician for her 6-month checkup. Everything looks normal.
+
+My toddler just started walking last week! He's pulling himself up on everything.
+
+The infant was fussy all night. I think she's teething.
+
+Our teenager is applying to colleges this fall. Very stressful time for the family.
+
+--- School and education context ---
+
+SCHOOL ENROLLMENT FORM
+
+Student Name: [REDACTED]
+Grade: 3rd (elementary school)
+School: Lincoln Elementary School
+Teacher: Mrs. Patterson
+Parent/Guardian: James Henderson
+Emergency Contact: Maria Henderson (mother)
+
+After-school program: Yes, enrolled in afterschool care until 5:30 PM
+School bus: Route #14, pickup at 7:15 AM
+School lunch: Free/reduced lunch program participant
+
+Special services:
+- IEP (Individualized Education Program): Yes, for reading support
+- Special education: Resource room, 45 min/day
+- Gifted program: No
+- School counselor meetings: Monthly
+
+---
+
+PARENT-TEACHER CONFERENCE NOTES
+
+Date: February 12, 2026
+Student: [REDACTED], Grade 5
+Teacher: Mr. Nakamura
+
+Academic progress:
+- Reading: At grade level. Enjoys chapter books during recess.
+- Math: Slightly below grade level. Recommend tutoring 2x/week.
+- Science: Excelling. Participated in school science fair.
+
+Behavior:
+- Works well with classmates in the classroom
+- Sometimes distracted during homework time
+- Report card shows improvement since last quarter
+
+Parent notes:
+- Father mentioned the child has trouble focusing on homework at home
+- Considering evaluation for ADHD through child psychologist
+- Will schedule meeting with school counselor to discuss
+
+---
+
+--- Childcare and early childhood ---
+
+DAYCARE ENROLLMENT APPLICATION
+
+Child's Name: [REDACTED]
+Age: 2 years, 4 months
+Parent: Patricia Gomez
+
+Program: Full-day childcare (7:30 AM - 5:30 PM)
+Start date: March 1, 2026
+
+Medical:
+- Pediatrician: Dr. Sarah Chen
+- Allergies: None known
+- Immunization records: Up to date
+
+Daily needs:
+- Diaper size: 5
+- Nap schedule: 12:30 PM - 2:30 PM
+- Pacifier: No longer uses
+- Baby formula: N/A (transitioned to whole milk)
+- Breastfeeding: Weaned at 14 months
+
+Emergency contacts:
+- Thomas Gomez (father): (305) 555-0377
+- Elena Rodriguez (aunt): (512) 555-0502
+
+Authorized for pickup:
+- Patricia Gomez (mother)
+- Thomas Gomez (father)
+- Babysitter: Maria Santos (with ID verification)
+
+---
+
+We're looking for a nanny or au pair for our two children (ages 4 and 7).
+Responsibilities include school pickup, afterschool snacks, homework help,
+and supervising playdates. Must have experience with preschooler and
+school-age children. CPR certification required.
+
+---
+
+--- Age indicators and milestones ---
+
+Our 3-year-old starts preschool next month. We're a bit nervous about the
+transition since she's been home with her babysitter since birth.
+
+The 6-year-old is in kindergarten and loves it. His favorite part is recess
+and the after-school program where they do arts and crafts.
+
+My 12-year-old is officially a preteen and reminds us constantly. Middle school
+has been an adjustment but the school counselor has been very helpful.
+
+Her 15-year-old is in high school and just got his learner's permit. Exciting
+and terrifying at the same time!
+
+Baby milestone update: Our 9-month-old is crawling everywhere and pulling up
+on furniture. Still on baby formula supplemented with breast milk. The
+pediatrician says she's right on track.
+
+---
+
+--- Youth activities and programs ---
+
+SUMMER CAMP REGISTRATION
+
+Camp name: Pine Ridge Adventure Camp
+Session: June 15 - July 10, 2026
+Camper age: 10 years old
+
+Activities:
+- Swimming
+- Hiking
+- Arts & crafts
+- Youth sports (soccer, basketball)
+- Campfire nights
+
+Parent authorization:
+I authorize my child to participate in all camp activities including field trips.
+I authorize emergency medical treatment if I cannot be reached.
+
+Emergency info:
+- Parent: Michael Thompson
+- Child's pediatrician: Dr. James Park
+- Known medical conditions: Mild asthma (carries inhaler)
+- Allergies: Bee stings (carries EpiPen)
+
+---
+
+My daughter joined Girl Scouts this year and loves it. Her troop meets every
+Tuesday at the community center. They're selling cookies for their annual
+fundraiser and working on their first-aid badge.
+
+The little league season starts in April. My son plays on the Cardinals team.
+Practice is twice a week after school.
+
+This weekend we're hosting a birthday party for our 7-year-old. We invited
+her whole class for a sleepover at our house. The kids want pizza and a
+movie night.
+
+---
+
+--- Legal and welfare context ---
+
+CHILD CUSTODY AGREEMENT
+
+In the matter of custody for the minor children:
+- Child A, age 8
+- Child B, age 5
+
+Physical custody: Joint, per the following schedule:
+- Mother: Monday through Wednesday
+- Father: Thursday through Saturday
+- Alternating Sundays
+
+Legal guardian: Both parents retain legal guardian status.
+Parental consent required for: Medical procedures, travel outside state,
+changes to school enrollment.
+
+Child support: $1,400/month from father to mother, per family court order.
+Visitation rights: As specified in custody agreement.
+Parental rights: Neither parent's rights have been terminated.
+
+---
+
+CHILD PROTECTIVE SERVICES REFERRAL
+
+Referral type: Suspected child neglect
+Date: February 15, 2026
+
+Reporting party: School nurse, Lincoln Elementary
+Concern: Student (age 9, fourth-grader) has been absent 15 days in the
+past month. When present, appears undernourished and wearing inadequate
+clothing for weather. Teacher reports the child falls asleep in class.
+
+Child welfare investigation recommended.
+Guardianship status: Mother is sole legal guardian.
+
+---
+
+--- Mixed child terms in everyday context ---
+
+We just did back to school shopping for our kids. The kindergartner needs
+new crayons and a backpack, and the eighth-grader wants a new laptop for
+his homework. The school lunch menu looks better this year.
+
+The tooth fairy visited last night! Our first-grader lost her second tooth.
+She's very excited about the dollar under her pillow.
+
+Our foster child has been with us for 6 months now. The adoption process
+is underway and we've completed all the home studies. The child psychiatrist
+says he's adjusting well, and his school counselor agrees.
+
+We need to schedule our children's annual checkup with the pediatrician.
+Our baby needs her 12-month immunizations, and our 5-year-old needs his
+pre-kindergarten physical.
+
+Setting up the car seat for the newborn was more complicated than I expected.
+We also need a new crib mattress — the baby monitor showed her rolling over
+for the first time last night! Time to lower the crib setting.

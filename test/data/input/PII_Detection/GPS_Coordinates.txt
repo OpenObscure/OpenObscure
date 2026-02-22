@@ -1,0 +1,124 @@
+============================================================
+  PII Detection Test Data — GPS Coordinates
+  Source: Synthetic (real landmark locations, publicly known)
+  Coverage: Signed decimal lat/long with 4+ decimal places
+  Note: Scanner matches pairs with 4+ decimal digits
+============================================================
+
+--- Known landmarks (publicly available coordinates) ---
+
+The Statue of Liberty is located at 40.6892, -74.0445.
+
+Eiffel Tower coordinates: 48.8584, 2.2945 (approximate center).
+
+GPS pin for the Sydney Opera House: -33.8568, 151.2153.
+
+The Colosseum in Rome is at 41.8902, 12.4922.
+
+Mount Fuji summit: 35.3606, 138.7274.
+
+--- In travel / delivery context ---
+
+DELIVERY CONFIRMATION
+
+Package #PKG-20260218-4421
+Delivered to GPS location: 37.7749, -122.4194
+Timestamp: 2026-02-18 11:42:33 PST
+Driver: Unit #D-1147
+Signature: Left at front door
+
+---
+
+Your Uber driver is 2 minutes away. Current location: 40.7580, -73.9855.
+Pickup point: 40.7614, -73.9776.
+Destination: 40.7484, -73.9857 (Empire State Building area).
+
+---
+
+ROADSIDE ASSISTANCE REQUEST
+
+Member: Johnson, Michael
+Vehicle: 2024 Toyota Camry (Silver)
+Current GPS: 34.0522, -118.2437
+Issue: Flat tire on I-405 southbound
+Nearest cross street: Wilshire Blvd exit
+ETA for service truck: 25 minutes
+
+--- In geofencing / IoT ---
+
+GEOFENCE ALERT
+
+Device: iPhone-A1B2C3
+Alert Type: Entered restricted zone
+Coordinates: 38.8977, -77.0365
+Zone: "Downtown DC Office" (radius: 500m, center: 38.8951, -77.0364)
+Time: 2026-02-18 09:15:22 EST
+User: Employee #E-4421
+
+---
+
+IoT SENSOR LOG
+
+Sensor ID: TEMP-042
+Location: 47.6062, -122.3321
+Reading: 18.4°C at 2026-02-18 14:00:00 UTC
+Battery: 87%
+
+Sensor ID: TEMP-043
+Location: 47.6088, -122.3352
+Reading: 17.9°C at 2026-02-18 14:00:00 UTC
+Battery: 92%
+
+--- In fitness / health tracking ---
+
+RUNNING LOG — February 18, 2026
+
+Start: 37.7694, -122.4862 (Golden Gate Park, west entrance)
+Mile 1: 37.7699, -122.4785 (pace: 8:12/mi)
+Mile 2: 37.7712, -122.4701 (pace: 8:05/mi)
+Mile 3: 37.7749, -122.4626 (pace: 7:58/mi)
+Finish: 37.7751, -122.4530 (Haight Street exit)
+
+Total distance: 3.2 miles
+Elapsed time: 25:42
+Average pace: 8:02/mi
+
+--- In real estate / property ---
+
+PROPERTY LISTING
+
+Address: 1234 Birch Lane, Denver, CO 80202
+GPS: 39.7392, -104.9903
+Lot size: 0.25 acres
+Year built: 2019
+Asking price: $685,000
+
+Nearby amenities:
+- Park: 39.7401, -104.9875 (0.2 miles)
+- School: 39.7355, -104.9920 (0.4 miles)
+- Grocery: 39.7420, -104.9850 (0.3 miles)
+
+--- In incident / emergency ---
+
+911 DISPATCH LOG
+
+Call received: 2026-02-18 22:14:33
+Caller GPS: 42.3601, -71.0589
+Nearest unit: Ambulance 7 at 42.3555, -71.0622
+Dispatched: 22:14:45
+Arrived on scene: 22:19:12
+Hospital destination: Mass General at 42.3626, -71.0686
+
+--- Edge cases ---
+
+High precision: The survey marker is at 40.689247, -74.044502.
+
+Southern hemisphere: Buenos Aires at -34.6037, -58.3816.
+
+Near antimeridian: Fiji at -17.7134, 178.0650 and Tonga at -21.1789, -175.1982.
+
+Multiple coords: Route from 40.7128, -74.0060 to 42.3601, -71.0589 via 41.3082, -72.9282.
+
+Coordinates with context: "The suspect's phone last pinged at 33.9425, -118.4081 at 23:47 UTC."
+
+Zero-crossing: Accra, Ghana is near 5.6037, -0.1870 (close to prime meridian).

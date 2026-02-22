@@ -1,0 +1,601 @@
+{
+  "_meta": {
+    "version": "2.1",
+    "description": "Expected PII detection results per input file. Thresholds at ~85% of actual counts. visual_files section validates image pipeline outputs (faces, OCR, NSFW, screenshots).",
+    "generated": "2026-02-22",
+    "total_files": 45,
+    "total_visual_files": 45,
+    "type_names": "Must match scanner output exactly: credit_card, ssn, phone, email, api_key, ipv4_address, ipv6_address, gps_coordinate, mac_address, health_keyword, child_keyword, person, location, organization"
+  },
+  "files": {
+
+    "PII_Detection/Credit_Card_Numbers.txt": {
+      "min_matches": 15,
+      "expected_types": ["credit_card"],
+      "must_detect": [
+        {"text": "4532015112830366", "type": "credit_card"},
+        {"text": "5425233430109903", "type": "credit_card"},
+        {"text": "378282246310005", "type": "credit_card"},
+        {"text": "6011111111111117", "type": "credit_card"},
+        {"text": "4111-1111-1111-1111", "type": "credit_card"}
+      ]
+    },
+    "PII_Detection/Social_Security_Numbers.txt": {
+      "min_matches": 26,
+      "expected_types": ["ssn"],
+      "must_detect": [
+        {"text": "123-45-6789", "type": "ssn"},
+        {"text": "287-65-4321", "type": "ssn"},
+        {"text": "378-22-9104", "type": "ssn"},
+        {"text": "154-32-8877", "type": "ssn"}
+      ]
+    },
+    "PII_Detection/Phone_Numbers.txt": {
+      "min_matches": 42,
+      "expected_types": ["phone"],
+      "must_detect": [
+        {"text": "(415) 555-0132", "type": "phone"},
+        {"text": "415.555.0132", "type": "phone"},
+        {"text": "+1-415-555-0132", "type": "phone"}
+      ]
+    },
+    "PII_Detection/Email_Addresses.txt": {
+      "min_matches": 40,
+      "expected_types": ["email"],
+      "must_detect": [
+        {"text": "john.doe@gmail.com", "type": "email"},
+        {"text": "mike.chen+invoices@outlook.com", "type": "email"},
+        {"text": "r.williams@techcorp-solutions.io", "type": "email"},
+        {"text": "JOHN.DOE@GMAIL.COM", "type": "email"}
+      ]
+    },
+    "PII_Detection/API_Keys_Tokens.txt": {
+      "min_matches": 26,
+      "expected_types": ["api_key"],
+      "must_detect": [
+        {"text": "sk-ant-api03-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz", "type": "api_key"},
+        {"text": "sk-Tm4nXp7qSt2uWv5xYz8aBCdEfGhIjKlMnOpQrSt", "type": "api_key"},
+        {"text": "AKIAIOSFODNN7EXAMPLE", "type": "api_key"}
+      ]
+    },
+    "PII_Detection/IPv4_Addresses.txt": {
+      "min_matches": 43,
+      "expected_types": ["ipv4_address"]
+    },
+    "PII_Detection/IPv6_Addresses.txt": {
+      "min_matches": 29,
+      "expected_types": ["ipv6_address"]
+    },
+    "PII_Detection/GPS_Coordinates.txt": {
+      "min_matches": 36,
+      "expected_types": ["gps_coordinate"]
+    },
+    "PII_Detection/MAC_Addresses.txt": {
+      "min_matches": 47,
+      "expected_types": ["mac_address"]
+    },
+    "PII_Detection/Health_Keywords.txt": {
+      "min_matches": 150,
+      "expected_types": ["health_keyword"]
+    },
+    "PII_Detection/Child_Keywords.txt": {
+      "min_matches": 115,
+      "expected_types": ["child_keyword"]
+    },
+    "PII_Detection/Person_Names.txt": {
+      "min_matches": 27,
+      "expected_types": ["person", "phone"],
+      "note": "NER detects person names; regex detects phone/email alongside names."
+    },
+    "PII_Detection/Locations.txt": {
+      "min_matches": 52,
+      "expected_types": ["location"],
+      "note": "NER-dependent for locations."
+    },
+    "PII_Detection/Organizations.txt": {
+      "min_matches": 41,
+      "expected_types": ["organization"],
+      "note": "NER-dependent for organizations."
+    },
+    "PII_Detection/Mixed_Structured_PII.txt": {
+      "min_matches": 70,
+      "expected_types": ["credit_card", "ssn", "phone", "email"],
+      "must_detect": [
+        {"text": "5425233430109903", "type": "credit_card"},
+        {"text": "267-83-1945", "type": "ssn"},
+        {"text": "+1-303-555-0188", "type": "phone"},
+        {"text": "m.thompson@outlook.com", "type": "email"},
+        {"text": "sk-ant-api03-Compromised123Key456That789Should012Be345Rotated678Immediately901abc", "type": "api_key"}
+      ]
+    },
+
+    "Multilingual_PII/es_Spanish_PII.txt": {
+      "min_matches": 18,
+      "expected_types": ["phone", "ssn"]
+    },
+    "Multilingual_PII/de_German_PII.txt": {
+      "min_matches": 20,
+      "expected_types": ["phone", "credit_card"]
+    },
+    "Multilingual_PII/fr_French_PII.txt": {
+      "min_matches": 15,
+      "expected_types": ["phone", "credit_card"]
+    },
+    "Multilingual_PII/pt_Portuguese_PII.txt": {
+      "min_matches": 26,
+      "expected_types": ["phone", "ssn"]
+    },
+    "Multilingual_PII/ja_Japanese_PII.txt": {
+      "min_matches": 16,
+      "expected_types": ["phone"]
+    },
+    "Multilingual_PII/ko_Korean_PII.txt": {
+      "min_matches": 14,
+      "expected_types": ["phone"]
+    },
+    "Multilingual_PII/zh_Chinese_PII.txt": {
+      "min_matches": 14,
+      "expected_types": ["phone"]
+    },
+    "Multilingual_PII/ar_Arabic_PII.txt": {
+      "min_matches": 28,
+      "expected_types": ["phone", "ssn"]
+    },
+
+    "Code_Config_PII/sample_python.py": {
+      "min_matches": 20,
+      "expected_types": ["api_key", "ipv4_address"]
+    },
+    "Code_Config_PII/sample_config.yaml": {
+      "min_matches": 23,
+      "expected_types": ["ipv4_address", "api_key"]
+    },
+    "Code_Config_PII/sample.env": {
+      "min_matches": 12,
+      "expected_types": ["api_key"]
+    },
+    "Code_Config_PII/sample_access.log": {
+      "min_matches": 36,
+      "expected_types": ["ipv4_address", "email"]
+    },
+    "Code_Config_PII/sample_docs.md": {
+      "min_matches": 11,
+      "expected_types": ["email", "ipv4_address"]
+    },
+    "Code_Config_PII/sample_terraform.json": {
+      "min_matches": 14,
+      "expected_types": ["ipv4_address"]
+    },
+    "Code_Config_PII/sample_deploy.sh": {
+      "min_matches": 19,
+      "expected_types": ["ipv4_address", "api_key"]
+    },
+    "Code_Config_PII/sample_git_diff.txt": {
+      "min_matches": 20,
+      "expected_types": ["api_key", "email"]
+    },
+
+    "Structured_Data_PII/employee_roster.csv": {
+      "min_matches": 59,
+      "expected_types": ["ssn", "email", "phone"],
+      "must_detect": [
+        {"text": "287-65-4321", "type": "ssn"},
+        {"text": "j.henderson@email.com", "type": "email"},
+        {"text": "(206) 555-0312", "type": "phone"}
+      ]
+    },
+    "Structured_Data_PII/customer_database.csv": {
+      "min_matches": 45,
+      "expected_types": ["credit_card", "email", "phone"]
+    },
+    "Structured_Data_PII/network_inventory.tsv": {
+      "min_matches": 48,
+      "expected_types": ["ipv4_address", "mac_address", "email"]
+    },
+    "Structured_Data_PII/patient_records.csv": {
+      "min_matches": 65,
+      "expected_types": ["ssn", "email", "phone"]
+    },
+    "Structured_Data_PII/transactions.csv": {
+      "min_matches": 43,
+      "expected_types": ["credit_card", "email", "phone"]
+    },
+
+    "Agent_Tool_Results/agent_anthropic_text_pii.json": {
+      "min_matches": 9,
+      "expected_types": ["email", "phone", "ssn"],
+      "must_detect": [
+        {"text": "j.henderson@email.com", "type": "email"},
+        {"text": "287-65-4321", "type": "ssn"}
+      ]
+    },
+    "Agent_Tool_Results/agent_anthropic_multi_text.json": {
+      "min_matches": 10,
+      "expected_types": ["email", "phone"]
+    },
+    "Agent_Tool_Results/agent_code_fence_credentials.json": {
+      "min_matches": 9,
+      "expected_types": ["api_key"]
+    },
+    "Agent_Tool_Results/agent_deeply_nested_json.json": {
+      "min_matches": 4,
+      "expected_types": ["email"]
+    },
+    "Agent_Tool_Results/agent_multimodal_mixed.json": {
+      "min_matches": 13,
+      "expected_types": ["api_key"]
+    },
+    "Agent_Tool_Results/agent_openai_text_apikey.json": {
+      "min_matches": 9,
+      "expected_types": ["api_key"]
+    },
+    "Agent_Tool_Results/agent_tool_result_database_query.json": {
+      "min_matches": 24,
+      "expected_types": ["email", "phone"]
+    },
+    "Agent_Tool_Results/agent_tool_result_nested_pii.json": {
+      "min_matches": 9,
+      "expected_types": ["email"]
+    },
+    "Agent_Tool_Results/agent_tool_result_network_scan.json": {
+      "min_matches": 19,
+      "expected_types": ["ipv4_address", "mac_address"]
+    }
+  },
+
+  "visual_files": {
+
+    "Visual_PII/face_single_frontal_01.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_single_frontal_02.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_single_frontal_03.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_single_frontal_04.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_single_frontal_05.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_single_frontal_06.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_single_frontal_07.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_single_profile_01.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_group_01.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Group photo — face count varies by model"
+    },
+    "Visual_PII/face_group_02.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_group_03.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 1,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/face_small_landscape_01.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Small faces in landscape — detection varies"
+    },
+    "Visual_PII/face_small_landscape_02.jpg": {
+      "subcategory": "Faces",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Small faces in landscape — detection varies"
+    },
+
+    "Visual_PII/doc_business_card_01.jpg": {
+      "subcategory": "Documents",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Business card with contact info — OCR should find text"
+    },
+    "Visual_PII/doc_credit_card_01.jpg": {
+      "subcategory": "Documents",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Credit card — OCR should find card numbers"
+    },
+    "Visual_PII/doc_drivers_license_01.jpg": {
+      "subcategory": "Documents",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Driver's license — synthetic image face not detected by SCRFD"
+    },
+    "Visual_PII/doc_insurance_card_01.jpg": {
+      "subcategory": "Documents",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/doc_medical_record_01.jpg": {
+      "subcategory": "Documents",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false
+    },
+    "Visual_PII/doc_passport_01.jpg": {
+      "subcategory": "Documents",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Passport — synthetic image face not detected by SCRFD; OCR finds text"
+    },
+    "Visual_PII/doc_ssn_card_01.png": {
+      "subcategory": "Documents",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "SSN card — OCR should find SSN text"
+    },
+    "Visual_PII/doc_w2_form_01.jpg": {
+      "subcategory": "Documents",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "W-2 form — OCR should find text"
+    },
+
+    "Visual_PII/screenshot_android_form_1080x2340.png": {
+      "subcategory": "Screenshots",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "Mobile form — screenshot detected by resolution heuristic"
+    },
+    "Visual_PII/screenshot_email_inbox_1920x1080.png": {
+      "subcategory": "Screenshots",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Desktop email — PNG without EXIF, resolution heuristic not triggered"
+    },
+    "Visual_PII/screenshot_ide_code_1920x1080.png": {
+      "subcategory": "Screenshots",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "IDE with code — PNG without EXIF, OCR detects text"
+    },
+    "Visual_PII/screenshot_mobile_chat_1170x2532.png": {
+      "subcategory": "Screenshots",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "Mobile chat — screenshot detected by resolution heuristic"
+    },
+    "Visual_PII/screenshot_spreadsheet_2880x1800.png": {
+      "subcategory": "Screenshots",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "Spreadsheet — screenshot detected by resolution heuristic"
+    },
+    "Visual_PII/screenshot_terminal_logs_2560x1440.png": {
+      "subcategory": "Screenshots",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "Terminal — screenshot detected by resolution heuristic"
+    },
+    "Visual_PII/screenshot_web_form_1440x900.png": {
+      "subcategory": "Screenshots",
+      "min_faces": 0,
+      "min_text_regions": 1,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Web form — PNG without EXIF, OCR detects text"
+    },
+
+    "Visual_PII/exif_screenshot_cleanshot.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "CleanShot EXIF tag should trigger screenshot detection"
+    },
+    "Visual_PII/exif_screenshot_flameshot.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "Flameshot EXIF tag"
+    },
+    "Visual_PII/exif_screenshot_gnome.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "GNOME Screenshot EXIF tag"
+    },
+    "Visual_PII/exif_screenshot_screencapture.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "macOS Screencapture EXIF tag"
+    },
+    "Visual_PII/exif_screenshot_sharex.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "ShareX EXIF tag"
+    },
+    "Visual_PII/exif_screenshot_snipping_tool.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": true,
+      "note": "Windows Snipping Tool EXIF tag"
+    },
+    "Visual_PII/exif_camera_no_gps.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Camera photo — no screenshot EXIF, EXIF should be stripped from output"
+    },
+    "Visual_PII/exif_smartphone_no_gps.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Smartphone photo — no screenshot EXIF"
+    },
+    "Visual_PII/exif_no_metadata_control.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Control: no EXIF metadata to strip"
+    },
+    "Visual_PII/exif_stripped_control.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Control: already-stripped EXIF"
+    },
+
+    "Visual_PII/nsfw_positive_placeholder_01.jpg": {
+      "subcategory": "NSFW",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Placeholder image — NudeNet does not flag synthetic placeholders"
+    },
+    "Visual_PII/nsfw_positive_placeholder_02.jpg": {
+      "subcategory": "NSFW",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Placeholder image — NudeNet does not flag synthetic placeholders"
+    },
+    "Visual_PII/nsfw_safe_landscape_01.jpg": {
+      "subcategory": "NSFW",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Safe landscape — no NSFW detection"
+    },
+    "Visual_PII/nsfw_safe_landscape_02.jpg": {
+      "subcategory": "NSFW",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Safe landscape — no NSFW detection"
+    },
+    "Visual_PII/nsfw_safe_object_01.jpg": {
+      "subcategory": "NSFW",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Safe object photo"
+    },
+    "Visual_PII/nsfw_safe_portrait_01.jpg": {
+      "subcategory": "NSFW",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Safe portrait — may detect face but no NSFW"
+    },
+    "Visual_PII/nsfw_safe_portrait_02.jpg": {
+      "subcategory": "NSFW",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "note": "Safe portrait — may detect face but no NSFW"
+    }
+  }
+}

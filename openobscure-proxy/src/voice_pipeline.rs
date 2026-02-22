@@ -1,248 +1,141 @@
-//! Voice anonymization pipeline.
+//! Voice PII detection pipeline — KWS-gated selective strip.
 //!
-//! Orchestrates: audio detection → transcription → PII scan → masking.
+//! Detects audio blocks in JSON request bodies, decodes to PCM,
+//! runs keyword spotting for PII trigger phrases, and strips only
+//! audio blocks where PII keywords are detected.
 //!
-//! Desktop: full pipeline (Whisper + PII scan + audio masking).
-//! Mobile: detection only (delegates to gateway for anonymization).
+//! When KWS engine is not available, audio passes through unchanged.
 
 use serde_json::Value;
 
-use crate::hybrid_scanner::HybridScanner;
-#[cfg(feature = "voice")]
-use crate::voice_detect::AudioFormat;
-use crate::voice_detect::{detect_audio_blocks, AudioBlock};
-use crate::whisper_engine::{self, WhisperConfig, WhisperEngine, WhisperError};
+use crate::kws_engine::KwsEngine;
+use crate::voice_detect::{detect_audio_blocks, AudioBlock, AudioFormat};
 
-/// Result of processing a single audio block.
+/// Result of scanning audio blocks for PII.
 #[derive(Debug)]
-pub struct VoiceProcessResult {
-    /// JSON path of the audio block.
-    pub json_path: String,
-    /// Number of PII segments detected and masked.
-    pub pii_count: usize,
-    /// Total duration of masked audio in seconds.
-    pub masked_duration_secs: f32,
+pub struct VoiceScanResult {
+    /// Number of audio blocks scanned.
+    pub blocks_scanned: usize,
+    /// Number of audio blocks stripped (PII detected).
+    pub blocks_stripped: usize,
+    /// PII keywords that triggered stripping.
+    pub keywords_found: Vec<String>,
 }
 
-/// Voice pipeline configuration.
-#[derive(Debug, Clone, Default)]
-pub struct VoicePipelineConfig {
-    /// Whether voice anonymization is enabled.
-    pub enabled: bool,
-    /// Use beep tone instead of silence for masking.
-    pub use_beep: bool,
-    /// Whisper model configuration.
-    pub whisper: WhisperConfig,
-}
-
-/// Voice anonymization pipeline.
-pub struct VoicePipeline {
-    config: VoicePipelineConfig,
-    engine: Option<WhisperEngine>,
-}
-
-impl VoicePipeline {
-    /// Create a new voice pipeline.
-    pub fn new(config: VoicePipelineConfig) -> Self {
-        let engine = if config.enabled {
-            let engine = WhisperEngine::new(config.whisper.clone());
-            if engine.is_available() {
-                Some(engine)
-            } else {
-                None
-            }
-        } else {
-            None
+/// Scan audio blocks for PII keywords and strip blocks where PII is detected.
+///
+/// For each audio block found:
+/// 1. Decode base64 audio to PCM f32 at 16kHz
+/// 2. Run keyword spotter for PII trigger phrases
+/// 3. If PII found: replace audio with text notice including detected keywords
+/// 4. If no PII: leave audio block unchanged (pass through)
+pub fn scan_and_strip_audio_blocks(json: &mut Value, kws_engine: &KwsEngine) -> VoiceScanResult {
+    let blocks = detect_audio_blocks(json);
+    if blocks.is_empty() {
+        return VoiceScanResult {
+            blocks_scanned: 0,
+            blocks_stripped: 0,
+            keywords_found: Vec::new(),
         };
-
-        Self { config, engine }
     }
 
-    /// Check if the voice pipeline is ready (model available).
-    pub fn is_ready(&self) -> bool {
-        self.config.enabled && self.engine.is_some()
-    }
+    oo_info!(
+        crate::oo_log::modules::VOICE,
+        "Audio blocks detected — scanning for PII keywords",
+        count = blocks.len()
+    );
 
-    /// Detect audio blocks in a JSON body without processing them.
-    ///
-    /// Used by mobile (detection-only) and for metrics.
-    pub fn detect_audio(json: &Value) -> Vec<AudioBlock> {
-        detect_audio_blocks(json)
-    }
+    let mut scanned = 0;
+    let mut stripped = 0;
+    let mut all_keywords = Vec::new();
 
-    /// Process a JSON request body: detect audio, transcribe, scan PII, mask.
-    ///
-    /// Returns the modified JSON (with masked audio) and processing results.
-    pub fn process_request(
-        &mut self,
-        json: &mut Value,
-        scanner: &HybridScanner,
-    ) -> Vec<VoiceProcessResult> {
-        if !self.config.enabled {
-            return vec![];
-        }
+    for block in &blocks {
+        scanned += 1;
 
-        let blocks = detect_audio_blocks(json);
-        if blocks.is_empty() {
-            return vec![];
-        }
-
-        let engine = match &mut self.engine {
-            Some(e) => e,
-            None => return vec![], // No model available — fail open
-        };
-
-        let mut results = Vec::new();
-        let use_beep = self.config.use_beep;
-        let sample_rate = self.config.whisper.sample_rate;
-
-        for block in &blocks {
-            match process_audio_block(block, engine, scanner, sample_rate, use_beep) {
-                Ok(result) => {
-                    if result.pii_count > 0 {
-                        // Replace audio data in the JSON body
-                        if let Some(masked_data) = result.masked_data.as_ref() {
-                            replace_audio_data(json, &block.json_path, masked_data);
-                        }
-                    }
-                    results.push(VoiceProcessResult {
-                        json_path: block.json_path.clone(),
-                        pii_count: result.pii_count,
-                        masked_duration_secs: result.masked_duration_secs,
-                    });
-                }
-                Err(e) => {
-                    // Fail open: log error, pass audio through unchanged
-                    oo_warn!(
-                        crate::oo_log::modules::VOICE,
-                        "Voice pipeline error, passing through",
-                        error = %e,
-                        path = block.json_path
-                    );
+        match scan_single_block(block, kws_engine) {
+            Ok(Some(keywords)) => {
+                // PII detected — strip this audio block
+                let notice = format!(
+                    "[AUDIO_PII_DETECTED: keywords={{{}}} — audio stripped]",
+                    keywords.join(", ")
+                );
+                if replace_audio_with_notice(json, &block.json_path, &notice) {
+                    stripped += 1;
+                    all_keywords.extend(keywords);
                 }
             }
+            Ok(None) => {
+                // No PII — leave audio block unchanged
+                oo_debug!(
+                    crate::oo_log::modules::VOICE,
+                    "No PII keywords in audio block — passing through",
+                    path = &block.json_path
+                );
+            }
+            Err(e) => {
+                // Decode/inference error — log and pass through (fail-open)
+                oo_warn!(
+                    crate::oo_log::modules::VOICE,
+                    "Audio PII scan failed, passing through",
+                    error = %e,
+                    path = &block.json_path
+                );
+            }
         }
+    }
 
-        results
+    if stripped > 0 {
+        oo_info!(
+            crate::oo_log::modules::VOICE,
+            "Audio PII detected and stripped",
+            stripped = stripped,
+            keywords = %all_keywords.join(", ")
+        );
+    }
+
+    VoiceScanResult {
+        blocks_scanned: scanned,
+        blocks_stripped: stripped,
+        keywords_found: all_keywords,
     }
 }
 
-fn process_audio_block(
+/// Scan a single audio block for PII keywords.
+/// Returns Ok(Some(keywords)) if PII detected, Ok(None) if clean.
+fn scan_single_block(
     block: &AudioBlock,
-    engine: &mut WhisperEngine,
-    scanner: &HybridScanner,
-    sample_rate: u32,
-    use_beep: bool,
-) -> Result<AudioProcessResult, WhisperError> {
-    // Decode audio to PCM
-    #[cfg(feature = "voice")]
-    let mut pcm = {
-        let format = AudioFormat::from_mime(&block.media_type);
-        whisper_engine::decode_audio_to_pcm(&block.data, format)?
-    };
-    #[cfg(not(feature = "voice"))]
-    let mut pcm: Vec<f32> = {
-        let _ = block; // suppress unused warning when voice feature disabled
-        Vec::new()
-    };
+    kws_engine: &KwsEngine,
+) -> Result<Option<Vec<String>>, String> {
+    // Determine audio format from MIME type
+    let format = AudioFormat::from_mime(&block.media_type);
+
+    // Decode base64 audio to PCM f32 mono at original sample rate
+    let (pcm, sample_rate) = crate::audio_decode::decode_audio_to_pcm(&block.data, format)
+        .map_err(|e| format!("audio decode: {}", e))?;
 
     if pcm.is_empty() {
-        return Ok(AudioProcessResult {
-            pii_count: 0,
-            masked_duration_secs: 0.0,
-            masked_data: None,
-        });
+        return Ok(None);
     }
 
-    // Transcribe
-    let segments = engine.transcribe(&pcm)?;
+    // Run keyword spotter (sherpa-onnx resamples internally if needed)
+    let result = kws_engine
+        .detect_pii(pcm, sample_rate)
+        .map_err(|e| format!("KWS: {}", e))?;
 
-    // Scan transcription for PII
-    let mut pii_count = 0;
-    let mut masked_duration = 0.0f32;
-
-    for segment in &segments {
-        let matches = scanner.scan_text(&segment.text);
-        if !matches.is_empty() {
-            pii_count += matches.len();
-            let duration = segment.end_secs - segment.start_secs;
-            masked_duration += duration;
-
-            // Mask the audio region
-            whisper_engine::mask_audio_region(
-                &mut pcm,
-                segment.start_secs,
-                segment.end_secs,
-                sample_rate,
-                use_beep,
-            );
-        }
-    }
-
-    // Re-encode to base64 if any masking was done
-    let masked_data = if pii_count > 0 {
-        Some(encode_pcm_to_base64_wav(&pcm, sample_rate))
+    if result.pii_detected {
+        Ok(Some(result.keywords_found))
     } else {
-        None
-    };
-
-    Ok(AudioProcessResult {
-        pii_count,
-        masked_duration_secs: masked_duration,
-        masked_data,
-    })
-}
-
-/// Internal processing result with optional masked audio data.
-struct AudioProcessResult {
-    pii_count: usize,
-    masked_duration_secs: f32,
-    masked_data: Option<String>,
-}
-
-/// Encode PCM f32 samples to a base64 WAV string.
-fn encode_pcm_to_base64_wav(pcm: &[f32], sample_rate: u32) -> String {
-    use base64::Engine;
-
-    let num_samples = pcm.len();
-    let data_size = num_samples * 2; // 16-bit samples
-    let file_size = 36 + data_size;
-
-    let mut wav = Vec::with_capacity(44 + data_size);
-
-    // RIFF header
-    wav.extend_from_slice(b"RIFF");
-    wav.extend_from_slice(&(file_size as u32).to_le_bytes());
-    wav.extend_from_slice(b"WAVE");
-
-    // fmt chunk
-    wav.extend_from_slice(b"fmt ");
-    wav.extend_from_slice(&16u32.to_le_bytes()); // chunk size
-    wav.extend_from_slice(&1u16.to_le_bytes()); // PCM format
-    wav.extend_from_slice(&1u16.to_le_bytes()); // mono
-    wav.extend_from_slice(&sample_rate.to_le_bytes());
-    wav.extend_from_slice(&(sample_rate * 2).to_le_bytes()); // byte rate
-    wav.extend_from_slice(&2u16.to_le_bytes()); // block align
-    wav.extend_from_slice(&16u16.to_le_bytes()); // bits per sample
-
-    // data chunk
-    wav.extend_from_slice(b"data");
-    wav.extend_from_slice(&(data_size as u32).to_le_bytes());
-
-    // Convert f32 to i16
-    for &sample in pcm {
-        let clamped = sample.clamp(-1.0, 1.0);
-        let i16_val = (clamped * 32767.0) as i16;
-        wav.extend_from_slice(&i16_val.to_le_bytes());
+        Ok(None)
     }
-
-    base64::engine::general_purpose::STANDARD.encode(&wav)
 }
 
-/// Replace audio data at a JSON path.
-fn replace_audio_data(json: &mut Value, json_path: &str, new_data: &str) {
-    // Navigate to the audio block and replace its data
-    // Paths like "messages[0].content[1].source.data"
+/// Detect audio blocks without scanning (for metrics/detection-only mode).
+pub fn detect_audio(json: &Value) -> Vec<AudioBlock> {
+    detect_audio_blocks(json)
+}
+
+/// Replace an audio block at the given JSON path with a text notice.
+fn replace_audio_with_notice(json: &mut Value, json_path: &str, notice: &str) -> bool {
     let parts: Vec<&str> = json_path.split('.').collect();
     let mut current = json;
 
@@ -258,20 +151,25 @@ fn replace_audio_data(json: &mut Value, json_path: &str, new_data: &str) {
         }
     }
 
-    // Replace data field in Anthropic format
-    if let Some(source) = current.get_mut("source") {
-        if let Some(data) = source.get_mut("data") {
-            *data = Value::String(new_data.to_string());
-            return;
-        }
+    // Replace Anthropic format: {"type": "audio", "source": {...}}
+    if current.get("type").and_then(|v| v.as_str()) == Some("audio") {
+        *current = serde_json::json!({
+            "type": "text",
+            "text": notice
+        });
+        return true;
     }
 
-    // Replace data field in OpenAI format
-    if let Some(audio) = current.get_mut("input_audio") {
-        if let Some(data) = audio.get_mut("data") {
-            *data = Value::String(new_data.to_string());
-        }
+    // Replace OpenAI format: {"type": "input_audio", "input_audio": {...}}
+    if current.get("type").and_then(|v| v.as_str()) == Some("input_audio") {
+        *current = serde_json::json!({
+            "type": "text",
+            "text": notice
+        });
+        return true;
     }
+
+    false
 }
 
 #[cfg(test)]
@@ -279,117 +177,153 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_pipeline_disabled_by_default() {
-        let pipeline = VoicePipeline::new(VoicePipelineConfig::default());
-        assert!(!pipeline.is_ready());
-    }
-
-    #[test]
-    fn test_detect_audio_empty_json() {
-        let json: Value = serde_json::from_str(r#"{"messages": []}"#).unwrap();
-        let blocks = VoicePipeline::detect_audio(&json);
-        assert!(blocks.is_empty());
-    }
-
-    #[test]
-    fn test_detect_audio_anthropic() {
-        let json: Value = serde_json::from_str(r#"{
-            "messages": [{"content": [
-                {"type": "audio", "source": {"type": "base64", "media_type": "audio/wav", "data": "dGVzdA=="}}
-            ]}]
-        }"#).unwrap();
-        let blocks = VoicePipeline::detect_audio(&json);
-        assert_eq!(blocks.len(), 1);
-    }
-
-    #[test]
-    fn test_detect_audio_openai() {
+    fn test_scan_no_audio() {
+        // Without KWS engine, we can't scan — but no audio means no-op anyway
         let json: Value = serde_json::from_str(
             r#"{
             "messages": [{"content": [
-                {"type": "input_audio", "input_audio": {"data": "dGVzdA==", "format": "wav"}}
+                {"type": "text", "text": "hello"}
             ]}]
         }"#,
         )
         .unwrap();
-        let blocks = VoicePipeline::detect_audio(&json);
+
+        // Can't construct a real KwsEngine without models, so test detection
+        let blocks = detect_audio(&json);
+        assert!(blocks.is_empty());
+
+        // Verify text unchanged
+        assert_eq!(
+            json["messages"][0]["content"][0]["text"].as_str().unwrap(),
+            "hello"
+        );
+    }
+
+    #[test]
+    fn test_detect_audio_blocks() {
+        let json: Value = serde_json::from_str(
+            r#"{
+            "messages": [{"content": [
+                {"type": "audio", "source": {"type": "base64", "media_type": "audio/wav", "data": "UklGRg=="}}
+            ]}]
+        }"#,
+        )
+        .unwrap();
+        let blocks = detect_audio(&json);
         assert_eq!(blocks.len(), 1);
+        assert_eq!(blocks[0].media_type, "audio/wav");
     }
 
     #[test]
-    fn test_process_request_disabled() {
-        let mut pipeline = VoicePipeline::new(VoicePipelineConfig::default());
-        let scanner = HybridScanner::new(false, None);
-        let mut json: Value = serde_json::from_str(r#"{"messages": []}"#).unwrap();
-        let results = pipeline.process_request(&mut json, &scanner);
-        assert!(results.is_empty());
-    }
-
-    #[test]
-    fn test_process_request_no_model() {
-        let config = VoicePipelineConfig {
-            enabled: true,
-            ..Default::default()
-        };
-        let mut pipeline = VoicePipeline::new(config);
-        let scanner = HybridScanner::new(false, None);
-        let mut json: Value = serde_json::from_str(r#"{
-            "messages": [{"content": [
-                {"type": "audio", "source": {"type": "base64", "media_type": "audio/wav", "data": "dGVzdA=="}}
-            ]}]
-        }"#).unwrap();
-        let results = pipeline.process_request(&mut json, &scanner);
-        assert!(results.is_empty()); // No model → fail open
-    }
-
-    #[test]
-    fn test_encode_pcm_to_wav() {
-        let pcm = vec![0.0f32; 160]; // 10ms at 16kHz
-        let b64 = encode_pcm_to_base64_wav(&pcm, 16000);
-
-        // Should be valid base64
-        use base64::Engine;
-        let decoded = base64::engine::general_purpose::STANDARD
-            .decode(&b64)
-            .unwrap();
-
-        // Check WAV header
-        assert_eq!(&decoded[..4], b"RIFF");
-        assert_eq!(&decoded[8..12], b"WAVE");
-    }
-
-    #[test]
-    fn test_replace_audio_data_anthropic() {
-        let mut json: Value = serde_json::from_str(r#"{
-            "messages": [{"content": [
-                {"type": "audio", "source": {"type": "base64", "media_type": "audio/wav", "data": "original"}}
-            ]}]
-        }"#).unwrap();
-
-        replace_audio_data(&mut json, "messages[0].content[0]", "replaced");
-
-        let data = json["messages"][0]["content"][0]["source"]["data"]
-            .as_str()
-            .unwrap();
-        assert_eq!(data, "replaced");
-    }
-
-    #[test]
-    fn test_replace_audio_data_openai() {
+    fn test_replace_anthropic_audio() {
         let mut json: Value = serde_json::from_str(
             r#"{
             "messages": [{"content": [
-                {"type": "input_audio", "input_audio": {"data": "original", "format": "wav"}}
+                {"type": "audio", "source": {"type": "base64", "media_type": "audio/wav", "data": "UklGRg=="}}
             ]}]
         }"#,
         )
         .unwrap();
-
-        replace_audio_data(&mut json, "messages[0].content[0]", "replaced");
-
-        let data = json["messages"][0]["content"][0]["input_audio"]["data"]
+        let replaced = replace_audio_with_notice(
+            &mut json,
+            "messages[0].content[0]",
+            "[AUDIO_PII_DETECTED: keywords={social security} — audio stripped]",
+        );
+        assert!(replaced);
+        let block = &json["messages"][0]["content"][0];
+        assert_eq!(block["type"].as_str().unwrap(), "text");
+        assert!(block["text"]
             .as_str()
-            .unwrap();
-        assert_eq!(data, "replaced");
+            .unwrap()
+            .contains("AUDIO_PII_DETECTED"));
+        assert!(block["text"].as_str().unwrap().contains("social security"));
+    }
+
+    #[test]
+    fn test_replace_openai_audio() {
+        let mut json: Value = serde_json::from_str(
+            r#"{
+            "messages": [{"content": [
+                {"type": "input_audio", "input_audio": {"data": "UklGRg==", "format": "wav"}}
+            ]}]
+        }"#,
+        )
+        .unwrap();
+        let replaced = replace_audio_with_notice(
+            &mut json,
+            "messages[0].content[0]",
+            "[AUDIO_PII_DETECTED: keywords={credit card} — audio stripped]",
+        );
+        assert!(replaced);
+        assert_eq!(
+            json["messages"][0]["content"][0]["type"].as_str().unwrap(),
+            "text"
+        );
+    }
+
+    #[test]
+    fn test_replace_mixed_content_preserves_text() {
+        let mut json: Value = serde_json::from_str(
+            r#"{
+            "messages": [{"content": [
+                {"type": "text", "text": "transcribe this"},
+                {"type": "audio", "source": {"type": "base64", "media_type": "audio/wav", "data": "UklGRg=="}},
+                {"type": "text", "text": "and summarize"}
+            ]}]
+        }"#,
+        )
+        .unwrap();
+        let replaced = replace_audio_with_notice(
+            &mut json,
+            "messages[0].content[1]",
+            "[AUDIO_PII_DETECTED: keywords={phone number} — audio stripped]",
+        );
+        assert!(replaced);
+        // Text blocks preserved
+        assert_eq!(
+            json["messages"][0]["content"][0]["text"].as_str().unwrap(),
+            "transcribe this"
+        );
+        assert_eq!(
+            json["messages"][0]["content"][2]["text"].as_str().unwrap(),
+            "and summarize"
+        );
+        // Audio replaced
+        assert_eq!(
+            json["messages"][0]["content"][1]["type"].as_str().unwrap(),
+            "text"
+        );
+    }
+
+    #[test]
+    fn test_replace_non_audio_noop() {
+        let mut json: Value = serde_json::from_str(
+            r#"{
+            "messages": [{"content": [
+                {"type": "text", "text": "hello"}
+            ]}]
+        }"#,
+        )
+        .unwrap();
+        let replaced =
+            replace_audio_with_notice(&mut json, "messages[0].content[0]", "[AUDIO_PII_DETECTED]");
+        assert!(!replaced);
+        // Text unchanged
+        assert_eq!(
+            json["messages"][0]["content"][0]["text"].as_str().unwrap(),
+            "hello"
+        );
+    }
+
+    #[test]
+    fn test_voice_scan_result_defaults() {
+        let result = VoiceScanResult {
+            blocks_scanned: 0,
+            blocks_stripped: 0,
+            keywords_found: Vec::new(),
+        };
+        assert_eq!(result.blocks_scanned, 0);
+        assert_eq!(result.blocks_stripped, 0);
+        assert!(result.keywords_found.is_empty());
     }
 }

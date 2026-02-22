@@ -1,0 +1,94 @@
+============================================================
+  PII Detection Test Data — IPv6 Addresses
+  Source: Synthetic
+  Coverage: Full 8-group, mid-compressed (::), prefix-compressed
+  Note: Scanner matches full, mid-compressed, and :: prefix forms
+============================================================
+
+--- Full 8-group format ---
+
+The server's IPv6 address is 2001:0db8:85a3:0000:0000:8a2e:0370:7334.
+
+Assigned address: 2001:0db8:0000:0042:0000:8a2e:0370:7334
+
+Client connected from 2607:f8b0:4004:0800:0000:0000:0000:200e (Google).
+
+--- Compressed format (:: for zero groups) ---
+
+The host is reachable at 2001:db8:85a3::8a2e:370:7334.
+
+DNS AAAA record points to 2607:f8b0:4004:800::200e.
+
+Link-local address: fe80::1ff:fe23:4567:890a
+
+Loopback in IPv6 is ::1 (but this is not PII, similar to 127.0.0.1).
+
+--- In server / network logs ---
+
+[2026-02-18 15:01:22] INFO  Connection from [2001:db8:85a3::8a2e:370:7334]:54321 to port 443
+[2026-02-18 15:01:23] WARN  Rate limit for 2607:f8b0:4004:800::200e — 429
+[2026-02-18 15:01:24] INFO  New session from 2a02:c7d:3e4f:1200:5e6f:7a8b:9c0d:1e2f
+[2026-02-18 15:01:25] ERROR TLS error from 2600:1f18:6b3c:a900:d4e5:f6a7:b8c9:0d1e
+
+--- In configuration ---
+
+# /etc/network/interfaces.d/eth0.cfg
+iface eth0 inet6 static
+    address 2001:db8:1::50
+    netmask 64
+    gateway 2001:db8:1::1
+
+# DNS resolvers (IPv6)
+dns-nameservers 2001:4860:4860::8888 2001:4860:4860::8844
+
+---
+
+# Apache virtual host with IPv6
+<VirtualHost [2001:db8:85a3::8a2e:370:7334]:443>
+    ServerName secure.example.com
+    SSLEngine on
+</VirtualHost>
+
+--- In documentation / email ---
+
+Dear Network Admin,
+
+We've completed the IPv6 migration for the production cluster. Here are the new addresses:
+
+  Web frontend:    2001:db8:1::10
+  API gateway:     2001:db8:1::20
+  Database primary: 2001:db8:1::30
+  Database replica: 2001:db8:1::31
+  Cache (Redis):   2001:db8:1::40
+
+The old IPv4 addresses (10.0.0.55, 10.0.0.56) will remain active during the
+transition period. External clients connecting via 2607:f8b0:4004:800::200e
+should see no difference in latency.
+
+Please update your firewall rules accordingly.
+
+--- Firewall audit ---
+
+FIREWALL RULE AUDIT — IPv6
+
+Rule 1: ALLOW 2001:db8::/32 → any (internal range)
+Rule 2: DENY 2a02:c7d:3e4f::/48 → port 22 (blocked SSH from suspicious range)
+Rule 3: ALLOW 2607:f8b0:4004::/48 → port 443 (Google services)
+Rule 4: ALLOW 2600:1f18::/32 → port 443 (AWS range)
+Rule 5: DENY any → any (default deny)
+
+Individual IPs flagged in threat intel:
+- 2a02:c7d:3e4f:1200:5e6f:7a8b:9c0d:1e2f (scanning activity)
+- 2600:1f18:6b3c:a900:d4e5:f6a7:b8c9:0d1e (C2 communication suspected)
+
+--- Edge cases ---
+
+Full and compressed same address: 2001:0db8:85a3:0000:0000:8a2e:0370:7334 = 2001:db8:85a3::8a2e:370:7334.
+
+All-zeros compressed: :: (unspecified address — not PII).
+
+Multiple IPv6 in one line: source 2001:db8:1::10, destination 2001:db8:1::30, via 2001:db8:1::1.
+
+Mixed IPv4/IPv6 text: The dual-stack host is at 203.0.113.42 (v4) and 2001:db8:85a3::8a2e:370:7334 (v6).
+
+Embedded in URL: https://[2001:db8:85a3::8a2e:370:7334]:8443/api/health

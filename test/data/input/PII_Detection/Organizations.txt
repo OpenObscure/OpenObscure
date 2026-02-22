@@ -1,0 +1,179 @@
+============================================================
+  PII Detection Test Data — Organizations
+  Source: Synthetic text with fictional and well-known organization names
+  Coverage: Companies, government agencies, nonprofits, universities, hospitals
+  Detection: NER/CRF model (B-ORG / I-ORG tags), variable confidence
+============================================================
+
+--- Fictional companies (from OpenObscure test universe) ---
+
+Meridian Technologies Inc. announced record earnings for Q4 2025.
+
+DataStream Analytics hired 50 new engineers for their Portland office.
+
+TechCorp Solutions is expanding into the European market this quarter.
+
+The merger between Meridian Technologies and DataStream Analytics was approved
+by the board of directors last Friday.
+
+--- Real well-known companies ---
+
+Apple released a new version of iOS today. Microsoft responded with a competing
+feature in Windows. Google announced improvements to their search algorithm.
+
+Amazon Web Services experienced a brief outage in the US-East-1 region,
+affecting customers of Netflix, Slack, and Twilio.
+
+The partnership between Tesla and SpaceX will focus on satellite-connected
+vehicles. Meanwhile, Ford and General Motors announced competing EV strategies.
+
+Meta Platforms reported strong ad revenue growth, while X (formerly Twitter)
+continues its restructuring under new leadership.
+
+--- Government agencies ---
+
+REGULATORY COMPLIANCE NOTICE
+
+This communication is from the Federal Trade Commission (FTC) regarding
+compliance with consumer data protection regulations.
+
+Relevant agencies:
+- Federal Bureau of Investigation (FBI) — cybercrime division
+- Department of Homeland Security (DHS) — infrastructure protection
+- National Security Agency (NSA) — signals intelligence
+- Securities and Exchange Commission (SEC) — financial fraud
+- Internal Revenue Service (IRS) — tax fraud investigation
+- Centers for Disease Control and Prevention (CDC) — public health data
+- Department of Health and Human Services (HHS) — HIPAA enforcement
+- Environmental Protection Agency (EPA) — environmental data
+- National Institute of Standards and Technology (NIST) — security standards
+
+European counterparts:
+- European Data Protection Board (EDPB)
+- Information Commissioner's Office (ICO) — United Kingdom
+- Commission Nationale de l'Informatique (CNIL) — France
+- Bundesamt fur Sicherheit (BSI) — Germany
+
+---
+
+The Food and Drug Administration approved a new cancer treatment developed by
+Pfizer. The National Institutes of Health funded the clinical trials. The World
+Health Organization is monitoring global rollout.
+
+--- Financial institutions ---
+
+FINANCIAL SERVICES DIRECTORY
+
+Banking:
+- JPMorgan Chase — primary commercial banking partner
+- Bank of America — corporate credit facility
+- Goldman Sachs — investment advisory
+- Wells Fargo — treasury management
+- Citigroup — international wire transfers
+
+Insurance:
+- BlueCross BlueShield — employee health insurance
+- UnitedHealth Group — dental and vision
+- Aetna — supplemental coverage
+- State Farm — corporate property insurance
+
+Payment processors:
+- Visa International — card network
+- Mastercard Worldwide — card network
+- American Express — corporate card program
+- Stripe — online payment processing
+- PayPal — vendor payments
+
+---
+
+The Federal Reserve announced a 25 basis point rate cut. Wall Street reacted
+positively, with the S&P 500 and Nasdaq Composite both rising over 1%.
+The New York Stock Exchange saw record trading volume.
+
+--- Nonprofits and NGOs ---
+
+Our corporate social responsibility partners include:
+- American Red Cross (disaster relief)
+- Doctors Without Borders (global health)
+- United Nations Children's Fund (UNICEF) (child welfare)
+- World Wildlife Fund (WWF) (environmental conservation)
+- Electronic Frontier Foundation (EFF) (digital rights)
+- American Civil Liberties Union (ACLU) (civil liberties)
+- Habitat for Humanity (housing)
+- Feeding America (hunger relief)
+
+The Bill & Melinda Gates Foundation awarded a $5M grant to support malaria
+research in Sub-Saharan Africa. The grant was administered through the
+World Health Organization.
+
+--- Universities and research institutions ---
+
+RESEARCH COLLABORATION AGREEMENT
+
+Parties:
+- Massachusetts Institute of Technology (MIT), Cambridge, MA
+- Stanford University, Stanford, CA
+- University of Washington, Seattle, WA
+- Carnegie Mellon University, Pittsburgh, PA
+
+Joint research in artificial intelligence safety, funded by the National
+Science Foundation (NSF) and the Defense Advanced Research Projects Agency
+(DARPA). Published findings will be hosted by the Association for Computing
+Machinery (ACM) and IEEE.
+
+Additional academic partners:
+- Harvard University — ethics review
+- Oxford University — policy analysis
+- ETH Zurich — formal verification
+- University of Tokyo — robotics applications
+
+---
+
+He graduated from Oregon State University with a BS in Computer Science
+and later earned his MS from the University of Washington. His advisor at
+UW, Prof. Blackwell, now chairs the department at Columbia University.
+
+--- Hospitals and healthcare ---
+
+REFERRAL NETWORK
+
+- Miami Heart Institute — cardiology specialist
+- Massachusetts General Hospital — emergency and trauma
+- Mayo Clinic — comprehensive diagnostics
+- Cleveland Clinic — cardiac surgery
+- Johns Hopkins Hospital — oncology
+- Memorial Sloan Kettering Cancer Center — cancer treatment
+- Mount Sinai Health System — neurology
+- Kaiser Permanente — primary care network
+- BlueCross BlueShield — insurance provider
+
+Dr. Park practices at Miami Heart Institute and has admitting privileges
+at Jackson Memorial Hospital. Patient records are shared through the
+Epic electronic health records system used by both facilities.
+
+--- Organizations in news / media context ---
+
+The Associated Press reported that the European Union imposed new tariffs
+on tech imports. Reuters confirmed that the World Trade Organization will
+review the dispute. CNN, BBC, and Al Jazeera covered the story extensively.
+
+The New York Times published an investigation into data practices at several
+Silicon Valley companies. The Washington Post followed up with a related story
+about lobbying by the U.S. Chamber of Commerce.
+
+--- Edge cases ---
+
+Abbreviated: Contact ACLU, EFF, or NIST for guidance.
+
+Possessive: Google's market cap surpassed Apple's this quarter.
+
+In a list: Partners include Amazon, Microsoft, Google, Meta, and Salesforce.
+
+Subsidiary: Amazon Web Services (a subsidiary of Amazon.com Inc.) reported
+$25B in revenue. Waymo (an Alphabet subsidiary) expanded its robotaxi fleet.
+
+Multiple in one sentence: The agreement between Stanford University, MIT,
+and the National Science Foundation will fund AI safety research through 2030.
+
+With "the": The Pentagon confirmed. The White House issued a statement.
+The Supreme Court declined to hear the case.

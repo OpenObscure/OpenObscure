@@ -1,0 +1,11 @@
+Name,SSN,Email,Phone,Department,Office_IP,Badge_MAC,GPS_Office
+James Henderson,287-65-4321,j.henderson@email.com,(206) 555-0312,Engineering,10.0.1.50,3C:22:FB:7A:B1:90,"47.6062, -122.3321"
+Sarah Mitchell,378-22-9104,s.mitchell@gmail.com,(503) 555-0147,Engineering,10.0.1.51,48:D7:05:F3:A2:81,"45.5231, -122.6765"
+David Chen,256-71-4489,d.chen@company.com,512-555-0456,Security,10.0.1.52,A4:C1:38:2D:E7:F0,"30.2672, -97.7431"
+Patricia Gomez,189-44-6712,p.gomez@company.com,(305) 555-0188,Operations,10.0.1.53,D4:6E:0E:1F:2A:3B,"25.7617, -80.1918"
+Michael Thompson,267-83-1945,m.thompson@outlook.com,+1-303-555-0188,Finance,10.0.1.54,54:E1:AD:B8:C9:D0,"39.7392, -104.9903"
+Robert Williams,154-32-8877,r.williams@email.com,(206) 555-0312,Engineering,10.0.1.55,A8:66:7F:12:34:56,"47.6062, -122.3321"
+Angela Martinez,412-55-8823,a.martinez82@gmail.com,(305) 555-0188,HR,10.0.1.56,28:6C:07:E4:F5:A6,"25.7617, -80.1918"
+Elena Rodriguez,518-36-7721,e.rodriguez@company.com,(512) 555-0502,Legal,10.0.1.57,00:50:56:C0:00:08,"30.2672, -97.7431"
+Bob Nakamura,452-18-7733,b.nakamura@company.com,512-555-0203,Product,10.0.1.58,DE:AD:BE:EF:CA:FE,"30.2672, -97.7431"
+Carol Washington,612-90-3344,c.washington@company.com,512-555-0311,HR,10.0.1.59,B8:27:EB:AA:BB:CC,"30.2672, -97.7431"

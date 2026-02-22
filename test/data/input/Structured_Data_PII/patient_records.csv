@@ -1,0 +1,9 @@
+PatientID,Name,SSN,DOB,Diagnosis,Medication,Phone,Email,Provider,Facility_GPS
+P-001,Angela Martinez,412-55-8823,06/14/1982,hypertension;diabetes,metformin;lisinopril,(305) 555-0188,a.martinez82@gmail.com,Dr. Rebecca Chen,"25.7617, -80.1918"
+P-002,Michael Thompson,267-83-1945,07/22/1978,arrhythmia;angina,metoprolol;aspirin,+1-303-555-0188,m.thompson@outlook.com,Dr. James Park,"39.7392, -104.9903"
+P-003,James Henderson,287-65-4321,11/03/1975,depression;insomnia,sertraline;trazodone,(206) 555-0312,j.henderson@email.com,Dr. Rebecca Chen,"47.6062, -122.3321"
+P-004,Patricia Gomez,189-44-6712,03/28/1990,asthma;arthritis,albuterol;ibuprofen,(305) 555-0188,p.gomez@company.com,Dr. Angela Santos,"25.7617, -80.1918"
+P-005,Sarah Mitchell,378-22-9104,03/15/1988,hypothyroidism;anxiety disorder,levothyroxine;sertraline,(503) 555-0147,s.mitchell@gmail.com,Dr. Rebecca Chen,"45.5231, -122.6765"
+P-006,Robert Williams,154-32-8877,09/08/1985,hypertension;cholesterol,lisinopril;atorvastatin,(206) 555-0312,r.williams@email.com,Dr. James Park,"47.6062, -122.3321"
+P-007,David Chen,256-71-4489,01/20/1991,PTSD;substance abuse,venlafaxine;naltrexone,512-555-0456,d.chen@company.com,Dr. Maria Santos,"30.2672, -97.7431"
+P-008,Elena Rodriguez,518-36-7721,05/12/1987,epilepsy;migraine,levetiracetam;gabapentin,(512) 555-0502,e.rodriguez@company.com,Dr. Rebecca Chen,"30.2672, -97.7431"

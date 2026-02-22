@@ -1,0 +1,102 @@
+============================================================
+  PII Detection Test Data — Portuguese/Brazilian (pt) Multilingual PII
+  Source: Synthetic (check-digit validated)
+  Coverage: CPF, CNPJ, phone BR (+55), phone PT (+351)
+  Validation: mod-11 weighted check for CPF/CNPJ
+============================================================
+
+--- CPF (Cadastro de Pessoa Física, 11 digits) ---
+
+Meu CPF é 529.982.247-25. Preciso para abrir a conta.
+
+CPF do solicitante: 111.444.777-35.
+
+Para emissão da nota fiscal, informe seu CPF: 123.456.789-10.
+
+O CPF registrado no sistema é 987.654.321-02.
+
+Dados do cliente: CPF 246.802.468-13, nome: Carlos Eduardo da Silva.
+
+CPF sem formatação: 52998224725. É o mesmo que 529.982.247-25.
+
+--- CNPJ (Cadastro Nacional da Pessoa Jurídica, 14 digits) ---
+
+O CNPJ da empresa é 11.222.333/0001-81. Segue a nota fiscal.
+
+Razão social: TechSolutions Brasil Ltda.
+CNPJ: 11.222.333/0001-81
+Inscrição Estadual: 123.456.789.012
+
+Favor emitir o boleto para o CNPJ 11.222.333/0001-81.
+
+--- Telefone Brasil (+55) ---
+
+Me liga no +55 11 91234-5678. Prefiro WhatsApp.
+
+Telefone comercial: +55 21 3456-7890 (Rio de Janeiro).
+
+Celular: +55 11 98765-4321 (São Paulo).
+
+SAC: +55 11 4002-8922. Atendimento de segunda a sexta.
+
+Para emergências, ligue +55 61 99876-5432 (Brasília).
+
+--- Telefone Portugal (+351) ---
+
+O meu número é +351 912 345 678. Pode ligar a qualquer hora.
+
+Escritório em Lisboa: +351 213 456 789.
+
+Contacte-nos através do +351 919 876 543 para mais informações.
+
+--- Documentos mistos ---
+
+CONTRATO DE PRESTAÇÃO DE SERVIÇOS
+
+Contratante:
+Nome: Carlos Eduardo da Silva
+CPF: 529.982.247-25
+Telefone: +55 11 91234-5678
+Endereço: Av. Paulista, 1578, São Paulo, SP, 01310-200
+
+Contratada:
+Razão Social: TechSolutions Brasil Ltda.
+CNPJ: 11.222.333/0001-81
+Telefone: +55 21 3456-7890
+
+Valor do contrato: R$ 15.000,00 mensais
+Vigência: 01/03/2026 a 28/02/2027
+
+---
+
+FICHA CADASTRAL — ABERTURA DE CONTA
+
+Nome completo: Ana Paula Ferreira Santos
+CPF: 123.456.789-10
+Data de nascimento: 14/06/1982
+Telefone celular: +55 11 98765-4321
+Telefone fixo: +55 11 3456-7890
+Endereço: Rua Augusta, 1500, Apt 42, São Paulo, SP
+
+Dados da empresa (se aplicável):
+CNPJ: 11.222.333/0001-81
+Razão social: TechSolutions Brasil Ltda.
+
+---
+
+NOTA FISCAL ELETRÔNICA
+
+Emitente: TechSolutions Brasil Ltda.
+CNPJ: 11.222.333/0001-81
+
+Destinatário:
+Nome: Carlos Eduardo da Silva
+CPF: 529.982.247-25
+
+Descrição: Serviços de consultoria em TI
+Valor total: R$ 15.000,00
+Data de emissão: 18/02/2026
+
+Dados para pagamento:
+Favorecido: TechSolutions Brasil Ltda.
+CNPJ: 11.222.333/0001-81

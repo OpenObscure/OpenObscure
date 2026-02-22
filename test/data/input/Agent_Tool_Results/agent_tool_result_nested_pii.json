@@ -1,0 +1,5 @@
+{
+  "role": "tool",
+  "tool_use_id": "toolu_01ABCdef23456789",
+  "content": "{\"status\": \"success\", \"user\": {\"name\": \"James Henderson\", \"ssn\": \"287-65-4321\", \"email\": \"j.henderson@email.com\", \"phone\": \"(206) 555-0312\", \"card\": \"4532015112830366\", \"ip\": \"203.0.113.42\", \"mac\": \"3C:22:FB:7A:B1:90\", \"location\": {\"gps\": \"47.6062, -122.3321\", \"address\": \"7842 Cedar Avenue, Seattle, WA 98101\"}}}"
+}

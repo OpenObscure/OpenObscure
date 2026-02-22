@@ -1,0 +1,173 @@
+============================================================
+  PII Detection Test Data — Health Keywords
+  Source: Synthetic medical/health text with keyword dictionary terms
+  Coverage: Medical conditions, medications, procedures, symptoms
+  Detection: Keyword dictionary (~450 terms), confidence 1.0
+============================================================
+
+--- Medical conditions in patient context ---
+
+The patient was diagnosed with diabetes and hypertension during her annual checkup.
+
+He has a family history of cancer — specifically, his mother had leukemia and his
+father was treated for melanoma.
+
+Patient presents with symptoms consistent with fibromyalgia. Previous diagnoses
+include lupus, arthritis, and chronic depression.
+
+The child was recently diagnosed with epilepsy after experiencing multiple seizures.
+Prior evaluation ruled out autism and ADHD.
+
+MRI results indicate early-stage Alzheimer's. Referral to neurology for Parkinson's
+screening was also recommended.
+
+After three weeks of worsening symptoms, the patient was diagnosed with pneumonia
+complicated by bronchitis. Chest X-ray also revealed early signs of emphysema.
+
+Lab work confirms hepatitis B. Liver function tests suggest possible cirrhosis.
+Patient denies alcohol use; autoimmune hepatitis is being investigated.
+
+--- Medications in prescription context ---
+
+PRESCRIPTION
+Patient: [REDACTED]
+Date: 02/18/2026
+
+1. Metformin 500mg — Take twice daily with meals (for diabetes management)
+2. Lisinopril 10mg — Take once daily (for hypertension)
+3. Sertraline 50mg — Take once daily in the morning (for depression)
+4. Atorvastatin 20mg — Take once daily at bedtime (cholesterol management)
+5. Omeprazole 20mg — Take once daily before breakfast (acid reflux)
+
+Refill authorized: 3 refills, valid through August 2026.
+Pharmacy: CVS #4421, contact pharmacist if questions arise.
+
+---
+
+The patient's current medication list includes:
+- Insulin (Lantus) 30 units at bedtime
+- Metoprolol 50mg twice daily for arrhythmia
+- Gabapentin 300mg three times daily for neuropathy pain
+- Fluoxetine 20mg daily for anxiety disorder
+- Albuterol inhaler as needed for asthma
+- Prednisone 10mg taper for lupus flare
+- Warfarin 5mg daily (INR monitoring required)
+- Levothyroxine 75mcg daily for hypothyroidism
+
+---
+
+Oncology treatment plan:
+- Chemotherapy: Carboplatin + Paclitaxel, every 3 weeks x 6 cycles
+- Immunotherapy: Pembrolizumab 200mg IV, every 3 weeks
+- Anti-nausea: Ondansetron pre-chemo
+- Pain management: Oxycodone 5mg as needed, max 4x daily
+- Referral to palliative care for symptom management
+
+---
+
+--- Medical procedures and visits ---
+
+VISIT SUMMARY — Dr. Rebecca Chen, Internal Medicine
+
+Chief Complaint: Chest pain, shortness of breath
+History: Patient reports intermittent chest pain and palpitations for the past 2 weeks.
+Denies fever, coughing blood, or fainting. Reports mild dizziness when standing.
+
+Assessment:
+- EKG shows normal sinus rhythm, no arrhythmia
+- Echocardiogram scheduled to rule out myocarditis
+- Blood test ordered: complete blood work including hemoglobin, cholesterol,
+  triglycerides, glucose, A1C, and creatinine
+- Referral to cardiology for stress test
+
+Plan:
+- Continue metoprolol for blood pressure management
+- Add aspirin 81mg daily
+- Follow up in 2 weeks or sooner if symptoms worsen
+- If chest pain becomes severe, go to emergency room immediately
+
+---
+
+SURGICAL CONSULTATION
+
+The patient is being evaluated for colonoscopy following positive screening for
+blood in stool. Previous endoscopy 3 years ago showed gastritis. Family history
+includes Crohn's disease (mother) and colon cancer (paternal grandfather).
+
+The gastroenterology team recommends biopsy if polyps are found during the
+procedure. Pathology results will determine if further treatment such as
+chemotherapy or radiation therapy is indicated.
+
+Patient is currently on blood thinners (warfarin) — must discontinue 5 days
+prior to procedure. Bridge with enoxaparin as needed.
+
+---
+
+--- Mental health context ---
+
+PSYCHIATRIC INTAKE ASSESSMENT
+
+Patient presents with worsening anxiety disorder and panic disorder. Reports
+3-4 panic attacks per week, accompanied by chest pain, shortness of breath,
+and dizziness. Also reports chronic insomnia (sleeping 3-4 hours/night).
+
+History:
+- Previously diagnosed with PTSD following military service
+- History of substance abuse (alcohol) — sober 18 months
+- Previous treatment: CBT (12 sessions), psychotherapy (ongoing)
+- Family history: mother with bipolar disorder, brother with schizophrenia
+
+Current medications:
+- Sertraline 100mg (increased from 50mg 3 months ago)
+- Clonazepam 0.5mg as needed for panic attacks
+- Trazodone 50mg at bedtime for insomnia
+- Bupropion 150mg for smoking cessation support
+
+Plan:
+- Consider switch from sertraline to venlafaxine if no improvement in 4 weeks
+- Refer to psychiatrist for medication management
+- Continue weekly psychotherapy and counseling sessions
+- Sleep hygiene education; consider zolpidem short-term if insomnia persists
+
+---
+
+--- Symptoms in triage / intake ---
+
+EMERGENCY DEPARTMENT TRIAGE
+
+Arrival: 2026-02-18 22:14
+Chief complaint: Severe abdominal pain, nausea, vomiting
+
+Vital signs:
+- Blood pressure: 145/92
+- Heart rate: 102
+- Temperature: 101.2°F (fever)
+- Respiratory rate: 20
+- O2 saturation: 97%
+
+Symptoms reported:
+- Acute abdominal pain (right lower quadrant) for 12 hours
+- Nausea and vomiting (3 episodes)
+- Fever and chills since this morning
+- Loss of appetite for 2 days
+- No diarrhea, constipation, or blood in stool
+- No difficulty breathing or chest pain
+
+Preliminary assessment: Possible appendicitis. CT scan ordered. Surgery consulted.
+IV drip started for hydration. NPO status for potential surgery.
+
+---
+
+--- Mixed health terms in everyday context ---
+
+I just got my lab results back. My cholesterol is high and my A1C is borderline
+for diabetes. The doctor put me on atorvastatin and said I might need metformin
+if things don't improve with diet. She also wants me to get a mammogram since
+I'm over 40, and scheduled a vaccination booster.
+
+My mom is recovering from a hip replacement surgery. She's doing physical therapy
+three times a week and taking acetaminophen for pain. The orthopedics team said
+her osteoporosis is a concern and started her on calcium supplements.
+
+My son's pediatrician said his ear infection needs amoxicillin. She also recommended
+an immunization update — he's missing his second measles booster.

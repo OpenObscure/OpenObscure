@@ -1,0 +1,93 @@
+============================================================
+  PII Detection Test Data — French (fr) Multilingual PII
+  Source: Synthetic (check-digit validated)
+  Coverage: NIR (numéro de sécurité sociale), phone (+33/0X), IBAN (FR)
+  Validation: 97 - (first13 % 97) = last2 for NIR, mod-97 for IBAN
+============================================================
+
+--- NIR (Numéro d'Inscription au Répertoire) ---
+
+Mon numéro de sécurité sociale est 1 83 05 12345 678 89.
+
+Le NIR de l'assuré: 2 50 12 34567 891 36.
+
+Numéro de sécurité sociale: 1 75 09 87654 321 88.
+
+Pour le remboursement, veuillez fournir votre NIR: 1 90 05 12340 987 615.
+
+Le numéro d'inscription au répertoire est: 2 10 06 24681 012 953.
+
+--- Téléphone (+33 et format local 0X) ---
+
+Appelez-moi au +33 1 23 45 67 89 (bureau Paris).
+
+Mon portable: +33 6 12 34 56 78. Disponible après 18h.
+
+Numéro de contact: 06 12 34 56 78 (mobile).
+
+Standard téléphonique: 01 23 45 67 89 (Paris).
+
+Service client: +33 1 98 76 54 32. Du lundi au vendredi, 9h-17h.
+
+En cas d'urgence: +33 6 98 76 54 32 ou 06 98 76 54 32.
+
+--- IBAN (FR, mod-97 validated) ---
+
+Mon IBAN est FR76 3000 6000 0112 3456 7890 189.
+
+Coordonnées bancaires:
+Titulaire: Jean-Luc Dubois
+IBAN: FR76 3000 6000 0112 3456 7890 189
+BIC: AGRIFRPP
+
+Veuillez effectuer le virement sur le compte FR76 3000 6000 0112 3456 7890 189.
+
+--- Documents mixtes ---
+
+FICHE DE PAIE
+
+Employeur: Solutions Technologiques SA
+SIRET: 123 456 789 00012
+
+Salarié:
+Nom: Jean-Luc Dubois
+NIR: 1 83 05 12345 678 89
+Téléphone: +33 6 12 34 56 78
+IBAN: FR76 3000 6000 0112 3456 7890 189
+
+Période: Février 2026
+Salaire brut: 4.500,00€
+Salaire net: 3.510,00€
+
+---
+
+FORMULAIRE DE REMBOURSEMENT SANTÉ
+
+Assuré(e): Marie-Claire Lefèvre
+NIR: 2 50 12 34567 891 36
+Date de naissance: 12/05/1950
+Téléphone: 06 12 34 56 78
+Adresse: 42 Rue de Rivoli, 75001 Paris
+
+Coordonnées bancaires pour remboursement:
+IBAN: FR76 3000 6000 0112 3456 7890 189
+BIC: AGRIFRPP
+
+Nature des soins: Consultation spécialiste cardiologue
+Date des soins: 15/02/2026
+Montant: 50,00€
+
+---
+
+LETTRE DE RECOMMANDATION
+
+Madame, Monsieur,
+
+Je soussigné, Jean-Luc Dubois, employé chez Solutions Technologiques SA,
+recommande vivement Marie-Claire Lefèvre pour le poste de responsable technique.
+
+Pour toute question, n'hésitez pas à me contacter au +33 1 23 45 67 89
+ou par email à jl.dubois@solutions-tech.fr.
+
+Cordialement,
+Jean-Luc Dubois

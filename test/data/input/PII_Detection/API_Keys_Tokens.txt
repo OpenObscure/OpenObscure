@@ -1,0 +1,110 @@
+============================================================
+  PII Detection Test Data — API Keys & Tokens
+  Source: Synthetic (format-valid but non-functional keys)
+  Coverage: Anthropic, OpenAI, AWS, GitHub, Slack prefixes
+  Note: All keys below are FAKE and will not authenticate anywhere
+============================================================
+
+--- Anthropic API Keys (sk-ant- prefix) ---
+
+Here's my Anthropic key: sk-ant-api03-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz
+
+Set the environment variable:
+export ANTHROPIC_API_KEY=sk-ant-api03-xK9mPqR2sT5uV8wY1zA4bC7dE0fG3hI6jL9nO2pQ5rS8tU1vW4xZ7yA0bC3dE6f
+
+The .env file contained: ANTHROPIC_API_KEY=sk-ant-api03-Rm4nXp7qSt2uWv5xYz8aBC1dEf4gHi7jKl0mNo3pQr6sT9uVw2xYz5AB8cDe1fG
+
+--- OpenAI API Keys (sk- prefix, 20+ chars) ---
+
+My OpenAI key is sk-proj-abc123def456ghi789jklmnopqrstuvwxyz01234567890ABCDEF.
+
+Please rotate this key: sk-Tm4nXp7qSt2uWv5xYz8aBCdEfGhIjKlMnOpQrSt
+
+In the config file:
+OPENAI_API_KEY=sk-8kP2mN5qR8sU1vX4yB7dF0gI3jL6nO9pR2sU5vX8yB1dF4gI7j
+
+--- AWS Access Keys (AKIA prefix, 20 chars) ---
+
+AWS credentials found in plaintext:
+aws_access_key_id = AKIAIOSFODNN7EXAMPLE
+aws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+The IAM user's access key is AKIA4MTWDHFEK7EXAMPLE.
+
+Found hardcoded AWS key: AKIAX5CHZPMEQREXAMPLE in the deployment script.
+
+--- GitHub Personal Access Tokens (ghp_ prefix, 36+ chars) ---
+
+Clone with: git clone https://ghp_1a2B3c4D5e6F7g8H9i0J1k2L3m4N5o6P7q8R@github.com/user/repo.git
+
+My GitHub token is ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234.
+
+The CI pipeline uses: GITHUB_TOKEN=ghp_Rm4nXp7qSt2uWv5xYz8aBCdEfGhIjKlMnOp
+
+--- GitHub OAuth Tokens (gho_ prefix) ---
+
+OAuth app token: gho_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghij1234
+
+The webhook authenticates with gho_16C7e42F292c6912E7710c838347Ae178B4a.
+
+--- Slack Bot Tokens (xoxb- prefix) ---
+
+SLACK_BOT_TOKEN=xoxb-123456789012-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx
+
+The bot uses token xoxb-998877665544-5566778899001-XyZaBcDeFgHiJkLmNoPqRsTu to post messages.
+
+--- Slack User Tokens (xoxp- prefix) ---
+
+User token for workspace admin: xoxp-123456789012-123456789012-1234567890123-abcdef1234567890abcdef1234567890ab
+
+Legacy token found: xoxp-998877665544-112233445566-7788990011223-aabbccdd11223344aabbccdd11223344ee
+
+--- In code / config files ---
+
+# config.yaml (DO NOT COMMIT)
+api:
+  anthropic:
+    key: sk-ant-api03-TestKeyDoNotUse12345678901234567890ABCDEFGHIJKLMNOPqrstuvwxyz
+  openai:
+    key: sk-TestOpenAIKeyDoNotUse1234567890abcdef
+  aws:
+    access_key: AKIAIOSFODNN7EXAMPLE
+    secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
+
+---
+
+// environment.ts
+const config = {
+  ANTHROPIC_KEY: "sk-ant-api03-Fake789Key012For345Test678Only901Dont234Use567This890Abc",
+  GITHUB_TOKEN: "ghp_FakeToken123456789012345678901234abcd",
+  SLACK_TOKEN: "xoxb-111222333444-5556667778889-FakeSlackTokenForTesting",
+};
+
+---
+
+# .env.production (leaked in git history)
+ANTHROPIC_API_KEY=sk-ant-api03-prod-R3alL00k1ngK3y-N0tActu4lly-V4l1d-But-F0rmat-C0rr3ct-abc123
+OPENAI_API_KEY=sk-prod-ABCdef123456GHIjkl789MNOpqr012STU
+AWS_ACCESS_KEY_ID=AKIA2OGYBAH6CEXAMPLE
+GITHUB_TOKEN=ghp_ProductionTokenThatShouldNeverBeInGit12
+
+---
+
+--- In chat / incident context ---
+
+DevOps: Hey, someone pushed credentials to the main branch. I found these:
+- sk-ant-api03-Compromised123Key456That789Should012Be345Rotated678Immediately901abc
+- AKIAIOSFODNN7EXAMPLE
+- ghp_CompromisedGitHubTokenRotateImmediately12
+
+We need to rotate all of these ASAP and check CloudTrail for unauthorized usage.
+
+---
+
+--- Edge cases ---
+
+Partial key in log: "Authentication failed for key starting with sk-ant-api03-abc..."
+
+Multiple keys one line: Use sk-Tm4nXp7qSt2uWv5xYz8aBCdEfGhIjKlMnOpQrSt or AKIAIOSFODNN7EXAMPLE.
+
+Key in URL parameter: https://api.example.com/v1/chat?key=sk-ant-api03-InUrlParam123456789012345678901234567890abc

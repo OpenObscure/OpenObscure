@@ -1,0 +1,91 @@
+============================================================
+  PII Detection Test Data — Credit Card Numbers
+  Source: Synthetic (Luhn-valid test numbers from payment industry)
+  Coverage: Visa, Mastercard, AmEx, Discover, formatted variants
+============================================================
+
+--- Visa (starts with 4, 16 digits) ---
+
+Thank you for your purchase. Your Visa card ending in 4242 has been charged $149.99.
+Full card on file: 4532015112830366
+
+Please update payment method. The card 4916338506082832 expired last month.
+
+Customer called to dispute a charge on card number 4024007171239865. Transaction ID #TXN-88421.
+
+I'd like to add my Visa card: 4556 7375 8689 9855. Expiration 03/28, CVV 412.
+
+--- Mastercard (starts with 51-55, 16 digits) ---
+
+Hi, I need to change my billing card to 5425233430109903. It's a Mastercard.
+
+The recurring subscription for account #A-9912 is billed to card 5133 0800 9288 2455 monthly.
+
+Please process refund to the original payment method: 5206 8401 0340 2891.
+
+My Mastercard number is 5361280457782523. Can you verify the last transaction?
+
+--- American Express (starts with 34 or 37, 15 digits) ---
+
+For the corporate travel booking, please use AmEx 3714 496353 98431.
+
+Charge the conference registration fee to my American Express card: 378282246310005.
+
+The premium membership renewal should go to card 3456 789012 34564. That's an AmEx.
+
+--- Discover (starts with 6011 or 65, 16 digits) ---
+
+My Discover card number is 6011111111111117. Please add it as a backup payment method.
+
+Process the annual fee of $299 to Discover card 6011 0009 9013 9424.
+
+For the insurance premium, use card number 6559906559906557.
+
+--- Cards with dashes ---
+
+My card number is 4111-1111-1111-1111. I know it looks weird but that's a test card we use.
+
+Please charge 5500-0000-0000-0004 for the order.
+
+Use 3782-822463-10005 for the AmEx payment.
+
+--- Cards in paragraphs / longer text ---
+
+Dear Customer Service,
+
+I am writing to report an unauthorized transaction on my account. On January 15, 2026, a charge
+of $2,847.33 appeared on my Visa card number 4916338506082832 that I did not authorize. The
+merchant listed is "ELECTROMART ONLINE" and the transaction reference is #REF-442819. I have
+not shared my card details with anyone. My card was in my possession at all times. Please
+investigate this charge and issue a temporary credit while the dispute is resolved.
+
+Sincerely,
+A Concerned Cardholder
+
+---
+
+PAYMENT CONFIRMATION
+Order Number: ORD-2026-88412
+Date: February 18, 2026
+Amount: $1,249.00
+Payment Method: Mastercard ending in 9903
+Full Card: 5425233430109903
+Authorization Code: AUTH-77291
+Status: APPROVED
+
+---
+
+From the chat transcript:
+Agent: I can help you update your payment information. Could you provide the new card number?
+Customer: Sure, it's 4024 0071 7123 9865.
+Agent: And the expiration date?
+Customer: 08/27.
+Agent: Thank you. I've updated the card on file. Is there anything else I can help with?
+
+--- Edge cases ---
+
+The card 4111111111111111 has no separators at all.
+
+Here's a card with spaces and mixed: 5133 0800-9288 2455.
+
+Multiple cards in one sentence: primary is 4532015112830366 and backup is 6011111111111117.

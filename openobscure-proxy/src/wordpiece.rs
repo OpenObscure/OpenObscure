@@ -14,6 +14,7 @@ pub struct WordPieceTokenizer {
     sep_id: i64,
     pad_id: i64,
     max_length: usize,
+    do_lower_case: bool,
 }
 
 /// Result of tokenizing a single text.
@@ -52,6 +53,8 @@ impl WordPieceTokenizer {
     }
 
     /// Build from an in-memory vocabulary map.
+    /// Automatically detects cased vs uncased vocab (cased vocabs contain uppercase
+    /// word tokens like "The", "Robert", etc.).
     pub fn from_vocab(vocab: HashMap<String, i64>) -> Result<Self, WordPieceError> {
         let unk_id = *vocab
             .get("[UNK]")
@@ -65,6 +68,16 @@ impl WordPieceTokenizer {
         let pad_id = *vocab
             .get("[PAD]")
             .ok_or(WordPieceError::MissingToken("[PAD]"))?;
+
+        // Auto-detect: if vocab contains multi-char tokens starting with uppercase
+        // (e.g. "The", "Robert"), it's a cased vocab → don't lowercase.
+        let is_cased = vocab.keys().any(|k| {
+            k.len() > 1
+                && !k.starts_with('[')
+                && !k.starts_with('#')
+                && k.chars().next().is_some_and(|c| c.is_uppercase())
+        });
+
         Ok(Self {
             vocab,
             unk_id,
@@ -72,13 +85,18 @@ impl WordPieceTokenizer {
             sep_id,
             pad_id,
             max_length: 512,
+            do_lower_case: !is_cased,
         })
     }
 
     /// Tokenize a text string for NER inference.
     pub fn tokenize(&self, text: &str) -> TokenizedInput {
-        let lower = text.to_lowercase();
-        let words = pre_tokenize(&lower, text);
+        let words = if self.do_lower_case {
+            let lower = text.to_lowercase();
+            pre_tokenize(&lower, text)
+        } else {
+            pre_tokenize(text, text)
+        };
 
         let mut input_ids = vec![self.cls_id];
         let mut word_ids: Vec<Option<usize>> = vec![None]; // [CLS]

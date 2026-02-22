@@ -1,0 +1,319 @@
+#!/usr/bin/env bash
+# test_visual.sh — Test visual PII detection by sending images through the Gateway proxy.
+#
+# Produces dual output per image:
+#   test/data/output/Visual_PII/json/<name>_visual.json       (pipeline metadata)
+#   test/data/output/Visual_PII/redacted/<name>.<ext>          (blurred image)
+#
+# The proxy's image pipeline processes base64-encoded images:
+#   - Face detection + Gaussian blur (SCRFD/BlazeFace)
+#   - OCR text detection + blur (PaddleOCR)
+#   - NSFW detection (NudeNet)
+#   - EXIF metadata stripping
+#   - Screenshot detection heuristics
+#
+# Usage:
+#   ./test/scripts/test_visual.sh [subcategory]
+#
+# Subcategories: Faces, Screenshots, Documents, EXIF, NSFW
+# Without arguments, tests all subcategories.
+#
+# NOTE: This sends images through the full proxy pipeline. If no upstream
+#       provider is configured the HTTP response may fail, but the proxy
+#       still processes the image (stats update + we capture the transformed
+#       base64 from the request body when possible).
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TEST_DIR="$(dirname "$SCRIPT_DIR")"
+INPUT_DIR="$TEST_DIR/data/input/Visual_PII"
+OUTPUT_DIR="$TEST_DIR/data/output/Visual_PII"
+
+PROXY_URL="${PROXY_URL:-http://127.0.0.1:18790}"
+HEALTH_ENDPOINT="${PROXY_URL}/_openobscure/health"
+CAPTURE_DIR="${CAPTURE_DIR:-/tmp/oo_echo_captures}"
+
+# Cleanup temp files on any exit (error, Ctrl+C, normal)
+cleanup_visual() {
+  rm -f /tmp/oo_visual_*.json 2>/dev/null || true
+  rm -f /tmp/oo_visual_payload_*.json 2>/dev/null || true
+  rm -f /tmp/oo_visual_b64_*.txt 2>/dev/null || true
+  rm -f "$CAPTURE_DIR"/visual_*.json 2>/dev/null || true
+}
+trap cleanup_visual EXIT
+
+# Auth token
+if [[ -z "${AUTH_TOKEN:-}" ]]; then
+  TOKEN_FILE="$HOME/.openobscure/.auth-token"
+  if [[ -f "$TOKEN_FILE" ]]; then
+    AUTH_TOKEN=$(cat "$TOKEN_FILE")
+  fi
+fi
+
+# Check proxy is running
+if [[ -n "${AUTH_TOKEN:-}" ]]; then
+  HEALTH=$(curl -sf "$HEALTH_ENDPOINT" -H "X-OpenObscure-Token: $AUTH_TOKEN" 2>/dev/null || true)
+else
+  HEALTH=$(curl -sf "$HEALTH_ENDPOINT" 2>/dev/null || true)
+fi
+if [[ -z "$HEALTH" ]]; then
+  echo "Error: Proxy not reachable at $PROXY_URL"
+  exit 1
+fi
+
+IMAGE_ENABLED=$(echo "$HEALTH" | jq -r '.feature_budget.image_pipeline_enabled // false')
+if [[ "$IMAGE_ENABLED" != "true" ]]; then
+  echo "Warning: Image pipeline is disabled on this proxy instance."
+  echo "Enable it in config/openobscure.toml: [image] enabled = true"
+fi
+
+# Get baseline stats
+BASELINE_IMAGES=$(echo "$HEALTH" | jq '.images_processed_total // 0')
+BASELINE_FACES=$(echo "$HEALTH" | jq '.faces_blurred_total // 0')
+BASELINE_TEXT=$(echo "$HEALTH" | jq '.text_regions_total // 0')
+BASELINE_NSFW=$(echo "$HEALTH" | jq '.nsfw_blocked_total // 0')
+BASELINE_SCREENSHOTS=$(echo "$HEALTH" | jq '.screenshots_detected_total // 0')
+
+test_image() {
+  local file="$1"
+  local subcategory="$2"
+  local filename=$(basename "$file")
+  local ext="${filename##*.}"
+  local name_no_ext="${filename%.*}"
+  local json_dir="$OUTPUT_DIR/json"
+  local redacted_dir="$OUTPUT_DIR/redacted"
+
+  mkdir -p "$json_dir" "$redacted_dir"
+
+  # Determine media type
+  local media_type="image/jpeg"
+  case "$ext" in
+    png) media_type="image/png" ;;
+    gif) media_type="image/gif" ;;
+    webp) media_type="image/webp" ;;
+  esac
+
+  # Encode to base64
+  local img_b64
+  img_b64=$(base64 -i "$file" | tr -d '\n')
+
+  # Get file size
+  local file_size
+  file_size=$(wc -c < "$file" | tr -d ' ')
+
+  # Get image dimensions (macOS sips)
+  local dimensions="unknown"
+  if command -v sips &>/dev/null; then
+    local w h
+    w=$(sips -g pixelWidth "$file" 2>/dev/null | tail -1 | awk '{print $2}')
+    h=$(sips -g pixelHeight "$file" 2>/dev/null | tail -1 | awk '{print $2}')
+    if [[ -n "$w" && -n "$h" ]]; then
+      dimensions="${w}x${h}"
+    fi
+  fi
+
+  # Record health stats before
+  local before_health
+  before_health=$(curl -sf "$HEALTH_ENDPOINT" ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} 2>/dev/null)
+  local before_images=$(echo "$before_health" | jq '.images_processed_total // 0')
+  local before_faces=$(echo "$before_health" | jq '.faces_blurred_total // 0')
+  local before_text=$(echo "$before_health" | jq '.text_regions_total // 0')
+  local before_nsfw=$(echo "$before_health" | jq '.nsfw_blocked_total // 0')
+  local before_screenshots=$(echo "$before_health" | jq '.screenshots_detected_total // 0')
+
+  # Send through proxy — use temp file to avoid shell arg limits on large images
+  local tmp_response
+  tmp_response=$(mktemp /tmp/oo_visual_XXXXXX.json)
+
+  local capture_id="visual_${name_no_ext}"
+
+  # Build JSON payload in temp file (base64 images easily exceed shell arg limits)
+  local tmp_payload
+  tmp_payload=$(mktemp /tmp/oo_visual_payload_XXXXXX.json)
+  local tmp_b64_file
+  tmp_b64_file=$(mktemp /tmp/oo_visual_b64_XXXXXX.txt)
+  echo -n "$img_b64" > "$tmp_b64_file"
+
+  jq -n \
+    --arg media_type "$media_type" \
+    --rawfile img_b64 "$tmp_b64_file" \
+    '{
+      model: "claude-sonnet-4-20250514",
+      max_tokens: 64,
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: $media_type,
+              data: ($img_b64 | rtrimstr("\n"))
+            }
+          },
+          {type: "text", text: "Describe this."}
+        ]
+      }]
+    }' > "$tmp_payload"
+  rm -f "$tmp_b64_file"
+
+  local response_code
+  response_code=$(curl -s -o "$tmp_response" -w "%{http_code}" -X POST \
+    "${PROXY_URL}/anthropic/v1/messages" \
+    -H "Content-Type: application/json" \
+    -H "x-api-key: test-visual-scan" \
+    -H "anthropic-version: 2023-06-01" \
+    -H "X-Capture-Id: $capture_id" \
+    -d @"$tmp_payload" 2>/dev/null)
+  rm -f "$tmp_payload"
+
+  # Check health stats after — delta tells us what the pipeline did
+  local after_health
+  after_health=$(curl -sf "$HEALTH_ENDPOINT" ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} 2>/dev/null)
+  local after_images=$(echo "$after_health" | jq '.images_processed_total // 0')
+  local after_faces=$(echo "$after_health" | jq '.faces_blurred_total // 0')
+  local after_text=$(echo "$after_health" | jq '.text_regions_total // 0')
+  local after_nsfw=$(echo "$after_health" | jq '.nsfw_blocked_total // 0')
+  local after_screenshots=$(echo "$after_health" | jq '.screenshots_detected_total // 0')
+
+  local delta_images=$((after_images - before_images))
+  local delta_faces=$((after_faces - before_faces))
+  local delta_text=$((after_text - before_text))
+  local delta_nsfw=$((after_nsfw - before_nsfw))
+  local delta_screenshots=$((after_screenshots - before_screenshots))
+
+  # ── Extract processed image from the echo server capture file ──
+  # The proxy rewrites base64 data in the request body (faces blurred, OCR blurred,
+  # EXIF stripped) before forwarding. The echo server saves each request body to
+  # $CAPTURE_DIR/<X-Capture-Id>.json, so we can extract the processed image.
+  local image_saved=false
+  local capture_file="$CAPTURE_DIR/${capture_id}.json"
+
+  # Give the echo server a moment to write the capture file
+  sleep 0.1
+
+  if [[ -f "$capture_file" && -s "$capture_file" ]]; then
+    local extracted_b64
+    extracted_b64=$(jq -r '
+      .messages[0].content[0].source.data //
+      (.messages[0].content[] | select(.type == "image") | .source.data) //
+      empty
+    ' "$capture_file" 2>/dev/null || true)
+
+    if [[ -n "$extracted_b64" && "$extracted_b64" != "null" && ${#extracted_b64} -gt 100 ]]; then
+      echo "$extracted_b64" | base64 -d > "$redacted_dir/$filename" 2>/dev/null && image_saved=true
+    fi
+  fi
+
+  # Fallback: copy original with a note that it needs manual pipeline verification
+  if [[ "$image_saved" != "true" ]]; then
+    cp "$file" "$redacted_dir/$filename"
+  fi
+
+  rm -f "$tmp_response"
+
+  # Save JSON metadata
+  local result
+  result=$(jq -n \
+    --arg file "$filename" \
+    --arg subcategory "$subcategory" \
+    --arg dimensions "$dimensions" \
+    --argjson file_size "$file_size" \
+    --arg media_type "$media_type" \
+    --argjson http_status "$response_code" \
+    --argjson images_processed "$delta_images" \
+    --argjson faces_blurred "$delta_faces" \
+    --argjson text_regions "$delta_text" \
+    --argjson nsfw_blocked "$delta_nsfw" \
+    --argjson screenshot_detected "$delta_screenshots" \
+    --argjson image_captured "$image_saved" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{
+      file: $file,
+      subcategory: $subcategory,
+      dimensions: $dimensions,
+      file_size_bytes: $file_size,
+      media_type: $media_type,
+      http_status: $http_status,
+      pipeline_results: {
+        images_processed: $images_processed,
+        faces_blurred: $faces_blurred,
+        text_regions_detected: $text_regions,
+        nsfw_blocked: ($nsfw_blocked > 0),
+        screenshot_detected: ($screenshot_detected > 0)
+      },
+      redacted_image_captured: $image_captured,
+      note: (if $image_captured then "Blurred image saved" else "Original copied — run with echo upstream to capture pipeline output" end),
+      timestamp: $ts
+    }')
+
+  echo "$result" | jq . > "$json_dir/${name_no_ext}_visual.json"
+
+  local status="OK"
+  [[ "$response_code" == "000" || "$response_code" == "502" ]] && status="WARN"
+
+  local extras=""
+  [[ "$delta_nsfw" -gt 0 ]] && extras="${extras}, nsfw: YES"
+  [[ "$delta_screenshots" -gt 0 ]] && extras="${extras}, screenshot: YES"
+
+  echo "$status $filename (${dimensions}, ${file_size}B) — HTTP $response_code, faces: +$delta_faces, text: +$delta_text${extras}, captured: $image_saved"
+}
+
+# ── Main ──
+SUBCATEGORY="${1:-}"
+
+echo "=== Visual PII Detection Tests ==="
+echo "Image pipeline: $IMAGE_ENABLED"
+echo "Output: test/data/output/Visual_PII/json/ + redacted/"
+echo ""
+
+SUBCATEGORIES=("Faces" "Screenshots" "Documents" "EXIF" "NSFW")
+
+if [[ -n "$SUBCATEGORY" ]]; then
+  SUBCATEGORIES=("$SUBCATEGORY")
+fi
+
+# Purge previous visual results
+echo "Purging previous visual results..."
+rm -f "$OUTPUT_DIR"/json/*_visual.json 2>/dev/null || true
+rm -f "$OUTPUT_DIR"/redacted/* 2>/dev/null || true
+echo ""
+
+for subcat in "${SUBCATEGORIES[@]}"; do
+  subcat_dir="$INPUT_DIR/$subcat"
+  if [[ ! -d "$subcat_dir" ]]; then
+    echo "SKIP $subcat (directory not found)"
+    continue
+  fi
+
+  echo "--- $subcat ---"
+
+  for file in "$subcat_dir"/*; do
+    [[ -f "$file" ]] || continue
+    ext="${file##*.}"
+    case "$ext" in
+      jpg|jpeg|png|gif|webp) test_image "$file" "$subcat" ;;
+      *) echo "SKIP $(basename "$file") (non-image: .$ext)" ;;
+    esac
+  done
+
+  echo ""
+done
+
+# Final stats
+FINAL_HEALTH=$(curl -sf "$HEALTH_ENDPOINT" ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} 2>/dev/null)
+TOTAL_IMAGES=$(($(echo "$FINAL_HEALTH" | jq '.images_processed_total // 0') - BASELINE_IMAGES))
+TOTAL_FACES=$(($(echo "$FINAL_HEALTH" | jq '.faces_blurred_total // 0') - BASELINE_FACES))
+TOTAL_TEXT=$(($(echo "$FINAL_HEALTH" | jq '.text_regions_total // 0') - BASELINE_TEXT))
+TOTAL_NSFW=$(($(echo "$FINAL_HEALTH" | jq '.nsfw_blocked_total // 0') - BASELINE_NSFW))
+TOTAL_SCREENSHOTS=$(($(echo "$FINAL_HEALTH" | jq '.screenshots_detected_total // 0') - BASELINE_SCREENSHOTS))
+
+echo "=== Summary ==="
+echo "Images processed:     $TOTAL_IMAGES"
+echo "Faces blurred:        $TOTAL_FACES"
+echo "Text regions:         $TOTAL_TEXT"
+echo "NSFW blocked:         $TOTAL_NSFW"
+echo "Screenshots detected: $TOTAL_SCREENSHOTS"
+echo "JSON metadata:        $OUTPUT_DIR/json/"
+echo "Redacted images:      $OUTPUT_DIR/redacted/"

@@ -5,7 +5,7 @@
 //!
 //! Usage:
 //!   # First download models
-//!   ./scripts/download_models.sh
+//!   ./build/download_models.sh
 //!
 //!   # Then run the demo
 //!   cargo run --example demo_image_pipeline -- \

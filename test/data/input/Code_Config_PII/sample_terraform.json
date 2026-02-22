@@ -1,0 +1,83 @@
+{
+  "terraform": {
+    "required_version": ">= 1.5.0"
+  },
+  "provider": {
+    "aws": {
+      "region": "us-east-1",
+      "access_key": "AKIAIOSFODNN7EXAMPLE",
+      "secret_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+    }
+  },
+  "resource": {
+    "aws_instance": {
+      "web_server": {
+        "ami": "ami-0123456789abcdef0",
+        "instance_type": "t3.medium",
+        "private_ip": "10.0.0.55",
+        "tags": {
+          "Name": "openobscure-proxy",
+          "Admin": "admin@meridian-tech.com",
+          "AdminPhone": "415-555-0132"
+        },
+        "network_interface": {
+          "device_index": 0,
+          "mac_address": "00:1A:2B:3C:4D:5E",
+          "private_ips": ["10.0.0.55", "10.0.0.56"]
+        }
+      },
+      "database": {
+        "ami": "ami-0123456789abcdef0",
+        "instance_type": "r6g.large",
+        "private_ip": "10.0.0.57",
+        "network_interface": {
+          "device_index": 0,
+          "mac_address": "48:D7:05:F3:A2:81"
+        }
+      }
+    },
+    "aws_security_group": {
+      "proxy_sg": {
+        "name": "openobscure-proxy-sg",
+        "ingress": [
+          {
+            "from_port": 443,
+            "to_port": 443,
+            "protocol": "tcp",
+            "cidr_blocks": ["203.0.113.0/24"],
+            "ipv6_cidr_blocks": ["2001:db8:85a3::/48"]
+          },
+          {
+            "from_port": 22,
+            "to_port": 22,
+            "protocol": "tcp",
+            "cidr_blocks": ["198.51.100.17/32"],
+            "description": "SSH from admin IP"
+          }
+        ]
+      }
+    },
+    "aws_route53_record": {
+      "api": {
+        "zone_id": "Z0123456789ABCDEF",
+        "name": "api.openobscure.dev",
+        "type": "A",
+        "records": ["203.0.113.50"]
+      },
+      "api_v6": {
+        "zone_id": "Z0123456789ABCDEF",
+        "name": "api.openobscure.dev",
+        "type": "AAAA",
+        "records": ["2001:db8:85a3::8a2e:370:7334"]
+      }
+    }
+  },
+  "output": {
+    "web_server_ip": {
+      "value": "203.0.113.50"
+    },
+    "admin_contact": {
+      "value": "admin@meridian-tech.com / (415) 555-0132"
+    }
+  }
+}

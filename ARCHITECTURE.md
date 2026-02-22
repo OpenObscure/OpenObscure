@@ -425,7 +425,7 @@ OpenObscure/
 ├── .github/workflows/
 │   ├── ci.yml                   CI: proxy-test matrix, cross-arm64, mobile-build, plugin, lint
 │   └── release.yml              Release: binary matrix + iOS XCFramework + UniFFI bindings
-├── scripts/
+├── build/
 │   ├── download_models.sh       Download ONNX models for image + voice pipeline
 │   ├── generate_screenshot.py   Generate synthetic PII screenshot for demos
 │   ├── build_ios.sh             Build iOS static library + XCFramework
@@ -435,9 +435,20 @@ OpenObscure/
 ├── docs/examples/images/        Before/after visual PII examples
 ├── data/
 │   └── pii_finetune_dataset.json  TinyBERT fine-tuning dataset (500-1000 labeled PII samples)
-├── test-apps/
-│   ├── ios/                     iOS test app (SwiftUI, 25 runner + 23 XCTest)
-│   └── android/                 Android test app (Compose, 29 instrumented + 8 UI)
+├── test/
+│   ├── apps/
+│   │   ├── ios/                 iOS test app (SwiftUI, 25 runner + 23 XCTest)
+│   │   └── android/             Android test app (Compose, 29 instrumented + 8 UI)
+│   ├── config/                  Test TOML configs (test_fpe.toml, etc.)
+│   ├── data/
+│   │   ├── input/               PII test corpus (45 files across 8 categories)
+│   │   └── output/              Gateway/embedded JSON results
+│   ├── scripts/                 Test runners, validators, echo server
+│   ├── expected_results.json    Threshold-based validation manifest (v2.0, ~85%)
+│   ├── snapshot.json            Exact-count snapshot for --strict regression mode
+│   ├── TESTING_GUIDE.md         Testing documentation
+│   ├── GATEWAY_TEST.md          Gateway mode test walkthrough
+│   └── EMBEDDED_TEST.md         Embedded mode test walkthrough
 ├── openobscure-proxy/             L0: Rust PII proxy (+ embedded mobile library)
 │   ├── ARCHITECTURE.md          L0 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit

@@ -1,0 +1,11 @@
+Hostname	IPv4	IPv6	MAC	Location	Admin_Email	GPS
+web-01	203.0.113.50	2001:db8:85a3::8a2e:370:7334	00:1A:2B:3C:4D:5E	Austin DC Rack A3	admin@meridian-tech.com	30.2672, -97.7431
+web-02	203.0.113.51	2001:db8:85a3::8a2e:370:7335	3C:22:FB:7A:B1:90	Austin DC Rack A3	admin@meridian-tech.com	30.2672, -97.7431
+db-primary	10.0.0.55	2001:db8:1::30	48:D7:05:F3:A2:81	Austin DC Rack B1	dba@meridian-tech.com	30.2672, -97.7431
+db-replica	10.0.0.56	2001:db8:1::31	A4:C1:38:2D:E7:F0	Austin DC Rack B1	dba@meridian-tech.com	30.2672, -97.7431
+cache-01	10.0.0.60	2001:db8:1::40	D4:6E:0E:1F:2A:3B	Austin DC Rack B2	admin@meridian-tech.com	30.2672, -97.7431
+api-gw-01	10.0.1.10	2001:db8:1::10	54:E1:AD:B8:C9:D0	Seattle DC Rack C1	ops@meridian-tech.com	47.6062, -122.3321
+api-gw-02	10.0.1.11	2001:db8:1::11	A8:66:7F:12:34:56	Seattle DC Rack C1	ops@meridian-tech.com	47.6062, -122.3321
+monitor-01	10.0.2.100	2001:db8:2::100	28:6C:07:E4:F5:A6	Denver DC Rack D1	monitoring@meridian-tech.com	39.7392, -104.9903
+vpn-gw	198.51.100.17	2607:f8b0:4004:800::200e	00:50:56:C0:00:08	Portland DC	security@meridian-tech.com	45.5231, -122.6765
+bastion	185.220.101.33	2a02:c7d:3e4f:1200:5e6f:7a8b:9c0d:1e2f	B8:27:EB:AA:BB:CC	Cloud (AWS us-east-1)	security@meridian-tech.com	39.0438, -77.4874

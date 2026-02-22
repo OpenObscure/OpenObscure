@@ -1,0 +1,17 @@
+{
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "Here are the results of the employee lookup:"
+    },
+    {
+      "type": "text",
+      "text": "Employee #1: Sarah Mitchell\nSSN: 378-22-9104\nEmail: s.mitchell@gmail.com\nPhone: (503) 555-0147\nBadge MAC: 48:D7:05:F3:A2:81\nOffice IP: 10.0.1.51"
+    },
+    {
+      "type": "text",
+      "text": "Employee #2: David Chen\nSSN: 256-71-4489\nEmail: d.chen@company.com\nPhone: 512-555-0456\nAPI Key: sk-ant-api03-DavidChenDevKey123456789012345678901234567890abc\nGitHub: ghp_DavidChenGitHubToken1234567890123456abcd"
+    }
+  ]
+}

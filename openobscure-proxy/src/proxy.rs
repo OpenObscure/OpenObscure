@@ -14,6 +14,7 @@ use crate::health::HealthStats;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_pipeline::ImageModelManager;
 use crate::key_manager::KeyManager;
+use crate::kws_engine::KwsEngine;
 use crate::mapping::MappingStore;
 use crate::pii_types::PiiType;
 use crate::vault::Vault;
@@ -45,6 +46,7 @@ pub struct AppState {
     pub vault: Arc<Vault>,
     pub health: HealthStats,
     pub image_models: Option<Arc<ImageModelManager>>,
+    pub kws_engine: Option<Arc<KwsEngine>>,
 }
 
 /// The main proxy handler. All requests flow through here.
@@ -100,6 +102,7 @@ pub async fn proxy_handler(
             versioned_engine.version,
             &state.config.scanner.skip_fields,
             state.image_models.as_ref(),
+            state.kws_engine.as_ref(),
         ) {
             Ok((body, mappings, image_stats)) => {
                 state.health.scan_latency.record(scan_start.elapsed());
@@ -115,6 +118,12 @@ pub async fn proxy_handler(
                     state
                         .health
                         .record_text_regions(is.text_regions_found as u64);
+                    if is.nsfw_detected {
+                        state.health.record_nsfw_blocked(1);
+                    }
+                    if is.is_screenshot {
+                        state.health.record_screenshots_detected(1);
+                    }
                 }
                 (body, mappings)
             }
@@ -268,10 +277,11 @@ pub async fn proxy_handler(
     let mut response = Response::new(Body::from(final_body.clone()));
     *response.status_mut() = parts.status;
     *response.version_mut() = parts.version;
-    // Copy response headers, updating content-length
+    // Copy response headers, replacing content-length and removing transfer-encoding
+    // (we buffer the full body so chunked encoding no longer applies)
     for (key, value) in &parts.headers {
-        if key == "content-length" {
-            continue; // We'll set this ourselves
+        if key == "content-length" || key == "transfer-encoding" {
+            continue;
         }
         response.headers_mut().insert(key.clone(), value.clone());
     }
@@ -497,6 +507,7 @@ mod tests {
             scanner: crate::config::ScannerConfig::default(),
             logging: crate::config::LoggingConfig::default(),
             image: crate::config::ImageConfig::default(),
+            voice: crate::config::VoiceConfig::default(),
         }
     }
 

@@ -1,0 +1,113 @@
+============================================================
+  PII Detection Test Data — IPv4 Addresses
+  Source: Synthetic (non-routable and example IPs)
+  Coverage: Dotted-quad, server logs, configs, incident reports
+  Note: Scanner rejects loopback (127.x), broadcast (255.255.255.255),
+        link-local (169.254.x), unspecified (0.x)
+============================================================
+
+--- Standard public IPs ---
+
+The server is hosted at 192.168.1.100 on our internal network.
+
+Connection established from 203.0.113.42 to port 443.
+
+The client IP was 198.51.100.17 according to the access log.
+
+DNS resolved to 93.184.216.34 for the domain.
+
+--- In server logs ---
+
+[2026-02-18 14:32:01] INFO  Request from 203.0.113.42 - GET /api/v1/users - 200 OK (42ms)
+[2026-02-18 14:32:02] WARN  Rate limit exceeded for 198.51.100.17 - 429 Too Many Requests
+[2026-02-18 14:32:03] ERROR Connection refused from 172.16.254.1 to backend 10.0.0.55:5432
+[2026-02-18 14:32:04] INFO  Health check from 10.0.1.200 - 200 OK
+[2026-02-18 14:32:05] WARN  Failed login attempt from 185.220.101.33 (user: admin)
+[2026-02-18 14:32:06] ERROR SSL handshake failed with 45.33.32.156 - certificate expired
+
+--- In network configuration ---
+
+# /etc/network/interfaces
+auto eth0
+iface eth0 inet static
+    address 10.0.1.50
+    netmask 255.255.255.0
+    gateway 10.0.1.1
+    dns-nameservers 8.8.8.8 8.8.4.4
+
+---
+
+# nginx.conf
+upstream backend {
+    server 10.0.0.55:8080;
+    server 10.0.0.56:8080;
+    server 10.0.0.57:8080;
+}
+
+server {
+    listen 80;
+    server_name 203.0.113.50;
+
+    location / {
+        proxy_pass http://backend;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+
+--- In incident reports ---
+
+SECURITY INCIDENT REPORT — February 2026
+
+Summary: Unauthorized access attempt detected from external IP 185.220.101.33.
+
+Timeline:
+- 14:30 UTC: First connection attempt from 185.220.101.33 to 203.0.113.50:22
+- 14:31 UTC: Brute-force SSH login attempts (47 attempts in 60 seconds)
+- 14:32 UTC: Firewall rule triggered, blocking 185.220.101.33
+- 14:33 UTC: Secondary attempt from 185.220.101.34 (same /24 subnet)
+- 14:35 UTC: Entire 185.220.101.0/24 range blocked at edge firewall
+
+Affected systems:
+- Web server: 203.0.113.50
+- Database: 10.0.0.55
+- Cache: 10.0.0.60
+
+No evidence of successful intrusion. All passwords rotated as precaution.
+
+---
+
+--- In email / communication ---
+
+Hi Network Team,
+
+We're seeing intermittent connectivity issues between the app server at 10.0.1.50
+and the database cluster (primary: 10.0.0.55, replica: 10.0.0.56). Traceroute
+shows packet loss at the gateway 10.0.1.1. Can someone investigate?
+
+The external load balancer at 203.0.113.50 seems unaffected — client connections
+from IPs like 93.184.216.34 and 198.51.100.17 are completing normally.
+
+Thanks,
+DevOps Team
+
+---
+
+--- Private / RFC 1918 ranges ---
+
+Class A private: 10.255.255.254 (largest 10.x address)
+Class B private: 172.31.255.254 (largest 172.16-31 address)
+Class C private: 192.168.255.254 (largest 192.168.x address)
+
+--- Edge cases ---
+
+Multiple IPs: The request was proxied through 203.0.113.42, 198.51.100.17, and 93.184.216.34.
+
+X-Forwarded-For header: 203.0.113.42, 198.51.100.17, 10.0.0.55
+
+IP with port: 10.0.0.55:5432 (the :5432 is not part of the IP).
+
+Adjacent to version number: Running on server 10.0.0.55 with nginx/1.24.0.
+
+The scanner should skip 127.0.0.1 (loopback), 0.0.0.0 (unspecified),
+255.255.255.255 (broadcast), and 169.254.1.1 (link-local). These are not PII.

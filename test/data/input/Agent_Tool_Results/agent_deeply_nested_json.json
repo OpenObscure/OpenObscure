@@ -1,0 +1,5 @@
+{
+  "role": "tool",
+  "tool_use_id": "toolu_02XYZabc78901234",
+  "content": "{\"result\": \"{\\\"data\\\": {\\\"inner_ssn\\\": \\\"154-32-8877\\\", \\\"inner_email\\\": \\\"r.williams@email.com\\\", \\\"inner_phone\\\": \\\"(206) 555-0312\\\", \\\"inner_card\\\": \\\"5133080092882455\\\", \\\"inner_ip\\\": \\\"10.0.0.55\\\", \\\"inner_mac\\\": \\\"00:1A:2B:3C:4D:5E\\\"}}\"}"
+}

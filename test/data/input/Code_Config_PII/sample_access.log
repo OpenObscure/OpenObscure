@@ -1,0 +1,20 @@
+[2026-02-18 14:30:01.123] INFO  203.0.113.42 - GET /api/v1/users - 200 OK (12ms) user-agent="Mozilla/5.0"
+[2026-02-18 14:30:02.456] INFO  198.51.100.17 - POST /api/v1/auth/login - 200 OK (45ms) body={"email":"john.doe@gmail.com"}
+[2026-02-18 14:30:03.789] WARN  185.220.101.33 - POST /api/v1/auth/login - 401 Unauthorized (3ms) user="admin@company.com"
+[2026-02-18 14:30:04.012] WARN  185.220.101.33 - POST /api/v1/auth/login - 401 Unauthorized (2ms) user="root@company.com"
+[2026-02-18 14:30:04.345] WARN  185.220.101.33 - POST /api/v1/auth/login - 429 Rate Limited (1ms) blocked=true
+[2026-02-18 14:30:05.678] INFO  93.184.216.34 - GET /api/v1/profile/287-65-4321 - 200 OK (18ms) ssn_in_url=true
+[2026-02-18 14:30:06.901] INFO  203.0.113.42 - POST /api/v1/payment - 200 OK (234ms) card_last4=0366 full_card_logged=4532015112830366
+[2026-02-18 14:30:07.234] ERROR 10.0.0.55 - GET /internal/health - 500 Internal Server Error (5002ms) db_host=10.0.0.55:5432
+[2026-02-18 14:30:08.567] INFO  2001:db8:85a3::8a2e:370:7334 - GET /api/v1/status - 200 OK (8ms) ipv6_client=true
+[2026-02-18 14:30:09.890] INFO  198.51.100.17 - PUT /api/v1/profile - 200 OK (67ms) updated_fields=["phone","email"] phone="(415) 555-0132" email="updated@example.com"
+[2026-02-18 14:30:10.123] DEBUG 10.0.1.50 - GET /debug/env - 200 OK (2ms) api_key=sk-ant-api03-LoggedByMistake123456789012345678901234567890
+[2026-02-18 14:30:11.456] INFO  203.0.113.42 - GET /api/v1/users/search?email=sarah.mitchell%40gmail.com - 200 OK (15ms)
+[2026-02-18 14:30:12.789] WARN  45.33.32.156 - POST /api/v1/webhook - 403 Forbidden (1ms) invalid_token=ghp_ExpiredOrRevokedTokenInWebhookPayload1234
+[2026-02-18 14:30:13.012] INFO  93.184.216.34 - POST /api/v1/devices - 201 Created (23ms) mac="3C:22:FB:7A:B1:90" ip_assigned="10.0.1.50"
+[2026-02-18 14:30:14.345] INFO  203.0.113.42 - GET /api/v1/locations?lat=47.6062&lon=-122.3321 - 200 OK (34ms) gps_in_query=true
+[2026-02-18 14:30:15.678] ERROR 10.0.0.55 - POST /api/v1/export - 500 Error (1200ms) msg="AWS credentials invalid" key=AKIAIOSFODNN7EXAMPLE
+[2026-02-18 14:30:16.901] INFO  172.16.254.1 - GET /api/v1/compliance/audit - 200 OK (89ms) admin_ip=true
+[2026-02-18 14:30:17.234] DEBUG 10.0.1.50 - POST /internal/notify - 200 OK (45ms) slack_token=xoxb-123456789012-1234567890123-LoggedAccidentally
+[2026-02-18 14:30:18.567] INFO  2607:f8b0:4004:800::200e - GET /api/v1/health - 200 OK (5ms) google_crawler=true
+[2026-02-18 14:30:19.890] WARN  198.51.100.17 - POST /api/v1/support - 200 OK (78ms) ticket_body="My SSN is 378-22-9104, card 5425233430109903, call me at 503-555-0147"
