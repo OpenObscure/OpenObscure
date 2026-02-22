@@ -10,7 +10,7 @@ The mock model uses random weights — its predictions are meaningless,
 but the tensor shapes and types match the real model exactly.
 
 Usage:
-  python test/scripts/synthetic/generate_mock_ner_model.py --output_dir models/mock
+  python test/scripts/mock/generate_mock_ner_model.py --output_dir models/mock
 """
 
 import argparse

@@ -10,7 +10,7 @@ produces plausible (but not production-quality) entity predictions.
 No dependencies beyond Python stdlib + json.
 
 Usage:
-  python test/scripts/synthetic/generate_mock_crf_model.py --output_dir models/crf_mock
+  python test/scripts/mock/generate_mock_crf_model.py --output_dir models/crf_mock
 """
 
 import argparse

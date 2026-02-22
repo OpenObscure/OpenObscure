@@ -444,7 +444,7 @@ OpenObscure/
 │   │   ├── input/               PII test corpus (45 files across 8 categories)
 │   │   └── output/              Gateway/embedded JSON results
 │   ├── scripts/                 Test runners, validators, echo server
-│   │   └── synthetic/           Synthetic data generators (screenshots, mock models, datasets)
+│   │   └── mock/                Mock data generators (screenshots, mock models, datasets)
 │   ├── expected_results.json    Threshold-based validation manifest (v2.0, ~85%)
 │   ├── snapshot.json            Exact-count snapshot for --strict regression mode
 │   ├── TESTING_GUIDE.md         Testing documentation

@@ -7,7 +7,7 @@ phone numbers, emails, addresses, and medical info — all fictitious. This lets
 the OCR pipeline demonstrate text-region blurring on sensitive content.
 
 Usage:
-    python3 test/scripts/synthetic/generate_screenshot.py [--output docs/examples/images/screenshot-original.png]
+    python3 test/scripts/mock/generate_screenshot.py [--output docs/examples/images/screenshot-original.png]
 """
 
 import argparse
