@@ -20,11 +20,12 @@
 # Exit code: 0 = all pass, 1 = any fail
 #
 # Usage:
-#   ./test/scripts/validate_results.sh               # Threshold validation
-#   ./test/scripts/validate_results.sh --strict       # Exact snapshot comparison
-#   ./test/scripts/validate_results.sh --gateway-only # Skip embedded checks
-#   ./test/scripts/validate_results.sh --summary      # Summary only (no per-file output)
-#   ./test/scripts/validate_results.sh --json         # JSON report to stdout
+#   ./test/scripts/validate_results.sh                     # Threshold validation
+#   ./test/scripts/validate_results.sh --strict             # Exact snapshot comparison
+#   ./test/scripts/validate_results.sh --check-redacted     # Validate redacted file content
+#   ./test/scripts/validate_results.sh --gateway-only       # Skip embedded checks
+#   ./test/scripts/validate_results.sh --summary            # Summary only (no per-file output)
+#   ./test/scripts/validate_results.sh --json               # JSON report to stdout
 
 set -euo pipefail
 
@@ -40,12 +41,14 @@ GATEWAY_ONLY=false
 SUMMARY_ONLY=false
 JSON_OUTPUT=false
 STRICT=false
+CHECK_REDACTED=false
 for arg in "$@"; do
   case "$arg" in
     --gateway-only) GATEWAY_ONLY=true ;;
     --summary) SUMMARY_ONLY=true ;;
     --json) JSON_OUTPUT=true ;;
     --strict) STRICT=true ;;
+    --check-redacted) CHECK_REDACTED=true ;;
   esac
 done
 
@@ -644,6 +647,185 @@ print(idx)
   fi
 
 fi  # end threshold/strict branching
+
+# ═══════════════════════════════════════════════════════════════
+# REDACTED CONTENT VALIDATION (--check-redacted)
+# ═══════════════════════════════════════════════════════════════
+
+if [[ "$CHECK_REDACTED" == "true" && -f "$MANIFEST" ]]; then
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo ""
+    echo "--- Redacted Content Validation ---"
+  fi
+
+  REDACT_PASS=0
+  REDACT_FAIL=0
+
+  # Check must_not_contain: specific PII strings that must NOT appear in redacted output
+  for key in $(jq -r '.files | to_entries[] | select(.value.must_not_contain != null) | .key' "$MANIFEST"); do
+    category="${key%%/*}"
+    filename="${key#*/}"
+    redacted_file="$OUTPUT_DIR/$category/redacted/$filename"
+
+    if [[ ! -f "$redacted_file" ]]; then
+      continue
+    fi
+
+    mnc_count=$(jq -r ".files[\"$key\"].must_not_contain | length" "$MANIFEST")
+    file_ok=true
+
+    for idx in $(seq 0 $((mnc_count - 1))); do
+      pii_string=$(jq -r ".files[\"$key\"].must_not_contain[$idx]" "$MANIFEST")
+      if grep -cF "$pii_string" "$redacted_file" >/dev/null 2>&1; then
+        hit_count=$(grep -cF "$pii_string" "$redacted_file")
+        fail "$key" "must_not_contain LEAKED: \"$pii_string\" found $hit_count time(s) in redacted"
+        REDACT_FAIL=$((REDACT_FAIL + 1))
+        file_ok=false
+        break
+      fi
+    done
+
+    if [[ "$file_ok" == "true" ]]; then
+      REDACT_PASS=$((REDACT_PASS + 1))
+      pass "$key" "must_not_contain: all $mnc_count strings redacted"
+    fi
+  done
+
+  # Check placeholder presence: if gateway JSON has NER types, redacted file should have placeholders
+  for key in $(jq -r '.files | keys[]' "$MANIFEST"); do
+    category="${key%%/*}"
+    filename="${key#*/}"
+    name_no_ext="${filename%.*}"
+
+    gw_json="$OUTPUT_DIR/$category/json/${name_no_ext}_gateway.json"
+    redacted_file="$OUTPUT_DIR/$category/redacted/$filename"
+
+    [[ -f "$gw_json" && -f "$redacted_file" ]] || continue
+
+    # Check person → [PERSON_
+    has_person=$(jq -r '.type_summary.person // 0' "$gw_json")
+    if [[ "$has_person" -gt 0 ]]; then
+      if ! grep -qF "[PERSON_" "$redacted_file" 2>/dev/null; then
+        warn "$key" "gateway has $has_person person matches but redacted has no [PERSON_ placeholders"
+      fi
+    fi
+
+    # Check organization → [ORG_
+    has_org=$(jq -r '.type_summary.organization // 0' "$gw_json")
+    if [[ "$has_org" -gt 0 ]]; then
+      if ! grep -qF "[ORG_" "$redacted_file" 2>/dev/null; then
+        warn "$key" "gateway has $has_org organization matches but redacted has no [ORG_ placeholders"
+      fi
+    fi
+
+    # Check location → [LOCATION_
+    has_loc=$(jq -r '.type_summary.location // 0' "$gw_json")
+    if [[ "$has_loc" -gt 0 ]]; then
+      if ! grep -qF "[LOCATION_" "$redacted_file" 2>/dev/null; then
+        warn "$key" "gateway has $has_loc location matches but redacted has no [LOCATION_ placeholders"
+      fi
+    fi
+  done
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo "  Redacted check: $REDACT_PASS passed, $REDACT_FAIL failed"
+  fi
+
+  # ─── EXIF verification ──────────────────────────────────────
+
+  EXIF_PASS=0
+  EXIF_FAIL=0
+
+  if [[ "$JSON_OUTPUT" == "false" && "$SUMMARY_ONLY" == "false" ]]; then
+    echo ""
+    echo "  [EXIF Stripping]"
+  fi
+
+  for vkey in $(jq -r '.visual_files | to_entries[] | select(.value.input_exif_tags_min != null) | .key' "$MANIFEST" 2>/dev/null); do
+    TOTAL=$((TOTAL + 1))
+    filename="${vkey#Visual_PII/}"
+    input_file="$INPUT_DIR/Visual_PII/EXIF/$filename"
+    name_no_ext="${filename%.*}"
+    output_file="$OUTPUT_DIR/Visual_PII/redacted/$filename"
+
+    min_input_tags=$(jq -r ".visual_files[\"$vkey\"].input_exif_tags_min" "$MANIFEST")
+    max_output_tags=$(jq -r ".visual_files[\"$vkey\"].output_exif_tags_max // 0" "$MANIFEST")
+    must_strip_gps=$(jq -r ".visual_files[\"$vkey\"].must_strip_gps // false" "$MANIFEST")
+
+    if [[ ! -f "$input_file" ]]; then
+      skip "$vkey" "no input file"
+      continue
+    fi
+
+    # Count EXIF tags in input
+    input_tags=$(python3 -c "
+import sys
+try:
+    import piexif
+    d = piexif.load(sys.argv[1])
+    count = sum(len(ifd) for ifd in [d.get('0th',{}), d.get('Exif',{}), d.get('GPS',{})])
+    print(count)
+except Exception:
+    print(0)
+" "$input_file" 2>/dev/null)
+
+    if [[ "$input_tags" -lt "$min_input_tags" ]]; then
+      fail "$vkey" "input has $input_tags EXIF tags < min $min_input_tags (regenerate test images?)"
+      EXIF_FAIL=$((EXIF_FAIL + 1))
+      continue
+    fi
+
+    if [[ ! -f "$output_file" ]]; then
+      skip "$vkey" "no output file (test not run?)"
+      continue
+    fi
+
+    # Count EXIF tags in output
+    output_tags=$(python3 -c "
+import sys
+try:
+    import piexif
+    d = piexif.load(sys.argv[1])
+    count = sum(len(ifd) for ifd in [d.get('0th',{}), d.get('Exif',{}), d.get('GPS',{})])
+    print(count)
+except Exception:
+    print(0)
+" "$output_file" 2>/dev/null)
+
+    if [[ "$output_tags" -gt "$max_output_tags" ]]; then
+      fail "$vkey" "output has $output_tags EXIF tags > max $max_output_tags"
+      EXIF_FAIL=$((EXIF_FAIL + 1))
+      continue
+    fi
+
+    # GPS check
+    if [[ "$must_strip_gps" == "true" ]]; then
+      output_gps=$(python3 -c "
+import sys
+try:
+    import piexif
+    d = piexif.load(sys.argv[1])
+    print(len(d.get('GPS',{})))
+except Exception:
+    print(0)
+" "$output_file" 2>/dev/null)
+
+      if [[ "$output_gps" -gt 0 ]]; then
+        fail "$vkey" "output still has $output_gps GPS tags (not stripped!)"
+        EXIF_FAIL=$((EXIF_FAIL + 1))
+        continue
+      fi
+    fi
+
+    EXIF_PASS=$((EXIF_PASS + 1))
+    pass "$vkey" "input:${input_tags}tags output:${output_tags}tags"
+  done
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo "  EXIF stripping: $EXIF_PASS passed, $EXIF_FAIL failed"
+  fi
+fi
 
 # ─── Coverage check: input files not in manifest ─────────────
 

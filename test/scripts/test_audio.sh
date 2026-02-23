@@ -19,6 +19,9 @@
 
 set -euo pipefail
 
+# Millisecond timestamp (portable: Perl on macOS, date +%s%N on Linux)
+_ms() { perl -MTime::HiRes -e 'printf("%d\n", Time::HiRes::time() * 1000)' 2>/dev/null || echo $(( $(date +%s) * 1000 )); }
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEST_DIR="$(dirname "$SCRIPT_DIR")"
 INPUT_DIR="$TEST_DIR/data/input/Audio_PII"
@@ -142,12 +145,15 @@ test_audio() {
   fi
 
   # Send audio through proxy — echo server captures the processed request body
+  local proxy_start
+  proxy_start=$(_ms)
   local response_code
   response_code=$(curl -s -o "$tmp_response" -w "%{http_code}" \
     --max-time "$AUDIO_TIMEOUT" \
     -X POST "${PROXY_URL}/anthropic/v1/messages" \
     "${curl_headers[@]}" \
     -d @"$tmp_payload" 2>/dev/null || echo "000")
+  local proxy_elapsed_ms=$(( $(_ms) - proxy_start ))
   rm -f "$tmp_payload"
 
   # Parse the CAPTURED request body (what the proxy sent upstream)
@@ -196,6 +202,7 @@ test_audio() {
     --arg keywords "$keywords" \
     --arg action "$action" \
     --arg device_tier "$DEVICE_TIER" \
+    --argjson pipeline_ms "$proxy_elapsed_ms" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{
       file: $file,
@@ -208,6 +215,9 @@ test_audio() {
         pii_detected: $pii_detected,
         keywords: $keywords,
         action: $action
+      },
+      timing: {
+        pipeline_ms: $pipeline_ms
       },
       device_tier: $device_tier,
       timestamp: $ts
@@ -234,8 +244,8 @@ test_audio() {
     status_icon="ERR"
   fi
 
-  printf "  %-4s %-12s %-35s %6sB  HTTP %s%s\n" \
-    "$status_icon" "$action" "$filename" "$file_size" "$response_code" "$keywords_display"
+  printf "  %-4s %-12s %-35s %6sB  HTTP %s  %5sms%s\n" \
+    "$status_icon" "$action" "$filename" "$file_size" "$response_code" "$proxy_elapsed_ms" "$keywords_display"
 }
 
 # ── Main ──

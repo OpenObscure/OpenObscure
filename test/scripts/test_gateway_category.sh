@@ -53,6 +53,9 @@ echo ""
 
 TOTAL_FILES=0
 TOTAL_MATCHES=0
+TOTAL_TIME_MS=0
+MAX_TIME_MS=0
+MAX_TIME_FILE=""
 PASS=0
 FAIL=0
 
@@ -74,6 +77,12 @@ for file in "$CAT_INPUT"/*; do
     if [[ -f "$json_file" ]]; then
       matches=$(jq '.total_matches' "$json_file" 2>/dev/null || echo 0)
       TOTAL_MATCHES=$((TOTAL_MATCHES + matches))
+      file_time_ms=$(jq '.timing.total_ms // 0' "$json_file" 2>/dev/null || echo 0)
+      TOTAL_TIME_MS=$((TOTAL_TIME_MS + file_time_ms))
+      if [[ "$file_time_ms" -gt "$MAX_TIME_MS" ]]; then
+        MAX_TIME_MS=$file_time_ms
+        MAX_TIME_FILE=$filename
+      fi
     fi
     PASS=$((PASS + 1))
   else
@@ -84,6 +93,11 @@ for file in "$CAT_INPUT"/*; do
   TOTAL_FILES=$((TOTAL_FILES + 1))
 done
 
+AVG_TIME_MS=0
+if [[ "$TOTAL_FILES" -gt 0 ]]; then
+  AVG_TIME_MS=$((TOTAL_TIME_MS / TOTAL_FILES))
+fi
+
 echo ""
 echo "=== Summary ==="
 echo "Category:       $CATEGORY"
@@ -91,5 +105,6 @@ echo "Files tested:   $TOTAL_FILES"
 echo "Passed:         $PASS"
 echo "Failed:         $FAIL"
 echo "Total matches:  $TOTAL_MATCHES"
+echo "Timing:         ${TOTAL_TIME_MS}ms total (avg: ${AVG_TIME_MS}ms/file, max: ${MAX_TIME_MS}ms — ${MAX_TIME_FILE:-n/a})"
 echo "JSON results:   $CAT_OUTPUT/json/"
 echo "FPE redacted:   $CAT_OUTPUT/redacted/"

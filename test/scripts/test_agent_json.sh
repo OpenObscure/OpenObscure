@@ -17,6 +17,9 @@
 
 set -euo pipefail
 
+# Millisecond timestamp (portable: Perl on macOS, date +%s%N on Linux)
+_ms() { perl -MTime::HiRes -e 'printf("%d\n", Time::HiRes::time() * 1000)' 2>/dev/null || echo $(( $(date +%s) * 1000 )); }
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEST_DIR="$(dirname "$SCRIPT_DIR")"
 INPUT_DIR="$TEST_DIR/data/input/Agent_Tool_Results"
@@ -119,8 +122,11 @@ test_file() {
   local combined_text
   combined_text=$(echo "$all_text" | tr '\n' ' ' | head -c 65536)
 
+  local ner_start
+  ner_start=$(_ms)
   local ner_response
   ner_response=$(call_ner "$combined_text")
+  local ner_elapsed_ms=$(( $(_ms) - ner_start ))
 
   local match_count
   match_count=$(echo "$ner_response" | jq 'length')
@@ -154,6 +160,8 @@ test_file() {
     messages: [{role: "user", content: $content}]
   }')
 
+  local fpe_start
+  fpe_start=$(_ms)
   local fpe_http
   fpe_http=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$FPE_ENDPOINT" \
     -H "Content-Type: application/json" \
@@ -161,6 +169,8 @@ test_file() {
     -H "anthropic-version: 2023-06-01" \
     -H "X-Capture-Id: $capture_id" \
     -d "$fpe_payload" 2>/dev/null)
+  local fpe_elapsed_ms=$(( $(_ms) - fpe_start ))
+  local total_elapsed_ms=$(( ner_elapsed_ms + fpe_elapsed_ms ))
 
   # Read echo capture and extract the FPE'd content
   local capture_file="$CAPTURE_DIR/${capture_id}.json"
@@ -192,6 +202,9 @@ test_file() {
     --argjson types "$type_summary" \
     --argjson matches "$ner_response" \
     --argjson fpe_http "$fpe_http" \
+    --argjson ner_ms "$ner_elapsed_ms" \
+    --argjson fpe_ms "$fpe_elapsed_ms" \
+    --argjson total_ms "$total_elapsed_ms" \
     '{
       file: $file,
       path: $path,
@@ -202,11 +215,16 @@ test_file() {
       timestamp: $ts,
       total_matches: $count,
       type_summary: $types,
+      timing: {
+        ner_scan_ms: $ner_ms,
+        fpe_pass_ms: $fpe_ms,
+        total_ms: $total_ms
+      },
       matches: $matches
     }')
 
   echo "$result" | jq . > "$json_out"
-  echo "OK  $filename ($format) — $match_count matches, FPE HTTP $fpe_http → json/ + redacted/"
+  echo "OK  $filename ($format) — $match_count matches, FPE HTTP $fpe_http, ${total_elapsed_ms}ms (ner:${ner_elapsed_ms}ms fpe:${fpe_elapsed_ms}ms)"
 }
 
 # ── Main ──

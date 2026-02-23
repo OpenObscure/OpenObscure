@@ -25,6 +25,9 @@
 
 set -euo pipefail
 
+# Millisecond timestamp (portable: Perl on macOS, date +%s%N on Linux)
+_ms() { perl -MTime::HiRes -e 'printf("%d\n", Time::HiRes::time() * 1000)' 2>/dev/null || echo $(( $(date +%s) * 1000 )); }
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEST_DIR="$(dirname "$SCRIPT_DIR")"
 INPUT_DIR="$TEST_DIR/data/input/Visual_PII"
@@ -36,9 +39,9 @@ CAPTURE_DIR="${CAPTURE_DIR:-/tmp/oo_echo_captures}"
 
 # Cleanup temp files on any exit (error, Ctrl+C, normal)
 cleanup_visual() {
-  rm -f /tmp/oo_visual_*.json 2>/dev/null || true
-  rm -f /tmp/oo_visual_payload_*.json 2>/dev/null || true
-  rm -f /tmp/oo_visual_b64_*.txt 2>/dev/null || true
+  rm -f /tmp/oo_visual_resp_* 2>/dev/null || true
+  rm -f /tmp/oo_visual_payload_* 2>/dev/null || true
+  rm -f /tmp/oo_visual_b64_* 2>/dev/null || true
   rm -f "$CAPTURE_DIR"/visual_*.json 2>/dev/null || true
 }
 trap cleanup_visual EXIT
@@ -94,9 +97,10 @@ test_image() {
     webp) media_type="image/webp" ;;
   esac
 
-  # Encode to base64
-  local img_b64
-  img_b64=$(base64 -i "$file" | tr -d '\n')
+  # Encode to base64 (write to temp file to avoid shell arg limits on large images)
+  local tmp_b64_file
+  tmp_b64_file=$(mktemp /tmp/oo_visual_b64_XXXXXX)
+  base64 -i "$file" | tr -d '\n' > "$tmp_b64_file"
 
   # Get file size
   local file_size
@@ -124,16 +128,13 @@ test_image() {
 
   # Send through proxy — use temp file to avoid shell arg limits on large images
   local tmp_response
-  tmp_response=$(mktemp /tmp/oo_visual_XXXXXX.json)
+  tmp_response=$(mktemp /tmp/oo_visual_resp_XXXXXX)
 
   local capture_id="visual_${name_no_ext}"
 
-  # Build JSON payload in temp file (base64 images easily exceed shell arg limits)
+  # Build JSON payload in temp file
   local tmp_payload
-  tmp_payload=$(mktemp /tmp/oo_visual_payload_XXXXXX.json)
-  local tmp_b64_file
-  tmp_b64_file=$(mktemp /tmp/oo_visual_b64_XXXXXX.txt)
-  echo -n "$img_b64" > "$tmp_b64_file"
+  tmp_payload=$(mktemp /tmp/oo_visual_payload_XXXXXX)
 
   jq -n \
     --arg media_type "$media_type" \
@@ -158,6 +159,9 @@ test_image() {
     }' > "$tmp_payload"
   rm -f "$tmp_b64_file"
 
+  local proxy_start
+  proxy_start=$(_ms)
+
   local response_code
   response_code=$(curl -s -o "$tmp_response" -w "%{http_code}" -X POST \
     "${PROXY_URL}/anthropic/v1/messages" \
@@ -166,6 +170,7 @@ test_image() {
     -H "anthropic-version: 2023-06-01" \
     -H "X-Capture-Id: $capture_id" \
     -d @"$tmp_payload" 2>/dev/null)
+  local proxy_elapsed_ms=$(( $(_ms) - proxy_start ))
   rm -f "$tmp_payload"
 
   # Check health stats after — delta tells us what the pipeline did
@@ -190,20 +195,28 @@ test_image() {
   local image_saved=false
   local capture_file="$CAPTURE_DIR/${capture_id}.json"
 
-  # Give the echo server a moment to write the capture file
-  sleep 0.1
+  # Wait for the echo server to write the capture file (large images take longer)
+  for _wait in $(seq 1 20); do
+    [[ -f "$capture_file" && -s "$capture_file" ]] && break
+    sleep 0.5
+  done
 
   if [[ -f "$capture_file" && -s "$capture_file" ]]; then
-    local extracted_b64
-    extracted_b64=$(jq -r '
+    # Extract base64 image data to temp file (avoid shell arg limits on large images)
+    local tmp_extracted
+    tmp_extracted=$(mktemp /tmp/oo_visual_extract_XXXXXX)
+    jq -r '
       .messages[0].content[0].source.data //
       (.messages[0].content[] | select(.type == "image") | .source.data) //
       empty
-    ' "$capture_file" 2>/dev/null || true)
+    ' "$capture_file" > "$tmp_extracted" 2>/dev/null || true
 
-    if [[ -n "$extracted_b64" && "$extracted_b64" != "null" && ${#extracted_b64} -gt 100 ]]; then
-      echo "$extracted_b64" | base64 -d > "$redacted_dir/$filename" 2>/dev/null && image_saved=true
+    local extracted_size
+    extracted_size=$(wc -c < "$tmp_extracted" 2>/dev/null | tr -d ' ')
+    if [[ "$extracted_size" -gt 100 ]]; then
+      base64 -d < "$tmp_extracted" > "$redacted_dir/$filename" 2>/dev/null && image_saved=true
     fi
+    rm -f "$tmp_extracted"
   fi
 
   # Fallback: copy original with a note that it needs manual pipeline verification
@@ -228,6 +241,7 @@ test_image() {
     --argjson nsfw_blocked "$delta_nsfw" \
     --argjson screenshot_detected "$delta_screenshots" \
     --argjson image_captured "$image_saved" \
+    --argjson pipeline_ms "$proxy_elapsed_ms" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{
       file: $file,
@@ -243,6 +257,9 @@ test_image() {
         nsfw_blocked: ($nsfw_blocked > 0),
         screenshot_detected: ($screenshot_detected > 0)
       },
+      timing: {
+        pipeline_ms: $pipeline_ms
+      },
       redacted_image_captured: $image_captured,
       note: (if $image_captured then "Blurred image saved" else "Original copied — run with echo upstream to capture pipeline output" end),
       timestamp: $ts
@@ -257,7 +274,7 @@ test_image() {
   [[ "$delta_nsfw" -gt 0 ]] && extras="${extras}, nsfw: YES"
   [[ "$delta_screenshots" -gt 0 ]] && extras="${extras}, screenshot: YES"
 
-  echo "$status $filename (${dimensions}, ${file_size}B) — HTTP $response_code, faces: +$delta_faces, text: +$delta_text${extras}, captured: $image_saved"
+  echo "$status $filename (${dimensions}, ${file_size}B) — HTTP $response_code, faces: +$delta_faces, text: +$delta_text${extras}, captured: $image_saved, ${proxy_elapsed_ms}ms"
 }
 
 # ── Main ──

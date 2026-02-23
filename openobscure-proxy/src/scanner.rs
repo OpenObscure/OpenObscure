@@ -151,6 +151,11 @@ impl PiiScanner {
     ) {
         match value {
             Value::String(s) => {
+                // Skip data URIs with base64-encoded images (OpenAI format)
+                if s.starts_with("data:image/") && s.contains(";base64,") {
+                    return;
+                }
+
                 let mut text_matches = self.scan_text(s);
                 for m in &mut text_matches {
                     m.json_path = Some(path.to_string());
@@ -158,8 +163,19 @@ impl PiiScanner {
                 matches.extend(text_matches);
             }
             Value::Object(map) => {
+                // Skip base64 data fields in image source blocks to avoid
+                // false positive PII matches on random base64 character sequences
+                let is_base64_source = map
+                    .get("type")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s == "base64")
+                    .unwrap_or(false);
+
                 for (key, val) in map {
                     if skip_fields.contains(key) {
+                        continue;
+                    }
+                    if is_base64_source && key == "data" {
                         continue;
                     }
                     let child_path = if path.is_empty() {

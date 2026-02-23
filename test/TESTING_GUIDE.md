@@ -316,7 +316,7 @@ have `json/` and `redacted/` subfolders for each category.
 | `Visual_PII/Faces/` | 13 | Frontal, profile, group, small-in-landscape | `faces_blurred`, `text_regions_detected` |
 | `Visual_PII/Screenshots/` | 7 | Desktop/mobile at various resolutions | `text_regions_detected`, `screenshot_detected` |
 | `Visual_PII/Documents/` | 8 | DL, SSN card, passport, CC, W-2, etc. | `faces_blurred`, `text_regions_detected` |
-| `Visual_PII/EXIF/` | 10 | Screenshot tools, cameras, no-EXIF controls | `screenshot_detected` (EXIF-based) |
+| `Visual_PII/EXIF/` | 12 | Screenshot tools, cameras (with/without GPS), no-EXIF controls | `screenshot_detected`, EXIF stripping |
 | `Visual_PII/NSFW/` | 7 | 5 safe controls + 2 placeholders | `nsfw_blocked` |
 
 ### Audio PII (13 files)
@@ -490,6 +490,7 @@ USE_NER=1 node test/scripts/test_embedded_all.mjs                               
 ./test/scripts/validate_results.sh --summary                                    # Summary only
 ./test/scripts/validate_results.sh --json                                       # JSON report (for CI)
 ./test/scripts/validate_results.sh --gateway-only                               # Skip embedded checks
+./test/scripts/validate_results.sh --check-redacted                             # Validate redacted file content
 ./test/scripts/validate_results.sh --strict --json                              # Strict + JSON (CI regression)
 ./test/scripts/generate_snapshot.sh                                             # Regenerate snapshot.json
 ```
@@ -701,6 +702,7 @@ The manifest defines per-file expectations for all 45 text-based input files:
 | `min_matches` | Minimum `total_matches` in gateway JSON. Set to ~85% of actual PII count to catch regressions while allowing minor variance. |
 | `expected_types` | PII type names that MUST appear in `type_summary`. Uses the 1-2 most reliably detected types per file. |
 | `must_detect` | (Optional) Array of `{text, type}` objects. The validator confirms each PII string is covered by a scanner match at the correct offset and type. |
+| `must_not_contain` | (Optional) Array of PII strings that must NOT appear in the redacted output file. Used to catch NER truncation or redaction failures. Validated with `--check-redacted`. |
 
 Thresholds are set at ~85% of actual counts across all categories.
 
@@ -770,6 +772,16 @@ Additional checks (both modes):
 - **Embedded validation**: if embedded results exist, checks `total_matches >= 30%` of gateway threshold
 - **Coverage check**: warns if any input file has no manifest entry
 
+**Redacted content checks** (`--check-redacted`):
+
+| # | Check | What it catches |
+|---|-------|----------------|
+| 11 | `must_not_contain` strings absent from redacted file | PII leaking through redaction (NER truncation, missed entities) |
+| 12 | Placeholder presence (`[PERSON_`, `[ORG_`, `[LOCATION_`) | Gateway detects entities but redaction doesn't apply them |
+| 13 | EXIF input tags >= `input_exif_tags_min` | Test images have realistic EXIF metadata (not synthetic stubs) |
+| 14 | EXIF output tags <= `output_exif_tags_max` | Pipeline fully strips EXIF from output images |
+| 15 | GPS stripped from `must_strip_gps` images | GPS coordinates removed from output |
+
 ### Running the Validator
 
 ```bash
@@ -787,6 +799,9 @@ Additional checks (both modes):
 
 # Skip embedded/audio/visual checks
 ./test/scripts/validate_results.sh --gateway-only
+
+# Redacted content validation (must_not_contain + EXIF stripping)
+./test/scripts/validate_results.sh --check-redacted
 
 # Strict + JSON (for CI regression testing)
 ./test/scripts/validate_results.sh --strict --json
@@ -1052,6 +1067,7 @@ Mock data generators live in `test/scripts/mock/`:
 | `generate_mock_ner_model.py` | Mock ONNX NER model (~50KB) | `python3 test/scripts/mock/generate_mock_ner_model.py --output_dir openobscure-ner/models/mock` |
 | `generate_mock_crf_model.py` | Mock CRF model JSON | `python3 test/scripts/mock/generate_mock_crf_model.py --output_dir openobscure-ner/models/crf_mock` |
 | `generate_finetune_dataset.py` | Labeled PII JSONL (~600 samples) | `python3 test/scripts/mock/generate_finetune_dataset.py` |
+| `generate_exif_images.py` | 12 EXIF test images (cameras, phones, screenshots, controls) | `python3 test/scripts/mock/generate_exif_images.py` |
 
 These scripts produce deterministic output from synthetic data — no real PII is used
 or required. For new text test files, write them by hand with clearly synthetic data

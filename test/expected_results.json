@@ -1,10 +1,10 @@
 {
   "_meta": {
-    "version": "2.1",
+    "version": "2.2",
     "description": "Expected PII detection results per input file. Thresholds at ~85% of actual counts. visual_files section validates image pipeline outputs (faces, OCR, NSFW, screenshots).",
     "generated": "2026-02-22",
     "total_files": 45,
-    "total_visual_files": 45,
+    "total_visual_files": 47,
     "type_names": "Must match scanner output exactly: credit_card, ssn, phone, email, api_key, ipv4_address, ipv6_address, gps_coordinate, mac_address, health_keyword, child_keyword, person, location, organization"
   },
   "files": {
@@ -85,17 +85,36 @@
     "PII_Detection/Person_Names.txt": {
       "min_matches": 27,
       "expected_types": ["person", "phone"],
-      "note": "NER detects person names; regex detects phone/email alongside names."
+      "note": "NER detects person names; regex detects phone/email alongside names.",
+      "must_not_contain": [
+        "Priya Krishnamurthy",
+        "Jean-Luc Dubois",
+        "Elizabeth Warren-Baker",
+        "Marcus A. Johnson",
+        "Bob Nakamura",
+        "Kenji Watanabe"
+      ]
     },
     "PII_Detection/Locations.txt": {
       "min_matches": 52,
       "expected_types": ["location"],
-      "note": "NER-dependent for locations."
+      "note": "NER-dependent for locations.",
+      "must_not_contain": [
+        "Brooklyn",
+        "Sacramento",
+        "Los Angeles",
+        "Philadelphia"
+      ]
     },
     "PII_Detection/Organizations.txt": {
       "min_matches": 41,
       "expected_types": ["organization"],
-      "note": "NER-dependent for organizations."
+      "note": "NER-dependent for organizations.",
+      "must_not_contain": [
+        "Massachusetts General Hospital",
+        "Amazon Web Services",
+        "Stanford University"
+      ]
     },
     "PII_Detection/Mixed_Structured_PII.txt": {
       "min_matches": 70,
@@ -106,6 +125,14 @@
         {"text": "+1-303-555-0188", "type": "phone"},
         {"text": "m.thompson@outlook.com", "type": "email"},
         {"text": "sk-ant-api03-Compromised123Key456That789Should012Be345Rotated678Immediately901abc", "type": "api_key"}
+      ],
+      "must_not_contain": [
+        "Sarah Jennifer Mitchell",
+        "Michael A. Thompson",
+        "David Kim",
+        "Elena Rodriguez",
+        "Patricia Gomez",
+        "Meridian Technologies Inc."
       ]
     },
 
@@ -182,11 +209,22 @@
         {"text": "287-65-4321", "type": "ssn"},
         {"text": "j.henderson@email.com", "type": "email"},
         {"text": "(206) 555-0312", "type": "phone"}
+      ],
+      "must_not_contain": [
+        "Elena Rodriguez",
+        "Bob Nakamura",
+        "Carol Washington"
       ]
     },
     "Structured_Data_PII/customer_database.csv": {
       "min_matches": 45,
-      "expected_types": ["credit_card", "email", "phone"]
+      "expected_types": ["credit_card", "email", "phone"],
+      "must_not_contain": [
+        "Michael Thompson",
+        "Angela Martinez",
+        "Elena Rodriguez",
+        "David Chen"
+      ]
     },
     "Structured_Data_PII/network_inventory.tsv": {
       "min_matches": 48,
@@ -194,11 +232,22 @@
     },
     "Structured_Data_PII/patient_records.csv": {
       "min_matches": 65,
-      "expected_types": ["ssn", "email", "phone"]
+      "expected_types": ["ssn", "email", "phone"],
+      "must_not_contain": [
+        "David Chen",
+        "Elena Rodriguez"
+      ]
     },
     "Structured_Data_PII/transactions.csv": {
       "min_matches": 43,
-      "expected_types": ["credit_card", "email", "phone"]
+      "expected_types": ["credit_card", "email", "phone"],
+      "must_not_contain": [
+        "Patricia Gomez",
+        "Angela Martinez",
+        "Elena Rodriguez",
+        "Bob Nakamura",
+        "Carol Washington"
+      ]
     },
 
     "Agent_Tool_Results/agent_anthropic_text_pii.json": {
@@ -460,6 +509,29 @@
       "note": "Web form — PNG without EXIF, OCR detects text"
     },
 
+    "Visual_PII/exif_camera_gps.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "must_strip_gps": true,
+      "input_exif_tags_min": 10,
+      "output_exif_tags_max": 0,
+      "note": "Canon DSLR with GPS (Eiffel Tower) — GPS must be stripped"
+    },
+    "Visual_PII/exif_smartphone_gps.jpg": {
+      "subcategory": "EXIF",
+      "min_faces": 0,
+      "min_text_regions": 0,
+      "nsfw_expected": false,
+      "screenshot_expected": false,
+      "must_strip_gps": true,
+      "input_exif_tags_min": 10,
+      "output_exif_tags_max": 0,
+      "note": "iPhone 15 Pro with GPS (Statue of Liberty) — GPS must be stripped"
+    },
+
     "Visual_PII/exif_screenshot_cleanshot.jpg": {
       "subcategory": "EXIF",
       "min_faces": 0,
@@ -514,7 +586,9 @@
       "min_text_regions": 0,
       "nsfw_expected": false,
       "screenshot_expected": false,
-      "note": "Camera photo — no screenshot EXIF, EXIF should be stripped from output"
+      "input_exif_tags_min": 8,
+      "output_exif_tags_max": 0,
+      "note": "Canon DSLR, no GPS — EXIF should be fully stripped from output"
     },
     "Visual_PII/exif_smartphone_no_gps.jpg": {
       "subcategory": "EXIF",
@@ -522,7 +596,9 @@
       "min_text_regions": 0,
       "nsfw_expected": false,
       "screenshot_expected": false,
-      "note": "Smartphone photo — no screenshot EXIF"
+      "input_exif_tags_min": 8,
+      "output_exif_tags_max": 0,
+      "note": "iPhone 15 Pro, no GPS — EXIF should be fully stripped from output"
     },
     "Visual_PII/exif_no_metadata_control.jpg": {
       "subcategory": "EXIF",

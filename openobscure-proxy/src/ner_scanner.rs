@@ -111,9 +111,67 @@ impl NerScanner {
         self.label_map.get(label_id).and_then(|info| info.pii_type)
     }
 
+    /// Maximum byte length for a single NER inference pass. Text beyond this is
+    /// chunked with overlap to ensure full coverage. Set conservatively to stay
+    /// within the 512-token context window even for token-dense text (proper nouns,
+    /// multilingual names) where WordPiece expansion averages 3-4 subtokens/word.
+    const MAX_CHUNK_BYTES: usize = 800;
+
+    /// Overlap in bytes between adjacent chunks. Ensures entities at chunk
+    /// boundaries are captured by at least one chunk even when the tokenizer
+    /// truncates before the full chunk is processed.
+    const CHUNK_OVERLAP_BYTES: usize = 150;
+
     /// Run NER inference on a text string.
     /// Returns PiiMatch results for detected entities above the confidence threshold.
+    ///
+    /// For long texts that exceed the 512-token context window, automatically splits
+    /// into overlapping chunks at whitespace boundaries, runs NER on each chunk, and
+    /// merges results with deduplication.
     pub fn scan_text(&mut self, text: &str) -> Result<Vec<PiiMatch>, NerError> {
+        if text.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        if text.len() <= Self::MAX_CHUNK_BYTES {
+            return self.scan_text_single_pass(text);
+        }
+
+        // Chunked path: split text at whitespace boundaries with overlap
+        let chunks = split_into_chunks(text, Self::MAX_CHUNK_BYTES, Self::CHUNK_OVERLAP_BYTES);
+        let mut all_matches: Vec<PiiMatch> = Vec::new();
+
+        for (chunk_byte_offset, chunk_text) in &chunks {
+            let chunk_matches = self.scan_text_single_pass(chunk_text)?;
+
+            // Offset-adjust matches back to original text coordinates
+            for mut m in chunk_matches {
+                m.start += chunk_byte_offset;
+                m.end += chunk_byte_offset;
+                all_matches.push(m);
+            }
+        }
+
+        // Deduplicate overlapping matches from chunk overlap regions
+        all_matches.sort_by_key(|m| (m.start, m.end));
+        let mut deduped: Vec<PiiMatch> = Vec::new();
+        for m in all_matches {
+            let is_dup = deduped.iter().any(|existing| {
+                existing.pii_type == m.pii_type
+                    && existing.start <= m.end
+                    && m.start <= existing.end
+            });
+            if !is_dup {
+                deduped.push(m);
+            }
+        }
+
+        Ok(deduped)
+    }
+
+    /// Single-pass NER inference (no chunking). Expects text that fits within
+    /// the 512-token context window.
+    fn scan_text_single_pass(&mut self, text: &str) -> Result<Vec<PiiMatch>, NerError> {
         if text.is_empty() {
             return Ok(Vec::new());
         }
@@ -451,6 +509,82 @@ fn build_entity(
     })
 }
 
+/// Split text into overlapping chunks at whitespace boundaries.
+/// Returns `(byte_offset, chunk_slice)` pairs where `byte_offset` is the position
+/// of the chunk start in the original text.
+///
+/// Each chunk is at most `max_bytes` long (breaking at the last whitespace before
+/// the limit). Adjacent chunks overlap by approximately `overlap_bytes` to ensure
+/// entities spanning a chunk boundary are captured by at least one chunk.
+fn split_into_chunks(text: &str, max_bytes: usize, overlap_bytes: usize) -> Vec<(usize, &str)> {
+    let mut chunks = Vec::new();
+    let text_len = text.len();
+    let mut start = 0;
+
+    while start < text_len {
+        let mut end = (start + max_bytes).min(text_len);
+
+        // Snap end backward to a valid UTF-8 char boundary
+        while end > start && !text.is_char_boundary(end) {
+            end -= 1;
+        }
+
+        // If we're not at the end, find the last whitespace before the limit
+        if end < text_len {
+            if let Some(ws_pos) = text[start..end].rfind(char::is_whitespace) {
+                // Split at the whitespace (don't include it in this chunk to keep
+                // a clean boundary — the next chunk's overlap will cover it)
+                end = start + ws_pos;
+            }
+            // If no whitespace found in the entire chunk, just cut at max_bytes
+            // (very unlikely with natural language text)
+        }
+
+        // Ensure we make forward progress even for degenerate inputs
+        if end <= start {
+            end = (start + max_bytes).min(text_len);
+            // Also snap this fallback to a char boundary
+            while end > start && !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            if end <= start {
+                // Advance past at least one character
+                end = start + text[start..].chars().next().map_or(1, |c| c.len_utf8());
+            }
+        }
+
+        chunks.push((start, &text[start..end]));
+
+        if end >= text_len {
+            break;
+        }
+
+        // Next chunk starts `overlap_bytes` before the end of this chunk
+        let next_start = if end > overlap_bytes {
+            end - overlap_bytes
+        } else {
+            end
+        };
+        // Snap next_start forward to a valid UTF-8 char boundary
+        let mut next_start = next_start;
+        while next_start < end && !text.is_char_boundary(next_start) {
+            next_start += 1;
+        }
+        // Snap next_start forward to a whitespace boundary to avoid splitting mid-word
+        if let Some(ws_pos) = text[next_start..end].find(char::is_whitespace) {
+            start = next_start + ws_pos;
+            // Skip the whitespace character itself (may be multi-byte)
+            if let Some(ws_char) = text[start..].chars().next() {
+                start += ws_char.len_utf8();
+            }
+        } else {
+            start = end;
+        }
+    }
+
+    chunks
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum NerError {
     #[error("Model not found in: {0}")]
@@ -621,5 +755,124 @@ mod tests {
         // Mock model has random weights, so we don't assert specific entities.
         // Just verify it runs without error and returns results.
         eprintln!("Mock model returned {} matches", matches.len());
+    }
+
+    #[test]
+    fn test_split_into_chunks_short_text() {
+        let text = "Hello world";
+        let chunks = split_into_chunks(text, 1500, 200);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0], (0, "Hello world"));
+    }
+
+    #[test]
+    fn test_split_into_chunks_exact_boundary() {
+        let text = "Hello world"; // 11 bytes
+        let chunks = split_into_chunks(text, 11, 3);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0], (0, "Hello world"));
+    }
+
+    #[test]
+    fn test_split_into_chunks_two_chunks() {
+        // Build text that exceeds max_bytes so it needs two chunks
+        let text = "aaa bbb ccc ddd eee fff ggg hhh iii jjj";
+        // max_bytes=20, overlap=5 — first chunk ends around byte 20
+        let chunks = split_into_chunks(text, 20, 5);
+        assert!(
+            chunks.len() >= 2,
+            "Expected at least 2 chunks, got {}",
+            chunks.len()
+        );
+        // First chunk starts at 0
+        assert_eq!(chunks[0].0, 0);
+        // All chunks combined should cover the full text
+        let last = chunks.last().unwrap();
+        assert_eq!(last.0 + last.1.len(), text.len());
+    }
+
+    #[test]
+    fn test_split_into_chunks_overlap_coverage() {
+        // Ensure overlap region is covered by both adjacent chunks
+        let words: Vec<String> = (0..50).map(|i| format!("word{:03}", i)).collect();
+        let text = words.join(" ");
+        let chunks = split_into_chunks(&text, 100, 30);
+
+        // Verify every byte in the text is covered by at least one chunk
+        let mut covered = vec![false; text.len()];
+        for (offset, chunk) in &chunks {
+            for i in 0..chunk.len() {
+                covered[offset + i] = true;
+            }
+        }
+        // Allow trailing whitespace to be uncovered (it's between chunks)
+        for (i, &c) in covered.iter().enumerate() {
+            if !c {
+                assert!(
+                    text.as_bytes()[i].is_ascii_whitespace(),
+                    "Byte {} ('{}') not covered by any chunk",
+                    i,
+                    text.as_bytes()[i] as char,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_split_into_chunks_whitespace_boundaries() {
+        // Chunks should not split mid-word
+        let text = "alpha bravo charlie delta echo foxtrot golf hotel india juliet";
+        let chunks = split_into_chunks(text, 25, 8);
+        for (_, chunk) in &chunks {
+            // No chunk should start or end mid-word (no partial words)
+            assert!(
+                !chunk.starts_with(' '),
+                "Chunk starts with space: {:?}",
+                chunk
+            );
+            assert!(!chunk.ends_with(' '), "Chunk ends with space: {:?}", chunk);
+        }
+    }
+
+    #[test]
+    fn test_split_into_chunks_empty() {
+        let chunks = split_into_chunks("", 100, 20);
+        assert!(chunks.is_empty());
+    }
+
+    #[test]
+    fn test_split_into_chunks_single_long_word() {
+        // A single word longer than max_bytes — should still produce a chunk
+        let text = "a".repeat(200);
+        let chunks = split_into_chunks(&text, 100, 20);
+        assert!(!chunks.is_empty());
+        // Combined chunks should cover the full text
+        let total_covered: usize = chunks.iter().map(|(_, c)| c.len()).sum();
+        assert!(total_covered >= text.len());
+    }
+
+    #[test]
+    fn test_split_into_chunks_multibyte_utf8() {
+        // Arabic text with multi-byte characters (2-3 bytes each).
+        // Must not panic on char boundary issues.
+        let text = "مرحبا بالعالم هذا نص اختبار طويل يحتوي على كلمات عربية كثيرة \
+                    لاختبار التقسيم إلى أجزاء متداخلة بشكل صحيح ونتأكد \
+                    أن الحدود لا تقع في وسط حرف متعدد البايت";
+        // Use a small chunk size to force multiple chunks through multi-byte text
+        let chunks = split_into_chunks(text, 50, 15);
+        assert!(chunks.len() > 1, "Should produce multiple chunks");
+        for (offset, chunk) in &chunks {
+            // Every chunk must be valid UTF-8 (implicit: &str guarantees this)
+            assert!(
+                text.is_char_boundary(*offset),
+                "Chunk offset {} not on char boundary",
+                offset
+            );
+            assert!(
+                text.is_char_boundary(offset + chunk.len()),
+                "Chunk end {} not on char boundary",
+                offset + chunk.len()
+            );
+        }
     }
 }

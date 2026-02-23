@@ -26,6 +26,9 @@
 
 set -euo pipefail
 
+# Millisecond timestamp (portable: Perl on macOS, date +%s%N on Linux)
+_ms() { perl -MTime::HiRes -e 'printf("%d\n", Time::HiRes::time() * 1000)' 2>/dev/null || echo $(( $(date +%s) * 1000 )); }
+
 PROXY_URL="${PROXY_URL:-http://127.0.0.1:18790}"
 NER_ENDPOINT="${PROXY_URL}/_openobscure/ner"
 PROVIDER_PREFIX="${PROVIDER_PREFIX:-/anthropic}"
@@ -86,6 +89,7 @@ fi
 # ─────────────────────────────────────────────
 NER_PAYLOAD=$(jq -n --arg text "$TEXT" '{text: $text}')
 
+NER_START=$(_ms)
 if [[ -n "$AUTH_TOKEN" ]]; then
   NER_RESPONSE=$(curl -sf -X POST "$NER_ENDPOINT" \
     -H "Content-Type: application/json" \
@@ -96,30 +100,12 @@ else
     -H "Content-Type: application/json" \
     -d "$NER_PAYLOAD" 2>/dev/null || echo "[]")
 fi
+NER_ELAPSED_MS=$(( $(_ms) - NER_START ))
 
 MATCH_COUNT=$(echo "$NER_RESPONSE" | jq 'length')
 TYPE_SUMMARY=$(echo "$NER_RESPONSE" | jq '[.[].type] | group_by(.) | map({(.[0]): length}) | add // {}')
 
-RESULT=$(jq -n \
-  --arg file "$FILENAME" \
-  --arg path "$INPUT_FILE" \
-  --arg arch "gateway" \
-  --arg endpoint "$NER_ENDPOINT" \
-  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --argjson count "$MATCH_COUNT" \
-  --argjson types "$TYPE_SUMMARY" \
-  --argjson matches "$NER_RESPONSE" \
-  '{
-    file: $file,
-    path: $path,
-    architecture: $arch,
-    redaction_mode: "fpe",
-    endpoint: $endpoint,
-    timestamp: $ts,
-    total_matches: $count,
-    type_summary: $types,
-    matches: $matches
-  }')
+# RESULT constructed after Step 2 (needs timing data)
 
 # ─────────────────────────────────────────────
 # Step 2: Proxy pass-through → FPE-encrypted file
@@ -142,12 +128,15 @@ FPE_PAYLOAD=$(jq -n --arg text "$TEXT" '{
   messages: [{role: "user", content: $text}]
 }')
 
+FPE_START=$(_ms)
 FPE_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$FPE_ENDPOINT" \
   -H "Content-Type: application/json" \
   -H "x-api-key: test-fpe-scan" \
   -H "anthropic-version: 2023-06-01" \
   -H "X-Capture-Id: $CAPTURE_ID" \
   -d "$FPE_PAYLOAD" 2>/dev/null)
+FPE_ELAPSED_MS=$(( $(_ms) - FPE_START ))
+TOTAL_ELAPSED_MS=$(( NER_ELAPSED_MS + FPE_ELAPSED_MS ))
 
 # Read the captured FPE body from echo server
 CAPTURE_FILE="$CAPTURE_DIR/${CAPTURE_ID}.json"
@@ -169,8 +158,37 @@ if [[ -z "$FPE_TEXT" ]]; then
 fi
 
 # ─────────────────────────────────────────────
-# Step 3: Write outputs
+# Step 3: Build result JSON and write outputs
 # ─────────────────────────────────────────────
+RESULT=$(jq -n \
+  --arg file "$FILENAME" \
+  --arg path "$INPUT_FILE" \
+  --arg arch "gateway" \
+  --arg endpoint "$NER_ENDPOINT" \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson count "$MATCH_COUNT" \
+  --argjson types "$TYPE_SUMMARY" \
+  --argjson matches "$NER_RESPONSE" \
+  --argjson ner_ms "$NER_ELAPSED_MS" \
+  --argjson fpe_ms "$FPE_ELAPSED_MS" \
+  --argjson total_ms "$TOTAL_ELAPSED_MS" \
+  '{
+    file: $file,
+    path: $path,
+    architecture: $arch,
+    redaction_mode: "fpe",
+    endpoint: $endpoint,
+    timestamp: $ts,
+    total_matches: $count,
+    type_summary: $types,
+    timing: {
+      ner_scan_ms: $ner_ms,
+      fpe_pass_ms: $fpe_ms,
+      total_ms: $total_ms
+    },
+    matches: $matches
+  }')
+
 if [[ -n "$OUTPUT_DIR" ]]; then
   JSON_DIR="$OUTPUT_DIR/json"
   REDACTED_DIR="$OUTPUT_DIR/redacted"
@@ -184,7 +202,7 @@ if [[ -n "$OUTPUT_DIR" ]]; then
   # Write FPE-encrypted file (preserving original filename)
   printf '%s' "$FPE_TEXT" > "$REDACTED_DIR/$FILENAME"
 
-  echo "OK  $FILENAME — $MATCH_COUNT matches, FPE HTTP $FPE_HTTP_CODE → json/ + redacted/"
+  echo "OK  $FILENAME — $MATCH_COUNT matches, FPE HTTP $FPE_HTTP_CODE, ${TOTAL_ELAPSED_MS}ms (ner:${NER_ELAPSED_MS}ms fpe:${FPE_ELAPSED_MS}ms)"
 else
   echo "=== JSON Metadata ==="
   echo "$RESULT" | jq .
