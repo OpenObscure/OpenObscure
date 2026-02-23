@@ -189,7 +189,7 @@ nsfw_positive_01.jpg              (expect full-image blur, sigma=30)
 - Job application phone screening (name, SSN, address, employment history)
 
 ### Category C: Edge cases
-- Background noise with spoken PII (test Whisper robustness)
+- Background noise with spoken PII (test KWS robustness)
 - Accented English with PII
 - Fast speech with PII
 - Whispered PII (low volume)
@@ -230,7 +230,7 @@ audio_noisy_background_ssn_wav.wav     (edge case)
 audio_accented_phone_mp3.mp3           (edge case)
 ```
 
-**Validation**: Whisper should transcribe → PII scanner should detect entities in transcript. Affected audio segments should be silenced (default) or beeped. Output duration should match input duration.
+**Validation**: KWS should detect PII trigger phrases → matching audio segments should be stripped. Output duration should match input duration (silence replaces stripped segments).
 
 ---
 

@@ -60,7 +60,7 @@ flowchart LR
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
 - **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin)
-- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), SSE streaming
+- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), voice PII detection (KWS keyword spotting), SSE streaming
 - **Use case:** Desktop apps, servers, VPS, Raspberry Pi — anywhere the agent's Gateway runs
 
 ### Embedded Model (Mobile / Library)
@@ -111,7 +111,7 @@ flowchart TB
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
 - **Layers:** L0 (PII scan + FPE)
-- **Features:** Text PII scanning (regex + keywords + NER/CRF on capable devices), FPE encryption, image pipeline, restore/decrypt for responses
+- **Features:** Text PII scanning (regex + keywords + NER/CRF on capable devices), FPE encryption, image pipeline, voice PII detection, restore/decrypt for responses
 - **Use case:** Mobile companion apps that sanitize PII on-device *before* data reaches the Gateway over WebSocket — defense in depth
 
 ### When to Use Which
@@ -377,12 +377,17 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
+**1,060 tests** across all components (994 Rust proxy + 50 TypeScript plugin + 16 crypto).
+
 ```bash
-# L0 Proxy
+# L0 Proxy (994 tests)
 cd openobscure-proxy && cargo test
 
-# L1 Plugin
+# L1 Plugin (50 tests)
 cd openobscure-plugin && npm test
+
+# L2 Crypto (16 tests)
+cd openobscure-crypto && cargo test
 ```
 
 ---
@@ -415,6 +420,7 @@ PII detection uses a hybrid approach:
 - **NER/CRF** (TinyBERT INT8) for semantic detection (names, addresses, orgs)
 - **Keyword dictionary** (~700 terms) for health and child-related terms
 - **Image pipeline** (SCRFD/BlazeFace + PaddleOCR ONNX) for visual PII in photos
+- **Voice PII detection** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks
 
 ---
 

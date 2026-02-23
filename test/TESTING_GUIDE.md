@@ -36,7 +36,7 @@ for testing is how PII is redacted in the output files:
 | **Detection** | Regex + Keywords + NER + CRF + Ensemble | Regex (+ NER via L0 bridge) |
 | **Redaction Mode** | **FF1 FPE** for 5 types + labels for 9 types | **`[REDACTED-*]` labels** for all types |
 | **Image Pipeline** | Face/OCR/NSFW blur via proxy | `sanitize_image()` on mobile |
-| **Voice Pipeline** | Whisper STT + PII scan | N/A |
+| **Voice Pipeline** | KWS keyword spotting + PII audio strip | N/A |
 | **Auth** | `X-OpenObscure-Token` header | N/A |
 | **Streaming** | SSE pass-through | N/A |
 

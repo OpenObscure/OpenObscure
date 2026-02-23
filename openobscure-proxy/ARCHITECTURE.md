@@ -116,8 +116,9 @@ src/
 │
 │   ── Voice PII (Phase 10D, `voice` feature) ──
 ├── voice_detect.rs      Base64 audio detection in JSON (WAV/MP3/OGG/WebM MIME detection)
-├── whisper_engine.rs    Whisper-base ONNX inference (speech-to-text with timestamps)
-├── voice_pipeline.rs    Transcribe → scan → mask orchestration (silence/beep masking)
+├── audio_decode.rs      Audio format decoding: WAV/MP3/OGG → PCM 16kHz mono (symphonia)
+├── kws_engine.rs        KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8, PII trigger phrases)
+├── voice_pipeline.rs    KWS-gated selective audio strip: detect PII trigger phrases → strip matching blocks
 │
 │   ── Infrastructure ──
 ├── device_profile.rs    Hardware profiler: detect RAM/cores, classify tier (Full/Standard/Lite), derive FeatureBudget
@@ -156,11 +157,11 @@ src/
    │   f. Encode processed image → replace base64 in JSON
    │   g. Sequential model loading: face model dropped before OCR loaded
    │
-5b. Pass 1b: Voice processing (if voice feature enabled, 16GB+ only)
+5b. Pass 1b: Voice processing (if voice feature enabled)
    │   a. Walk JSON tree for base64 audio content blocks (WAV/MP3/OGG/WebM)
-   │   b. Whisper-base ONNX → speech-to-text with segment timestamps
-   │   c. PII scan on transcribed text (existing HybridScanner)
-   │   d. Mask PII segments (silence or beep tone) → re-encode audio → replace in JSON
+   │   b. Decode audio to PCM 16kHz mono (audio_decode.rs, symphonia)
+   │   c. KWS keyword spotting (sherpa-onnx Zipformer) for PII trigger phrases
+   │   d. Strip audio blocks where PII keywords detected, pass clean audio through
    │
 6. Pass 2: Text PII scanning
    │   hybrid_scanner.scan_json() — multi-layer scan
@@ -370,7 +371,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Regex | regex (RegexSet) | Linear time, multi-pattern in one pass |
 | Language detection | whatlang 0.16 | Trigram-based language identification, no model download needed |
 | Audio decode | symphonia 0.5 (optional) | WAV/MP3/OGG/Vorbis decode for voice pipeline |
-| Audio resample | rubato 0.15 (optional) | Resample to 16kHz mono for Whisper input |
+| KWS inference | sherpa-rs 0.6.8 + sherpa-rs-sys (optional) | sherpa-onnx Zipformer keyword spotting for PII trigger phrases |
 | Config | serde + toml | Human-readable, Rust ecosystem standard |
 | Keychain | keyring 3 | Cross-platform OS credential storage |
 | Hex encoding | hex 0.4 | Env var key decoding (headless deployments) |
@@ -385,7 +386,9 @@ Two-pass processing in `body.rs`: images first (entire base64 string replacement
 
 ```rust
 pub struct ImageModelManager {
+    nsfw_detector: Mutex<Option<NsfwDetector>>,
     face_detector: Mutex<Option<FaceDetector>>,
+    scrfd_detector: Mutex<Option<ScrfdDetector>>,
     ocr_detector: Mutex<Option<OcrDetector>>,
     ocr_recognizer: Mutex<Option<OcrRecognizer>>,
     last_use: Mutex<Instant>,
@@ -461,7 +464,7 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 - **SCRFD-2.5GF** — multi-scale face detection for Full/Standard tiers (640x640 input, FPN, 20px–400px faces)
 - **CoreML/NNAPI EPs** — `ort_ep.rs` consolidates all ONNX session building with hardware-accelerated inference on mobile
 - **Multilingual PII** — 9 languages with check-digit validated national IDs via `lang_detect.rs` + `multilingual/`
-- **Voice anonymization** — Whisper-base ONNX speech-to-text + PII masking via `voice_pipeline.rs` (desktop 16GB+)
+- **Voice PII detection** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) for PII trigger phrases, selective audio block stripping via `voice_pipeline.rs`
 - **NER endpoint** — `POST /_openobscure/ner` for L1 plugin semantic scanning
 - **PP-OCRv4** — English recognition model upgrade replacing PaddleOCR-Lite
 

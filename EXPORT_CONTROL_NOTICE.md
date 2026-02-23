@@ -1,6 +1,6 @@
 # Export Control and Cryptography Notice
 
-> **Status: DRAFT** — The BIS notification and self-classification process have not yet been completed. This notice documents the cryptographic functionality for planning purposes. Binary distribution must not begin until the EAR process is finalized.
+> **Status: DRAFT** — The BIS notification and self-classification process have not yet been completed. This notice documents the cryptographic functionality for planning purposes. Binary distribution must not begin until the EAR process is finalized. Last reviewed: 2026-02-23 (Phase 11A).
 
 **OpenObscure** includes cryptographic software subject to the United States Export Administration Regulations (EAR).
 
@@ -16,7 +16,7 @@ This software utilizes strong encryption to protect PII in transit. The followin
 * AES-256-GCM (data at rest encryption)
 * Argon2id key derivation
 
-**Additional crypto-relevant components:** ONNX Runtime (used for NER and image processing models) may include its own cryptographic functionality for TLS when fetching pre-compiled binaries at build time. ONNX Runtime is MIT-licensed.
+**Additional crypto-relevant components:** ONNX Runtime (used for NER and image processing models) may include its own cryptographic functionality for TLS when fetching pre-compiled binaries at build time. ONNX Runtime is MIT-licensed. sherpa-onnx (used for KWS keyword spotting in the voice pipeline) performs audio inference only and does not introduce additional cryptographic functionality.
 
 **Mobile app store note:** iOS App Store and Google Play require declaring encryption usage. The FF1 FPE implementation in the Embedded library qualifies as encryption under both Apple's and Google's export compliance requirements.
 
