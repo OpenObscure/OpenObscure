@@ -733,7 +733,7 @@ flowchart TB
 - Images processed BEFORE text so byte offsets remain correct
 - **Three-phase pipeline:** Phase 0 (NSFW check) → Phase 1 (face detection via SCRFD or BlazeFace + blur) → Phase 2 (OCR text detection via PP-OCRv4 + blur)
 - NSFW detection: if nudity found, blur entire image with heavy sigma=30 and skip face/OCR phases
-- Face blur: if face occupies >80% of image area, blur entire image; otherwise selective blur with 15% padding
+- Face blur: elliptical Gaussian blur with feathered edges (15% radius blend zone). If face occupies >80% of image area, blur entire image; otherwise selective elliptical blur with 15% bbox padding
 - Sequential model loading: models loaded/used/dropped one at a time (never multiple in RAM)
 - EXIF metadata stripped implicitly — `image` crate loads pixels only, discarding all metadata
 - Fail-open: corrupt base64, unsupported format, or model failure → forward original image unchanged

@@ -1,8 +1,8 @@
 //! Gaussian blur operations for face and text regions in images.
 //!
-//! Applies targeted blur to specific rectangular or quadrilateral regions
-//! without affecting the rest of the image. Used for face anonymization
-//! and text region obfuscation.
+//! Applies targeted blur to specific elliptical, rectangular, or quadrilateral
+//! regions without affecting the rest of the image. Used for face anonymization
+//! (elliptical with feathered edges) and text region obfuscation (rectangular).
 
 use image::{imageops, DynamicImage, Rgb, RgbImage};
 

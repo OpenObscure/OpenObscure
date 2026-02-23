@@ -464,7 +464,8 @@ cargo run --example demo_image_pipeline -- \
 | Scenario | Before | After |
 |----------|--------|-------|
 | **Screenshot PII Blur** — Full patient record with names, SSNs, credit cards, phone numbers, emails, addresses, and medical history. PaddleOCR detects all text regions and blurs them. | ![Original screenshot](docs/examples/images/screenshot-original.png) | ![Screenshot blurred](docs/examples/images/screenshot-blurred.png) |
-| **Face Detection + Blur** — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces and applies selective Gaussian blur to face bounding boxes | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face blurred](docs/examples/images/face-blurred.jpg) |
+| **Face Detection + Blur** — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces and applies elliptical Gaussian blur with feathered edges | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face blurred](docs/examples/images/face-blurred.jpg) |
+| **Multi-Face Detection** — Detects and blurs multiple faces independently in group photos. Each face gets its own elliptical blur region | ![Original group photo](docs/examples/images/group-original.jpg) | ![Group faces blurred](docs/examples/images/group-blurred.jpg) |
 | **Child Face Privacy** — Automatically detects and blurs children's faces to protect minors' privacy | ![Original child photo](docs/examples/images/child-original.jpg) | ![Child face blurred](docs/examples/images/child-blurred.jpg) |
 | **OCR PII Blur** — PaddleOCR detects text regions, then PII scanner filters and blurs only sensitive values (names, SSNs, emails, phones, card numbers) while leaving non-PII text readable | ![Original document](docs/examples/images/text-original.jpg) | ![PII blurred](docs/examples/images/text-blurred.jpg) |
 
@@ -473,7 +474,7 @@ cargo run --example demo_image_pipeline -- \
 The image pipeline processes images in three phases:
 
 1. **NSFW detection** (Phase 0): NudeNet 320n ONNX (~12MB) checks for nudity. If detected, the entire image is blurred with heavy sigma=30 and subsequent phases are skipped.
-2. **Face detection** (Phase 1): SCRFD-2.5GF (~3MB, 640x640 input) on Full/Standard tiers for multi-scale detection; BlazeFace (~408KB, 128x128 input) on Lite tier. Faces occupying >80% of the image trigger full-image blur; otherwise, selective Gaussian blur (sigma=25) is applied to the face bounding box with 15% padding.
+2. **Face detection** (Phase 1): SCRFD-2.5GF (~3MB, 640x640 input) on Full/Standard tiers for multi-scale detection; BlazeFace (~408KB, 128x128 input) on Lite tier. Faces occupying >80% of the image trigger full-image blur; otherwise, elliptical Gaussian blur (sigma=25) with feathered edges is applied to the face bounding box with 15% padding.
 3. **Text detection** (Phase 2): PaddleOCR v3 ONNX (~2.4MB), detects text regions, applies Gaussian blur (sigma=20) with vertical padding for complete coverage.
 
 Additional features:
