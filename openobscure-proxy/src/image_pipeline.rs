@@ -302,7 +302,14 @@ impl ImageModelManager {
                         let (x, y, w, h) = image_blur::expand_bbox(
                             face.x_min, face.y_min, face.x_max, face.y_max, 0.15, img_w, img_h,
                         );
-                        image_blur::blur_region(&mut rgb, x, y, w, h, self.config.face_blur_sigma);
+                        image_blur::blur_region_elliptical(
+                            &mut rgb,
+                            x,
+                            y,
+                            w,
+                            h,
+                            self.config.face_blur_sigma,
+                        );
                     }
                 }
                 stats.faces_blurred = faces.len() as u32;

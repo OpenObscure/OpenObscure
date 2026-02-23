@@ -4,7 +4,7 @@
 //! without affecting the rest of the image. Used for face anonymization
 //! and text region obfuscation.
 
-use image::{imageops, DynamicImage, RgbImage};
+use image::{imageops, DynamicImage, Rgb, RgbImage};
 
 /// Apply Gaussian blur to a rectangular region within an image.
 ///
@@ -32,6 +32,86 @@ pub fn blur_region(img: &mut RgbImage, x: u32, y: u32, width: u32, height: u32, 
     let blurred_rgb = DynamicImage::ImageRgba8(blurred_rgba).to_rgb8();
     // Paste back
     imageops::overlay(img, &blurred_rgb, x as i64, y as i64);
+}
+
+/// Apply Gaussian blur to an elliptical region within an image.
+///
+/// Blurs the bounding rectangle, then composites using an elliptical mask
+/// inscribed within the rectangle. Pixels inside the ellipse show the blurred
+/// result; pixels outside keep the original. A feathered edge (15% of the
+/// radius) blends smoothly to avoid a hard cutoff.
+pub fn blur_region_elliptical(
+    img: &mut RgbImage,
+    x: u32,
+    y: u32,
+    width: u32,
+    height: u32,
+    sigma: f32,
+) {
+    if width == 0 || height == 0 {
+        return;
+    }
+    let img_w = img.width();
+    let img_h = img.height();
+    let x = x.min(img_w.saturating_sub(1));
+    let y = y.min(img_h.saturating_sub(1));
+    let width = width.min(img_w - x);
+    let height = height.min(img_h - y);
+    if width == 0 || height == 0 {
+        return;
+    }
+
+    // Blur the rectangular sub-image
+    let sub = image::imageops::crop_imm(img, x, y, width, height).to_image();
+    let blurred_rgba = imageops::blur(&DynamicImage::ImageRgb8(sub), sigma);
+    let blurred_rgb = DynamicImage::ImageRgba8(blurred_rgba).to_rgb8();
+
+    // Ellipse center and radii (in local coordinates within the sub-image)
+    let cx = width as f32 / 2.0;
+    let cy = height as f32 / 2.0;
+    let rx = cx; // semi-axis X
+    let ry = cy; // semi-axis Y
+
+    // Feather zone: blend between 85%-100% of the ellipse boundary
+    let feather_inner = 0.85_f32;
+
+    for py in 0..height {
+        for px in 0..width {
+            let dx = (px as f32 - cx) / rx;
+            let dy = (py as f32 - cy) / ry;
+            let dist_sq = dx * dx + dy * dy;
+
+            if dist_sq > 1.0 {
+                // Outside ellipse — keep original pixel
+                continue;
+            }
+
+            let blurred_pixel = *blurred_rgb.get_pixel(px, py);
+
+            if dist_sq <= feather_inner * feather_inner {
+                // Inside solid region — fully blurred
+                img.put_pixel(x + px, y + py, blurred_pixel);
+            } else {
+                // Feather zone — blend blurred with original
+                let dist = dist_sq.sqrt();
+                let alpha = (1.0 - dist) / (1.0 - feather_inner);
+                let alpha = alpha.clamp(0.0, 1.0);
+                let orig_pixel = *img.get_pixel(x + px, y + py);
+                let blend = |o: u8, b: u8| -> u8 {
+                    ((o as f32) * (1.0 - alpha) + (b as f32) * alpha) as u8
+                };
+                img.put_pixel(
+                    x + px,
+                    y + py,
+                    Rgb([
+                        blend(orig_pixel[0], blurred_pixel[0]),
+                        blend(orig_pixel[1], blurred_pixel[1]),
+                        blend(orig_pixel[2], blurred_pixel[2]),
+                    ]),
+                );
+            }
+        }
+    }
 }
 
 /// Expand a bounding box by a margin percentage, clamped to image bounds.
@@ -158,6 +238,43 @@ mod tests {
         // Should not exceed image dimensions
         assert!(x + w <= 60);
         assert!(y + h <= 60);
+    }
+
+    #[test]
+    fn test_blur_region_elliptical_modifies_center() {
+        let mut img = solid_image(100, 100, Rgb([255, 0, 0]));
+        // White circle area in the middle
+        for x in 30..70 {
+            for y in 30..70 {
+                img.put_pixel(x, y, Rgb([255, 255, 255]));
+            }
+        }
+        let original_center = *img.get_pixel(50, 50);
+        blur_region_elliptical(&mut img, 25, 25, 50, 50, 10.0);
+        let blurred_center = *img.get_pixel(50, 50);
+        // Center (inside ellipse) should be modified
+        assert_ne!(original_center, blurred_center);
+    }
+
+    #[test]
+    fn test_blur_region_elliptical_preserves_corners() {
+        // The corners of the bounding box are outside the inscribed ellipse
+        let mut img = solid_image(100, 100, Rgb([128, 128, 128]));
+        let corner = *img.get_pixel(0, 0);
+        blur_region_elliptical(&mut img, 0, 0, 100, 100, 10.0);
+        // Top-left corner is outside the ellipse — should be unchanged
+        assert_eq!(*img.get_pixel(0, 0), corner);
+        assert_eq!(*img.get_pixel(99, 0), corner);
+        assert_eq!(*img.get_pixel(0, 99), corner);
+        assert_eq!(*img.get_pixel(99, 99), corner);
+    }
+
+    #[test]
+    fn test_blur_region_elliptical_zero_size_noop() {
+        let mut img = solid_image(50, 50, Rgb([100, 100, 100]));
+        let orig = img.clone();
+        blur_region_elliptical(&mut img, 10, 10, 0, 0, 5.0);
+        assert_eq!(img, orig);
     }
 
     #[test]
