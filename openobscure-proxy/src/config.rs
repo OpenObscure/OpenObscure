@@ -251,7 +251,7 @@ pub struct ImageConfig {
     /// Enable image processing pipeline (default: true).
     #[serde(default = "default_true")]
     pub enabled: bool,
-    /// Enable face detection and blurring (default: true).
+    /// Enable face detection and redaction (default: true).
     #[serde(default = "default_true")]
     pub face_detection: bool,
     /// Enable OCR text detection (default: true).
@@ -263,12 +263,6 @@ pub struct ImageConfig {
     /// Maximum image dimension in pixels before resize (default: 960).
     #[serde(default = "default_max_dimension")]
     pub max_dimension: u32,
-    /// Gaussian blur sigma for face regions (default: 25.0).
-    #[serde(default = "default_face_blur_sigma")]
-    pub face_blur_sigma: f32,
-    /// Gaussian blur sigma for text regions (default: 15.0).
-    #[serde(default = "default_text_blur_sigma")]
-    pub text_blur_sigma: f32,
     /// Seconds before idle face/OCR models are evicted (default: 300).
     #[serde(default = "default_model_idle_timeout")]
     pub model_idle_timeout_secs: u64,
@@ -309,8 +303,6 @@ impl Default for ImageConfig {
             ocr_enabled: true,
             ocr_tier: default_ocr_tier(),
             max_dimension: default_max_dimension(),
-            face_blur_sigma: default_face_blur_sigma(),
-            text_blur_sigma: default_text_blur_sigma(),
             model_idle_timeout_secs: default_model_idle_timeout(),
             face_model: default_face_model(),
             face_model_dir: None,
@@ -421,12 +413,6 @@ fn default_ocr_tier() -> String {
 }
 fn default_max_dimension() -> u32 {
     960
-}
-fn default_face_blur_sigma() -> f32 {
-    25.0
-}
-fn default_text_blur_sigma() -> f32 {
-    20.0
 }
 fn default_nsfw_threshold() -> f32 {
     0.45
@@ -639,8 +625,6 @@ nsfw_detection = false
         assert!(config.image.ocr_enabled);
         assert_eq!(config.image.ocr_tier, "detect_and_blur");
         assert_eq!(config.image.max_dimension, 960);
-        assert_eq!(config.image.face_blur_sigma, 25.0);
-        assert_eq!(config.image.text_blur_sigma, 20.0);
         assert_eq!(config.image.model_idle_timeout_secs, 300);
         assert_eq!(config.image.face_model, "blazeface");
         assert!(config.image.screen_guard);

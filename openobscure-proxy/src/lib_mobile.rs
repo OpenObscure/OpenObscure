@@ -255,8 +255,6 @@ impl OpenObscureMobile {
                 ocr_enabled: config.ocr_model_dir.is_some(),
                 ocr_tier,
                 max_dimension: config.max_dimension,
-                face_blur_sigma: 25.0,
-                text_blur_sigma: 20.0,
                 model_idle_timeout_secs: idle_timeout,
                 face_model: face_model_name,
                 face_model_dir: config.face_model_dir,
@@ -442,7 +440,7 @@ impl OpenObscureMobile {
         let img = crate::image_pipeline::resize_if_needed(img, max_dim);
 
         let (result_img, _stats, _meta) = manager
-            .process_image(img)
+            .process_image(img, None)
             .map_err(|e| MobileError::ImageError(e.to_string()))?;
 
         // Update stats

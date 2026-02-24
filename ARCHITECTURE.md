@@ -94,7 +94,7 @@ flowchart TB
 | `OpenObscureMobile::new(config, fpe_key)` | Initialize scanner + FPE engine with host-provided key |
 | `sanitize_text(text)` | Scan for PII, encrypt with FPE, return sanitized text + mapping |
 | `restore_text(text, mapping)` | Decrypt FPE values in response text using saved mapping |
-| `sanitize_image(bytes)` | Face blur + OCR text blur + EXIF strip (optional, adds ~20MB) |
+| `sanitize_image(bytes)` | Face redact + OCR text redact + NSFW redact + EXIF strip (optional, adds ~20MB) |
 | `stats()` | PII counts, scanner mode, image pipeline status, device tier |
 
 **Key differences from Gateway Model:**
@@ -195,8 +195,8 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | **Request path:** Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE. Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. **Response path:** Decrypts FPE ciphertexts in responses (SSE streaming supported). Scans for persuasion/manipulation techniques (response integrity cognitive firewall) and optionally prepends warning labels (EU AI Act Article 5 compliance). |
-| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (NudeNet ONNX), faces in photos (SCRFD-2.5GF on Full/Standard, BlazeFace on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks (`voice` feature). |
+| **What it does** | **Request path:** Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE. Processes base64-encoded images (face solid-fill redaction, OCR text solid-fill redaction, NSFW solid-fill redaction, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. **Response path:** Decrypts FPE ciphertexts in responses (SSE streaming supported). Scans for persuasion/manipulation techniques (response integrity cognitive firewall) and optionally prepends warning labels (EU AI Act Article 5 compliance). |
+| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (NudeNet ONNX), faces in photos — solid-color fill redaction (SCRFD-2.5GF on Full/Standard, BlazeFace on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks (`voice` feature). |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged |
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
@@ -204,7 +204,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 1,081 (459 lib + 622 bin) |
+| **Tests** | 1,103 (470 lib + 633 bin) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -409,7 +409,7 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 | **Phase 1** (complete) | **78%** | Regex + FPE for structured PII (CC, SSN, phone, email, API keys) |
 | **Phase 2** (complete) | **91%** | Hybrid scanner (NER/CRF + keywords), health monitoring, nested JSON, code fences |
 | **Phase 2.5** (complete) | **91%** | Unified logging, PII scrub layer, mmap crash buffer, file rotation |
-| **Phase 3** (complete) | **95%** | Visual PII (face blur, OCR text extraction, EXIF strip, screenshot detection, platform logging) |
+| **Phase 3** (complete) | **95%** | Visual PII (face redaction, OCR text extraction, EXIF strip, screenshot detection, platform logging) |
 | **Phase 5** (complete) | **97%** | SSE streaming, PII benchmark corpus (~400 samples, 100% recall), production benchmarks (criterion) |
 | **Phase 6** (complete) | **97%** | Ensemble confidence voting (cluster-based overlap resolution + agreement bonus) |
 | **Phase 7** (complete) | **97%** | Cross-platform support (Windows, Linux ARM64), mobile library API (iOS + Android via UniFFI), Embedded deployment model |
@@ -494,6 +494,7 @@ OpenObscure/
 | L1 redacts, not encrypts | Tool results are internal — redaction is simpler and guarantees removal |
 | Synchronous hooks only | OpenClaw-specific: OpenClaw silently skips async hook returns |
 | INT8 quantization mandatory | FP32 TinyBERT = ~200MB; INT8 = ~50MB — difference between fitting and OOM |
+| Solid-fill redaction (all regions) | Gaussian blur is partially reversible by AI deblurring models; solid color fill destroys original pixels completely, compresses better in base64, and clearly signals intentional redaction. Applied to faces, OCR text, and NSFW images. |
 | On-demand model loading | Face + OCR models load/evict per image, saving ~43MB between images |
 | Sequential model loading | Face model loaded/used/dropped before OCR model loaded — never both in RAM |
 | Two-pass body processing | Images processed first (replaces base64 strings), then text PII (replaces substrings by offset) |
@@ -682,7 +683,7 @@ All string fields are run through `redactPii()` before output — defense-in-dep
 
 ## Image Pipeline (Phase 3)
 
-L0 detects base64-encoded images in JSON request bodies (both Anthropic and OpenAI formats) and processes them before text PII scanning. For before/after visual examples of the pipeline in action, see [README.md — Visual PII Protection](README.md#visual-pii-protection).
+L0 detects base64-encoded images in JSON request bodies (both Anthropic and OpenAI formats) and processes them before text PII scanning. All redaction uses solid light-gray fill — face regions, OCR text regions, and NSFW images all have original pixel data completely destroyed and cannot be recovered by AI deblurring models. For before/after visual examples of the pipeline in action, see [README.md — Visual PII Protection](README.md#visual-pii-protection).
 
 ```mermaid
 flowchart TB
@@ -695,11 +696,11 @@ flowchart TB
         decode --> exif["EXIF strip"]
         exif --> resize["Resize"]
         resize --> nsfw["NSFW check"]
-        nsfw -->|"safe"| face["Face blur"]
-        nsfw -->|"nudity"| fullblur["Full blur"]
-        face --> ocr["OCR blur"]
+        nsfw -->|"safe"| face["Face redact"]
+        nsfw -->|"nudity"| fullredact["Full redact"]
+        face --> ocr["OCR redact"]
         ocr --> encode["Re-encode"]
-        fullblur --> encode
+        fullredact --> encode
     end
 
     subgraph pass2 ["Pass 2 — Text PII Scanning"]
@@ -721,7 +722,7 @@ flowchart TB
     style resize fill:#545b64,stroke:#232F3E,color:#fff
     style nsfw fill:#545b64,stroke:#232F3E,color:#fff
     style face fill:#545b64,stroke:#232F3E,color:#fff
-    style fullblur fill:#545b64,stroke:#232F3E,color:#fff
+    style fullredact fill:#545b64,stroke:#232F3E,color:#fff
     style ocr fill:#545b64,stroke:#232F3E,color:#fff
     style encode fill:#545b64,stroke:#232F3E,color:#fff
     style scan fill:#545b64,stroke:#232F3E,color:#fff
@@ -735,13 +736,14 @@ flowchart TB
 
 **Key properties:**
 - Images processed BEFORE text so byte offsets remain correct
-- **Three-phase pipeline:** Phase 0 (NSFW check) → Phase 1 (face detection via SCRFD or BlazeFace + blur) → Phase 2 (OCR text detection via PP-OCRv4 + blur)
-- NSFW detection: if nudity found, blur entire image with heavy sigma=30 and skip face/OCR phases
-- Face blur: elliptical Gaussian blur with feathered edges (15% radius blend zone). If face occupies >80% of image area, blur entire image; otherwise selective elliptical blur with 15% bbox padding
+- **Three-phase pipeline:** Phase 0 (NSFW check) → Phase 1 (face detection via SCRFD or BlazeFace + solid-fill redaction) → Phase 2 (OCR text detection via PP-OCRv4 + solid-fill redaction)
+- NSFW detection: if nudity found, solid-fill entire image and skip face/OCR phases
+- Face redaction: detected face regions are filled with light gray (rgb 200,200,200) — original pixel data is completely destroyed, not recoverable by AI deblurring. Elliptical fill inscribed in the bounding box with 15% padding. If face occupies >80% of image area, fill entire image.
+- OCR text redaction: detected text regions are filled with solid color — same irreversible approach as face redaction.
 - Sequential model loading: models loaded/used/dropped one at a time (never multiple in RAM)
 - EXIF metadata stripped implicitly — `image` crate loads pixels only, discarding all metadata
 - Fail-open: corrupt base64, unsupported format, or model failure → forward original image unchanged
-- Screenshot detection (EXIF software tags, screen resolution, status bar uniformity) flags images for aggressive text blur
+- Screenshot detection (EXIF software tags, screen resolution, status bar uniformity) flags images; metadata wired into pipeline
 
 **Models (on-demand, evicted after 300s idle):**
 
@@ -754,8 +756,8 @@ flowchart TB
 | PaddleOCR rec (PP-OCRv4) | ~10MB | ~20MB | Character recognition (Tier 2 only, English) |
 
 **Two OCR tiers:**
-- **Tier 1 (default):** Detect text regions → blur all. No recognition model needed.
-- **Tier 2:** Detect → recognize → scan text for PII → selectively blur PII regions only.
+- **Tier 1 (default):** Detect text regions → solid-fill all. No recognition model needed.
+- **Tier 2:** Detect → recognize → scan text for PII → selectively solid-fill PII regions only.
 
 ---
 
@@ -836,7 +838,7 @@ OpenObscure is designed for open-source distribution. Security follows **Kerckho
 | Threat | Protection | Layer |
 |--------|-----------|-------|
 | PII leaking to LLM providers in API requests | FF1 FPE encryption of structured PII before request leaves device | L0 |
-| Visual PII in images (faces, text, EXIF) | NSFW full-image blur, face blur, OCR text blur, EXIF metadata stripping on base64 images | L0 |
+| Visual PII in images (faces, text, EXIF) | NSFW full-image solid fill, face solid-fill redaction (irreversible), OCR text solid-fill redaction, EXIF metadata stripping on base64 images | L0 |
 | LLM responses containing persuasion/manipulation techniques | Response integrity scanner detects urgency, scarcity, fear, authority, flattery patterns and prepends warning labels (EU AI Act Article 5) | L0 |
 | PII persisted in tool result transcripts | Regex redaction of PII in tool outputs before persistence | L1 |
 | Frequency analysis of FPE ciphertexts | Per-record tweaks (UUID + JSON path hash) produce unique ciphertexts for identical inputs | L0 |

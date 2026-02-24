@@ -267,7 +267,7 @@ pub fn validate_text_regions(regions: &[BboxMeta], img_w: u32, img_h: u32) -> Ve
         if padded_y_min < 0.0 || padded_y_max > img_h as f32 {
             issues.push(ValidationIssue {
                 severity: Severity::Error,
-                check: "text_blur_padding_bounds",
+                check: "text_redact_padding_bounds",
                 message: format!(
                     "text {}: padded y range [{:.0}, {:.0}] out of image height {}",
                     i, padded_y_min, padded_y_max, img_h
@@ -744,12 +744,14 @@ mod tests {
     }
 
     #[test]
-    fn test_text_blur_padding_in_bounds() {
+    fn test_text_redact_padding_in_bounds() {
         // Text at y=100 to y=130, height=30, pad=15, padded=[85, 145] — well within 480
         let region = make_bbox(50.0, 100.0, 400.0, 130.0, 0.9, 640, 480, "text");
         let issues = validate_text_regions(&[region], 640, 480);
         assert!(
-            !issues.iter().any(|i| i.check == "text_blur_padding_bounds"),
+            !issues
+                .iter()
+                .any(|i| i.check == "text_redact_padding_bounds"),
             "Padded region should be within bounds"
         );
     }

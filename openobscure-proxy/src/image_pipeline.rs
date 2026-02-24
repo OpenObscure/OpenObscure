@@ -1,7 +1,7 @@
 //! Image processing pipeline orchestrator.
 //!
 //! Coordinates the full image sanitization flow:
-//! decode → EXIF strip → resize → face blur → OCR → encode.
+//! decode → EXIF strip → resize → NSFW check → face redact → OCR redact → encode.
 //!
 //! All operations are sequential to stay within the 224MB RAM ceiling.
 //! Face and OCR models are loaded on-demand and evicted after idle timeout.
@@ -202,15 +202,18 @@ impl ImageModelManager {
 
     /// Process a single image through the full pipeline.
     ///
-    /// Steps: NSFW check → face detection → blur faces → OCR detection → blur/recognize text.
-    /// If NSFW content detected, blur entire image and skip face/OCR phases.
+    /// Steps: NSFW check → face detection → redact faces → OCR detection → redact text.
+    /// If NSFW content detected, solid-fill entire image and skip face/OCR phases.
     /// Models are loaded on demand and released between phases to minimize RAM.
+    ///
+    /// The optional `screen_guard` result populates screenshot metadata in the pipeline stats.
     ///
     /// Returns `(processed_image, stats, pipeline_meta)` where `pipeline_meta` contains
     /// all detection metadata for verification.
     pub fn process_image(
         &self,
         img: DynamicImage,
+        screen_guard: Option<&crate::screen_guard::ScreenGuardResult>,
     ) -> Result<(DynamicImage, ImageStats, PipelineMeta), ImageError> {
         let start = Instant::now();
         let mut stats = ImageStats::default();
@@ -219,7 +222,37 @@ impl ImageModelManager {
             image_size: (orig_w, orig_h),
             ..PipelineMeta::default()
         };
-        // Convert to RgbImage for blur operations, keep DynamicImage for model inference
+
+        // Populate screenshot metadata from screen guard result
+        if let Some(sg) = screen_guard {
+            stats.is_screenshot = sg.is_screenshot;
+            let mut exif_software = None;
+            let mut resolution_match = false;
+            let mut status_bar_variance = None;
+            for reason in &sg.reasons {
+                match reason {
+                    crate::screen_guard::ScreenGuardReason::ExifSoftware(s) => {
+                        exif_software = Some(s.clone());
+                    }
+                    crate::screen_guard::ScreenGuardReason::ScreenResolution(_, _) => {
+                        resolution_match = true;
+                    }
+                    crate::screen_guard::ScreenGuardReason::StatusBar => {
+                        status_bar_variance = Some(0.0);
+                    }
+                    crate::screen_guard::ScreenGuardReason::NoCameraHardware => {}
+                }
+            }
+            meta.screenshot = crate::detection_meta::ScreenshotMeta {
+                is_screenshot: sg.is_screenshot,
+                resolution_match,
+                status_bar_variance,
+                exif_software,
+                reason_count: sg.reasons.len(),
+            };
+        }
+
+        // Convert to RgbImage for redaction operations, keep DynamicImage for model inference
         let mut rgb = img.to_rgb8();
         let mut dyn_img = img;
 
@@ -254,13 +287,20 @@ impl ImageModelManager {
 
                             if result.is_nsfw {
                                 stats.nsfw_detected = true;
-                                oo_info!(crate::oo_log::modules::IMAGE, "NSFW content detected — blurring entire image",
+                                oo_info!(crate::oo_log::modules::IMAGE, "NSFW content detected — redacting entire image",
                                     confidence = result.confidence,
                                     category = ?result.category);
-                                // Blur entire image with heavy sigma
+                                // Solid fill entire image
                                 let (rw, rh) = (rgb.width(), rgb.height());
-                                image_blur::blur_region(&mut rgb, 0, 0, rw, rh, 30.0);
-                                // Skip face/OCR — image is already fully blurred
+                                image_blur::solid_fill_region(
+                                    &mut rgb,
+                                    0,
+                                    0,
+                                    rw,
+                                    rh,
+                                    image_blur::SOLID_FILL_COLOR,
+                                );
+                                // Skip face/OCR — image is already fully redacted
                                 drop(guard);
                                 stats.processing_ms = start.elapsed().as_millis() as u64;
                                 return Ok((DynamicImage::ImageRgb8(rgb), stats, meta));
@@ -295,32 +335,33 @@ impl ImageModelManager {
                     let face_h = face.y_max - face.y_min;
                     let face_area = face_w * face_h;
                     if face_area / img_area > 0.8 {
-                        image_blur::blur_region(
+                        // Face dominates frame — redact entire image
+                        image_blur::solid_fill_region(
                             &mut rgb,
                             0,
                             0,
                             img_w,
                             img_h,
-                            self.config.face_blur_sigma,
+                            image_blur::SOLID_FILL_COLOR,
                         );
                     } else {
                         let (x, y, w, h) = image_blur::expand_bbox(
                             face.x_min, face.y_min, face.x_max, face.y_max, 0.15, img_w, img_h,
                         );
-                        image_blur::blur_region_elliptical(
+                        image_blur::solid_fill_region_elliptical(
                             &mut rgb,
                             x,
                             y,
                             w,
                             h,
-                            self.config.face_blur_sigma,
+                            image_blur::SOLID_FILL_COLOR,
                         );
                     }
                 }
                 stats.faces_blurred = faces.len() as u32;
                 oo_debug!(
                     crate::oo_log::modules::FACE,
-                    "Faces blurred",
+                    "Faces redacted",
                     count = faces.len(),
                     model = %self.config.face_model
                 );
@@ -328,7 +369,7 @@ impl ImageModelManager {
             }
         }
 
-        // Phase 2: OCR detection + blur
+        // Phase 2: OCR detection + redaction
         if self.config.ocr_enabled {
             if let Some(ref dir) = self.config.ocr_model_dir {
                 let tier = OcrTier::from_config(&self.config.ocr_tier);
@@ -358,17 +399,17 @@ impl ImageModelManager {
 
                             match tier {
                                 OcrTier::DetectAndBlur => {
-                                    // Tier 1: blur all detected text regions
+                                    // Tier 1: redact all detected text regions
                                     for region in &regions {
-                                        image_blur::blur_quad_region(
+                                        image_blur::solid_fill_quad_region(
                                             &mut rgb,
                                             &region.points,
-                                            self.config.text_blur_sigma,
+                                            image_blur::SOLID_FILL_COLOR,
                                         );
                                     }
                                 }
                                 OcrTier::FullRecognition => {
-                                    // Tier 2: recognize text, scan for PII, blur only PII regions
+                                    // Tier 2: recognize text, scan for PII, redact only PII regions
                                     // Drop detector before loading recognizer (RAM)
                                     drop(det_guard);
 
@@ -400,17 +441,17 @@ impl ImageModelManager {
                                                         .scan_text(&rt.text)
                                                         .is_empty();
                                                     if has_regex_pii || has_keyword_pii {
-                                                        image_blur::blur_quad_region(
+                                                        image_blur::solid_fill_quad_region(
                                                             &mut rgb,
                                                             &rt.region.points,
-                                                            self.config.text_blur_sigma,
+                                                            image_blur::SOLID_FILL_COLOR,
                                                         );
                                                         pii_count += 1;
                                                     }
                                                 }
                                                 oo_info!(
                                                     crate::oo_log::modules::OCR,
-                                                    "OCR Tier 2: PII-selective blur",
+                                                    "OCR Tier 2: PII-selective redaction",
                                                     pii_regions = pii_count,
                                                     total_regions = texts.len()
                                                 );
@@ -682,7 +723,7 @@ mod tests {
         };
         let manager = ImageModelManager::new(config);
         let img = make_test_image(100, 100);
-        let (result, stats, _meta) = manager.process_image(img).unwrap();
+        let (result, stats, _meta) = manager.process_image(img, None).unwrap();
         assert_eq!(result.width(), 100);
         assert_eq!(result.height(), 100);
         assert_eq!(stats.faces_blurred, 0);
@@ -709,7 +750,7 @@ mod tests {
         };
         let manager = ImageModelManager::new(config);
         let img = make_test_image(50, 50);
-        let (result, stats, _meta) = manager.process_image(img).unwrap();
+        let (result, stats, _meta) = manager.process_image(img, None).unwrap();
         assert_eq!(result.width(), 50);
         assert_eq!(stats.faces_blurred, 0);
         assert_eq!(stats.text_regions_found, 0);
