@@ -1,11 +1,40 @@
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
-use axum::response::Json;
+use axum::response::{IntoResponse, Json};
 use serde::Serialize;
+
+// ── Readiness State ─────────────────────────────────────────────────────
+
+/// Server readiness state for pre-warming.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum ReadinessState {
+    Cold = 0,
+    Warming = 1,
+    Ready = 2,
+}
+
+impl ReadinessState {
+    pub fn from_u8(v: u8) -> Self {
+        match v {
+            1 => ReadinessState::Warming,
+            2 => ReadinessState::Ready,
+            _ => ReadinessState::Cold,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ReadinessState::Cold => "cold",
+            ReadinessState::Warming => "warming",
+            ReadinessState::Ready => "ready",
+        }
+    }
+}
 
 // ── Latency Histogram ────────────────────────────────────────────────────
 
@@ -248,6 +277,7 @@ pub struct HealthState {
     pub key_version: Arc<std::sync::atomic::AtomicU32>,
     pub device_tier: String,
     pub feature_budget: FeatureBudgetSummary,
+    pub readiness: Arc<AtomicU8>,
 }
 
 /// Health endpoint response body.
@@ -255,6 +285,8 @@ pub struct HealthState {
 pub struct HealthResponse {
     pub status: &'static str,
     pub version: &'static str,
+    pub ready: bool,
+    pub readiness_state: &'static str,
     pub uptime_secs: u64,
     pub pii_matches_total: u64,
     pub requests_total: u64,
@@ -280,10 +312,11 @@ pub struct HealthResponse {
 /// GET /_openobscure/health — returns proxy health status.
 ///
 /// If an auth token is configured, the `X-OpenObscure-Token` header must match.
+/// Returns 503 Service Unavailable when the server is not ready (pre-warming).
 pub async fn health_handler(
     State(health_state): State<HealthState>,
     headers: HeaderMap,
-) -> Result<Json<HealthResponse>, StatusCode> {
+) -> Result<impl IntoResponse, StatusCode> {
     // Validate auth token if configured
     if let Some(ref expected) = health_state.auth_token {
         let provided = headers
@@ -295,10 +328,20 @@ pub async fn health_handler(
         }
     }
 
+    let readiness = ReadinessState::from_u8(health_state.readiness.load(Ordering::Relaxed));
+    let is_ready = readiness == ReadinessState::Ready;
+    let http_status = if is_ready {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
     let stats = &health_state.stats;
-    Ok(Json(HealthResponse {
-        status: "ok",
+    let response = HealthResponse {
+        status: if is_ready { "ok" } else { "warming" },
         version: env!("CARGO_PKG_VERSION"),
+        ready: is_ready,
+        readiness_state: readiness.as_str(),
         uptime_secs: stats.uptime_secs(),
         pii_matches_total: stats.pii_matches_total(),
         requests_total: stats.requests_total(),
@@ -321,7 +364,9 @@ pub async fn health_handler(
         request_latency_p99_us: stats.request_latency.percentile(99.0),
         device_tier: health_state.device_tier.clone(),
         feature_budget: health_state.feature_budget.clone(),
-    }))
+    };
+
+    Ok((http_status, Json(response)))
 }
 
 /// Install a panic hook that writes a crash marker file before aborting.
@@ -528,6 +573,10 @@ mod tests {
     use tower::ServiceExt;
 
     fn health_app(auth_token: Option<String>) -> Router {
+        health_app_with_readiness(auth_token, ReadinessState::Ready)
+    }
+
+    fn health_app_with_readiness(auth_token: Option<String>, readiness: ReadinessState) -> Router {
         let state = HealthState {
             stats: HealthStats::new(),
             auth_token,
@@ -545,6 +594,7 @@ mod tests {
                 screen_guard_enabled: true,
                 face_model: "scrfd".to_string(),
             },
+            readiness: Arc::new(AtomicU8::new(readiness as u8)),
         };
         Router::new().route(
             "/_openobscure/health",
@@ -620,5 +670,79 @@ mod tests {
         assert_eq!(json["device_tier"], "full");
         assert!(json["feature_budget"]["ner_enabled"].as_bool().unwrap());
         assert_eq!(json["feature_budget"]["max_ram_mb"], 275);
+    }
+
+    // ── Readiness Tests ─────────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn test_health_returns_200_when_ready() {
+        let app = health_app_with_readiness(None, ReadinessState::Ready);
+        let req = Request::get("/_openobscure/health")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ready"], true);
+        assert_eq!(json["readiness_state"], "ready");
+        assert_eq!(json["status"], "ok");
+    }
+
+    #[tokio::test]
+    async fn test_health_returns_503_when_cold() {
+        let app = health_app_with_readiness(None, ReadinessState::Cold);
+        let req = Request::get("/_openobscure/health")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ready"], false);
+        assert_eq!(json["readiness_state"], "cold");
+        assert_eq!(json["status"], "warming");
+    }
+
+    #[tokio::test]
+    async fn test_health_returns_503_when_warming() {
+        let app = health_app_with_readiness(None, ReadinessState::Warming);
+        let req = Request::get("/_openobscure/health")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["ready"], false);
+        assert_eq!(json["readiness_state"], "warming");
+    }
+
+    #[test]
+    fn test_readiness_state_transitions() {
+        let state = Arc::new(AtomicU8::new(ReadinessState::Cold as u8));
+        assert_eq!(
+            ReadinessState::from_u8(state.load(Ordering::Relaxed)),
+            ReadinessState::Cold
+        );
+
+        state.store(ReadinessState::Warming as u8, Ordering::Relaxed);
+        assert_eq!(
+            ReadinessState::from_u8(state.load(Ordering::Relaxed)),
+            ReadinessState::Warming
+        );
+
+        state.store(ReadinessState::Ready as u8, Ordering::Relaxed);
+        assert_eq!(
+            ReadinessState::from_u8(state.load(Ordering::Relaxed)),
+            ReadinessState::Ready
+        );
+    }
+
+    #[test]
+    fn test_readiness_state_as_str() {
+        assert_eq!(ReadinessState::Cold.as_str(), "cold");
+        assert_eq!(ReadinessState::Warming.as_str(), "warming");
+        assert_eq!(ReadinessState::Ready.as_str(), "ready");
     }
 }

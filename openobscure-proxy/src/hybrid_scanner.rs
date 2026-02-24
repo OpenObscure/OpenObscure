@@ -103,6 +103,15 @@ impl HybridScanner {
         self.respect_code_fences = respect;
     }
 
+    /// Run a dummy inference pass to warm up the NER/CRF model.
+    ///
+    /// Returns the warm-up duration. No-op if no semantic backend is loaded.
+    pub fn warm(&self) -> std::time::Duration {
+        let start = std::time::Instant::now();
+        let _ = self.scan_text("John Smith lives at 123 Main St, New York, NY 10001");
+        start.elapsed()
+    }
+
     /// Scan text through all enabled scanners, resolve overlaps via confidence voting.
     pub fn scan_text(&self, text: &str) -> Vec<PiiMatch> {
         let effective_text = if self.respect_code_fences {

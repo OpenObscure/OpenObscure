@@ -148,7 +148,6 @@ pub enum MobileError {
 }
 
 /// The main mobile API handle. Thread-safe and reusable across calls.
-#[cfg_attr(feature = "mobile", derive(uniffi::Object))]
 pub struct OpenObscureMobile {
     scanner: HybridScanner,
     fpe: FpeEngine,

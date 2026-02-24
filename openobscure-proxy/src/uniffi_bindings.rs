@@ -3,6 +3,14 @@
 //! These bindings are compiled only when the `mobile` feature is enabled.
 //! UniFFI generates idiomatic Swift and Kotlin wrappers automatically.
 //!
+//! # Architecture
+//!
+//! `OpenObscureHandle` is a thin UniFFI-visible wrapper around `OpenObscureMobile`.
+//! The derive lives here (not on `OpenObscureMobile` itself) because this module
+//! is only compiled in the lib crate where `uniffi::setup_scaffolding!()` runs.
+//! The binary crate (main.rs) never compiles this module, avoiding the
+//! `UniFfiTag not found` error.
+//!
 //! # Usage
 //!
 //! Swift (iOS):
@@ -25,6 +33,16 @@ use std::sync::Arc;
 #[cfg(feature = "mobile")]
 use crate::lib_mobile::{MobileConfig, OpenObscureMobile};
 
+/// Opaque handle exposed to Swift/Kotlin via UniFFI.
+///
+/// Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
+/// crate (where `UniFfiTag` exists) rather than on the shared struct.
+#[cfg(feature = "mobile")]
+#[derive(uniffi::Object)]
+pub struct OpenObscureHandle {
+    inner: OpenObscureMobile,
+}
+
 /// Create a new OpenObscure mobile instance.
 ///
 /// # Arguments
@@ -38,7 +56,7 @@ use crate::lib_mobile::{MobileConfig, OpenObscureMobile};
 pub fn create_openobscure(
     config_json: String,
     fpe_key_hex: String,
-) -> Result<Arc<OpenObscureMobile>, MobileBindingError> {
+) -> Result<Arc<OpenObscureHandle>, MobileBindingError> {
     let config: MobileConfig = serde_json::from_str(&config_json)
         .map_err(|e| MobileBindingError::Config(e.to_string()))?;
 
@@ -56,7 +74,7 @@ pub fn create_openobscure(
     let mobile =
         OpenObscureMobile::new(config, key).map_err(|e| MobileBindingError::Init(e.to_string()))?;
 
-    Ok(Arc::new(mobile))
+    Ok(Arc::new(OpenObscureHandle { inner: mobile }))
 }
 
 /// Scan text for PII and encrypt matches with FF1 FPE.
@@ -65,10 +83,11 @@ pub fn create_openobscure(
 #[cfg(feature = "mobile")]
 #[uniffi::export]
 pub fn sanitize_text(
-    handle: &Arc<OpenObscureMobile>,
+    handle: &Arc<OpenObscureHandle>,
     text: String,
 ) -> Result<SanitizeResultFFI, MobileBindingError> {
     let result = handle
+        .inner
         .sanitize_text(&text)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
 
@@ -83,20 +102,21 @@ pub fn sanitize_text(
 /// Restore original PII values in response text using saved mappings.
 #[cfg(feature = "mobile")]
 #[uniffi::export]
-pub fn restore_text(handle: &Arc<OpenObscureMobile>, text: String, mapping_json: String) -> String {
-    handle.restore_text(&text, &mapping_json)
+pub fn restore_text(handle: &Arc<OpenObscureHandle>, text: String, mapping_json: String) -> String {
+    handle.inner.restore_text(&text, &mapping_json)
 }
 
-/// Process an image for visual PII (face blur, OCR text blur, EXIF strip).
+/// Process an image for visual PII (face redaction, OCR text redaction, EXIF strip).
 ///
 /// Returns sanitized image bytes (JPEG format).
 #[cfg(feature = "mobile")]
 #[uniffi::export]
 pub fn sanitize_image(
-    handle: &Arc<OpenObscureMobile>,
+    handle: &Arc<OpenObscureHandle>,
     image_bytes: Vec<u8>,
 ) -> Result<Vec<u8>, MobileBindingError> {
     handle
+        .inner
         .sanitize_image(&image_bytes)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
@@ -104,8 +124,8 @@ pub fn sanitize_image(
 /// Get current statistics for diagnostics.
 #[cfg(feature = "mobile")]
 #[uniffi::export]
-pub fn get_stats(handle: &Arc<OpenObscureMobile>) -> MobileStatsFFI {
-    let stats = handle.stats();
+pub fn get_stats(handle: &Arc<OpenObscureHandle>) -> MobileStatsFFI {
+    let stats = handle.inner.stats();
     MobileStatsFFI {
         total_pii_found: stats.total_pii_found,
         total_images_processed: stats.total_images_processed,

@@ -48,7 +48,8 @@ fn build_config_ext(upstream_url: &str, fail_mode: FailMode) -> AppConfig {
     AppConfig {
         proxy: ProxyConfig {
             fail_mode,
-            max_body_bytes: 1024, // 1KB for testing oversized body
+            max_body_bytes: 1024,  // 1KB for testing oversized body
+            body_limit_full: 1024, // tier-aware limit matches max_body_bytes for tests
             ..ProxyConfig::default()
         },
         providers,
@@ -87,6 +88,7 @@ async fn build_state(config: AppConfig) -> AppState {
         image_models: None,
         kws_engine: None,
         response_integrity: None,
+        device_tier: crate::device_profile::CapabilityTier::Full,
     }
 }
 
@@ -654,9 +656,9 @@ async fn test_upstream_error_propagated() {
 // ── Health Endpoint ─────────────────────────────────────────────────────
 
 fn build_full_router(state: AppState, auth_token: Option<String>) -> Router {
-    use crate::health::{FeatureBudgetSummary, HealthState};
+    use crate::health::{FeatureBudgetSummary, HealthState, ReadinessState};
     use crate::ner_endpoint::NerState;
-    use std::sync::atomic::AtomicU32;
+    use std::sync::atomic::{AtomicU32, AtomicU8};
 
     let health_state = HealthState {
         stats: state.health.clone(),
@@ -675,6 +677,7 @@ fn build_full_router(state: AppState, auth_token: Option<String>) -> Router {
             screen_guard_enabled: true,
             face_model: "scrfd".to_string(),
         },
+        readiness: Arc::new(AtomicU8::new(ReadinessState::Ready as u8)),
     };
 
     let ner_state = NerState {
@@ -1403,6 +1406,7 @@ async fn build_ri_state(config: AppConfig) -> AppState {
         image_models: None,
         kws_engine: None,
         response_integrity: ri_scanner,
+        device_tier: crate::device_profile::CapabilityTier::Full,
     }
 }
 

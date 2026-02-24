@@ -41,6 +41,7 @@ mod response_integrity;
 mod scanner;
 mod screen_guard;
 mod server;
+mod sse_accumulator;
 mod vault;
 mod voice_detect;
 mod voice_pipeline;
@@ -315,6 +316,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         image_models,
         kws_engine,
         response_integrity: ri_scanner,
+        device_tier: tier,
     };
 
     // Resolve auth token for health endpoint

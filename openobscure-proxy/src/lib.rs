@@ -48,6 +48,10 @@ pub mod response_integrity;
 pub mod detection_meta;
 pub mod detection_validators;
 
+// Request/response mapping + SSE frame accumulation
+pub mod mapping;
+pub mod sse_accumulator;
+
 // Mobile library API
 pub mod lib_mobile;
 #[cfg(feature = "mobile")]

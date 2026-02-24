@@ -72,6 +72,27 @@ pub struct ProxyConfig {
     /// "closed": reject request with 502 if body processing fails.
     #[serde(default)]
     pub fail_mode: FailMode,
+    /// Per-tier body size limit for Lite devices (default: 10MB).
+    #[serde(default = "default_body_limit_lite")]
+    pub body_limit_lite: usize,
+    /// Per-tier body size limit for Standard devices (default: 50MB).
+    #[serde(default = "default_body_limit_standard")]
+    pub body_limit_standard: usize,
+    /// Per-tier body size limit for Full devices (default: 100MB).
+    #[serde(default = "default_body_limit_full")]
+    pub body_limit_full: usize,
+    /// Fraction of body limit reserved for base64 image content (default: 0.5).
+    #[serde(default = "default_image_budget_fraction")]
+    pub image_budget_fraction: f32,
+    /// Enable pre-warming of NER model on startup (default: true).
+    #[serde(default = "default_true")]
+    pub enable_prewarm: bool,
+    /// SSE accumulation buffer size in bytes (default: 512).
+    #[serde(default = "default_sse_buffer_size")]
+    pub sse_buffer_size: usize,
+    /// SSE flush timeout in milliseconds (default: 200).
+    #[serde(default = "default_sse_flush_timeout_ms")]
+    pub sse_flush_timeout_ms: u64,
 }
 
 impl Default for ProxyConfig {
@@ -82,7 +103,31 @@ impl Default for ProxyConfig {
             request_timeout_secs: default_timeout(),
             max_body_bytes: default_max_body(),
             fail_mode: FailMode::default(),
+            body_limit_lite: default_body_limit_lite(),
+            body_limit_standard: default_body_limit_standard(),
+            body_limit_full: default_body_limit_full(),
+            image_budget_fraction: default_image_budget_fraction(),
+            enable_prewarm: true,
+            sse_buffer_size: default_sse_buffer_size(),
+            sse_flush_timeout_ms: default_sse_flush_timeout_ms(),
         }
+    }
+}
+
+impl ProxyConfig {
+    /// Get the effective body limit for a given capability tier.
+    pub fn body_limit_for_tier(&self, tier: crate::device_profile::CapabilityTier) -> usize {
+        use crate::device_profile::CapabilityTier;
+        match tier {
+            CapabilityTier::Lite => self.body_limit_lite,
+            CapabilityTier::Standard => self.body_limit_standard,
+            CapabilityTier::Full => self.body_limit_full,
+        }
+    }
+
+    /// Get the image budget (max base64 bytes) for a given tier.
+    pub fn image_budget_for_tier(&self, tier: crate::device_profile::CapabilityTier) -> usize {
+        (self.body_limit_for_tier(tier) as f64 * self.image_budget_fraction as f64) as usize
     }
 }
 
@@ -432,6 +477,24 @@ fn default_timeout() -> u64 {
 }
 fn default_max_body() -> usize {
     16 * 1024 * 1024 // 16MB
+}
+fn default_body_limit_lite() -> usize {
+    10 * 1024 * 1024 // 10MB
+}
+fn default_body_limit_standard() -> usize {
+    50 * 1024 * 1024 // 50MB
+}
+fn default_body_limit_full() -> usize {
+    100 * 1024 * 1024 // 100MB
+}
+fn default_image_budget_fraction() -> f32 {
+    0.5
+}
+fn default_sse_buffer_size() -> usize {
+    512
+}
+fn default_sse_flush_timeout_ms() -> u64 {
+    200
 }
 fn default_keychain_service() -> String {
     "openobscure".to_string()
@@ -987,5 +1050,92 @@ radix = 36
         let p = &config.scanner.custom_patterns["passport"];
         assert_eq!(p.radix, 36);
         assert!(p.alphabet.is_none());
+    }
+
+    // --- Tier-aware body limits ---
+
+    #[test]
+    fn test_proxy_tier_body_limit_defaults() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert_eq!(config.proxy.body_limit_lite, 10 * 1024 * 1024);
+        assert_eq!(config.proxy.body_limit_standard, 50 * 1024 * 1024);
+        assert_eq!(config.proxy.body_limit_full, 100 * 1024 * 1024);
+        assert_eq!(config.proxy.image_budget_fraction, 0.5);
+    }
+
+    #[test]
+    fn test_body_limit_for_tier() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        use crate::device_profile::CapabilityTier;
+        assert_eq!(
+            config.proxy.body_limit_for_tier(CapabilityTier::Lite),
+            10 * 1024 * 1024
+        );
+        assert_eq!(
+            config.proxy.body_limit_for_tier(CapabilityTier::Standard),
+            50 * 1024 * 1024
+        );
+        assert_eq!(
+            config.proxy.body_limit_for_tier(CapabilityTier::Full),
+            100 * 1024 * 1024
+        );
+    }
+
+    #[test]
+    fn test_image_budget_for_tier() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        use crate::device_profile::CapabilityTier;
+        assert_eq!(
+            config.proxy.image_budget_for_tier(CapabilityTier::Lite),
+            5 * 1024 * 1024
+        );
+        assert_eq!(
+            config.proxy.image_budget_for_tier(CapabilityTier::Full),
+            50 * 1024 * 1024
+        );
+    }
+
+    #[test]
+    fn test_tier_body_limit_overrides() {
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+body_limit_lite = 5242880
+body_limit_standard = 20971520
+body_limit_full = 52428800
+image_budget_fraction = 0.3
+"#,
+        )
+        .unwrap();
+        assert_eq!(config.proxy.body_limit_lite, 5 * 1024 * 1024);
+        assert_eq!(config.proxy.body_limit_standard, 20 * 1024 * 1024);
+        assert_eq!(config.proxy.body_limit_full, 50 * 1024 * 1024);
+        assert_eq!(config.proxy.image_budget_fraction, 0.3);
+    }
+
+    // --- Pre-warm + SSE config defaults ---
+
+    #[test]
+    fn test_prewarm_and_sse_defaults() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert!(config.proxy.enable_prewarm);
+        assert_eq!(config.proxy.sse_buffer_size, 512);
+        assert_eq!(config.proxy.sse_flush_timeout_ms, 200);
+    }
+
+    #[test]
+    fn test_prewarm_and_sse_overrides() {
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+enable_prewarm = false
+sse_buffer_size = 1024
+sse_flush_timeout_ms = 500
+"#,
+        )
+        .unwrap();
+        assert!(!config.proxy.enable_prewarm);
+        assert_eq!(config.proxy.sse_buffer_size, 1024);
+        assert_eq!(config.proxy.sse_flush_timeout_ms, 500);
     }
 }

@@ -44,6 +44,19 @@ impl RequestMappings {
         self.by_ciphertext.is_empty()
     }
 
+    /// Maximum ciphertext length across all mappings.
+    ///
+    /// Used to size the SSE accumulation buffer window: bytes within
+    /// `max_ciphertext_len` of the end of a frame could be the start
+    /// of a split ciphertext.
+    pub fn max_ciphertext_len(&self) -> usize {
+        self.by_ciphertext
+            .keys()
+            .map(|k| k.len())
+            .max()
+            .unwrap_or(0)
+    }
+
     /// Replace all ciphertexts found in the response text with their original plaintexts.
     /// Sorts by ciphertext length descending to avoid partial matches.
     pub fn decrypt_response(&self, response_text: &str) -> String {

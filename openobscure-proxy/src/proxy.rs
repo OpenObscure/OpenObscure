@@ -6,7 +6,8 @@ use axum::{
     http::{header, HeaderMap, HeaderValue, Method, Request, Response, StatusCode, Uri},
 };
 use bytes::Bytes;
-use http_body_util::BodyExt;
+use futures_util::StreamExt;
+use http_body_util::{BodyExt, BodyStream};
 use hyper_util::client::legacy::Client;
 
 use crate::config::{AppConfig, FailMode, ProviderConfig};
@@ -49,6 +50,7 @@ pub struct AppState {
     pub image_models: Option<Arc<ImageModelManager>>,
     pub kws_engine: Option<Arc<KwsEngine>>,
     pub response_integrity: Option<Arc<ResponseIntegrityScanner>>,
+    pub device_tier: crate::device_profile::CapabilityTier,
 }
 
 /// The main proxy handler. All requests flow through here.
@@ -77,8 +79,9 @@ pub async fn proxy_handler(
 
     oo_debug!(crate::oo_log::modules::PROXY, "Matched provider", request_id = %request_id, provider = %provider_name);
 
-    // 2. Buffer the request body
-    let body_bytes = buffer_body(req, state.config.proxy.max_body_bytes).await?;
+    // 2. Buffer the request body (tier-aware limit)
+    let effective_limit = state.config.proxy.body_limit_for_tier(state.device_tier);
+    let body_bytes = buffer_body(req, effective_limit).await?;
 
     // 3. Check if body is scannable (JSON content type or missing content type with body)
     let should_scan = !body_bytes.is_empty()
@@ -193,47 +196,88 @@ pub async fn proxy_handler(
     let is_sse = is_event_stream(&parts.headers);
 
     if is_sse && has_mappings {
-        // 7a. SSE streaming path: stream through with per-chunk decryption
-        oo_debug!(crate::oo_log::modules::PROXY, "SSE response detected, streaming with per-chunk decryption",
+        // 7a. SSE streaming path: stream through with cross-frame accumulation
+        oo_debug!(crate::oo_log::modules::PROXY, "SSE response detected, streaming with accumulation buffer",
             request_id = %request_id);
 
         let mappings = state.mapping_store.get(&request_id).await;
         let mapping_store = state.mapping_store.clone();
         let req_id = request_id;
+        let sse_buffer_size = state.config.proxy.sse_buffer_size;
+        let sse_flush_timeout =
+            std::time::Duration::from_millis(state.config.proxy.sse_flush_timeout_ms);
+        let accumulator = crate::sse_accumulator::SseAccumulator::new(sse_buffer_size);
 
-        // Build streaming body that decrypts each chunk
-        let stream =
-            futures_util::stream::unfold((resp_body, mappings), move |(mut body, mappings)| {
+        // Build streaming body that decrypts each chunk with cross-frame accumulation.
+        // `done` flag prevents polling after stream end (flush-then-end pattern).
+        let stream = futures_util::stream::unfold(
+            (resp_body, mappings, accumulator, false),
+            move |(mut body, mappings, mut accumulator, done)| {
                 let mapping_store = mapping_store.clone();
                 let req_id = req_id;
                 async move {
-                    match body.frame().await {
-                        Some(Ok(frame)) => {
+                    if done {
+                        return None;
+                    }
+
+                    match tokio::time::timeout(sse_flush_timeout, body.frame()).await {
+                        Ok(Some(Ok(frame))) => {
                             if let Ok(data) = frame.into_data() {
                                 let chunk = if let Some(ref m) = mappings {
-                                    crate::body::process_response_body(&data, m)
+                                    accumulator.feed(&data, m)
                                 } else {
                                     data
                                 };
-                                Some((Ok::<_, std::convert::Infallible>(chunk), (body, mappings)))
+                                Some((
+                                    Ok::<_, std::convert::Infallible>(chunk),
+                                    (body, mappings, accumulator, false),
+                                ))
                             } else {
                                 // Trailers or other frame types — yield empty bytes
-                                Some((Ok(Bytes::new()), (body, mappings)))
+                                Some((Ok(Bytes::new()), (body, mappings, accumulator, false)))
                             }
                         }
-                        Some(Err(_)) => {
-                            // Stream error — clean up mappings and end
+                        Ok(Some(Err(_))) => {
+                            // Stream error — flush accumulator and end
+                            let flush = if let Some(ref m) = mappings {
+                                accumulator.flush(m)
+                            } else {
+                                Bytes::new()
+                            };
                             mapping_store.remove(&req_id).await;
-                            None
+                            if !flush.is_empty() {
+                                Some((Ok(flush), (body, mappings, accumulator, true)))
+                            } else {
+                                None
+                            }
                         }
-                        None => {
-                            // Stream complete — clean up mappings
+                        Ok(None) => {
+                            // Stream complete — flush remaining buffer
+                            let flush = if let Some(ref m) = mappings {
+                                accumulator.flush(m)
+                            } else {
+                                Bytes::new()
+                            };
                             mapping_store.remove(&req_id).await;
-                            None
+                            if !flush.is_empty() {
+                                Some((Ok(flush), (body, mappings, accumulator, true)))
+                            } else {
+                                None
+                            }
+                        }
+                        Err(_timeout) => {
+                            // Flush timeout — emit whatever is in the buffer
+                            let flush = if let Some(ref m) = mappings {
+                                accumulator.flush(m)
+                            } else {
+                                Bytes::new()
+                            };
+                            Some((Ok(flush), (body, mappings, accumulator, false)))
                         }
                     }
                 }
-            });
+            },
+        );
 
         let stream_body = Body::from_stream(stream);
         let mut response = Response::new(stream_body);
@@ -583,24 +627,34 @@ pub fn is_json_content_pub(headers: &HeaderMap) -> bool {
     is_json_content(headers)
 }
 
-/// Buffer the request body up to the size limit.
+/// Buffer the request body with streaming size enforcement.
+///
+/// Rejects as soon as accumulated bytes exceed the limit, without
+/// buffering the full body first.
 async fn buffer_body(req: Request<Body>, max_bytes: usize) -> Result<Bytes, StatusCode> {
     let body = req.into_body();
-    let collected = body.collect().await.map_err(|e| {
-        oo_error!(crate::oo_log::modules::PROXY, "Failed to read request body", error = %e);
-        StatusCode::BAD_REQUEST
-    })?;
-    let bytes = collected.to_bytes();
-    if bytes.len() > max_bytes {
-        oo_warn!(
-            crate::oo_log::modules::PROXY,
-            "Request body exceeds size limit",
-            size = bytes.len(),
-            limit = max_bytes
-        );
-        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    let mut collected = Vec::new();
+    let mut stream = BodyStream::new(body);
+
+    while let Some(frame_result) = stream.next().await {
+        let frame = frame_result.map_err(|e| {
+            oo_error!(crate::oo_log::modules::PROXY, "Failed to read request body", error = %e);
+            StatusCode::BAD_REQUEST
+        })?;
+        if let Ok(data) = frame.into_data() {
+            collected.extend_from_slice(&data);
+            if collected.len() > max_bytes {
+                oo_warn!(
+                    crate::oo_log::modules::PROXY,
+                    "Request body exceeds size limit",
+                    accumulated = collected.len(),
+                    limit = max_bytes
+                );
+                return Err(StatusCode::PAYLOAD_TOO_LARGE);
+            }
+        }
     }
-    Ok(bytes)
+    Ok(Bytes::from(collected))
 }
 
 #[cfg(test)]
