@@ -17,6 +17,7 @@ use crate::key_manager::KeyManager;
 use crate::kws_engine::KwsEngine;
 use crate::mapping::MappingStore;
 use crate::pii_types::PiiType;
+use crate::response_integrity::ResponseIntegrityScanner;
 use crate::vault::Vault;
 
 type HttpsConnector =
@@ -47,6 +48,7 @@ pub struct AppState {
     pub health: HealthStats,
     pub image_models: Option<Arc<ImageModelManager>>,
     pub kws_engine: Option<Arc<KwsEngine>>,
+    pub response_integrity: Option<Arc<ResponseIntegrityScanner>>,
 }
 
 /// The main proxy handler. All requests flow through here.
@@ -123,6 +125,9 @@ pub async fn proxy_handler(
                     }
                     if is.is_screenshot {
                         state.health.record_screenshots_detected(1);
+                    }
+                    for _ in 0..is.onnx_panics {
+                        state.health.record_onnx_panic();
                     }
                 }
                 (body, mappings)
@@ -271,6 +276,14 @@ pub async fn proxy_handler(
         }
     } else {
         resp_bytes
+    };
+
+    // 8b. Response integrity scan (cognitive firewall)
+    // No content-type check here: extract_response_text returns None for non-JSON (fail-open).
+    let final_body = if let Some(ref ri_scanner) = state.response_integrity {
+        scan_response_integrity(&final_body, ri_scanner, &request_id, &state)
+    } else {
+        final_body
     };
 
     // 9. Rebuild response with correct content-length
@@ -441,6 +454,129 @@ fn log_pii_stats(request_id: &uuid::Uuid, mappings: &crate::mapping::RequestMapp
         pii_breakdown = %breakdown.join(", "));
 }
 
+/// Extract text content from an LLM JSON response body.
+/// Supports Anthropic (`content[].text`) and OpenAI (`choices[].message.content`) formats.
+fn extract_response_text(body: &Bytes) -> Option<String> {
+    let json: serde_json::Value = serde_json::from_slice(body).ok()?;
+
+    // Anthropic format: { "content": [{ "type": "text", "text": "..." }] }
+    if let Some(content_arr) = json.get("content").and_then(|c| c.as_array()) {
+        let texts: Vec<&str> = content_arr
+            .iter()
+            .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
+            .collect();
+        if !texts.is_empty() {
+            return Some(texts.join(" "));
+        }
+    }
+
+    // OpenAI format: { "choices": [{ "message": { "content": "..." } }] }
+    if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
+        let texts: Vec<&str> = choices
+            .iter()
+            .filter_map(|choice| {
+                choice
+                    .get("message")
+                    .and_then(|m| m.get("content"))
+                    .and_then(|c| c.as_str())
+            })
+            .collect();
+        if !texts.is_empty() {
+            return Some(texts.join(" "));
+        }
+    }
+
+    None
+}
+
+/// Inject a warning label into the first text content of an LLM JSON response.
+/// Returns modified body bytes, or None on parse/format error.
+fn inject_warning_label(body: &Bytes, label: &str) -> Option<Bytes> {
+    let mut json: serde_json::Value = serde_json::from_slice(body).ok()?;
+
+    // Anthropic format
+    if let Some(content_arr) = json.get_mut("content").and_then(|c| c.as_array_mut()) {
+        for block in content_arr.iter_mut() {
+            if let Some(text) = block
+                .get_mut("text")
+                .and_then(|t| t.as_str().map(String::from))
+            {
+                block["text"] = serde_json::Value::String(format!("{}{}", label, text));
+                let serialized = serde_json::to_vec(&json).ok()?;
+                return Some(Bytes::from(serialized));
+            }
+        }
+    }
+
+    // OpenAI format
+    if let Some(choices) = json.get_mut("choices").and_then(|c| c.as_array_mut()) {
+        for choice in choices.iter_mut() {
+            if let Some(content) = choice
+                .get_mut("message")
+                .and_then(|m| m.get_mut("content"))
+                .and_then(|c| c.as_str().map(String::from))
+            {
+                choice["message"]["content"] =
+                    serde_json::Value::String(format!("{}{}", label, content));
+                let serialized = serde_json::to_vec(&json).ok()?;
+                return Some(Bytes::from(serialized));
+            }
+        }
+    }
+
+    None
+}
+
+/// Orchestrate response integrity scanning. Fail-open: returns original body on any error.
+fn scan_response_integrity(
+    body: &Bytes,
+    scanner: &ResponseIntegrityScanner,
+    request_id: &uuid::Uuid,
+    state: &AppState,
+) -> Bytes {
+    // Extract text from response JSON
+    let text = match extract_response_text(body) {
+        Some(t) => t,
+        None => return body.clone(), // Not parseable or no text content → pass through
+    };
+
+    state.health.record_ri_scan();
+
+    // Scan for persuasion techniques
+    let report = match scanner.scan(&text) {
+        Some(r) => r,
+        None => return body.clone(), // Clean or filtered → pass through
+    };
+
+    let flag_count = report.flags.len() as u64;
+    state.health.record_ri_flags(flag_count);
+
+    let category_names: Vec<String> = {
+        let mut names: Vec<String> = report.categories.iter().map(|c| c.to_string()).collect();
+        names.sort();
+        names
+    };
+
+    oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY, "Persuasion techniques detected",
+        request_id = %request_id,
+        severity = %report.severity,
+        flags = flag_count,
+        categories = %category_names.join(", "),
+        scan_time_us = report.scan_time_us);
+
+    // If log_only mode, don't modify the response
+    if state.config.response_integrity.log_only {
+        return body.clone();
+    }
+
+    // Inject warning label
+    let label = ResponseIntegrityScanner::format_warning_label(&report);
+    match inject_warning_label(body, &label) {
+        Some(modified) => modified,
+        None => body.clone(), // Fail-open: return original on injection error
+    }
+}
+
 /// Check if request body is JSON content (public for testing).
 #[cfg(test)]
 pub fn is_json_content_pub(headers: &HeaderMap) -> bool {
@@ -508,7 +644,82 @@ mod tests {
             logging: crate::config::LoggingConfig::default(),
             image: crate::config::ImageConfig::default(),
             voice: crate::config::VoiceConfig::default(),
+            response_integrity: crate::config::ResponseIntegrityConfig::default(),
         }
+    }
+
+    // --- extract_response_text ---
+
+    #[test]
+    fn test_extract_anthropic_response() {
+        let body = serde_json::json!({
+            "content": [{"type": "text", "text": "Hello, how can I help you?"}],
+            "model": "claude-3-5-sonnet"
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
+        let text = extract_response_text(&bytes);
+        assert_eq!(text.unwrap(), "Hello, how can I help you?");
+    }
+
+    #[test]
+    fn test_extract_openai_response() {
+        let body = serde_json::json!({
+            "choices": [{"message": {"content": "Hello there!"}, "index": 0}]
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
+        let text = extract_response_text(&bytes);
+        assert_eq!(text.unwrap(), "Hello there!");
+    }
+
+    #[test]
+    fn test_extract_non_json_returns_none() {
+        let bytes = Bytes::from("not json at all");
+        assert!(extract_response_text(&bytes).is_none());
+    }
+
+    #[test]
+    fn test_extract_no_text_content() {
+        let body = serde_json::json!({"id": "msg_123", "type": "message"});
+        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
+        assert!(extract_response_text(&bytes).is_none());
+    }
+
+    // --- inject_warning_label ---
+
+    #[test]
+    fn test_inject_label_anthropic() {
+        let body = serde_json::json!({
+            "content": [{"type": "text", "text": "Buy now!"}]
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
+        let result = inject_warning_label(&bytes, "WARNING: ");
+        assert!(result.is_some());
+        let modified: serde_json::Value = serde_json::from_slice(&result.unwrap()).unwrap();
+        let text = modified["content"][0]["text"].as_str().unwrap();
+        assert!(text.starts_with("WARNING: "));
+        assert!(text.contains("Buy now!"));
+    }
+
+    #[test]
+    fn test_inject_label_openai() {
+        let body = serde_json::json!({
+            "choices": [{"message": {"content": "Act now!"}, "index": 0}]
+        });
+        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
+        let result = inject_warning_label(&bytes, "CAUTION: ");
+        assert!(result.is_some());
+        let modified: serde_json::Value = serde_json::from_slice(&result.unwrap()).unwrap();
+        let text = modified["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap();
+        assert!(text.starts_with("CAUTION: "));
+        assert!(text.contains("Act now!"));
+    }
+
+    #[test]
+    fn test_inject_label_invalid_json() {
+        let bytes = Bytes::from("not json");
+        assert!(inject_warning_label(&bytes, "WARNING: ").is_none());
     }
 
     // --- resolve_provider ---

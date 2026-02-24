@@ -57,6 +57,7 @@ fn build_config_ext(upstream_url: &str, fail_mode: FailMode) -> AppConfig {
         logging: LoggingConfig::default(),
         image: crate::config::ImageConfig::default(),
         voice: crate::config::VoiceConfig::default(),
+        response_integrity: crate::config::ResponseIntegrityConfig::default(),
     }
 }
 
@@ -85,6 +86,7 @@ async fn build_state(config: AppConfig) -> AppState {
         health: HealthStats::new(),
         image_models: None,
         kws_engine: None,
+        response_integrity: None,
     }
 }
 
@@ -1347,4 +1349,270 @@ async fn test_mixed_pii_and_clean_concurrent() {
     for h in handles {
         h.await.unwrap();
     }
+}
+
+// ── Response Integrity (Cognitive Firewall) ─────────────────────────────
+
+fn build_ri_config(upstream_url: &str, enabled: bool, log_only: bool) -> AppConfig {
+    let mut config = build_config(upstream_url);
+    config.response_integrity = ResponseIntegrityConfig {
+        enabled,
+        sensitivity: "medium".to_string(),
+        log_only,
+    };
+    // Increase max body to accommodate response JSON
+    config.proxy.max_body_bytes = 65536;
+    config
+}
+
+async fn build_ri_state(config: AppConfig) -> AppState {
+    let ri_scanner = if config.response_integrity.enabled {
+        let sensitivity: crate::response_integrity::Sensitivity =
+            config.response_integrity.sensitivity.parse().unwrap();
+        if sensitivity == crate::response_integrity::Sensitivity::Off {
+            None
+        } else {
+            Some(Arc::new(
+                crate::response_integrity::ResponseIntegrityScanner::new(sensitivity),
+            ))
+        }
+    } else {
+        None
+    };
+
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let fpe_engine = FpeEngine::new(&test_key()).unwrap();
+    let key_manager = KeyManager::from_engine(fpe_engine, 1);
+    let https_connector = hyper_rustls::HttpsConnectorBuilder::new()
+        .with_native_roots()
+        .expect("TLS roots")
+        .https_or_http()
+        .enable_http1()
+        .build();
+    let http_client =
+        hyper_util::client::legacy::Client::builder(hyper_util::rt::TokioExecutor::new())
+            .build(https_connector);
+    AppState {
+        config: Arc::new(config),
+        scanner: Arc::new(HybridScanner::regex_only()),
+        key_manager: Arc::new(key_manager),
+        mapping_store: MappingStore::new(300),
+        http_client,
+        vault: Arc::new(Vault::new("openobscure-test")),
+        health: HealthStats::new(),
+        image_models: None,
+        kws_engine: None,
+        response_integrity: ri_scanner,
+    }
+}
+
+/// Persuasive Anthropic response for testing.
+const PERSUASIVE_ANTHROPIC_RESPONSE: &str = r#"{"id":"msg_01","type":"message","role":"assistant","content":[{"type":"text","text":"Act now! This limited time offer is a smart choice. Experts agree you could lose out. Buy now for the best deal!"}],"model":"claude-3"}"#;
+
+/// Persuasive OpenAI response for testing.
+const PERSUASIVE_OPENAI_RESPONSE: &str = r#"{"id":"chatcmpl-01","choices":[{"index":0,"message":{"role":"assistant","content":"Act now! This limited time offer is a smart choice. Experts agree you could lose out. Buy now for the best deal!"},"finish_reason":"stop"}]}"#;
+
+/// Clean (non-persuasive) response for testing.
+const CLEAN_ANTHROPIC_RESPONSE: &str = r#"{"id":"msg_02","type":"message","role":"assistant","content":[{"type":"text","text":"Here is a Python function that sorts a list in ascending order using the built-in sorted() function."}],"model":"claude-3"}"#;
+
+/// RI disabled: response passes through unchanged.
+#[tokio::test]
+async fn test_ri_disabled_passthrough() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(PERSUASIVE_ANTHROPIC_RESPONSE)
+                .insert_header("content-type", "application/json"),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), false, true);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"messages":[{"role":"user","content":"hello"}]}"#,
+        ))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    // Response should be unchanged (no warning label)
+    assert!(
+        !body.contains("OpenObscure"),
+        "Disabled RI should not inject labels"
+    );
+    assert!(
+        body.contains("Act now!"),
+        "Original content should be preserved"
+    );
+}
+
+/// RI enabled + log_only: response is scanned and logged but NOT modified.
+#[tokio::test]
+async fn test_ri_log_only_no_modification() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(PERSUASIVE_ANTHROPIC_RESPONSE)
+                .insert_header("content-type", "application/json"),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, true);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"messages":[{"role":"user","content":"hello"}]}"#,
+        ))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    // log_only=true: body should NOT contain warning label
+    assert!(
+        !body.contains("OpenObscure"),
+        "log_only should not inject labels"
+    );
+    assert!(
+        body.contains("Act now!"),
+        "Original content should be preserved"
+    );
+}
+
+/// RI enabled + log_only=false + Anthropic format: warning label prepended.
+#[tokio::test]
+async fn test_ri_label_anthropic_format() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(PERSUASIVE_ANTHROPIC_RESPONSE)
+                .insert_header("content-type", "application/json"),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"messages":[{"role":"user","content":"hello"}]}"#,
+        ))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let text = json["content"][0]["text"].as_str().unwrap();
+
+    // Should have warning label prepended
+    assert!(
+        text.contains("OpenObscure"),
+        "Should contain OpenObscure label. Got: {}",
+        text
+    );
+    // Original content should still be present
+    assert!(
+        text.contains("Act now!"),
+        "Original content should be preserved"
+    );
+}
+
+/// RI enabled + log_only=false + OpenAI format: warning label prepended.
+#[tokio::test]
+async fn test_ri_label_openai_format() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/chat/completions"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(PERSUASIVE_OPENAI_RESPONSE)
+                .insert_header("content-type", "application/json"),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/chat/completions")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"messages":[{"role":"user","content":"hello"}]}"#,
+        ))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let text = json["choices"][0]["message"]["content"].as_str().unwrap();
+
+    assert!(
+        text.contains("OpenObscure"),
+        "Should contain OpenObscure label. Got: {}",
+        text
+    );
+    assert!(
+        text.contains("Act now!"),
+        "Original content should be preserved"
+    );
+}
+
+/// RI enabled + clean response: no warning label added.
+#[tokio::test]
+async fn test_ri_clean_response_no_label() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_string(CLEAN_ANTHROPIC_RESPONSE)
+                .insert_header("content-type", "application/json"),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"messages":[{"role":"user","content":"hello"}]}"#,
+        ))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    assert!(
+        !body.contains("OpenObscure"),
+        "Clean response should not get a label"
+    );
+    assert!(
+        body.contains("Python function"),
+        "Original content should be preserved"
+    );
 }

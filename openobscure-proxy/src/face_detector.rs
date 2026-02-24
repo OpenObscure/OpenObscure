@@ -115,10 +115,18 @@ impl FaceDetector {
 
         // Run inference — use dynamic input name to support different BlazeFace ONNX exports
         let input_name = self.session.inputs()[0].name().to_string();
-        let outputs = self
-            .session
-            .run(ort::inputs![input_name.as_str() => input_val])
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+        let outputs = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.session
+                .run(ort::inputs![input_name.as_str() => input_val])
+        })) {
+            Ok(Ok(out)) => out,
+            Ok(Err(e)) => return Err(ImageError::OnnxRuntime(e.to_string())),
+            Err(_) => {
+                return Err(ImageError::OnnxRuntime(
+                    "ONNX Runtime panicked during BlazeFace inference".to_string(),
+                ))
+            }
+        };
 
         // Decode outputs — BlazeFace produces two tensors:
         // [0]: regressors [1, num_anchors, 16] (bbox + landmarks)
@@ -356,10 +364,18 @@ impl ScrfdDetector {
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         let input_name = self.session.inputs()[0].name().to_string();
-        let outputs = self
-            .session
-            .run(ort::inputs![input_name.as_str() => input_val])
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+        let outputs = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.session
+                .run(ort::inputs![input_name.as_str() => input_val])
+        })) {
+            Ok(Ok(out)) => out,
+            Ok(Err(e)) => return Err(ImageError::OnnxRuntime(e.to_string())),
+            Err(_) => {
+                return Err(ImageError::OnnxRuntime(
+                    "ONNX Runtime panicked during SCRFD inference".to_string(),
+                ))
+            }
+        };
 
         // 9 outputs: score_8, score_16, score_32, bbox_8, bbox_16, bbox_32, kps_8, kps_16, kps_32
         // We only use scores and bboxes (indices 0-5). Keypoints (6-8) are ignored.
@@ -669,5 +685,48 @@ mod tests {
         let x_max = (500.0f32).min(400.0);
         assert_eq!(x_min, 0.0);
         assert_eq!(x_max, 400.0);
+    }
+
+    #[test]
+    fn test_catch_unwind_converts_panic_to_error() {
+        let result: Result<(), ImageError> = match std::panic::catch_unwind(
+            std::panic::AssertUnwindSafe(|| -> Result<(), ort::Error> {
+                panic!("simulated ONNX panic");
+            }),
+        ) {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(e)) => Err(ImageError::OnnxRuntime(e.to_string())),
+            Err(_) => Err(ImageError::OnnxRuntime(
+                "ONNX Runtime panicked during inference".to_string(),
+            )),
+        };
+        assert!(result.is_err());
+        assert!(matches!(&result, Err(ImageError::OnnxRuntime(msg)) if msg.contains("panicked")));
+    }
+
+    #[test]
+    fn test_catch_unwind_passes_normal_error() {
+        let result: Result<(), ImageError> =
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(
+                || -> Result<(), String> { Err("normal ONNX error".to_string()) },
+            )) {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err(e)) => Err(ImageError::OnnxRuntime(e)),
+                Err(_) => Err(ImageError::OnnxRuntime("panicked".to_string())),
+            };
+        assert!(result.is_err());
+        assert!(matches!(&result, Err(ImageError::OnnxRuntime(msg)) if msg.contains("normal")));
+    }
+
+    #[test]
+    fn test_catch_unwind_passes_success() {
+        let result: Result<i32, ImageError> = match std::panic::catch_unwind(
+            std::panic::AssertUnwindSafe(|| -> Result<i32, String> { Ok(42) }),
+        ) {
+            Ok(Ok(v)) => Ok(v),
+            Ok(Err(e)) => Err(ImageError::OnnxRuntime(e)),
+            Err(_) => Err(ImageError::OnnxRuntime("panicked".to_string())),
+        };
+        assert_eq!(result.unwrap(), 42);
     }
 }

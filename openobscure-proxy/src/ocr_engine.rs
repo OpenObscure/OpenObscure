@@ -161,10 +161,17 @@ impl OcrDetector {
         let input_val = ort::value::Value::from_array(input)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        let outputs = self
-            .session
-            .run(ort::inputs!["x" => input_val])
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+        let outputs = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.session.run(ort::inputs!["x" => input_val])
+        })) {
+            Ok(Ok(out)) => out,
+            Ok(Err(e)) => return Err(ImageError::OnnxRuntime(e.to_string())),
+            Err(_) => {
+                return Err(ImageError::OnnxRuntime(
+                    "ONNX Runtime panicked during OCR detection".to_string(),
+                ))
+            }
+        };
 
         // Output: probability map [1, 1, H, W]
         let (_shape, prob_data) = outputs[0]
@@ -263,10 +270,17 @@ impl OcrRecognizer {
             let input_val = ort::value::Value::from_array(input)
                 .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-            let outputs = self
-                .session
-                .run(ort::inputs!["x" => input_val])
-                .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+            let outputs = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                self.session.run(ort::inputs!["x" => input_val])
+            })) {
+                Ok(Ok(out)) => out,
+                Ok(Err(e)) => return Err(ImageError::OnnxRuntime(e.to_string())),
+                Err(_) => {
+                    return Err(ImageError::OnnxRuntime(
+                        "ONNX Runtime panicked during OCR recognition".to_string(),
+                    ))
+                }
+            };
 
             // Output: [1, seq_len, dict_size+2] logits
             let (out_shape, out_data) = outputs[0]

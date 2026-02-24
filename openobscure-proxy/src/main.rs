@@ -33,9 +33,11 @@ mod ner_scanner;
 mod nsfw_detector;
 mod ocr_engine;
 mod ort_ep;
+mod persuasion_dict;
 mod pii_scrub_layer;
 mod pii_types;
 mod proxy;
+mod response_integrity;
 mod scanner;
 mod screen_guard;
 mod server;
@@ -278,6 +280,29 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         None
     };
 
+    // Response integrity scanner (cognitive firewall)
+    let ri_scanner = if config.response_integrity.enabled {
+        let sensitivity: response_integrity::Sensitivity =
+            config.response_integrity.sensitivity.parse().unwrap();
+        if sensitivity == response_integrity::Sensitivity::Off {
+            oo_info!(
+                crate::oo_log::modules::RESPONSE_INTEGRITY,
+                "Response integrity enabled but sensitivity=off, scanner inactive"
+            );
+            None
+        } else {
+            let scanner = response_integrity::ResponseIntegrityScanner::new(sensitivity);
+            oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY,
+                "Response integrity scanner enabled",
+                sensitivity = %config.response_integrity.sensitivity,
+                log_only = config.response_integrity.log_only,
+                phrases = scanner.dict_count());
+            Some(Arc::new(scanner))
+        }
+    } else {
+        None
+    };
+
     // Build application state
     let state = AppState {
         config: Arc::new(config),
@@ -289,6 +314,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         health: HealthStats::new(),
         image_models,
         kws_engine,
+        response_integrity: ri_scanner,
     };
 
     // Resolve auth token for health endpoint

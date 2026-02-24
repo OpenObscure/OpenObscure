@@ -44,6 +44,15 @@ pii_scrub = true             # Scrub PII from log output (defense-in-depth)
 # crash_buffer = false       # mmap crash buffer for post-mortem debugging
 # crash_buffer_size = 2097152  # 2MB crash buffer
 
+# --- Response Integrity (Cognitive Firewall) ---
+# Scans LLM responses for persuasion/manipulation techniques (EU AI Act Article 5).
+# When enabled, detects urgency, scarcity, social proof, fear, authority, commercial,
+# and flattery patterns. Can log detections and/or prepend warning labels.
+# [response_integrity]
+# enabled = false
+# sensitivity = "medium"    # off, low, medium, high
+# log_only = true           # true = log only; false = prepend warning labels to responses
+
 # --- Provider Definitions ---
 # Each provider maps a local path prefix to an upstream API URL.
 # Auth headers from the host agent pass through unchanged — no duplicate key management.

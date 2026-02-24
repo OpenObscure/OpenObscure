@@ -32,6 +32,7 @@ pub mod modules {
     pub const SCREEN: &str = "screen_guard";
     pub const DEVICE: &str = "device_profile";
     pub const VOICE: &str = "voice_pipeline";
+    pub const RESPONSE_INTEGRITY: &str = "response_integrity";
     #[allow(dead_code)]
     pub const WATCHDOG: &str = "watchdog";
 }

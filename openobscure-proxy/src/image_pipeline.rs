@@ -108,6 +108,7 @@ pub struct ImageStats {
     pub is_screenshot: bool,
     pub nsfw_detected: bool,
     pub processing_ms: u64,
+    pub onnx_panics: u32,
 }
 
 /// On-demand image model manager.
@@ -266,6 +267,10 @@ impl ImageModelManager {
                             }
                         }
                         Err(e) => {
+                            if matches!(&e, ImageError::OnnxRuntime(msg) if msg.contains("panicked"))
+                            {
+                                stats.onnx_panics += 1;
+                            }
                             oo_warn!(crate::oo_log::modules::IMAGE, "NSFW detection failed (fail-open)", error = %e);
                         }
                     }
@@ -277,7 +282,7 @@ impl ImageModelManager {
         // Phase 1: Face detection + blur
         // Uses SCRFD (Full/Standard) or BlazeFace (Lite) based on config.face_model.
         if self.config.face_detection {
-            let faces = self.detect_faces(&dyn_img);
+            let faces = self.detect_faces(&dyn_img, &mut stats.onnx_panics);
 
             if !faces.is_empty() {
                 let (img_w, img_h) = (rgb.width(), rgb.height());
@@ -411,6 +416,10 @@ impl ImageModelManager {
                                                 );
                                             }
                                             Err(e) => {
+                                                if matches!(&e, ImageError::OnnxRuntime(msg) if msg.contains("panicked"))
+                                                {
+                                                    stats.onnx_panics += 1;
+                                                }
                                                 oo_warn!(crate::oo_log::modules::OCR,
                                                     "OCR recognition failed (fail-open)", error = %e);
                                             }
@@ -423,6 +432,10 @@ impl ImageModelManager {
                             }
                         }
                         Err(e) => {
+                            if matches!(&e, ImageError::OnnxRuntime(msg) if msg.contains("panicked"))
+                            {
+                                stats.onnx_panics += 1;
+                            }
                             oo_warn!(crate::oo_log::modules::OCR, "OCR detection failed (fail-open)", error = %e);
                         }
                     }
@@ -440,7 +453,7 @@ impl ImageModelManager {
     }
 
     /// Detect faces using the configured model (SCRFD or BlazeFace).
-    fn detect_faces(&self, img: &DynamicImage) -> Vec<FaceDetection> {
+    fn detect_faces(&self, img: &DynamicImage, onnx_panics: &mut u32) -> Vec<FaceDetection> {
         if self.config.face_model == "scrfd" {
             if let Some(ref dir) = self.config.face_model_dir_scrfd {
                 let mut guard = self
@@ -453,7 +466,7 @@ impl ImageModelManager {
                         Err(e) => {
                             oo_warn!(crate::oo_log::modules::FACE, "SCRFD load failed, falling back to BlazeFace", error = %e);
                             drop(guard);
-                            return self.detect_faces_blazeface(img);
+                            return self.detect_faces_blazeface(img, onnx_panics);
                         }
                     }
                 }
@@ -461,6 +474,10 @@ impl ImageModelManager {
                     match detector.detect(img) {
                         Ok(faces) => return faces,
                         Err(e) => {
+                            if matches!(&e, ImageError::OnnxRuntime(msg) if msg.contains("panicked"))
+                            {
+                                *onnx_panics += 1;
+                            }
                             oo_warn!(crate::oo_log::modules::FACE, "SCRFD detection failed (fail-open)", error = %e);
                         }
                     }
@@ -468,16 +485,20 @@ impl ImageModelManager {
                 drop(guard);
             } else {
                 // No SCRFD model dir configured, fall back to BlazeFace
-                return self.detect_faces_blazeface(img);
+                return self.detect_faces_blazeface(img, onnx_panics);
             }
         } else {
-            return self.detect_faces_blazeface(img);
+            return self.detect_faces_blazeface(img, onnx_panics);
         }
         Vec::new()
     }
 
     /// Detect faces using BlazeFace (fallback / Lite tier).
-    fn detect_faces_blazeface(&self, img: &DynamicImage) -> Vec<FaceDetection> {
+    fn detect_faces_blazeface(
+        &self,
+        img: &DynamicImage,
+        onnx_panics: &mut u32,
+    ) -> Vec<FaceDetection> {
         if let Some(ref dir) = self.config.face_model_dir {
             let mut guard = self.face_detector.lock().unwrap_or_else(|e| e.into_inner());
             if guard.is_none() {
@@ -493,6 +514,9 @@ impl ImageModelManager {
                 match detector.detect(img) {
                     Ok(faces) => return faces,
                     Err(e) => {
+                        if matches!(&e, ImageError::OnnxRuntime(msg) if msg.contains("panicked")) {
+                            *onnx_panics += 1;
+                        }
                         oo_warn!(crate::oo_log::modules::FACE, "BlazeFace detection failed (fail-open)", error = %e);
                     }
                 }
@@ -516,6 +540,12 @@ mod tests {
         let mut buf = Cursor::new(Vec::new());
         img.write_to(&mut buf, ImageFormat::Png).unwrap();
         buf.into_inner()
+    }
+
+    #[test]
+    fn test_image_stats_onnx_panics_default() {
+        let stats = ImageStats::default();
+        assert_eq!(stats.onnx_panics, 0);
     }
 
     #[test]

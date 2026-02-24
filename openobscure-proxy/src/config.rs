@@ -54,6 +54,8 @@ pub struct AppConfig {
     pub image: ImageConfig,
     #[serde(default)]
     pub voice: VoiceConfig,
+    #[serde(default)]
+    pub response_integrity: ResponseIntegrityConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -372,6 +374,43 @@ fn default_kws_threshold() -> f32 {
 }
 fn default_kws_score() -> f32 {
     3.0
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ResponseIntegrityConfig {
+    /// Enable response integrity scanning for persuasion/manipulation techniques (default: false).
+    /// When enabled, LLM responses are scanned for known persuasion patterns (urgency, scarcity,
+    /// authority appeals, etc.) and optionally labeled with warnings.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Sensitivity level: "off", "low", "medium", "high" (default: "medium").
+    /// - off: scanner disabled at scan level (even if enabled=true)
+    /// - low: only report WARNING/CAUTION severity (2+ categories or commercial+fear combos)
+    /// - medium: report all detections including NOTICE
+    /// - high: report all detections including NOTICE
+    #[serde(default = "default_ri_sensitivity")]
+    pub sensitivity: String,
+
+    /// Log-only mode (default: true).
+    /// When true, detected persuasion techniques are logged but responses are not modified.
+    /// When false, a warning label is prepended to the response content.
+    #[serde(default = "default_true")]
+    pub log_only: bool,
+}
+
+impl Default for ResponseIntegrityConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            sensitivity: default_ri_sensitivity(),
+            log_only: true,
+        }
+    }
+}
+
+fn default_ri_sensitivity() -> String {
+    "medium".to_string()
 }
 
 fn default_face_model() -> String {
@@ -884,6 +923,66 @@ route_prefix = "/test"
         )
         .unwrap();
         assert!(config.providers.is_empty());
+    }
+
+    // --- ResponseIntegrity ---
+
+    #[test]
+    fn test_response_integrity_defaults() {
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert!(!config.response_integrity.enabled);
+        assert_eq!(config.response_integrity.sensitivity, "medium");
+        assert!(config.response_integrity.log_only);
+    }
+
+    #[test]
+    fn test_response_integrity_overrides() {
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[response_integrity]
+enabled = true
+sensitivity = "high"
+log_only = false
+"#,
+        )
+        .unwrap();
+        assert!(config.response_integrity.enabled);
+        assert_eq!(config.response_integrity.sensitivity, "high");
+        assert!(!config.response_integrity.log_only);
+    }
+
+    #[test]
+    fn test_response_integrity_missing_section() {
+        // Missing [response_integrity] section should use defaults
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+port = 8080
+"#,
+        )
+        .unwrap();
+        assert!(!config.response_integrity.enabled);
+        assert_eq!(config.response_integrity.sensitivity, "medium");
+        assert!(config.response_integrity.log_only);
+    }
+
+    #[test]
+    fn test_response_integrity_sensitivity_values() {
+        for sensitivity in &["off", "low", "medium", "high"] {
+            let toml = format!(
+                r#"
+[proxy]
+
+[response_integrity]
+sensitivity = "{}"
+"#,
+                sensitivity
+            );
+            let config = AppConfig::from_toml(&toml).unwrap();
+            assert_eq!(config.response_integrity.sensitivity, *sensitivity);
+        }
     }
 
     // --- Custom patterns ---

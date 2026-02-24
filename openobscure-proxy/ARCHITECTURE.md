@@ -470,5 +470,6 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 
 ## Future Work
 
+- **Protection status header** — Inject `X-OpenObscure-Protection` response header (e.g. `pii=on; ri=on; image=on`) so upstream clients/UIs can display a "Privacy Protection ON" indicator
 - **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D, deferred)
 - **DeBERTa-v3-small NER** — potential TinyBERT upgrade for better domain-specific recall (if fine-tuned TinyBERT plateaus)

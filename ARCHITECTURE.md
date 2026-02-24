@@ -148,7 +148,7 @@ flowchart TB
             imgpipe --> ff1["FPE Encrypt"]
         end
         subgraph respath ["Response Path"]
-            decrypt["FPE Decrypt"]
+            decrypt["FPE Decrypt"] --> ri["Response Integrity"]
         end
     end
 
@@ -158,7 +158,7 @@ flowchart TB
     gateway -- "HTTP" --> reqpath
     ff1 -- "sanitized HTTPS" --> llm
     llm -- "response" --> decrypt
-    decrypt -- "decrypted" --> gateway
+    ri -- "labeled" --> gateway
 
     style gateway fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
     style l1box fill:#f0ebfa,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
@@ -174,6 +174,7 @@ flowchart TB
     style imgpipe fill:#545b64,stroke:#232F3E,color:#fff
     style ff1 fill:#545b64,stroke:#232F3E,color:#fff
     style decrypt fill:#545b64,stroke:#232F3E,color:#fff
+    style ri fill:#545b64,stroke:#232F3E,color:#fff
 ```
 
 ## Language Choices
@@ -194,7 +195,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE, decrypts ciphertexts in responses (SSE streaming supported). Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. |
+| **What it does** | **Request path:** Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE. Processes base64-encoded images (face blur, OCR text blur, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. **Response path:** Decrypts FPE ciphertexts in responses (SSE streaming supported). Scans for persuasion/manipulation techniques (response integrity cognitive firewall) and optionally prepends warning labels (EU AI Act Article 5 compliance). |
 | **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (NudeNet ONNX), faces in photos (SCRFD-2.5GF on Full/Standard, BlazeFace on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks (`voice` feature). |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged |
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). |
@@ -203,7 +204,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 994 (411 lib + 561 bin + 14 accuracy + 8 pipeline) |
+| **Tests** | 1,081 (459 lib + 622 bin) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -303,11 +304,13 @@ flowchart LR
 ```mermaid
 flowchart RL
     llm["LLM Provider"] --> proxy["L0 Proxy FPE decrypt"]
-    proxy --> agent["Host Agent"]
+    proxy --> ri["Response Integrity scan"]
+    ri --> agent["Host Agent"]
     agent --> user["User"]
 
     style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
     style proxy fill:#545b64,stroke:#232F3E,color:#fff
+    style ri fill:#545b64,stroke:#232F3E,color:#fff
     style agent fill:#3b48cc,stroke:#232F3E,color:#fff
     style user fill:#232F3E,stroke:#545b64,color:#fff
 ```
@@ -415,6 +418,7 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 | **Post-Phase 8** (complete) | **99%** | Tier-gated features — SCRFD-2.5GF face detection (Full/Standard), L1 NER via L0 endpoint, CoreML/NNAPI mobile EPs, PP-OCRv4 English OCR, 99.7% recall |
 | **Phase 9** (complete) | **99%** | Runtime hardware capability detection — device profiler auto-selects features based on RAM; mobile devices with 8GB+ get full NER + ensemble parity with gateway |
 | **Phase 10** (complete) | **99.5%** | Multilingual PII (9 languages, national ID validation), voice anonymization (KWS keyword spotting via sherpa-onnx Zipformer), mobile test apps (iOS + Android), UniFFI binding automation, TinyBERT fine-tuning dataset, OpenClaw `before_tool_call` preparation |
+| **Phase R1** (complete) | **99.5%** | Response integrity cognitive firewall — persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases), severity tiers (Notice/Warning/Caution), optional warning labels (EU AI Act Article 5), Anthropic + OpenAI format support |
 
 ## Project Layout
 
@@ -755,6 +759,74 @@ flowchart TB
 
 ---
 
+## Response Integrity — Cognitive Firewall (Phase R1)
+
+OpenObscure protects the **outbound path** (user PII encrypted before reaching LLM providers) and the **inbound path** (LLM responses scanned for manipulation before reaching users).
+
+**Why this matters:** Privacy tools typically stop at input sanitization — they protect what you send. But LLM providers control the response side: they can embed persuasion techniques (urgency, scarcity, false authority, fear appeals, commercial pressure) to influence user behavior. EU AI Act Article 5 prohibits such subliminal/manipulative techniques, but there is no enforcement mechanism at the user's endpoint. OpenObscure's cognitive firewall provides that enforcement — scanning every response before it reaches the user or agent.
+
+**Current approach (R1):** Pattern-based dictionary matching (~250 phrases across 7 categories). Sub-millisecond overhead, zero additional models, no false negatives on known phrases. This is a foundation — R2 will add semantic model-based analysis for context-aware detection and SSE streaming support.
+
+The response integrity scanner operates after FPE decryption on buffered (non-SSE) responses.
+
+```mermaid
+flowchart LR
+    llm["LLM Response"] --> decrypt["FPE Decrypt"]
+    decrypt --> extract["Extract text from JSON"]
+    extract --> scan["Persuasion Dict scan"]
+    scan -->|"clean"| pass["Pass through"]
+    scan -->|"flagged"| severity["Compute severity"]
+    severity -->|"log_only=true"| logonly["Log + pass through"]
+    severity -->|"log_only=false"| label["Prepend warning label"]
+
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    style decrypt fill:#545b64,stroke:#232F3E,color:#fff
+    style extract fill:#545b64,stroke:#232F3E,color:#fff
+    style scan fill:#545b64,stroke:#232F3E,color:#fff
+    style pass fill:#545b64,stroke:#232F3E,color:#fff
+    style severity fill:#545b64,stroke:#232F3E,color:#fff
+    style logonly fill:#545b64,stroke:#232F3E,color:#fff
+    style label fill:#545b64,stroke:#232F3E,color:#fff
+```
+
+**Detection categories** (mapped to Cialdini's persuasion principles):
+
+| Category | Examples | Principle |
+|----------|----------|-----------|
+| Urgency | "act now", "limited time", "don't wait" | Scarcity of time |
+| Scarcity | "only a few left", "exclusive offer", "selling fast" | Scarcity of supply |
+| Social Proof | "everyone is", "most popular", "trusted by millions" | Consensus |
+| Fear | "you could lose", "don't fall behind", "fomo" | Loss aversion |
+| Authority | "experts agree", "studies show", "clinically proven" | Authority |
+| Commercial | "best deal", "free trial", "buy now", "discount" | Commercial pressure |
+| Flattery | "smart choice", "you deserve", "people like you" | Liking |
+
+**Severity tiers:**
+
+| Tier | Trigger | Label |
+|------|---------|-------|
+| Notice | 1 category, 1-2 matches | `--- OpenObscure NOTICE ---` |
+| Warning | 2-3 categories or 3+ matches | `--- OpenObscure WARNING ---` |
+| Caution | 4+ categories or commercial+fear/urgency combo | `--- OpenObscure CAUTION ---` |
+
+**Configuration** (`[response_integrity]` section):
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `false` | Opt-in — zero impact when disabled |
+| `sensitivity` | `"medium"` | `off`/`low` (Warning+ only)/`medium`/`high` (all detections) |
+| `log_only` | `true` | When true, flags are logged but responses pass through unchanged. When false, warning labels are prepended to response content |
+
+**Key properties:**
+- **Opt-in, log-only default** — observe before acting, matches fail-open philosophy
+- **Fail-open** — JSON parse errors or unrecognized response formats forward unchanged
+- **Supports Anthropic and OpenAI response formats** — extracts text from `content[].text` or `choices[].message.content`
+- **SSE streaming deferred** — phrase matching across chunk boundaries needs an accumulation buffer (future R2 phase)
+- **~250 phrases** across 7 categories, HashSet O(1) lookup with 3→2→1 word scanning (longest match first)
+- **No new dependencies** — uses only std, serde_json, bytes, tracing (all already present)
+
+---
+
 ## Threat Model
 
 OpenObscure is designed for open-source distribution. Security follows **Kerckhoffs's principle** — the system is secure even when all source code, documentation, and algorithms are public. Security depends entirely on the secrecy of keys, never on code obscurity.
@@ -765,6 +837,7 @@ OpenObscure is designed for open-source distribution. Security follows **Kerckho
 |--------|-----------|-------|
 | PII leaking to LLM providers in API requests | FF1 FPE encryption of structured PII before request leaves device | L0 |
 | Visual PII in images (faces, text, EXIF) | NSFW full-image blur, face blur, OCR text blur, EXIF metadata stripping on base64 images | L0 |
+| LLM responses containing persuasion/manipulation techniques | Response integrity scanner detects urgency, scarcity, fear, authority, flattery patterns and prepends warning labels (EU AI Act Article 5) | L0 |
 | PII persisted in tool result transcripts | Regex redaction of PII in tool outputs before persistence | L1 |
 | Frequency analysis of FPE ciphertexts | Per-record tweaks (UUID + JSON path hash) produce unique ciphertexts for identical inputs | L0 |
 | API key exposure via proxy | Passthrough-first — keys are never stored or logged by OpenObscure | L0 |
@@ -847,7 +920,10 @@ Recently completed:
 - **Voice anonymization** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8), detects PII trigger phrases and strips matching audio blocks, `voice` feature flag — DONE (Phase 10D)
 - **Mobile test apps** — iOS (SwiftUI, 25 runner + 23 XCTest) and Android (Compose, 29 instrumented + 8 UI) — DONE (Phase 10A)
 - **`before_tool_call` preparation** — L1 plugin prepared handler that auto-activates when OpenClaw wires the hook — DONE (Phase 10F)
+- **Response integrity cognitive firewall** — Persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases, severity tiers, warning labels, EU AI Act Article 5) — DONE (Phase R1)
 
 Planned (future):
+- **Protection status header** — L0 injects `X-OpenObscure-Protection` response header (`pii=on; ri=on; image=on`) so L1 or any UI client can display a "Privacy Protection ON" indicator; header stripped before upstream forwarding
+- **Response integrity R2** — Semantic model for context-aware persuasion detection, SSE streaming support via accumulation buffer
 - **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D, deferred)
 - **Streaming redaction** — Incremental redaction for large tool results (blocked by OpenClaw's synchronous hook API)

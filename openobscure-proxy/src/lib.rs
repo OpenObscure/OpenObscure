@@ -1,6 +1,10 @@
 // Library target — exposes modules needed by criterion benchmarks and integration tests.
 // The main binary crate is in main.rs and owns all modules independently.
 
+// UniFFI scaffolding — must precede any module using UniFFI derive macros
+#[cfg(feature = "mobile")]
+uniffi::setup_scaffolding!();
+
 #[macro_use]
 pub mod oo_log;
 pub mod crf_scanner;
@@ -36,6 +40,10 @@ pub mod voice_pipeline;
 // ONNX Runtime execution provider configuration
 pub mod ort_ep;
 
+// Response integrity (cognitive firewall)
+pub mod persuasion_dict;
+pub mod response_integrity;
+
 // Detection verification framework
 pub mod detection_meta;
 pub mod detection_validators;
@@ -44,7 +52,3 @@ pub mod detection_validators;
 pub mod lib_mobile;
 #[cfg(feature = "mobile")]
 pub mod uniffi_bindings;
-
-// UniFFI scaffolding — must be at crate root for derive macros to find UniFfiTag
-#[cfg(feature = "mobile")]
-uniffi::setup_scaffolding!();

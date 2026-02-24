@@ -5,7 +5,7 @@
 
 **The Endpoint Privacy Firewall for AI Agents.**
 
-OpenObscure is an open-source privacy firewall that intercepts, sanitizes, and encrypts PII (Personally Identifiable Information) *before* it leaves your device. It works with any AI agent, on any platform. Includes first-class [OpenClaw](https://github.com/openclaw/openclaw) integration.
+OpenObscure is an open-source privacy firewall that intercepts, sanitizes, and encrypts PII (Personally Identifiable Information) *before* it leaves your device — and scans LLM responses for persuasion and manipulation techniques *before* they reach you. It works with any AI agent, on any platform. Includes first-class [OpenClaw](https://github.com/openclaw/openclaw) integration.
 
 > **Verify, Don't Trust.** OpenObscure runs entirely on your device. No remote servers, no telemetry, no cloud dependencies.
 
@@ -60,7 +60,7 @@ flowchart LR
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
 - **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin)
-- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), voice PII detection (KWS keyword spotting), SSE streaming
+- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face blur, OCR blur, EXIF strip), voice PII detection (KWS keyword spotting), response integrity (cognitive firewall), SSE streaming
 - **Use case:** Desktop apps, servers, VPS, Raspberry Pi — anywhere the agent's Gateway runs
 
 ### Embedded Model (Mobile / Library)
@@ -213,17 +213,19 @@ flowchart LR
         subgraph Proxy [" L0 Proxy Layer (Rust) "]
             direction TB
             scanner["<b>Hybrid Scanner</b>"]
-            
+
             subgraph Processing [" Transformation "]
                 direction LR
                 fpe["<b>FPE Encrypt</b>"]
                 img["<b>Image Pipeline</b>"]
             end
-            
+
+            ri["<b>Response Integrity</b><br/>(Cognitive Firewall)"]
+
             scanner --> fpe
             scanner --> img
         end
-        
+
         %% Connect Subgraphs
         Agent == "HTTP (Localhost)" ==> Proxy
     end
@@ -234,7 +236,8 @@ flowchart LR
 
     %% Network Connections
     Proxy == "HTTPS (PII Encrypted)" ==> llm
-    llm -. "Response (Ciphertexts)" .-> Proxy
+    llm -. "Response" .-> ri
+    ri -. "Labeled Response" .-> Proxy
 
     %% --- AWS STYLE STYLING ---
     
@@ -252,20 +255,21 @@ flowchart LR
     style scanner fill:#545b64,stroke:#232F3E,color:#fff
     style fpe fill:#545b64,stroke:#232F3E,color:#fff
     style img fill:#545b64,stroke:#232F3E,color:#fff
+    style ri fill:#c44569,stroke:#232F3E,color:#fff
 
     %% External Provider Styling
     style External fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
     style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 
     %% Link Styling
-    linkStyle 2 stroke:#3b48cc,stroke-width:3px
-    linkStyle 3 stroke:#ff9900,stroke-width:3px
+    linkStyle 3 stroke:#3b48cc,stroke-width:3px
     linkStyle 4 stroke:#ff9900,stroke-width:3px
+    linkStyle 5,6 stroke:#c44569,stroke-width:2px
 ```
 
 | Layer | Language | What it does |
 |-------|----------|-------------|
-| **L0** — PII Proxy | Rust | Intercepts HTTP traffic, scans JSON for PII (structured, network/device, semantic, keywords), encrypts with FF1 FPE or redacts. Processes images (face blur, OCR text blur, EXIF strip). |
+| **L0** — PII Proxy | Rust | **Request path:** scans JSON for PII (structured, network/device, semantic, keywords), encrypts with FF1 FPE or redacts. Processes images (face blur, OCR text blur, EXIF strip). **Response path:** decrypts FPE ciphertexts, scans for persuasion/manipulation techniques (cognitive firewall). |
 | **L1** — Gateway Plugin | TypeScript | Hooks tool results, redacts PII. Heartbeat monitor for L0 health. |
 
 For the full architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -366,6 +370,11 @@ ocr_enabled = true
 ocr_tier = "detect_and_blur"  # "detect_and_blur" or "full_recognition"
 max_dimension = 960
 
+[response_integrity]
+enabled = false               # Opt-in cognitive firewall
+sensitivity = "medium"        # off, low, medium, high
+log_only = true               # true = log only; false = prepend warning labels
+
 [logging]
 json_output = false
 pii_scrub = true
@@ -377,10 +386,10 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
-**1,060 tests** across all components (994 Rust proxy + 50 TypeScript plugin + 16 crypto).
+**1,147 tests** across all components (1,081 Rust proxy + 50 TypeScript plugin + 16 crypto).
 
 ```bash
-# L0 Proxy (994 tests)
+# L0 Proxy (1,081 tests)
 cd openobscure-proxy && cargo test
 
 # L1 Plugin (50 tests)
@@ -410,6 +419,7 @@ sequenceDiagram
     Note over L: LLM sees plausible data,<br/>never the real card number
     L->>P: "The card ending in 2483..."
     Note over P: FF1 decrypt → 1111
+    Note over P: Response integrity scan<br/>(cognitive firewall)
     P->>A: "The card ending in 1111..."
     A->>U: "The card ending in 1111..."
 ```
@@ -421,6 +431,7 @@ PII detection uses a hybrid approach:
 - **Keyword dictionary** (~700 terms) for health and child-related terms
 - **Image pipeline** (SCRFD/BlazeFace + PaddleOCR ONNX) for visual PII in photos
 - **Voice PII detection** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks
+- **Response integrity** (cognitive firewall) — scans LLM responses for persuasion/manipulation techniques (urgency, scarcity, social proof, fear, authority, commercial, flattery) and optionally prepends warning labels
 
 ---
 
@@ -482,6 +493,83 @@ Additional features:
 - **Fail-open**: If a model fails to load, the pipeline skips that step and forwards the image as-is
 - **Lazy loading**: Models are loaded on first use and evicted after idle timeout (default: 5 minutes)
 - **Memory ceiling**: Models are loaded sequentially (never all in RAM) to stay within the device's feature budget (up to 275MB)
+
+---
+
+## Response Integrity Protection (Cognitive Firewall)
+
+Most privacy tools focus on what you *send*. OpenObscure also protects what you *receive*.
+
+LLM providers can embed persuasion techniques in responses — urgency ("act now!"), false authority ("experts agree"), fear appeals ("you could lose everything"), commercial pressure ("limited-time offer") — to influence user behavior. [EU AI Act Article 5](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) explicitly prohibits subliminal and manipulative AI techniques, but no enforcement mechanism exists at the endpoint. OpenObscure's cognitive firewall fills that gap: it scans every LLM response for persuasion patterns across 7 categories (~250 phrases) and flags or labels responses before they reach the user.
+
+This is pattern-based detection today (R1), with semantic model-based analysis planned for R2. The dictionary approach is fast (sub-millisecond), has zero false negatives on known phrases, and requires no additional ML models.
+
+### How It Works
+
+```mermaid
+sequenceDiagram
+    participant A as AI Agent
+    participant P as OpenObscure Proxy
+    participant L as LLM Provider
+
+    A->>P: Request (PII encrypted)
+    P->>L: Forward to provider
+    L->>P: Response
+    Note over P: 1. FPE decrypt ciphertexts
+    Note over P: 2. Scan for persuasion phrases<br/>(~250 terms, 7 categories)
+    Note over P: 3. Compute severity tier
+    alt Persuasion detected & log_only=false
+        Note over P: Prepend warning label
+    end
+    P->>A: Response (labeled if flagged)
+```
+
+### Detection Categories
+
+| Category | Examples | What it catches |
+|----------|----------|-----------------|
+| **Urgency** | "act now", "limited time", "don't delay" | Artificial time pressure |
+| **Scarcity** | "only a few left", "selling fast", "almost gone" | False supply constraints |
+| **Social Proof** | "everyone is buying", "most popular", "trending" | Manufactured consensus |
+| **Fear** | "risk losing", "dangerous to ignore", "before it's too late" | Fear-based manipulation |
+| **Authority** | "experts agree", "studies show", "scientifically proven" | False authority claims |
+| **Commercial** | "best deal", "save money", "free trial" | Hidden commercial intent |
+| **Flattery** | "smart choice", "you deserve", "exclusive for you" | Ego-based manipulation |
+
+### Severity Tiers
+
+| Tier | Criteria | Action |
+|------|----------|--------|
+| **NOTICE** | 1 category, 1-2 matches | Log only (low confidence) |
+| **WARNING** | 2-3 categories or 3+ matches | Log + optional label |
+| **CAUTION** | 4+ categories or commercial+fear/urgency combo | Log + optional label |
+
+### Configuration
+
+```toml
+[response_integrity]
+enabled = true            # Enable the cognitive firewall
+sensitivity = "medium"    # off, low, medium, high
+log_only = true           # true = log detections; false = prepend warning labels
+```
+
+- **Disabled by default** — opt-in, zero overhead when off
+- **Log-only by default** — observe detections before deciding to modify responses
+- **Fail-open** — if response JSON can't be parsed, forward unchanged
+
+### Warning Label Example
+
+When `log_only = false` and persuasion is detected, a label is prepended to the response content:
+
+```
+--- OpenObscure WARNING ---
+Persuasion techniques detected: Urgency, Commercial, Social Proof
+---
+
+[original LLM response follows]
+```
+
+The label uses the severity tier name (NOTICE/WARNING/CAUTION) and lists the detected categories. The original response content is preserved in full.
 
 ---
 

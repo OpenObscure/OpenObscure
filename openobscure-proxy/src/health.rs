@@ -102,6 +102,9 @@ pub struct HealthStats {
     text_regions_total: Arc<AtomicU64>,
     nsfw_blocked_total: Arc<AtomicU64>,
     screenshots_detected_total: Arc<AtomicU64>,
+    ri_flags_total: Arc<AtomicU64>,
+    ri_scans_total: Arc<AtomicU64>,
+    onnx_panics_total: Arc<AtomicU64>,
     pub scan_latency: LatencyHistogram,
     pub request_latency: LatencyHistogram,
 }
@@ -117,6 +120,9 @@ impl HealthStats {
             text_regions_total: Arc::new(AtomicU64::new(0)),
             nsfw_blocked_total: Arc::new(AtomicU64::new(0)),
             screenshots_detected_total: Arc::new(AtomicU64::new(0)),
+            ri_flags_total: Arc::new(AtomicU64::new(0)),
+            ri_scans_total: Arc::new(AtomicU64::new(0)),
+            onnx_panics_total: Arc::new(AtomicU64::new(0)),
             scan_latency: LatencyHistogram::new(),
             request_latency: LatencyHistogram::new(),
         }
@@ -159,6 +165,16 @@ impl HealthStats {
             .fetch_add(count, Ordering::Relaxed);
     }
 
+    /// Record persuasion flags detected in a response.
+    pub fn record_ri_flags(&self, count: u64) {
+        self.ri_flags_total.fetch_add(count, Ordering::Relaxed);
+    }
+
+    /// Record a response integrity scan performed.
+    pub fn record_ri_scan(&self) {
+        self.ri_scans_total.fetch_add(1, Ordering::Relaxed);
+    }
+
     pub fn uptime_secs(&self) -> u64 {
         self.start_time.elapsed().as_secs()
     }
@@ -189,6 +205,23 @@ impl HealthStats {
 
     pub fn screenshots_detected_total(&self) -> u64 {
         self.screenshots_detected_total.load(Ordering::Relaxed)
+    }
+
+    pub fn ri_flags_total(&self) -> u64 {
+        self.ri_flags_total.load(Ordering::Relaxed)
+    }
+
+    pub fn ri_scans_total(&self) -> u64 {
+        self.ri_scans_total.load(Ordering::Relaxed)
+    }
+
+    /// Record an ONNX Runtime panic recovered via catch_unwind.
+    pub fn record_onnx_panic(&self) {
+        self.onnx_panics_total.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn onnx_panics_total(&self) -> u64 {
+        self.onnx_panics_total.load(Ordering::Relaxed)
     }
 }
 
@@ -230,6 +263,9 @@ pub struct HealthResponse {
     pub text_regions_total: u64,
     pub nsfw_blocked_total: u64,
     pub screenshots_detected_total: u64,
+    pub ri_flags_total: u64,
+    pub ri_scans_total: u64,
+    pub onnx_panics_total: u64,
     pub fpe_key_version: u32,
     pub scan_latency_p50_us: u64,
     pub scan_latency_p95_us: u64,
@@ -271,6 +307,9 @@ pub async fn health_handler(
         text_regions_total: stats.text_regions_total(),
         nsfw_blocked_total: stats.nsfw_blocked_total(),
         screenshots_detected_total: stats.screenshots_detected_total(),
+        ri_flags_total: stats.ri_flags_total(),
+        ri_scans_total: stats.ri_scans_total(),
+        onnx_panics_total: stats.onnx_panics_total(),
         fpe_key_version: health_state
             .key_version
             .load(std::sync::atomic::Ordering::Relaxed),
@@ -375,6 +414,15 @@ mod tests {
 
         assert_eq!(stats.pii_matches_total(), 8);
         assert_eq!(stats.requests_total(), 3);
+    }
+
+    #[test]
+    fn test_health_stats_onnx_panic() {
+        let stats = HealthStats::new();
+        assert_eq!(stats.onnx_panics_total(), 0);
+        stats.record_onnx_panic();
+        stats.record_onnx_panic();
+        assert_eq!(stats.onnx_panics_total(), 2);
     }
 
     #[test]

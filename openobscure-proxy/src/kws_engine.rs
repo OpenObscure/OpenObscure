@@ -193,50 +193,59 @@ impl KwsEngine {
             ));
         }
 
-        // Feed all audio samples (sherpa resamples internally if needed)
-        unsafe {
-            SherpaOnnxOnlineStreamAcceptWaveform(
-                stream,
-                sample_rate as i32,
-                pcm_samples.as_ptr(),
-                pcm_samples.len() as i32,
-            );
-            SherpaOnnxOnlineStreamInputFinished(stream);
-        }
+        // Feed audio + decode inside catch_unwind to recover from sherpa-onnx panics.
+        // The stream pointer is raw and must be destroyed regardless of outcome.
+        let spotter = self.spotter;
+        let decode_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            unsafe {
+                SherpaOnnxOnlineStreamAcceptWaveform(
+                    stream,
+                    sample_rate as i32,
+                    pcm_samples.as_ptr(),
+                    pcm_samples.len() as i32,
+                );
+                SherpaOnnxOnlineStreamInputFinished(stream);
+            }
 
-        // Decode loop — collect all keyword detections
-        let mut keywords = Vec::new();
+            let mut keywords = Vec::new();
 
-        unsafe {
-            while SherpaOnnxIsKeywordStreamReady(self.spotter, stream) == 1 {
-                SherpaOnnxDecodeKeywordStream(self.spotter, stream);
+            unsafe {
+                while SherpaOnnxIsKeywordStreamReady(spotter, stream) == 1 {
+                    SherpaOnnxDecodeKeywordStream(spotter, stream);
 
-                let result_ptr = SherpaOnnxGetKeywordResult(self.spotter, stream);
-                if !result_ptr.is_null() {
-                    let keyword_ptr = (*result_ptr).keyword;
-                    if !keyword_ptr.is_null() {
-                        let keyword_cstr = std::ffi::CStr::from_ptr(keyword_ptr);
-                        let keyword = keyword_cstr.to_string_lossy().to_string();
-                        if !keyword.is_empty() {
-                            keywords.push(keyword);
-                            // Reset stream to detect the next keyword
-                            SherpaOnnxResetKeywordStream(self.spotter, stream);
+                    let result_ptr = SherpaOnnxGetKeywordResult(spotter, stream);
+                    if !result_ptr.is_null() {
+                        let keyword_ptr = (*result_ptr).keyword;
+                        if !keyword_ptr.is_null() {
+                            let keyword_cstr = std::ffi::CStr::from_ptr(keyword_ptr);
+                            let keyword = keyword_cstr.to_string_lossy().to_string();
+                            if !keyword.is_empty() {
+                                keywords.push(keyword);
+                                SherpaOnnxResetKeywordStream(spotter, stream);
+                            }
                         }
+                        SherpaOnnxDestroyKeywordResult(result_ptr);
                     }
-                    SherpaOnnxDestroyKeywordResult(result_ptr);
                 }
             }
-        }
 
-        // Clean up the stream
+            keywords
+        }));
+
+        // Always destroy stream (even after panic recovery)
         unsafe {
             SherpaOnnxDestroyOnlineStream(stream);
         }
 
-        Ok(KwsResult {
-            pii_detected: !keywords.is_empty(),
-            keywords_found: keywords,
-        })
+        match decode_result {
+            Ok(keywords) => Ok(KwsResult {
+                pii_detected: !keywords.is_empty(),
+                keywords_found: keywords,
+            }),
+            Err(_) => Err(KwsError::InferenceError(
+                "sherpa-onnx panicked during keyword detection".to_string(),
+            )),
+        }
     }
 }
 
@@ -339,5 +348,20 @@ mod tests {
         };
         let result = KwsEngine::new(&config);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_kws_catch_unwind_pattern() {
+        let result: Result<Vec<String>, KwsError> =
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Vec<String> {
+                panic!("simulated sherpa panic");
+            })) {
+                Ok(keywords) => Ok(keywords),
+                Err(_) => Err(KwsError::InferenceError(
+                    "sherpa-onnx panicked during keyword detection".to_string(),
+                )),
+            };
+        assert!(result.is_err());
+        assert!(matches!(&result, Err(KwsError::InferenceError(msg)) if msg.contains("panicked")));
     }
 }

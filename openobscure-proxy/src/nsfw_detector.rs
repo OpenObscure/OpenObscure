@@ -118,10 +118,18 @@ impl NsfwDetector {
 
         // Run inference — use dynamic input name
         let input_name = self.session.inputs()[0].name().to_string();
-        let outputs = self
-            .session
-            .run(ort::inputs![input_name.as_str() => input_val])
-            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+        let outputs = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.session
+                .run(ort::inputs![input_name.as_str() => input_val])
+        })) {
+            Ok(Ok(out)) => out,
+            Ok(Err(e)) => return Err(ImageError::OnnxRuntime(e.to_string())),
+            Err(_) => {
+                return Err(ImageError::OnnxRuntime(
+                    "ONNX Runtime panicked during NSFW inference".to_string(),
+                ))
+            }
+        };
 
         // Output shape: [1, 22, 2100] — transpose to iterate candidates
         let (_shape, data) = outputs[0]
