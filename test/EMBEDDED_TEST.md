@@ -159,7 +159,7 @@ let config = MobileConfig {
 
 ## 4. Image Sanitization
 
-Process images for visual PII: face blur, OCR text blur, EXIF metadata strip.
+Process images for visual PII: face redaction, OCR text redaction, EXIF metadata strip.
 
 ```rust
 let config = MobileConfig {
@@ -174,7 +174,7 @@ let mobile = OpenObscureMobile::new(config, fpe_key).unwrap();
 let photo_bytes = std::fs::read("test_photo.jpg").unwrap();
 let sanitized = mobile.sanitize_image(&photo_bytes).unwrap();
 std::fs::write("sanitized_photo.jpg", &sanitized).unwrap();
-// Faces blurred, text regions blurred, EXIF stripped, output as JPEG
+// Faces solid-filled, text regions solid-filled, EXIF stripped, output as JPEG
 ```
 
 > **Note:** Image pipeline is optional on mobile. Set `image_enabled: true` and provide model directory paths. Without models, `sanitize_image()` returns `MobileError::ImageError`.

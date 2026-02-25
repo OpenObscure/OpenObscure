@@ -386,10 +386,10 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
-**~1,232 tests** across all components (1,166 Rust proxy + 50 TypeScript plugin + 16 crypto).
+**~1,254 tests** across all components (1,188 Rust proxy + 50 TypeScript plugin + 16 crypto).
 
 ```bash
-# L0 Proxy (1,166 tests)
+# L0 Proxy (1,188 tests: 500 lib + 666 bin + 14 accuracy + 8 pipeline)
 cd openobscure-proxy && cargo test
 
 # L1 Plugin (50 tests)

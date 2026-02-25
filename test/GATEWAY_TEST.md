@@ -315,8 +315,8 @@ curl -s -X POST http://127.0.0.1:18790/anthropic/v1/messages \
 1. Detect base64 image in JSON
 2. Decode to DynamicImage (EXIF metadata auto-stripped)
 3. Resize if exceeds `max_dimension` (default: 960px)
-4. Face blur — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces, applies Gaussian blur (sigma=25)
-5. OCR blur — PaddleOCR ONNX detects text regions, applies Gaussian blur (sigma=20)
+4. Face redaction — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces, applies solid-color fill
+5. OCR redaction — PaddleOCR ONNX detects text regions, applies solid-color fill
 6. NSFW check — NudeNet ONNX confidence score
 7. Screenshot detection — heuristics (solid color bars, pixel patterns)
 8. Re-encode to base64, substitute back into JSON
@@ -328,10 +328,8 @@ curl -s -X POST http://127.0.0.1:18790/anthropic/v1/messages \
 enabled = true
 face_detection = true
 ocr_enabled = true
-ocr_tier = "detect_and_blur"
+ocr_tier = "detect_and_fill"
 max_dimension = 960
-face_blur_sigma = 25.0
-text_blur_sigma = 20.0
 model_idle_timeout_secs = 300
 screen_guard = true
 exif_strip = true

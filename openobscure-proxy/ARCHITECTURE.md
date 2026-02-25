@@ -109,7 +109,7 @@ src/
 ├── face_detector.rs     SCRFD-2.5GF (Full/Standard, 640x640) + BlazeFace (Lite, 128x128) face detection
 ├── nsfw_detector.rs     NudeNet 320n ONNX NSFW/nudity detection (YOLOv8n, 320x320)
 ├── ocr_engine.rs        PaddleOCR PP-OCRv4 det+rec ONNX (text region detection, CTC decode)
-├── image_blur.rs        Gaussian blur for face and text regions (sub-image extract/paste)
+├── image_blur.rs        Solid-color fill for face and text regions (irreversible redaction)
 ├── screen_guard.rs      Screenshot heuristics (EXIF, resolution, status bar uniformity)
 ├── detection_meta.rs    BboxMeta, NsfwMeta, ScreenshotMeta detection metadata types
 ├── detection_validators.rs  Detection verification framework (bbox sanity, NSFW consistency)
@@ -157,9 +157,9 @@ src/
    │   a. Walk JSON tree for base64 image content blocks
    │      (Anthropic: type="image" + source.data, OpenAI: type="image_url" + data: URI)
    │   b. For each image: decode base64 → screen guard check → resize (960px max)
-   │   c. NSFW check: NudeNet 320n → if nudity detected, full-image blur (sigma=30), skip face/OCR
-   │   d. Face detection: SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) → NMS → Gaussian blur face regions
-   │   e. OCR: PaddleOCR PP-OCRv4 det → text regions → blur (Tier 1) or recognize+scan (Tier 2)
+   │   c. NSFW check: NudeNet 320n → if nudity detected, full-image solid fill, skip face/OCR
+   │   d. Face detection: SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) → NMS → solid-fill face regions
+   │   e. OCR: PaddleOCR PP-OCRv4 det → text regions → solid fill (Tier 1) or recognize+scan (Tier 2)
    │   f. Encode processed image → replace base64 in JSON
    │   g. Sequential model loading: face model dropped before OCR loaded
    │
@@ -301,7 +301,7 @@ The proxy only processes **JSON** request bodies:
 | Missing (no Content-Type header) | Process optimistically (common in API calls) |
 | `text/plain`, `multipart/*`, binary, etc. | Pass through without scanning |
 
-Non-JSON bodies are forwarded to upstream unchanged. Base64-encoded images within JSON bodies are detected and processed (face blur, OCR text blur, EXIF strip) before text PII scanning.
+Non-JSON bodies are forwarded to upstream unchanged. Base64-encoded images within JSON bodies are detected and processed (face solid-fill, OCR text solid-fill, EXIF strip) before text PII scanning.
 
 ## PII Statistics Logging
 
@@ -366,7 +366,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **1,166** (500 lib + 666 bin) |
+| Test count | — | **1,188** (500 lib + 666 bin + 14 accuracy + 8 pipeline) |
 
 ## Technology Stack
 
@@ -378,7 +378,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | TLS | rustls + hyper-rustls | Pure Rust, no OpenSSL dependency at link time |
 | FPE | fpe 0.6 (FF1) | NIST-approved, pure Rust, RustCrypto AES |
 | NER inference | ort 2.0 (ONNX Runtime) | TinyBERT INT8 + BlazeFace + PaddleOCR, cross-platform |
-| Image processing | image 0.25 | Decode/encode/resize/blur, pure Rust, strips EXIF |
+| Image processing | image 0.25 | Decode/encode/resize/solid-fill redaction, pure Rust, strips EXIF |
 | Base64 | base64 0.22 | Image content decode/encode |
 | EXIF reading | kamadak-exif 0.5 | Screenshot detection (pre-strip analysis) |
 | Regex | regex (RegexSet) | Linear time, multi-pattern in one pass |
@@ -445,8 +445,8 @@ PaddleOCR PP-OCRv4 text detection and recognition via ONNX Runtime.
 | Recognizer | rec_model.onnx (PP-OCRv4, ~10MB) | `[B, 3, 48, W]` cropped regions | Logits → CTC greedy decode with dictionary |
 
 **Two tiers:**
-- **DetectAndBlur (Tier 1, default):** Detect text regions → blur all. No recognition model needed.
-- **FullRecognition (Tier 2+):** Detect → recognize → scan text for PII → selectively blur PII regions.
+- **DetectAndFill (Tier 1, default):** Detect text regions → solid-fill all. No recognition model needed.
+- **FullRecognition (Tier 2+):** Detect → recognize → scan text for PII → selectively solid-fill PII regions.
 
 ### Screenshot Detection (`screen_guard.rs`)
 

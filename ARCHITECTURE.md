@@ -204,7 +204,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 1,166 (500 lib + 666 bin) |
+| **Tests** | 1,188 (500 lib + 666 bin + 14 accuracy + 8 pipeline) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -480,7 +480,12 @@ OpenObscure/
     ├── PHASE7_PLAN.md           Phase 7 plan (COMPLETE — 431 tests)
     ├── PHASE8_PLAN.md           Phase 8 plan (COMPLETE — 880 tests)
     ├── PHASE9_PLAN.md           Phase 9 plan (COMPLETE — 9A done, 9C dropped)
-    ├── PHASE10_PLAN.md          Phase 10 plan (COMPLETE — 1060 tests)
+    ├── PHASE10_PLAN.md          Phase 10 plan (COMPLETE — 1,060 tests)
+    ├── PHASE11_PLAN.md          Phase 11 plan (11A/B COMPLETE, 11C/D pending)
+    ├── PHASE12_PLAN.md          Phase 12 plan (COMPLETE — 1,166 tests, R2 cognitive firewall)
+    ├── FEATURE_PARITY.md        Feature comparison L0 vs L1
+    ├── TESTING_STRATEGY.md      Testing strategy and launch readiness
+    ├── COGNITIVE_FIREWALL.md    R1+R2 cognitive firewall design reference
     └── LOGGING_STRATEGY.md      Platform-specific logging strategy
 ```
 
