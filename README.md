@@ -197,7 +197,7 @@ OpenObscure uses a **Sidecar + Plugin** hybrid architecture (Gateway Model) to p
 
 ```mermaid
 flowchart LR
-    %% Direction and Grouping
+    %% Main Boundary
     subgraph Device [" User Device Boundary "]
         direction LR
         
@@ -211,11 +211,12 @@ flowchart LR
         end
 
         subgraph Proxy [" L0 Proxy Layer (Rust) "]
-            direction TB
+            direction LR
             scanner["<b>Hybrid Scanner</b>"]
 
             subgraph Processing [" Transformation "]
-                direction LR
+                %% Stack parallel processes vertically to save horizontal space
+                direction TB
                 fpe["<b>FPE Encrypt</b>"]
                 img["<b>Image Pipeline</b>"]
             end
@@ -226,8 +227,8 @@ flowchart LR
             scanner --> img
         end
 
-        %% Connect Subgraphs
-        Agent == "HTTP (Localhost)" ==> Proxy
+        %% Tighter bounding boxes by linking Node-to-Node
+        L1 == "HTTP (Localhost)" ==> scanner
     end
 
     subgraph External [" Public Cloud / SaaS "]
@@ -235,36 +236,43 @@ flowchart LR
     end
 
     %% Network Connections
-    Proxy == "HTTPS (PII Encrypted)" ==> llm
+    Processing == "HTTPS (PII Encrypted)" ==> llm
     llm -. "Response" .-> ri
-    ri -. "Labeled Response" .-> Proxy
+    
+    %% Fixed circular dependency: Link back to a node rather than a parent subgraph
+    ri -. "Labeled Response" .-> L1
 
     %% --- AWS STYLE STYLING ---
+    %% Replaced inline styles with classDefs for cleaner, maintainable code
     
-    %% Main Boundary
-    style Device fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
-    
-    %% Internal Subnets
-    style Agent fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
-    style Proxy fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
-    style Processing fill:#ffffff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
+    classDef device fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E;
+    classDef agent fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E;
+    classDef proxy fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E;
+    classDef processing fill:#ffffff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E;
+    classDef external fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E;
 
-    %% Node Styling
-    style tools fill:#3F4756,stroke:#545b64,color:#fff
-    style L1 fill:#9D7BED,stroke:#232F3E,color:#fff
-    style scanner fill:#545b64,stroke:#232F3E,color:#fff
-    style fpe fill:#545b64,stroke:#232F3E,color:#fff
-    style img fill:#545b64,stroke:#232F3E,color:#fff
-    style ri fill:#c44569,stroke:#232F3E,color:#fff
+    classDef toolNode fill:#3F4756,stroke:#545b64,color:#fff;
+    classDef l1Node fill:#9D7BED,stroke:#232F3E,color:#fff;
+    classDef standardNode fill:#545b64,stroke:#232F3E,color:#fff;
+    classDef riNode fill:#c44569,stroke:#232F3E,color:#fff;
+    classDef llmNode fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff;
 
-    %% External Provider Styling
-    style External fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    class Device device;
+    class Agent agent;
+    class Proxy proxy;
+    class Processing processing;
+    class External external;
 
-    %% Link Styling
-    linkStyle 3 stroke:#3b48cc,stroke-width:3px
-    linkStyle 4 stroke:#ff9900,stroke-width:3px
-    linkStyle 5,6 stroke:#c44569,stroke-width:2px
+    class tools toolNode;
+    class L1 l1Node;
+    class scanner,fpe,img standardNode;
+    class ri riNode;
+    class llm llmNode;
+
+    %% Link Styling (Counts match edge declarations from top to bottom)
+    linkStyle 3 stroke:#3b48cc,stroke-width:3px;
+    linkStyle 4 stroke:#ff9900,stroke-width:3px;
+    linkStyle 5,6 stroke:#c44569,stroke-width:2px;
 ```
 
 | Layer | Language | What it does |
