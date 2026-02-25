@@ -58,6 +58,8 @@ MAX_TIME_MS=0
 MAX_TIME_FILE=""
 PASS=0
 FAIL=0
+WARN=0
+RESULTS_JSON="[]"
 
 for file in "$CAT_INPUT"/*; do
   [[ -f "$file" ]] || continue
@@ -85,9 +87,11 @@ for file in "$CAT_INPUT"/*; do
       fi
     fi
     PASS=$((PASS + 1))
+    RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$filename" --arg d "${matches:-0} matches" '. + [{"name": $n, "status": "pass", "detail": $d}]')
   else
     echo "FAIL $filename"
     FAIL=$((FAIL + 1))
+    RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$filename" --arg d "gateway_file.sh failed" '. + [{"name": $n, "status": "fail", "detail": $d}]')
   fi
 
   TOTAL_FILES=$((TOTAL_FILES + 1))
@@ -108,3 +112,24 @@ echo "Total matches:  $TOTAL_MATCHES"
 echo "Timing:         ${TOTAL_TIME_MS}ms total (avg: ${AVG_TIME_MS}ms/file, max: ${MAX_TIME_MS}ms — ${MAX_TIME_FILE:-n/a})"
 echo "JSON results:   $CAT_OUTPUT/json/"
 echo "FPE redacted:   $CAT_OUTPUT/redacted/"
+
+# Write validation JSON
+jq -n \
+  --arg suite "gateway_${CATEGORY}" \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson total "$TOTAL_FILES" \
+  --argjson pass "$PASS" \
+  --argjson fail "$FAIL" \
+  --argjson warn "$WARN" \
+  --argjson skip 0 \
+  --argjson results "$RESULTS_JSON" \
+  '{
+    test_suite: $suite,
+    timestamp: $ts,
+    total: $total,
+    pass: $pass,
+    fail: $fail,
+    warn: $warn,
+    skip: $skip,
+    results: $results
+  }' > "$CAT_OUTPUT/gateway_category_validation.json"

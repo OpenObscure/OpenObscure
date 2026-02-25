@@ -61,6 +61,7 @@ let grandTotalFiles = 0;
 let grandTotalMatches = 0;
 let grandPass = 0;
 let grandFail = 0;
+const grandResults = [];
 
 // Purge previous embedded results
 console.log("Purging previous embedded results...");
@@ -149,9 +150,11 @@ for (const category of CATEGORIES) {
 
       catMatches += result.count;
       catPass++;
+      grandResults.push({ name: file, status: "pass", detail: `${result.count} matches` });
     } catch (err) {
       console.log(`  FAIL ${file} — ${err.message}`);
       catFail++;
+      grandResults.push({ name: file, status: "fail", detail: err.message });
     }
 
     grandTotalFiles++;
@@ -176,5 +179,18 @@ console.log(`  Elapsed:       ${elapsedSec}s`);
 console.log(`  JSON metadata:  test/data/output/*/json/`);
 console.log(`  Redacted files: test/data/output/*/redacted/`);
 console.log("============================================");
+
+// Write validation JSON
+const validationJson = {
+  test_suite: "embedded_all",
+  timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+  total: grandTotalFiles,
+  pass: grandPass,
+  fail: grandFail,
+  warn: 0,
+  skip: 0,
+  results: grandResults,
+};
+writeFileSync(join(OUTPUT_DIR, "embedded_all_validation.json"), JSON.stringify(validationJson, null, 2) + "\n");
 
 process.exit(grandFail > 0 ? 1 : 0);

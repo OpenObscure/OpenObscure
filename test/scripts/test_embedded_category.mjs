@@ -11,7 +11,7 @@
 // Categories: PII_Detection, Multilingual_PII, Code_Config_PII,
 //             Structured_Data_PII, Agent_Tool_Results
 
-import { readdirSync, statSync, readFileSync, rmSync, existsSync } from "fs";
+import { readdirSync, statSync, readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "fs";
 import { join, dirname, basename, extname } from "path";
 import { fileURLToPath } from "url";
 import { execFileSync } from "child_process";
@@ -70,6 +70,7 @@ let totalFiles = 0;
 let totalMatches = 0;
 let pass = 0;
 let fail = 0;
+const results = [];
 
 const files = readdirSync(catInput).filter((f) => {
   const ext = extname(f).toLowerCase();
@@ -93,9 +94,11 @@ for (const file of files) {
     totalMatches += result.total_matches;
     console.log(`OK  ${file} — ${result.total_matches} matches`);
     pass++;
+    results.push({ name: file, status: "pass", detail: `${result.total_matches} matches` });
   } catch (err) {
     console.log(`FAIL ${file} — ${err.message}`);
     fail++;
+    results.push({ name: file, status: "fail", detail: err.message });
   }
 
   totalFiles++;
@@ -110,3 +113,17 @@ console.log(`Failed:         ${fail}`);
 console.log(`Total matches:  ${totalMatches}`);
 console.log(`JSON results:   ${catOutput}/json/`);
 console.log(`Redacted files: ${catOutput}/redacted/`);
+
+// Write validation JSON
+mkdirSync(catOutput, { recursive: true });
+const validationJson = {
+  test_suite: `embedded_${category}`,
+  timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+  total: totalFiles,
+  pass,
+  fail,
+  warn: 0,
+  skip: 0,
+  results,
+};
+writeFileSync(join(catOutput, "embedded_category_validation.json"), JSON.stringify(validationJson, null, 2) + "\n");

@@ -294,6 +294,10 @@ TOTAL=0
 PII_FOUND=0
 CLEAN=0
 PASSTHRU=0
+PASS=0
+FAIL=0
+WARN=0
+RESULTS_JSON="[]"
 
 for file in "$INPUT_DIR"/*; do
   [[ -f "$file" ]] || continue
@@ -309,14 +313,31 @@ for file in "$INPUT_DIR"/*; do
   esac
 done
 
-# Count results
+# Count results and build validation entries
 for jf in "$OUTPUT_DIR"/json/*_audio.json; do
   [[ -f "$jf" ]] || continue
+  jf_name=$(jq -r '.file // "unknown"' "$jf" 2>/dev/null || echo "unknown")
   action=$(jq -r '.kws_results.action' "$jf" 2>/dev/null || echo "UNKNOWN")
   case "$action" in
-    PII_DETECTED) PII_FOUND=$((PII_FOUND + 1)) ;;
-    CLEAN) CLEAN=$((CLEAN + 1)) ;;
-    PASS-THRU) PASSTHRU=$((PASSTHRU + 1)) ;;
+    PII_DETECTED)
+      PII_FOUND=$((PII_FOUND + 1))
+      PASS=$((PASS + 1))
+      RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$jf_name" --arg d "PII detected" '. + [{"name": $n, "status": "pass", "detail": $d}]')
+      ;;
+    CLEAN)
+      CLEAN=$((CLEAN + 1))
+      PASS=$((PASS + 1))
+      RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$jf_name" --arg d "clean (no PII)" '. + [{"name": $n, "status": "pass", "detail": $d}]')
+      ;;
+    PASS-THRU)
+      PASSTHRU=$((PASSTHRU + 1))
+      WARN=$((WARN + 1))
+      RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$jf_name" --arg d "pass-through (no KWS)" '. + [{"name": $n, "status": "warn", "detail": $d}]')
+      ;;
+    *)
+      FAIL=$((FAIL + 1))
+      RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$jf_name" --arg d "unknown action: $action" '. + [{"name": $n, "status": "fail", "detail": $d}]')
+      ;;
   esac
 done
 
@@ -336,3 +357,25 @@ elif [[ "$PII_FOUND" -gt 0 ]]; then
 else
   echo "KWS active but no PII keywords detected in any audio."
 fi
+
+# Write validation JSON
+VALIDATION_TOTAL=$((PASS + FAIL + WARN))
+jq -n \
+  --arg suite "audio" \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson total "$VALIDATION_TOTAL" \
+  --argjson pass "$PASS" \
+  --argjson fail "$FAIL" \
+  --argjson warn "$WARN" \
+  --argjson skip 0 \
+  --argjson results "$RESULTS_JSON" \
+  '{
+    test_suite: $suite,
+    timestamp: $ts,
+    total: $total,
+    pass: $pass,
+    fail: $fail,
+    warn: $warn,
+    skip: $skip,
+    results: $results
+  }' > "$OUTPUT_DIR/audio_validation.json"

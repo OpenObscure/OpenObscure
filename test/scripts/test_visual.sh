@@ -325,6 +325,12 @@ if [[ -n "$SUBCATEGORY" ]]; then
   SUBCATEGORIES=("$SUBCATEGORY")
 fi
 
+PASS=0
+FAIL=0
+WARN=0
+VISUAL_TOTAL=0
+RESULTS_JSON="[]"
+
 # Purge previous visual results
 echo "Purging previous visual results..."
 rm -f "$OUTPUT_DIR"/json/*_visual.json 2>/dev/null || true
@@ -342,9 +348,25 @@ for subcat in "${SUBCATEGORIES[@]}"; do
 
   for file in "$subcat_dir"/*; do
     [[ -f "$file" ]] || continue
-    ext="${file##*.}"
+    fname=$(basename "$file")
+    ext="${fname##*.}"
     case "$ext" in
-      jpg|jpeg|png|gif|webp) test_image "$file" "$subcat" ;;
+      jpg|jpeg|png|gif|webp)
+        test_image "$file" "$subcat"
+        VISUAL_TOTAL=$((VISUAL_TOTAL + 1))
+        name_no_ext="${fname%.*}"
+        vj="$OUTPUT_DIR/json/${name_no_ext}_visual.json"
+        if [[ -f "$vj" ]]; then
+          http_code=$(jq '.http_status // 0' "$vj" 2>/dev/null || echo 0)
+          faces=$(jq '.pipeline_results.faces_redacted // 0' "$vj" 2>/dev/null || echo 0)
+          text_r=$(jq '.pipeline_results.text_regions_detected // 0' "$vj" 2>/dev/null || echo 0)
+          PASS=$((PASS + 1))
+          RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$fname" --arg d "HTTP $http_code, faces:$faces, text:$text_r" '. + [{"name": $n, "status": "pass", "detail": $d}]')
+        else
+          FAIL=$((FAIL + 1))
+          RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$fname" --arg d "no output JSON produced" '. + [{"name": $n, "status": "fail", "detail": $d}]')
+        fi
+        ;;
       *) echo "SKIP $(basename "$file") (non-image: .$ext)" ;;
     esac
   done
@@ -368,3 +390,24 @@ echo "NSFW blocked:         $TOTAL_NSFW"
 echo "Screenshots detected: $TOTAL_SCREENSHOTS"
 echo "JSON metadata:        $OUTPUT_DIR/json/"
 echo "Redacted images:      $OUTPUT_DIR/redacted/"
+
+# Write validation JSON
+jq -n \
+  --arg suite "visual" \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson total "$VISUAL_TOTAL" \
+  --argjson pass "$PASS" \
+  --argjson fail "$FAIL" \
+  --argjson warn "$WARN" \
+  --argjson skip 0 \
+  --argjson results "$RESULTS_JSON" \
+  '{
+    test_suite: $suite,
+    timestamp: $ts,
+    total: $total,
+    pass: $pass,
+    fail: $fail,
+    warn: $warn,
+    skip: $skip,
+    results: $results
+  }' > "$OUTPUT_DIR/visual_validation.json"

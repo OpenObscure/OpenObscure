@@ -27,6 +27,7 @@
 #   ./test/scripts/validate_results.sh --summary            # Summary only (no per-file output)
 #   ./test/scripts/validate_results.sh --json               # JSON report to stdout
 #   ./test/scripts/validate_results.sh --infrastructure     # Infrastructure test results
+#   ./test/scripts/validate_results.sh --validate-only      # Schema + input validation only
 
 set -euo pipefail
 
@@ -44,6 +45,7 @@ JSON_OUTPUT=false
 STRICT=false
 CHECK_REDACTED=false
 INFRASTRUCTURE=false
+VALIDATE_ONLY=false
 for arg in "$@"; do
   case "$arg" in
     --gateway-only) GATEWAY_ONLY=true ;;
@@ -52,11 +54,16 @@ for arg in "$@"; do
     --strict) STRICT=true ;;
     --check-redacted) CHECK_REDACTED=true ;;
     --infrastructure) INFRASTRUCTURE=true ;;
+    --validate-only) VALIDATE_ONLY=true ;;
   esac
 done
 
-# Verify required files exist (skip for infrastructure-only mode)
-if [[ "$INFRASTRUCTURE" == "true" && $GW_JSON_COUNT -eq 0 && $EM_JSON_COUNT -eq 0 ]]; then
+# Verify required files exist (skip for infrastructure-only or validate-only mode)
+GW_JSON_COUNT=${GW_JSON_COUNT:-0}
+EM_JSON_COUNT=${EM_JSON_COUNT:-0}
+if [[ "$VALIDATE_ONLY" == "true" ]]; then
+  : # Validate-only mode: no manifest/snapshot needed
+elif [[ "$INFRASTRUCTURE" == "true" && $GW_JSON_COUNT -eq 0 && $EM_JSON_COUNT -eq 0 ]]; then
   : # Infrastructure-only mode: no manifest/snapshot needed
 elif [[ "$STRICT" == "true" ]]; then
   if [[ ! -f "$SNAPSHOT" ]]; then
@@ -84,7 +91,9 @@ FAILURES=()
 WARNINGS=()
 
 # Mode label
-if [[ "$INFRASTRUCTURE" == "true" && "$STRICT" == "false" ]]; then
+if [[ "$VALIDATE_ONLY" == "true" ]]; then
+  MODE_LABEL="validate-only"
+elif [[ "$INFRASTRUCTURE" == "true" && "$STRICT" == "false" ]]; then
   MODE_LABEL="infrastructure"
 elif [[ "$STRICT" == "true" && "$INFRASTRUCTURE" == "true" ]]; then
   MODE_LABEL="strict+infrastructure"
@@ -159,6 +168,261 @@ print_timing_stats() {
 
   printf "  %-25s %5d  %8d  %8d  %8d  %8d  %8d\n" "$metric" "$count" "$min" "$avg" "$p50" "$p95" "$max"
 }
+
+# ─── Schema validation for *_validation.json files ───────────
+
+# validate_schema FILE
+# Validates that a *_validation.json file conforms to the expected schema.
+# Returns 0 on pass, 1 on failure. Prints diagnostics.
+validate_schema() {
+  local vfile="$1"
+  local fname
+  fname=$(basename "$vfile")
+  local errors=0
+
+  # 1. Valid JSON
+  if ! jq empty "$vfile" 2>/dev/null; then
+    printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" "invalid JSON"
+    return 1
+  fi
+
+  # 2. Required top-level fields with types
+  local suite ts total_v pass_v fail_v warn_v skip_v results_type
+
+  suite=$(jq -r '.test_suite // empty' "$vfile")
+  if [[ -z "$suite" ]]; then
+    printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" "missing or empty .test_suite"
+    errors=$((errors + 1))
+  fi
+
+  ts=$(jq -r '.timestamp // empty' "$vfile")
+  if [[ -z "$ts" ]]; then
+    printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" "missing .timestamp"
+    errors=$((errors + 1))
+  elif [[ ! "$ts" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]]; then
+    printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" ".timestamp not ISO 8601: $ts"
+    errors=$((errors + 1))
+  fi
+
+  for field in total pass fail warn skip; do
+    local val
+    val=$(jq ".$field // null" "$vfile")
+    if [[ "$val" == "null" ]]; then
+      printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" "missing .$field"
+      errors=$((errors + 1))
+    elif ! [[ "$val" =~ ^[0-9]+$ ]]; then
+      printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" ".$field not a non-negative integer: $val"
+      errors=$((errors + 1))
+    fi
+  done
+
+  results_type=$(jq -r '.results | type' "$vfile" 2>/dev/null)
+  if [[ "$results_type" != "array" ]]; then
+    printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" ".results is not an array (got $results_type)"
+    errors=$((errors + 1))
+  fi
+
+  # Stop here if structural errors found
+  [[ $errors -gt 0 ]] && return 1
+
+  # 3. Counter consistency
+  total_v=$(jq '.total' "$vfile")
+  pass_v=$(jq '.pass' "$vfile")
+  fail_v=$(jq '.fail' "$vfile")
+  warn_v=$(jq '.warn' "$vfile")
+  skip_v=$(jq '.skip' "$vfile")
+  local counter_sum=$((pass_v + fail_v + warn_v + skip_v))
+  if [[ "$counter_sum" -ne "$total_v" ]]; then
+    printf "  \033[33mSCHEMA WARN\033[0m  %-40s  %s\n" "$fname" "counter sum ($counter_sum) != total ($total_v)"
+  fi
+
+  # 4. Array length consistency
+  local arr_len
+  arr_len=$(jq '.results | length' "$vfile")
+  if [[ "$arr_len" -ne "$total_v" ]]; then
+    printf "  \033[33mSCHEMA WARN\033[0m  %-40s  %s\n" "$fname" "results length ($arr_len) != total ($total_v)"
+  fi
+
+  # 5. Validate each result entry
+  local entry_errors=0
+  local entry_count
+  entry_count=$(jq '.results | length' "$vfile")
+  for ((i = 0; i < entry_count; i++)); do
+    local ename estatus edetail
+    ename=$(jq -r ".results[$i].name // empty" "$vfile")
+    estatus=$(jq -r ".results[$i].status // empty" "$vfile")
+    edetail=$(jq -r ".results[$i].detail // empty" "$vfile")
+
+    if [[ -z "$ename" ]]; then
+      printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" "results[$i] missing .name"
+      entry_errors=$((entry_errors + 1))
+    fi
+    if [[ -z "$estatus" ]]; then
+      printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" "results[$i] missing .status"
+      entry_errors=$((entry_errors + 1))
+    elif [[ "$estatus" != "pass" && "$estatus" != "fail" && "$estatus" != "warn" && "$estatus" != "skip" ]]; then
+      printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" "results[$i].status invalid: $estatus"
+      entry_errors=$((entry_errors + 1))
+    fi
+    if [[ -z "$edetail" ]]; then
+      printf "  \033[31mSCHEMA FAIL\033[0m  %-40s  %s\n" "$fname" "results[$i] missing .detail"
+      entry_errors=$((entry_errors + 1))
+    fi
+  done
+
+  [[ $entry_errors -gt 0 ]] && return 1
+  return 0
+}
+
+# validate_test_scripts
+# Checks that each expected infrastructure test script exists, is executable,
+# has a proper shebang, creates its output directory, and writes validation JSON.
+validate_test_scripts() {
+  local scripts_dir="$SCRIPT_DIR"
+  local expected_scripts=(
+    test_health.sh
+    test_auth.sh
+    test_body_limits.sh
+    test_device_tier.sh
+    test_fail_mode.sh
+    test_key_rotation.sh
+    test_response_integrity.sh
+    test_sse_streaming.sh
+    test_gateway_category.sh
+    test_agent_json.sh
+    test_audio.sh
+    test_visual.sh
+  )
+  local input_pass=0
+  local input_fail=0
+
+  for script_name in "${expected_scripts[@]}"; do
+    local script_path="$scripts_dir/$script_name"
+
+    if [[ ! -f "$script_path" ]]; then
+      printf "  \033[31mFAIL\033[0m  %-40s  %s\n" "$script_name" "file not found"
+      input_fail=$((input_fail + 1))
+      continue
+    fi
+
+    if [[ ! -x "$script_path" ]]; then
+      printf "  \033[31mFAIL\033[0m  %-40s  %s\n" "$script_name" "not executable"
+      input_fail=$((input_fail + 1))
+      continue
+    fi
+
+    local shebang
+    shebang=$(head -1 "$script_path")
+    if [[ "$shebang" != "#!/usr/bin/env bash" && "$shebang" != "#!/usr/bin/env node" && "$shebang" != "#!/bin/bash" ]]; then
+      printf "  \033[31mFAIL\033[0m  %-40s  %s\n" "$script_name" "bad shebang: $shebang"
+      input_fail=$((input_fail + 1))
+      continue
+    fi
+
+    if ! grep -q 'mkdir -p' "$script_path"; then
+      printf "  \033[33mWARN\033[0m  %-40s  %s\n" "$script_name" "no mkdir -p for output directory"
+    fi
+
+    if ! grep -q '_validation\.json' "$script_path"; then
+      printf "  \033[31mFAIL\033[0m  %-40s  %s\n" "$script_name" "does not write _validation.json"
+      input_fail=$((input_fail + 1))
+      continue
+    fi
+
+    printf "  \033[32mPASS\033[0m  %-40s  %s\n" "$script_name" "exists, executable, valid structure"
+    input_pass=$((input_pass + 1))
+  done
+
+  echo ""
+  printf "  Input validation: %d passed, %d failed (%d scripts)\n" "$input_pass" "$input_fail" "${#expected_scripts[@]}"
+  return $input_fail
+}
+
+# ─── --validate-only: schema + input checks, then exit ────────
+
+if [[ "$VALIDATE_ONLY" == "true" ]]; then
+  V_PASS=0
+  V_FAIL=0
+  V_TOTAL=0
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo "============================================"
+    echo "  OpenObscure Validation Schema Checker"
+    echo "  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "============================================"
+    echo ""
+    echo "--- Input Validation (test scripts) ---"
+  fi
+
+  INPUT_FAIL=0
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    validate_test_scripts || INPUT_FAIL=$?
+  else
+    validate_test_scripts > /dev/null 2>&1 || INPUT_FAIL=$?
+  fi
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo ""
+    echo "--- Output Validation (*_validation.json) ---"
+  fi
+
+  SCHEMA_FOUND=0
+  while IFS= read -r vfile; do
+    [[ -f "$vfile" ]] || continue
+    SCHEMA_FOUND=$((SCHEMA_FOUND + 1))
+    V_TOTAL=$((V_TOTAL + 1))
+    if validate_schema "$vfile"; then
+      V_PASS=$((V_PASS + 1))
+      if [[ "$JSON_OUTPUT" == "false" ]]; then
+        printf "  \033[32mPASS\033[0m  %-40s  %s\n" "$(basename "$vfile")" "schema valid"
+      fi
+    else
+      V_FAIL=$((V_FAIL + 1))
+    fi
+  done < <(find "$OUTPUT_DIR" -name "*_validation.json" -type f 2>/dev/null | sort)
+
+  if [[ "$SCHEMA_FOUND" -eq 0 && "$JSON_OUTPUT" == "false" ]]; then
+    echo "  No *_validation.json files found. Run infrastructure tests first."
+  fi
+
+  TOTAL_FAIL=$((V_FAIL + INPUT_FAIL))
+
+  if [[ "$JSON_OUTPUT" == "true" ]]; then
+    jq -n \
+      --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+      --arg mode "validate-only" \
+      --argjson schema_pass "$V_PASS" \
+      --argjson schema_fail "$V_FAIL" \
+      --argjson schema_total "$V_TOTAL" \
+      --argjson input_fail "$INPUT_FAIL" \
+      --arg result "$(if [[ $TOTAL_FAIL -gt 0 ]]; then echo "FAIL"; else echo "PASS"; fi)" \
+      '{
+        timestamp: $ts,
+        mode: $mode,
+        result: $result,
+        schema_pass: $schema_pass,
+        schema_fail: $schema_fail,
+        schema_total: $schema_total,
+        input_failures: $input_fail
+      }'
+  else
+    echo ""
+    echo "============================================"
+    if [[ $TOTAL_FAIL -eq 0 ]]; then
+      printf "  Result: \033[32mALL PASS\033[0m (validate-only)\n"
+    else
+      printf "  Result: \033[31mFAIL\033[0m (validate-only)\n"
+    fi
+    printf "  Schema:  %d / %d passed\n" "$V_PASS" "$V_TOTAL"
+    printf "  Input:   %d failures\n" "$INPUT_FAIL"
+    echo "============================================"
+  fi
+
+  if [[ $TOTAL_FAIL -gt 0 ]]; then
+    exit 1
+  fi
+  exit 0
+fi
 
 # ─── Header ───────────────────────────────────────────────────
 
@@ -878,7 +1142,6 @@ fi
 
 if [[ "$INFRASTRUCTURE" == "true" ]]; then
 
-  INFRA_DIRS=(health auth device_tier body_limits fail_mode key_rotation ri sse)
   INFRA_TOTAL=0
   INFRA_PASS=0
   INFRA_FAIL=0
@@ -891,54 +1154,64 @@ if [[ "$INFRASTRUCTURE" == "true" ]]; then
     echo "--- Infrastructure Test Results ---"
   fi
 
-  for dir_name in "${INFRA_DIRS[@]}"; do
-    validation_dir="$OUTPUT_DIR/$dir_name"
-    [[ -d "$validation_dir" ]] || continue
+  while IFS= read -r vfile; do
+    [[ -f "$vfile" ]] || continue
+    INFRA_FOUND=$((INFRA_FOUND + 1))
 
-    for vfile in "$validation_dir"/*_validation.json; do
-      [[ -f "$vfile" ]] || continue
-      INFRA_FOUND=$((INFRA_FOUND + 1))
+    dir_name=$(basename "$(dirname "$vfile")")
 
-      suite_name=$(jq -r '.test_suite // "unknown"' "$vfile")
-      suite_pass=$(jq '.pass // 0' "$vfile")
-      suite_fail=$(jq '.fail // 0' "$vfile")
-      suite_warn=$(jq '.warn // 0' "$vfile")
-      suite_skip=$(jq '.skip // 0' "$vfile")
-      suite_total=$(jq '.total // 0' "$vfile")
-
-      INFRA_PASS=$((INFRA_PASS + suite_pass))
-      INFRA_FAIL=$((INFRA_FAIL + suite_fail))
-      INFRA_WARN=$((INFRA_WARN + suite_warn))
-      INFRA_SKIP=$((INFRA_SKIP + suite_skip))
-      INFRA_TOTAL=$((INFRA_TOTAL + suite_total))
-
-      # Add to global counters
-      PASS=$((PASS + suite_pass))
-      FAIL=$((FAIL + suite_fail))
-      WARN=$((WARN + suite_warn))
-      SKIP=$((SKIP + suite_skip))
-      TOTAL=$((TOTAL + suite_total))
-
+    # Schema validation: skip file if malformed
+    if ! validate_schema "$vfile" > /dev/null 2>&1; then
+      INFRA_FAIL=$((INFRA_FAIL + 1))
+      FAIL=$((FAIL + 1))
+      TOTAL=$((TOTAL + 1))
+      INFRA_TOTAL=$((INFRA_TOTAL + 1))
+      FAILURES+=("$dir_name: schema validation failed for $(basename "$vfile")")
       if [[ "$SUMMARY_ONLY" == "false" && "$JSON_OUTPUT" == "false" ]]; then
-        if [[ "$suite_fail" -eq 0 ]]; then
-          printf "  \033[32mPASS\033[0m  %-45s  %d/%d passed" "$suite_name" "$suite_pass" "$suite_total"
-        else
-          printf "  \033[31mFAIL\033[0m  %-45s  %d/%d passed, %d failed" "$suite_name" "$suite_pass" "$suite_total" "$suite_fail"
-        fi
-        [[ "$suite_warn" -gt 0 ]] && printf ", %d warnings" "$suite_warn"
-        echo ""
+        printf "  \033[31mFAIL\033[0m  %-45s  %s\n" "$dir_name" "schema validation failed: $(basename "$vfile")"
       fi
+      continue
+    fi
 
-      # Add individual failures to the FAILURES array
-      if [[ "$suite_fail" -gt 0 ]]; then
-        while IFS= read -r result_line; do
-          result_name=$(echo "$result_line" | jq -r '.name')
-          result_detail=$(echo "$result_line" | jq -r '.detail')
-          FAILURES+=("$suite_name/$result_name: $result_detail")
-        done < <(jq -c '.results[] | select(.status == "fail")' "$vfile" 2>/dev/null)
+    suite_name=$(jq -r '.test_suite // "unknown"' "$vfile")
+    suite_pass=$(jq '.pass // 0' "$vfile")
+    suite_fail=$(jq '.fail // 0' "$vfile")
+    suite_warn=$(jq '.warn // 0' "$vfile")
+    suite_skip=$(jq '.skip // 0' "$vfile")
+    suite_total=$(jq '.total // 0' "$vfile")
+
+    INFRA_PASS=$((INFRA_PASS + suite_pass))
+    INFRA_FAIL=$((INFRA_FAIL + suite_fail))
+    INFRA_WARN=$((INFRA_WARN + suite_warn))
+    INFRA_SKIP=$((INFRA_SKIP + suite_skip))
+    INFRA_TOTAL=$((INFRA_TOTAL + suite_total))
+
+    # Add to global counters
+    PASS=$((PASS + suite_pass))
+    FAIL=$((FAIL + suite_fail))
+    WARN=$((WARN + suite_warn))
+    SKIP=$((SKIP + suite_skip))
+    TOTAL=$((TOTAL + suite_total))
+
+    if [[ "$SUMMARY_ONLY" == "false" && "$JSON_OUTPUT" == "false" ]]; then
+      if [[ "$suite_fail" -eq 0 ]]; then
+        printf "  \033[32mPASS\033[0m  %-45s  %d/%d passed" "$suite_name" "$suite_pass" "$suite_total"
+      else
+        printf "  \033[31mFAIL\033[0m  %-45s  %d/%d passed, %d failed" "$suite_name" "$suite_pass" "$suite_total" "$suite_fail"
       fi
-    done
-  done
+      [[ "$suite_warn" -gt 0 ]] && printf ", %d warnings" "$suite_warn"
+      echo ""
+    fi
+
+    # Add individual failures to the FAILURES array
+    if [[ "$suite_fail" -gt 0 ]]; then
+      while IFS= read -r result_line; do
+        result_name=$(echo "$result_line" | jq -r '.name')
+        result_detail=$(echo "$result_line" | jq -r '.detail')
+        FAILURES+=("$suite_name/$result_name: $result_detail")
+      done < <(jq -c '.results[] | select(.status == "fail")' "$vfile" 2>/dev/null)
+    fi
+  done < <(find "$OUTPUT_DIR" -name "*_validation.json" -type f 2>/dev/null | sort)
 
   if [[ "$JSON_OUTPUT" == "false" ]]; then
     if [[ $INFRA_FOUND -eq 0 ]]; then

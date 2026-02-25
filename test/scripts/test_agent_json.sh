@@ -235,9 +235,23 @@ else
   echo ""
 
   total=0
+  pass_count=0
+  fail_count=0
+  RESULTS_JSON="[]"
+
   for file in "$INPUT_DIR"/*.json; do
     [[ -f "$file" ]] || continue
-    test_file "$file"
+    fname=$(basename "$file")
+    if test_file "$file"; then
+      pass_count=$((pass_count + 1))
+      name_no_ext="${fname%.*}"
+      jf="$OUTPUT_DIR/json/${name_no_ext}_gateway.json"
+      matches=$(jq '.total_matches // 0' "$jf" 2>/dev/null || echo 0)
+      RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$fname" --arg d "$matches matches" '. + [{"name": $n, "status": "pass", "detail": $d}]')
+    else
+      fail_count=$((fail_count + 1))
+      RESULTS_JSON=$(echo "$RESULTS_JSON" | jq --arg n "$fname" --arg d "test_file failed" '. + [{"name": $n, "status": "fail", "detail": $d}]')
+    fi
     total=$((total + 1))
   done
 
@@ -245,4 +259,25 @@ else
   echo "Tested $total files."
   echo "JSON metadata:  $OUTPUT_DIR/json/"
   echo "FPE redacted:   $OUTPUT_DIR/redacted/"
+
+  # Write validation JSON
+  jq -n \
+    --arg suite "agent_json" \
+    --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --argjson total "$total" \
+    --argjson pass "$pass_count" \
+    --argjson fail "$fail_count" \
+    --argjson warn 0 \
+    --argjson skip 0 \
+    --argjson results "$RESULTS_JSON" \
+    '{
+      test_suite: $suite,
+      timestamp: $ts,
+      total: $total,
+      pass: $pass,
+      fail: $fail,
+      warn: $warn,
+      skip: $skip,
+      results: $results
+    }' > "$OUTPUT_DIR/agent_json_validation.json"
 fi
