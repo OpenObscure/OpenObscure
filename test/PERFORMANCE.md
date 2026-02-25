@@ -293,9 +293,9 @@ FPE operates in the low-microsecond range — negligible relative to scan and im
 | Component | Documented Latency | Notes |
 |---|---|---|
 | **R1 Persuasion Dictionary** | <1ms | Pattern matching, runs on every response |
-| **R2 TinyBERT Classifier** | ~30ms | FP32 ONNX, conditional cascade based on sensitivity |
+| **R2 TinyBERT Classifier** | ~30ms | FP32 ONNX, runs on every response (default: high) |
 
-> R2 activation: `high` = every response; `medium` = R1 flags + 10% sample;
+> R2 activation: `high` (default) = every response; `medium` = R1 flags + 10% sample;
 > `low` = R1 flags only; `off` = skip all.
 
 ---

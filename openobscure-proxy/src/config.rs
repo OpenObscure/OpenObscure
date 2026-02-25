@@ -421,10 +421,10 @@ pub struct ResponseIntegrityConfig {
     #[serde(default)]
     pub enabled: bool,
 
-    /// Sensitivity level: "off", "low", "medium", "high" (default: "medium").
+    /// Sensitivity level: "off", "low", "medium", "high" (default: "high").
     /// - off: scanner disabled at scan level (even if enabled=true)
     /// - low: only report WARNING/CAUTION severity (2+ categories or commercial+fear combos)
-    /// - medium: report all detections including NOTICE
+    /// - medium: report all detections including NOTICE, R2 on sample + R1 flags
     /// - high: report all detections including NOTICE, R2 scans all responses
     #[serde(default = "default_ri_sensitivity")]
     pub sensitivity: String,
@@ -475,7 +475,7 @@ impl Default for ResponseIntegrityConfig {
 }
 
 fn default_ri_sensitivity() -> String {
-    "medium".to_string()
+    "high".to_string()
 }
 fn default_ri_threshold() -> f32 {
     0.55
@@ -1015,7 +1015,7 @@ route_prefix = "/test"
     fn test_response_integrity_defaults() {
         let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
         assert!(!config.response_integrity.enabled);
-        assert_eq!(config.response_integrity.sensitivity, "medium");
+        assert_eq!(config.response_integrity.sensitivity, "high");
         assert!(config.response_integrity.log_only);
         assert!(config.response_integrity.ri_model_dir.is_none());
         assert_eq!(config.response_integrity.ri_threshold, 0.55);
@@ -1066,7 +1066,7 @@ port = 8080
         )
         .unwrap();
         assert!(!config.response_integrity.enabled);
-        assert_eq!(config.response_integrity.sensitivity, "medium");
+        assert_eq!(config.response_integrity.sensitivity, "high");
         assert!(config.response_integrity.log_only);
         assert!(config.response_integrity.ri_model_dir.is_none());
     }

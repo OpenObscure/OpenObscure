@@ -510,7 +510,7 @@ Most privacy tools focus on what you *send*. OpenObscure also protects what you 
 
 LLM providers can embed persuasion techniques in responses — urgency ("act now!"), false authority ("experts agree"), fear appeals ("you could lose everything"), commercial pressure ("limited-time offer") — to influence user behavior. [EU AI Act Article 5](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) explicitly prohibits subliminal and manipulative AI techniques, but no enforcement mechanism exists at the endpoint. OpenObscure's cognitive firewall fills that gap: it scans every LLM response for persuasion patterns across 7 categories (~250 phrases) and flags or labels responses before they reach the user.
 
-Detection uses a two-tier cascade: R1 (pattern-based dictionary, <1ms) runs on every response, and R2 (TinyBERT FP32 multi-label classifier, ~30ms) runs conditionally based on sensitivity level to confirm, suppress, or upgrade R1 detections — or discover manipulation that R1 alone cannot detect.
+Detection uses a two-tier cascade: R1 (pattern-based dictionary, <1ms) and R2 (TinyBERT FP32 multi-label classifier, ~30ms) both run on every response by default. R2 confirms, suppresses, or upgrades R1 detections — and discovers manipulation that R1 alone cannot detect.
 
 ### How It Works
 
@@ -525,12 +525,10 @@ sequenceDiagram
     L->>P: Response
     Note over P: 1. FPE decrypt ciphertexts
     Note over P: 2. R1 dict scan (~250 phrases, 7 categories)
-    Note over P: 3. R2 TinyBERT classifier (conditional)
+    Note over P: 3. R2 TinyBERT classifier (~30ms)
     Note over P: 4. Cascade: Confirm/Suppress/Upgrade/Discover
-    alt Persuasion detected & log_only=false
-        Note over P: Prepend warning label
-    end
-    P->>A: Response (labeled if flagged)
+    Note over P: 5. Label response (if flagged)
+    P->>A: Response (with warning label if persuasion detected)
 ```
 
 ### Detection Categories
@@ -582,7 +580,7 @@ R2 adds semantic model-based analysis to detect manipulation that dictionary mat
 ```toml
 [response_integrity]
 enabled = true            # Enable the cognitive firewall
-sensitivity = "medium"    # off, low, medium, high
+sensitivity = "high"      # off, low, medium, high (default: high)
 log_only = true           # true = log detections; false = prepend warning labels
 
 # R2 model (optional — omit for R1-only mode)
