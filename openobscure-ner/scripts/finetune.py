@@ -186,6 +186,28 @@ def merge_datasets(conll: DatasetDict, custom: Dataset | None) -> DatasetDict:
 
     from datasets import concatenate_datasets
 
+    # CoNLL-2003 has extra columns (id, pos_tags, chunk_tags) and uses ClassLabel
+    # for ner_tags with 9 original names. After remapping, both datasets use our
+    # LABEL_LIST IDs (0-10). Strip extra columns and cast to plain int64 so
+    # concatenation works regardless of label count mismatch.
+    keep_cols = {"tokens", "ner_tags"}
+    conll = DatasetDict(
+        {
+            split: ds.remove_columns([c for c in ds.column_names if c not in keep_cols])
+            for split, ds in conll.items()
+        }
+    )
+    target_features = Features(
+        {
+            "tokens": Sequence(Value("string")),
+            "ner_tags": Sequence(Value("int64")),
+        }
+    )
+    conll = DatasetDict(
+        {split: ds.cast(target_features) for split, ds in conll.items()}
+    )
+    custom = custom.cast(target_features)
+
     # Add custom data to train split only (80/20 split for val)
     custom_split = custom.train_test_split(test_size=0.2, seed=42)
     merged_train = concatenate_datasets([conll["train"], custom_split["train"]])

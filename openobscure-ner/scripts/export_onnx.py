@@ -3,15 +3,17 @@
 Export fine-tuned TinyBERT NER model to ONNX + INT8 quantization.
 
 Takes a trained PyTorch model directory and produces:
-  1. model.onnx         — FP32 ONNX export
-  2. model_int8.onnx    — INT8 quantized (the artifact shipped with OpenObscure)
-  3. label_map.json     — Label ID ↔ name mapping
-  4. tokenizer files    — WordPiece vocab for inference
+  1. model.onnx              — FP32 ONNX export
+  2. model_optimized.onnx    — Graph-optimized (attention/LayerNorm/Gelu fusion)
+  3. model_int8.onnx         — INT8 quantized (the artifact shipped with OpenObscure)
+  4. label_map.json          — Label ID ↔ name mapping
+  5. tokenizer files         — WordPiece vocab for inference
 
 The INT8 model is ~15MB and runs in ~55MB RAM via ONNX Runtime.
 
 Usage:
   python scripts/export_onnx.py --model_dir models/tinybert-ner --output_dir models/onnx
+  python scripts/export_onnx.py --model_dir models/distilbert-ner --output_dir models/onnx --hidden_size 768
   python scripts/export_onnx.py --help
 """
 
@@ -63,6 +65,23 @@ def parse_args():
         action="store_true",
         help="Skip saving the FP32 model (only save INT8)",
     )
+    parser.add_argument(
+        "--num_heads",
+        type=int,
+        default=12,
+        help="Number of attention heads (12 for BERT/DistilBERT/TinyBERT)",
+    )
+    parser.add_argument(
+        "--hidden_size",
+        type=int,
+        default=312,
+        help="Hidden size (312 for TinyBERT-4L, 768 for BERT-base/DistilBERT)",
+    )
+    parser.add_argument(
+        "--skip_optimize",
+        action="store_true",
+        help="Skip ORT transformer graph optimization before quantization",
+    )
     return parser.parse_args()
 
 
@@ -90,6 +109,37 @@ def export_to_onnx(model_dir: str, output_dir: str, max_length: int) -> str:
     return onnx_path
 
 
+def optimize_graph(fp32_path: str, output_dir: str, num_heads: int, hidden_size: int) -> str:
+    """Apply ORT transformer-specific graph optimizations (attention/LayerNorm/Gelu fusion)."""
+    from onnxruntime.transformers import optimizer as ort_optimizer
+
+    logger.info(
+        "Applying transformer graph optimizations (heads=%d, hidden=%d)...",
+        num_heads,
+        hidden_size,
+    )
+
+    opt_model = ort_optimizer.optimize_model(
+        fp32_path,
+        model_type="bert",
+        num_heads=num_heads,
+        hidden_size=hidden_size,
+    )
+
+    optimized_path = os.path.join(output_dir, "model_optimized.onnx")
+    opt_model.save_model_to_file(optimized_path)
+
+    original_size = os.path.getsize(fp32_path) / (1024 * 1024)
+    optimized_size = os.path.getsize(optimized_path) / (1024 * 1024)
+    logger.info(
+        "Optimized ONNX model: %s (%.1f MB → %.1f MB)",
+        optimized_path,
+        original_size,
+        optimized_size,
+    )
+    return optimized_path
+
+
 def quantize_int8(fp32_path: str, output_dir: str) -> str:
     """Apply dynamic INT8 quantization to the ONNX model."""
     logger.info("Applying INT8 dynamic quantization...")
@@ -101,6 +151,7 @@ def quantize_int8(fp32_path: str, output_dir: str) -> str:
         weight_type=QuantType.QInt8,
         per_channel=True,
         reduce_range=False,
+        extra_options={"DefaultTensorType": onnx.TensorProto.FLOAT},
     )
 
     model_size = os.path.getsize(int8_path) / (1024 * 1024)
@@ -209,18 +260,29 @@ def main():
     # 1. Export to FP32 ONNX
     fp32_path = export_to_onnx(args.model_dir, args.output_dir, args.max_length)
 
-    # 2. INT8 quantization
-    int8_path = quantize_int8(fp32_path, args.output_dir)
+    # 2. Transformer graph optimization (attention/LayerNorm/Gelu fusion)
+    quant_input = fp32_path
+    if not args.skip_optimize:
+        optimized_path = optimize_graph(
+            fp32_path, args.output_dir, args.num_heads, args.hidden_size
+        )
+        quant_input = optimized_path
 
-    # 3. Clean up FP32 if requested
+    # 3. INT8 quantization (on optimized graph if available)
+    int8_path = quantize_int8(quant_input, args.output_dir)
+
+    # 4. Clean up intermediate files
+    if not args.skip_optimize and os.path.exists(quant_input) and quant_input != int8_path:
+        os.remove(quant_input)
+        logger.info("Removed intermediate optimized model")
     if args.skip_fp32 and os.path.exists(fp32_path) and fp32_path != int8_path:
         os.remove(fp32_path)
         logger.info("Removed FP32 model (--skip_fp32)")
 
-    # 4. Copy inference artifacts (tokenizer, label map)
+    # 5. Copy inference artifacts (tokenizer, label map)
     copy_inference_artifacts(args.model_dir, args.output_dir)
 
-    # 5. Validate
+    # 6. Validate
     if args.validate:
         validate_model(int8_path, args.output_dir)
 
