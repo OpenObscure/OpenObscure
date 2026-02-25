@@ -22,6 +22,13 @@ enterprise/
 # Test outputs (regenerable — run test scripts to produce)
 test/data/output/
 
+# Python
+.venv/
+
+# Data & models (downloaded/generated locally)
+data/
+models/
+
 # Local reference (not committed)
 project-plan/
 review-notes/
