@@ -69,9 +69,9 @@ pub enum SeverityTier {
 impl std::fmt::Display for SeverityTier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Notice => write!(f, "NOTICE"),
-            Self::Warning => write!(f, "WARNING"),
-            Self::Caution => write!(f, "CAUTION"),
+            Self::Notice => write!(f, "Notice"),
+            Self::Warning => write!(f, "Warning"),
+            Self::Caution => write!(f, "Caution"),
         }
     }
 }
@@ -324,34 +324,51 @@ impl ResponseIntegrityScanner {
     }
 
     /// Format a warning label to prepend to the response content.
+    ///
+    /// Labels are user-focused and avoid internal jargon. R2 role metadata
+    /// is kept in structured logs only (not in the user-facing label).
     pub fn format_warning_label(report: &ResponseIntegrityReport) -> String {
         let mut category_names: Vec<String> =
             report.categories.iter().map(|c| c.to_string()).collect();
-        // Add R2 Article 5 categories in short form
+        // Map R2 Article 5 categories to plain English
         for cat in &report.r2_categories {
-            let short = cat
-                .replace("Art_5_1_", "")
-                .replace("_Deceptive", "(a)")
-                .replace("_Age", "(b_Age)")
-                .replace("_SocioEcon", "(b_SE)")
-                .replace("_Social_Scoring", "(c)");
-            category_names.push(short);
+            let friendly = match cat.as_str() {
+                "Art_5_1_a_Deceptive" => "Deceptive Practices",
+                "Art_5_1_b_Age" => "Age-Based Targeting",
+                "Art_5_1_b_SocioEcon" => "Socioeconomic Targeting",
+                "Art_5_1_c_Social_Scoring" => "Social Scoring",
+                other => other,
+            };
+            category_names.push(friendly.to_string());
         }
         category_names.sort();
         category_names.dedup();
 
-        let r2_suffix = if report.r2_role != R2Role::NotUsed {
-            format!(" [R2:{}]", report.r2_role)
-        } else {
-            String::new()
-        };
+        let tactics = category_names.join(", ");
 
-        format!(
-            "--- OpenObscure {} ---\nPersuasion techniques detected: {}{}\n---\n\n",
-            report.severity,
-            category_names.join(", "),
-            r2_suffix,
-        )
+        match report.severity {
+            SeverityTier::Notice => {
+                format!(
+                    "[OpenObscure] This response may use influence tactics: {}\n\n",
+                    tactics,
+                )
+            }
+            SeverityTier::Warning => {
+                format!(
+                    "[OpenObscure] Influence tactics detected: {}\n\
+                     This content may be designed to manipulate your decision-making.\n\n",
+                    tactics,
+                )
+            }
+            SeverityTier::Caution => {
+                format!(
+                    "[OpenObscure] Multiple influence tactics detected: {}\n\
+                     This content may be designed to manipulate your decision-making. \
+                     Review carefully before acting on it.\n\n",
+                    tactics,
+                )
+            }
+        }
     }
 }
 
@@ -541,10 +558,11 @@ mod tests {
             r2_categories: vec![],
         };
         let label = ResponseIntegrityScanner::format_warning_label(&report);
-        assert!(label.contains("WARNING"));
+        assert!(label.contains("[OpenObscure]"));
+        assert!(label.contains("Influence tactics detected"));
         assert!(label.contains("Urgency"));
         assert!(label.contains("Commercial"));
-        assert!(label.contains("---"));
+        assert!(label.contains("manipulate your decision-making"));
     }
 
     #[test]
@@ -564,7 +582,9 @@ mod tests {
             r2_categories: vec![],
         };
         let label = ResponseIntegrityScanner::format_warning_label(&report);
-        assert!(label.contains("CAUTION"));
+        assert!(label.contains("[OpenObscure]"));
+        assert!(label.contains("Multiple influence tactics detected"));
+        assert!(label.contains("Review carefully before acting on it"));
     }
 
     #[test]
@@ -587,9 +607,9 @@ mod tests {
 
     #[test]
     fn test_severity_display() {
-        assert_eq!(SeverityTier::Notice.to_string(), "NOTICE");
-        assert_eq!(SeverityTier::Warning.to_string(), "WARNING");
-        assert_eq!(SeverityTier::Caution.to_string(), "CAUTION");
+        assert_eq!(SeverityTier::Notice.to_string(), "Notice");
+        assert_eq!(SeverityTier::Warning.to_string(), "Warning");
+        assert_eq!(SeverityTier::Caution.to_string(), "Caution");
     }
 
     // --- R2 cascade tests ---
@@ -691,10 +711,10 @@ mod tests {
             r2_categories: vec!["Art_5_1_a_Deceptive".to_string()],
         };
         let label = ResponseIntegrityScanner::format_warning_label(&report);
-        assert!(label.contains("WARNING"));
+        assert!(label.contains("[OpenObscure]"));
         assert!(label.contains("Urgency"));
-        assert!(label.contains("(a)")); // Art_5_1_a shortened
-        assert!(label.contains("[R2:upgrade]"));
+        assert!(label.contains("Deceptive Practices")); // Art_5_1_a in plain English
+        assert!(!label.contains("[R2:")); // R2 role not in user-facing label
     }
 
     #[test]

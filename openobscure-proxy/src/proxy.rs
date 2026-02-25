@@ -748,11 +748,13 @@ mod tests {
             "content": [{"type": "text", "text": "Buy now!"}]
         });
         let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
-        let result = inject_warning_label(&bytes, "WARNING: ");
+        let label = "[OpenObscure] Influence tactics detected: Commercial\n\
+                     This content may be designed to manipulate your decision-making.\n\n";
+        let result = inject_warning_label(&bytes, label);
         assert!(result.is_some());
         let modified: serde_json::Value = serde_json::from_slice(&result.unwrap()).unwrap();
         let text = modified["content"][0]["text"].as_str().unwrap();
-        assert!(text.starts_with("WARNING: "));
+        assert!(text.starts_with("[OpenObscure]"));
         assert!(text.contains("Buy now!"));
     }
 
@@ -762,13 +764,16 @@ mod tests {
             "choices": [{"message": {"content": "Act now!"}, "index": 0}]
         });
         let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
-        let result = inject_warning_label(&bytes, "CAUTION: ");
+        let label = "[OpenObscure] Multiple influence tactics detected: Fear, Urgency\n\
+                     This content may be designed to manipulate your decision-making. \
+                     Review carefully before acting on it.\n\n";
+        let result = inject_warning_label(&bytes, label);
         assert!(result.is_some());
         let modified: serde_json::Value = serde_json::from_slice(&result.unwrap()).unwrap();
         let text = modified["choices"][0]["message"]["content"]
             .as_str()
             .unwrap();
-        assert!(text.starts_with("CAUTION: "));
+        assert!(text.starts_with("[OpenObscure]"));
         assert!(text.contains("Act now!"));
     }
 

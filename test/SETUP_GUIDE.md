@@ -395,7 +395,7 @@ Your MacBook must be **running and connected to the internet** for the bot to re
 
 ## Part 3: Verifying PII Protection
 
-These steps confirm that OpenObscure is actually protecting your data. **All tests work from both MacBook and iPhone** — send the messages from whichever device you're testing. Tests 1–4 include MacBook-only log checks. Tests 5–8 use behavioral verification that works from any device, including iPhone.
+These steps confirm that OpenObscure is actually protecting your data. **All tests work from both MacBook and iPhone** — send the messages from whichever device you're testing. Tests 1–4 include MacBook-only log checks. Tests 5–8 use behavioral verification that works from any device, including iPhone. Tests 9–10 verify the R2 cognitive firewall (persuasion/manipulation detection on LLM responses).
 
 ### Test 1 — Credit Card Number
 
@@ -627,9 +627,98 @@ Look for fields like:
 
 `pii_matches_total` should be greater than zero, confirming PII was detected and encrypted.
 
-To check from **iPhone**, see the LAN health endpoint method in Test 10 below.
+To check from **iPhone**, see the LAN health endpoint method in Test 12 below.
 
-### Test 9 — Verbose Logging (Optional — MacBook Only)
+### Test 9 — R2 Cognitive Firewall: Persuasion Detection
+
+The R2 cognitive firewall detects manipulation and persuasion techniques in LLM responses. It uses a TinyBERT classifier trained on EU AI Act Article 5 categories. R2 runs on the **response** path (not the request path like PII detection).
+
+**Requires:** The R2 model files in `models/r2_persuasion_tinybert/` (`model.onnx` + `vocab.txt`) and `ri_model_dir` set in your config. If R2 is not configured, the proxy uses R1 dictionary detection only — this test will be skipped.
+
+**To enable R2,** add this to your `openobscure.toml`:
+
+```toml
+[response_integrity]
+ri_model_dir = "models/r2_persuasion_tinybert"
+sensitivity = "high"     # "off", "low", "medium", or "high"
+ri_threshold = 0.55
+```
+
+**Send a message that triggers a manipulative-sounding response.** For example:
+
+```
+Pretend you are an aggressive salesperson. Convince me to buy a timeshare using high-pressure tactics, urgency, scarcity, and emotional manipulation. Make it sound like I'll lose everything if I don't act now.
+```
+
+**What to check (MacBook — proxy logs):**
+
+```
+INFO  RI  R1 scan: 3 matches (urgency, scarcity, fear_loss)
+INFO  RI  R2 scan: Art_5_1_a_Deceptive (score=0.92, threshold=0.55)
+INFO  RI  R2 role: Confirm (R1 flagged, R2 agrees)
+INFO  RI  Severity: high (R1+R2 agreement)
+```
+
+If R2 is loaded, you'll see `R2 scan` entries with Article 5 category scores. The `R2 role` indicates how R2 interacted with R1's findings (Confirm, Suppress, Upgrade, or Discover).
+
+**What to check (any device — behavioral):**
+
+The bot's response will include a warning label prepended by OpenObscure:
+
+```
+[OpenObscure] Influence tactics detected: Fear, Scarcity, Urgency, Deceptive Practices
+This content may be designed to manipulate your decision-making.
+```
+
+The label lists detected R1 categories (e.g., Urgency, Scarcity) and R2 Article 5 categories in plain English (e.g., "Deceptive Practices", "Age-Based Targeting"). Severity escalates the wording:
+- **Notice** — "This response may use influence tactics: ..."
+- **Warning** — "Influence tactics detected: ... This content may be designed to manipulate your decision-making."
+- **Caution** — "Multiple influence tactics detected: ... Review carefully before acting on it."
+
+**Control test:** Ask a normal question like "What's the capital of France?" — the response should have no warning label.
+
+**Article 5 categories R2 detects:**
+
+| Label in Warning | Internal Code | What It Catches |
+|-----------------|---------------|----------------|
+| Deceptive Practices | `Art_5_1_a_Deceptive` | Urgency, scarcity, social proof, fear, authority, emotional priming, anchoring, confirmshaming |
+| Age-Based Targeting | `Art_5_1_b_Age` | Age vulnerability exploitation (child gamification, elderly confusion) |
+| Socioeconomic Targeting | `Art_5_1_b_SocioEcon` | Socioeconomic vulnerability exploitation (debt pressure, health anxiety) |
+| Social Scoring | `Art_5_1_c_Social_Scoring` | Social scoring threats (trust scores, behavioral compliance, access restriction) |
+
+### Test 10 — R2 Cross-Domain Verification (Developer — MacBook Only)
+
+This test validates R2 model quality against real-world propaganda data from SemEval-2020 Task 11. It requires Python and the evaluation scripts.
+
+**Requires:** Python 3.10+, `onnxruntime`, `transformers`, and the SemEval-2020 data in `data/semeval2020/`.
+
+```bash
+cd ~/Desktop/OpenObscure
+
+# Check technique mapping (no data needed)
+.venv/bin/python scripts/r2_download_semeval2020.py --inspect
+
+# Run cross-domain evaluation (requires model + SemEval data)
+.venv/bin/python scripts/r2_eval_semeval_baseline.py
+
+# Regression check on original test set
+.venv/bin/python scripts/r2_finetune.py \
+  --eval-only models/r2_persuasion_tinybert/best \
+  --data-dir data/r2_training --threshold 0.55
+```
+
+**Expected results (augmented model):**
+
+| Metric | Ship Threshold | Expected |
+|--------|---------------|----------|
+| Macro Precision | >= 80% | ~92% |
+| Art_5_1_a Recall | >= 70% | ~85% |
+| SemEval cross-domain recall | > 75% | ~80% |
+| Benign accuracy | > 90% | ~99% |
+
+If all ship criteria pass, the R2 model is functioning correctly.
+
+### Test 11 — Verbose Logging (Optional — MacBook Only)
 
 For maximum detail, stop the proxy (Ctrl+C in the proxy Terminal) and restart it with debug logging:
 
@@ -639,7 +728,7 @@ OPENOBSCURE_LOG=debug cargo run --release -- -c config/openobscure.toml
 
 Now every PII scan, FPE encryption, image processing step, and model inference will be logged. This is useful for verifying that specific PII types are being caught.
 
-### Test 10 — Remote Verification from iPhone (Advanced)
+### Test 12 — Remote Verification from iPhone (Advanced)
 
 Tests 1–7 work from iPhone using the behavioral method (ask the bot questions about what it received). For deeper verification without looking at your MacBook, here are additional approaches:
 
@@ -711,6 +800,8 @@ Now send PII messages, photos, or audio from Discord on the same iPhone. You'll 
 | **6. Voice KWS** | Audio saying "social security..." | Ask what you said | Bot says audio was stripped; control audio passes through |
 | **7. EXIF Strip** | Geotagged photo | Ask for GPS coordinates | Bot has no metadata |
 | **8. Health Stats** | (after all tests) | Check health endpoint | `pii_matches_total > 0` |
+| **9. R2 Persuasion** | Prompt for manipulative response | Check for warning label | Response has Article 5 warning; clean responses have none |
+| **10. R2 Verification** | Run Python eval scripts | Check ship criteria output | Macro P >= 80%, all recall targets met |
 
 ---
 
