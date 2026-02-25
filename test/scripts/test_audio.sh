@@ -195,8 +195,13 @@ test_audio() {
       keywords=$(echo "$first_block_text" | sed -n 's/.*keywords={\(.*\)}.*/\1/p')
       action="PII_DETECTED"
     elif [[ "$first_block_type" == "audio" ]]; then
-      # Audio block passed through unchanged — KWS scanned but found no PII
-      action="CLEAN"
+      # Audio block passed through unchanged.
+      # Distinguish KWS-scanned (voice_ms > 0) from unscanned pass-through.
+      if [[ "$voice_ms" -gt 0 || "$kws_ms" -gt 0 ]]; then
+        action="CLEAN"
+      else
+        action="PASS-THRU"
+      fi
     else
       action="PASS-THRU"
     fi

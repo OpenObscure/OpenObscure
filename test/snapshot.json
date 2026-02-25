@@ -1,11 +1,11 @@
 {
   "_meta": {
     "version": "1.0",
-    "generated": "2026-02-22T19:02:42Z",
+    "generated": "2026-02-25T20:16:14Z",
     "description": "Exact detection counts for regression testing. Regenerate with: ./test/scripts/generate_snapshot.sh",
     "gateway_files": 45,
     "audio_files": 13,
-    "visual_files": 45
+    "visual_files": 47
   },
   "gateway": {
     "Agent_Tool_Results/agent_anthropic_multi_text.json": {
@@ -80,12 +80,12 @@
       }
     },
     "Agent_Tool_Results/agent_tool_result_database_query.json": {
-      "total_matches": 28,
+      "total_matches": 29,
       "type_summary": {
         "credit_card": 2,
         "email": 3,
         "health_keyword": 15,
-        "person": 2,
+        "person": 3,
         "phone": 3,
         "ssn": 3
       }
@@ -116,7 +116,7 @@
       }
     },
     "Code_Config_PII/sample_access.log": {
-      "total_matches": 42,
+      "total_matches": 49,
       "type_summary": {
         "api_key": 4,
         "credit_card": 2,
@@ -124,7 +124,7 @@
         "ipv4_address": 20,
         "ipv6_address": 2,
         "mac_address": 1,
-        "organization": 5,
+        "organization": 12,
         "phone": 2,
         "ssn": 2
       }
@@ -178,7 +178,7 @@
       }
     },
     "Code_Config_PII/sample_git_diff.txt": {
-      "total_matches": 24,
+      "total_matches": 25,
       "type_summary": {
         "api_key": 8,
         "credit_card": 1,
@@ -186,12 +186,13 @@
         "ipv4_address": 3,
         "ipv6_address": 1,
         "mac_address": 2,
+        "person": 1,
         "phone": 3,
         "ssn": 2
       }
     },
     "Code_Config_PII/sample_python.py": {
-      "total_matches": 24,
+      "total_matches": 30,
       "type_summary": {
         "api_key": 4,
         "credit_card": 2,
@@ -199,7 +200,10 @@
         "gps_coordinate": 1,
         "ipv4_address": 5,
         "ipv6_address": 1,
+        "location": 3,
         "mac_address": 2,
+        "organization": 1,
+        "person": 2,
         "phone": 3,
         "ssn": 2
       }
@@ -225,31 +229,36 @@
       }
     },
     "Multilingual_PII/de_German_PII.txt": {
-      "total_matches": 23,
+      "total_matches": 40,
       "type_summary": {
         "credit_card": 4,
         "email": 1,
-        "organization": 1,
+        "location": 3,
+        "organization": 10,
+        "person": 5,
         "phone": 10,
         "ssn": 7
       }
     },
     "Multilingual_PII/es_Spanish_PII.txt": {
-      "total_matches": 21,
+      "total_matches": 39,
       "type_summary": {
         "credit_card": 4,
-        "organization": 1,
-        "person": 1,
+        "location": 2,
+        "organization": 13,
+        "person": 5,
         "phone": 7,
         "ssn": 8
       }
     },
     "Multilingual_PII/fr_French_PII.txt": {
-      "total_matches": 17,
+      "total_matches": 33,
       "type_summary": {
         "credit_card": 5,
         "email": 1,
-        "organization": 1,
+        "location": 1,
+        "organization": 6,
+        "person": 10,
         "phone": 10
       }
     },
@@ -270,10 +279,11 @@
       }
     },
     "Multilingual_PII/pt_Portuguese_PII.txt": {
-      "total_matches": 31,
+      "total_matches": 67,
       "type_summary": {
-        "organization": 5,
-        "person": 1,
+        "location": 5,
+        "organization": 33,
+        "person": 4,
         "phone": 12,
         "ssn": 13
       }
@@ -287,83 +297,91 @@
       }
     },
     "PII_Detection/API_Keys_Tokens.txt": {
-      "total_matches": 30,
+      "total_matches": 31,
       "type_summary": {
         "api_key": 28,
         "email": 1,
-        "organization": 1
+        "organization": 2
       }
     },
     "PII_Detection/Child_Keywords.txt": {
-      "total_matches": 135,
+      "total_matches": 146,
       "type_summary": {
         "child_keyword": 127,
         "health_keyword": 4,
-        "person": 2,
+        "organization": 1,
+        "person": 12,
         "phone": 2
       }
     },
     "PII_Detection/Credit_Card_Numbers.txt": {
-      "total_matches": 17,
+      "total_matches": 21,
       "type_summary": {
-        "credit_card": 17
+        "credit_card": 17,
+        "organization": 4
       }
     },
     "PII_Detection/Email_Addresses.txt": {
-      "total_matches": 47,
+      "total_matches": 50,
       "type_summary": {
         "email": 44,
+        "person": 3,
         "phone": 3
       }
     },
     "PII_Detection/GPS_Coordinates.txt": {
-      "total_matches": 42,
+      "total_matches": 55,
       "type_summary": {
         "child_keyword": 1,
         "gps_coordinate": 35,
-        "location": 5,
-        "organization": 1
+        "location": 19
       }
     },
     "PII_Detection/Health_Keywords.txt": {
-      "total_matches": 177,
+      "total_matches": 180,
       "type_summary": {
         "child_keyword": 1,
-        "health_keyword": 176
+        "health_keyword": 176,
+        "organization": 2,
+        "person": 1
       }
     },
     "PII_Detection/IPv4_Addresses.txt": {
-      "total_matches": 50,
+      "total_matches": 54,
       "type_summary": {
         "child_keyword": 3,
-        "ipv4_address": 47
+        "ipv4_address": 47,
+        "organization": 4
       }
     },
     "PII_Detection/IPv6_Addresses.txt": {
-      "total_matches": 34,
+      "total_matches": 37,
       "type_summary": {
         "ipv4_address": 3,
-        "ipv6_address": 31
+        "ipv6_address": 31,
+        "organization": 3
       }
     },
     "PII_Detection/Locations.txt": {
-      "total_matches": 61,
+      "total_matches": 179,
       "type_summary": {
         "child_keyword": 2,
-        "location": 58,
-        "organization": 1
+        "location": 172,
+        "organization": 5
       }
     },
     "PII_Detection/MAC_Addresses.txt": {
-      "total_matches": 55,
+      "total_matches": 63,
       "type_summary": {
         "ipv4_address": 8,
+        "location": 1,
         "mac_address": 46,
-        "organization": 1
+        "organization": 2,
+        "person": 6
       }
     },
     "PII_Detection/Mixed_Structured_PII.txt": {
-      "total_matches": 82,
+      "total_matches": 119,
       "type_summary": {
         "api_key": 8,
         "credit_card": 4,
@@ -372,81 +390,85 @@
         "health_keyword": 4,
         "ipv4_address": 11,
         "ipv6_address": 4,
-        "location": 4,
+        "location": 14,
         "mac_address": 4,
-        "organization": 1,
+        "organization": 16,
+        "person": 12,
         "phone": 12,
         "ssn": 9
       }
     },
     "PII_Detection/Organizations.txt": {
-      "total_matches": 48,
+      "total_matches": 167,
       "type_summary": {
         "child_keyword": 2,
         "health_keyword": 11,
-        "location": 1,
-        "organization": 34
+        "location": 19,
+        "organization": 134,
+        "person": 1
       }
     },
     "PII_Detection/Person_Names.txt": {
-      "total_matches": 32,
+      "total_matches": 107,
       "type_summary": {
         "email": 2,
         "gps_coordinate": 1,
         "ipv4_address": 1,
-        "location": 5,
+        "location": 11,
         "mac_address": 1,
-        "person": 18,
+        "organization": 4,
+        "person": 83,
         "phone": 3,
         "ssn": 1
       }
     },
     "PII_Detection/Phone_Numbers.txt": {
-      "total_matches": 49,
+      "total_matches": 64,
       "type_summary": {
         "email": 1,
         "health_keyword": 1,
-        "location": 7,
+        "location": 12,
+        "person": 10,
         "phone": 40
       }
     },
     "PII_Detection/Social_Security_Numbers.txt": {
-      "total_matches": 30,
+      "total_matches": 51,
       "type_summary": {
         "email": 1,
-        "location": 1,
-        "organization": 1,
-        "person": 2,
+        "location": 11,
+        "organization": 3,
+        "person": 11,
         "phone": 1,
         "ssn": 24
       }
     },
     "Structured_Data_PII/customer_database.csv": {
-      "total_matches": 53,
+      "total_matches": 61,
       "type_summary": {
         "credit_card": 5,
         "email": 8,
         "gps_coordinate": 8,
-        "location": 17,
-        "person": 7,
+        "location": 24,
+        "person": 8,
         "phone": 8
       }
     },
     "Structured_Data_PII/employee_roster.csv": {
-      "total_matches": 69,
+      "total_matches": 73,
       "type_summary": {
         "email": 10,
         "gps_coordinate": 10,
         "ipv4_address": 10,
         "mac_address": 10,
-        "organization": 2,
-        "person": 7,
+        "organization": 3,
+        "person": 10,
         "phone": 10,
         "ssn": 10
       }
     },
     "Structured_Data_PII/network_inventory.tsv": {
-      "total_matches": 56,
+      "total_matches": 55,
       "type_summary": {
         "email": 10,
         "gps_coordinate": 10,
@@ -454,28 +476,29 @@
         "ipv6_address": 10,
         "location": 2,
         "mac_address": 10,
-        "organization": 4
+        "organization": 3
       }
     },
     "Structured_Data_PII/patient_records.csv": {
-      "total_matches": 77,
+      "total_matches": 81,
       "type_summary": {
         "email": 8,
         "gps_coordinate": 8,
         "health_keyword": 33,
-        "person": 12,
+        "person": 16,
         "phone": 8,
         "ssn": 8
       }
     },
     "Structured_Data_PII/transactions.csv": {
-      "total_matches": 51,
+      "total_matches": 60,
       "type_summary": {
         "credit_card": 6,
         "email": 10,
         "gps_coordinate": 10,
         "ipv4_address": 10,
-        "person": 5,
+        "location": 3,
+        "person": 11,
         "phone": 10
       }
     }
@@ -550,315 +573,329 @@
   "visual": {
     "Visual_PII/doc_business_card_01.jpg": {
       "subcategory": "Documents",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 9,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/doc_credit_card_01.jpg": {
       "subcategory": "Documents",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 6,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/doc_drivers_license_01.jpg": {
       "subcategory": "Documents",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 25,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/doc_insurance_card_01.jpg": {
       "subcategory": "Documents",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 21,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/doc_medical_record_01.jpg": {
       "subcategory": "Documents",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 31,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/doc_passport_01.jpg": {
       "subcategory": "Documents",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 25,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/doc_ssn_card_01.png": {
       "subcategory": "Documents",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 10,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/doc_w2_form_01.jpg": {
       "subcategory": "Documents",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 27,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/exif_camera_gps.jpg": {
+      "subcategory": "EXIF",
+      "faces_redacted": 0,
+      "text_regions_detected": 4,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/exif_camera_no_gps.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 0,
+      "faces_redacted": 0,
+      "text_regions_detected": 4,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/exif_no_metadata_control.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 2,
+      "faces_redacted": 0,
+      "text_regions_detected": 4,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/exif_screenshot_cleanshot.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 0,
+      "faces_redacted": 0,
+      "text_regions_detected": 2,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/exif_screenshot_flameshot.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 3,
+      "faces_redacted": 0,
+      "text_regions_detected": 2,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/exif_screenshot_gnome.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 0,
+      "faces_redacted": 0,
+      "text_regions_detected": 2,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/exif_screenshot_screencapture.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 2,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/exif_screenshot_sharex.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 0,
+      "faces_redacted": 0,
+      "text_regions_detected": 2,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/exif_screenshot_snipping_tool.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 0,
+      "faces_redacted": 0,
+      "text_regions_detected": 2,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
+    "Visual_PII/exif_smartphone_gps.jpg": {
+      "subcategory": "EXIF",
+      "faces_redacted": 0,
+      "text_regions_detected": 8,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
     "Visual_PII/exif_smartphone_no_gps.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 0,
+      "faces_redacted": 0,
+      "text_regions_detected": 8,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/exif_stripped_control.jpg": {
       "subcategory": "EXIF",
-      "faces_blurred": 0,
-      "text_regions_detected": 2,
+      "faces_redacted": 0,
+      "text_regions_detected": 8,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_group_01.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 5,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_group_02.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 3,
+      "faces_redacted": 3,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_group_03.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_single_frontal_01.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_single_frontal_02.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 1,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_single_frontal_03.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
-      "text_regions_detected": 2,
+      "faces_redacted": 1,
+      "text_regions_detected": 1,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_single_frontal_04.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_single_frontal_05.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_single_frontal_06.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
-      "text_regions_detected": 4,
+      "faces_redacted": 1,
+      "text_regions_detected": 5,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_single_frontal_07.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_single_profile_01.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 2,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_small_landscape_01.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 2,
+      "faces_redacted": 2,
       "text_regions_detected": 1,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/face_small_landscape_02.jpg": {
       "subcategory": "Faces",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 4,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/nsfw_positive_placeholder_01.jpg": {
       "subcategory": "NSFW",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 3,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/nsfw_positive_placeholder_02.jpg": {
       "subcategory": "NSFW",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 3,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/nsfw_safe_landscape_01.jpg": {
       "subcategory": "NSFW",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 1,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/nsfw_safe_landscape_02.jpg": {
       "subcategory": "NSFW",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 1,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/nsfw_safe_object_01.jpg": {
       "subcategory": "NSFW",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 11,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/nsfw_safe_portrait_01.jpg": {
       "subcategory": "NSFW",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 1,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/nsfw_safe_portrait_02.jpg": {
       "subcategory": "NSFW",
-      "faces_blurred": 1,
+      "faces_redacted": 1,
       "text_regions_detected": 10,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/screenshot_android_form_1080x2340.png": {
       "subcategory": "Screenshots",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/screenshot_email_inbox_1920x1080.png": {
       "subcategory": "Screenshots",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 15,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/screenshot_ide_code_1920x1080.png": {
       "subcategory": "Screenshots",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 22,
       "nsfw_blocked": false,
       "screenshot_detected": false
     },
     "Visual_PII/screenshot_mobile_chat_1170x2532.png": {
       "subcategory": "Screenshots",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/screenshot_spreadsheet_2880x1800.png": {
       "subcategory": "Screenshots",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/screenshot_terminal_logs_2560x1440.png": {
       "subcategory": "Screenshots",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": true
     },
     "Visual_PII/screenshot_web_form_1440x900.png": {
       "subcategory": "Screenshots",
-      "faces_blurred": 0,
+      "faces_redacted": 0,
       "text_regions_detected": 17,
       "nsfw_blocked": false,
       "screenshot_detected": false

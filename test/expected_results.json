@@ -1,10 +1,11 @@
 {
   "_meta": {
-    "version": "2.2",
-    "description": "Expected PII detection results per input file. Thresholds at ~85% of actual counts. visual_files section validates image pipeline outputs (faces, OCR, NSFW, screenshots).",
-    "generated": "2026-02-22",
+    "version": "2.3",
+    "description": "Expected PII detection results per input file. Thresholds at ~85% of actual counts. visual_files validates image pipeline, audio_files validates voice KWS pipeline.",
+    "generated": "2026-02-25",
     "total_files": 45,
     "total_visual_files": 47,
+    "total_audio_files": 13,
     "type_names": "Must match scanner output exactly: credit_card, ssn, phone, email, api_key, ipv4_address, ipv6_address, gps_coordinate, mac_address, health_keyword, child_keyword, person, location, organization"
   },
   "files": {
@@ -672,6 +673,73 @@
       "nsfw_expected": false,
       "screenshot_expected": false,
       "note": "Safe portrait — may detect face but no NSFW"
+    }
+  },
+  "audio_files": {
+    "Audio_PII/audio_address_single.wav": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["MY ADDRESS"],
+      "note": "Street address dictation — KWS trigger on MY ADDRESS"
+    },
+    "Audio_PII/audio_cc_visa.wav": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["VISA CARD"],
+      "note": "Credit card number read aloud — KWS trigger on VISA CARD"
+    },
+    "Audio_PII/audio_customer_service.mp3": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["MASTERCARD", "CARD NUMBER", "SOCIAL SECURITY"],
+      "note": "Customer service call with multiple PII — MP3 format"
+    },
+    "Audio_PII/audio_customer_service.wav": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["MASTERCARD", "CARD NUMBER", "SOCIAL SECURITY"],
+      "note": "Customer service call with multiple PII — WAV format"
+    },
+    "Audio_PII/audio_email_single.wav": {
+      "expected_action": "CLEAN",
+      "expected_keywords": [],
+      "note": "Email address spoken — no KWS trigger phrase (email is not a keyword)"
+    },
+    "Audio_PII/audio_job_screening.wav": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["SOCIAL SECURITY"],
+      "note": "Job interview mentioning SSN"
+    },
+    "Audio_PII/audio_medical_intake.ogg": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["DATE OF BIRTH", "SOCIAL SECURITY", "CONTACT NUMBER"],
+      "note": "Medical intake form with multiple PII — OGG format"
+    },
+    "Audio_PII/audio_medical_intake.wav": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["DATE OF BIRTH", "SOCIAL SECURITY", "CONTACT NUMBER"],
+      "note": "Medical intake form with multiple PII — WAV format"
+    },
+    "Audio_PII/audio_name_single.wav": {
+      "expected_action": "CLEAN",
+      "expected_keywords": [],
+      "note": "Person name spoken — no KWS trigger phrase (name is not a keyword)"
+    },
+    "Audio_PII/audio_phone_us.ogg": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["REACH ME AT"],
+      "note": "Phone number dictation — OGG format"
+    },
+    "Audio_PII/audio_phone_us.wav": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["REACH ME AT"],
+      "note": "Phone number dictation — WAV format"
+    },
+    "Audio_PII/audio_ssn_single.mp3": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["SOCIAL SECURITY"],
+      "note": "SSN read aloud — MP3 format"
+    },
+    "Audio_PII/audio_ssn_single.wav": {
+      "expected_action": "PII_DETECTED",
+      "expected_keywords": ["SOCIAL SECURITY"],
+      "note": "SSN read aloud — WAV format"
     }
   }
 }

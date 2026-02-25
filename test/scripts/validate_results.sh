@@ -28,6 +28,7 @@
 #   ./test/scripts/validate_results.sh --json               # JSON report to stdout
 #   ./test/scripts/validate_results.sh --infrastructure     # Infrastructure test results
 #   ./test/scripts/validate_results.sh --validate-only      # Schema + input validation only
+#   ./test/scripts/validate_results.sh --run                 # Run all tests + validate results
 
 set -euo pipefail
 
@@ -46,6 +47,7 @@ STRICT=false
 CHECK_REDACTED=false
 INFRASTRUCTURE=false
 VALIDATE_ONLY=false
+RUN_TESTS=false
 for arg in "$@"; do
   case "$arg" in
     --gateway-only) GATEWAY_ONLY=true ;;
@@ -55,8 +57,14 @@ for arg in "$@"; do
     --check-redacted) CHECK_REDACTED=true ;;
     --infrastructure) INFRASTRUCTURE=true ;;
     --validate-only) VALIDATE_ONLY=true ;;
+    --run) RUN_TESTS=true ;;
   esac
 done
+
+# --run implies --infrastructure (validate after running tests)
+if [[ "$RUN_TESTS" == "true" ]]; then
+  INFRASTRUCTURE=true
+fi
 
 # Verify required files exist (skip for infrastructure-only or validate-only mode)
 GW_JSON_COUNT=${GW_JSON_COUNT:-0}
@@ -93,6 +101,10 @@ WARNINGS=()
 # Mode label
 if [[ "$VALIDATE_ONLY" == "true" ]]; then
   MODE_LABEL="validate-only"
+elif [[ "$RUN_TESTS" == "true" && "$STRICT" == "true" ]]; then
+  MODE_LABEL="run+strict"
+elif [[ "$RUN_TESTS" == "true" ]]; then
+  MODE_LABEL="run+infrastructure"
 elif [[ "$INFRASTRUCTURE" == "true" && "$STRICT" == "false" ]]; then
   MODE_LABEL="infrastructure"
 elif [[ "$STRICT" == "true" && "$INFRASTRUCTURE" == "true" ]]; then
@@ -167,6 +179,68 @@ print_timing_stats() {
   local p95=${sorted[$p95_idx]}
 
   printf "  %-25s %5d  %8d  %8d  %8d  %8d  %8d\n" "$metric" "$count" "$min" "$avg" "$p50" "$p95" "$max"
+}
+
+# ─── --run helpers: execute test scripts ─────────────────────
+
+RUN_TOTAL=0
+RUN_PASS=0
+RUN_FAIL=0
+
+run_script() {
+  local script="$1"
+  local script_path="$SCRIPT_DIR/$script"
+  local log_file
+  log_file=$(mktemp /tmp/oo_run_XXXXXX.log)
+
+  RUN_TOTAL=$((RUN_TOTAL + 1))
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    printf "  %-45s " "$script"
+  fi
+
+  if "$script_path" > "$log_file" 2>&1; then
+    RUN_PASS=$((RUN_PASS + 1))
+    if [[ "$JSON_OUTPUT" == "false" ]]; then
+      printf "\033[32mOK\033[0m\n"
+    fi
+  else
+    local rc=$?
+    RUN_FAIL=$((RUN_FAIL + 1))
+    if [[ "$JSON_OUTPUT" == "false" ]]; then
+      printf "\033[31mFAIL\033[0m (exit %d)\n" "$rc"
+      tail -5 "$log_file" | sed 's/^/    /'
+    fi
+  fi
+  rm -f "$log_file"
+}
+
+run_node_script() {
+  local script="$1"
+  local script_path="$SCRIPT_DIR/$script"
+  local log_file
+  log_file=$(mktemp /tmp/oo_run_XXXXXX.log)
+
+  RUN_TOTAL=$((RUN_TOTAL + 1))
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    printf "  %-45s " "$script"
+  fi
+
+  if node "$script_path" > "$log_file" 2>&1; then
+    RUN_PASS=$((RUN_PASS + 1))
+    if [[ "$JSON_OUTPUT" == "false" ]]; then
+      printf "\033[32mOK\033[0m\n"
+    fi
+  else
+    local rc=$?
+    RUN_FAIL=$((RUN_FAIL + 1))
+    if [[ "$JSON_OUTPUT" == "false" ]]; then
+      printf "\033[31mFAIL\033[0m (exit %d)\n" "$rc"
+      tail -5 "$log_file" | sed 's/^/    /'
+    fi
+  fi
+  rm -f "$log_file"
 }
 
 # ─── Schema validation for *_validation.json files ───────────
@@ -422,6 +496,102 @@ if [[ "$VALIDATE_ONLY" == "true" ]]; then
     exit 1
   fi
   exit 0
+fi
+
+# ─── --run: execute all test scripts, then fall through to validation ──
+
+if [[ "$RUN_TESTS" == "true" ]]; then
+
+  PROXY_URL="${PROXY_URL:-http://127.0.0.1:18790}"
+
+  # Auth token (same pattern used by test scripts)
+  if [[ -z "${AUTH_TOKEN:-}" ]]; then
+    TOKEN_FILE="$HOME/.openobscure/.auth-token"
+    if [[ -f "$TOKEN_FILE" ]]; then
+      AUTH_TOKEN=$(cat "$TOKEN_FILE")
+    else
+      AUTH_TOKEN=""
+    fi
+  fi
+  export AUTH_TOKEN
+
+  # Pre-flight: verify proxy is reachable
+  if [[ -n "$AUTH_TOKEN" ]]; then
+    RUN_HEALTH=$(curl -sf "${PROXY_URL}/_openobscure/health" -H "X-OpenObscure-Token: $AUTH_TOKEN" 2>/dev/null || true)
+  else
+    RUN_HEALTH=$(curl -sf "${PROXY_URL}/_openobscure/health" 2>/dev/null || true)
+  fi
+  if [[ -z "$RUN_HEALTH" ]]; then
+    echo "Error: Proxy not reachable at $PROXY_URL"
+    echo ""
+    echo "Start the proxy first:"
+    echo "  OPENOBSCURE_CONFIG=test/config/test_fpe.toml \\"
+    echo "    ./openobscure-proxy/target/debug/openobscure-proxy serve"
+    exit 1
+  fi
+
+  RUN_VERSION=$(echo "$RUN_HEALTH" | jq -r '.version // "unknown"')
+  RUN_TIER=$(echo "$RUN_HEALTH" | jq -r '.device_tier // "unknown"')
+  RUN_START=$(date +%s)
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo "============================================"
+    echo "  OpenObscure Full Test + Validation"
+    echo "  Proxy: $PROXY_URL (v$RUN_VERSION, tier: $RUN_TIER)"
+    echo "  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "============================================"
+    echo ""
+    echo "--- Phase 1: Gateway + Visual + Audio ---"
+  fi
+
+  run_script "test_gateway_all.sh"
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo ""
+    echo "--- Phase 2: Embedded ---"
+  fi
+
+  run_node_script "test_embedded_all.mjs"
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo ""
+    echo "--- Phase 3: Infrastructure ---"
+  fi
+
+  INFRA_RUN_SCRIPTS=(
+    test_health.sh
+    test_auth.sh
+    test_body_limits.sh
+    test_device_tier.sh
+    test_fail_mode.sh
+    test_key_rotation.sh
+    test_response_integrity.sh
+    test_sse_streaming.sh
+  )
+
+  for iscript in "${INFRA_RUN_SCRIPTS[@]}"; do
+    if [[ -x "$SCRIPT_DIR/$iscript" ]]; then
+      run_script "$iscript"
+    else
+      if [[ "$JSON_OUTPUT" == "false" ]]; then
+        printf "  %-45s \033[90mSKIP\033[0m (not found)\n" "$iscript"
+      fi
+    fi
+  done
+
+  RUN_END=$(date +%s)
+  RUN_ELAPSED=$((RUN_END - RUN_START))
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo ""
+    echo "--- Run Summary ---"
+    printf "  Scripts run: %d  (passed: %d, failed: %d)\n" "$RUN_TOTAL" "$RUN_PASS" "$RUN_FAIL"
+    echo "  Elapsed: ${RUN_ELAPSED}s"
+    echo ""
+    echo "--- Validating Results ---"
+  fi
+
+  # Fall through to --infrastructure validation below
 fi
 
 # ─── Header ───────────────────────────────────────────────────
@@ -955,6 +1125,71 @@ print(idx)
     done
   fi
 
+  # ─── Threshold: Audio validation ──────────────────────────────
+
+  AUDIO_KEYS=$(jq -r '.audio_files // {} | keys[]' "$MANIFEST" 2>/dev/null)
+
+  if [[ -n "$AUDIO_KEYS" && "$GATEWAY_ONLY" == "false" ]]; then
+    if [[ "$SUMMARY_ONLY" == "false" && "$JSON_OUTPUT" == "false" ]]; then
+      echo ""
+      echo "--- Audio_PII ---"
+    fi
+
+    for akey in $AUDIO_KEYS; do
+      TOTAL=$((TOTAL + 1))
+
+      filename="${akey#Audio_PII/}"
+      ext="${filename##*.}"
+      name_no_ext="${filename%.*}"
+      audio_json="$OUTPUT_DIR/Audio_PII/json/${name_no_ext}_${ext}_audio.json"
+
+      if [[ ! -f "$audio_json" ]]; then
+        skip "$akey" "no audio JSON (test not run or voice feature disabled?)"
+        continue
+      fi
+
+      # Read expected values
+      exp_action=$(jq -r ".audio_files[\"$akey\"].expected_action // \"UNKNOWN\"" "$MANIFEST")
+      exp_keywords_json=$(jq -c ".audio_files[\"$akey\"].expected_keywords // []" "$MANIFEST")
+
+      # Read actual values
+      act_action=$(jq -r '.kws_results.action // "UNKNOWN"' "$audio_json")
+      act_keywords=$(jq -r '.kws_results.keywords // ""' "$audio_json")
+      act_voice_ms=$(jq '.timing.voice_ms // 0' "$audio_json")
+
+      # Check action matches
+      if [[ "$act_action" == "PASS-THRU" ]]; then
+        warn "$akey" "pass-through (voice feature not enabled or KWS not loaded)"
+        continue
+      fi
+
+      if [[ "$act_action" != "$exp_action" ]]; then
+        fail "$akey" "action: got $act_action, expected $exp_action"
+        continue
+      fi
+
+      # For PII_DETECTED: verify each expected keyword appears in actual keywords
+      if [[ "$exp_action" == "PII_DETECTED" ]]; then
+        keyword_miss=false
+        while IFS= read -r kw; do
+          if [[ "$act_keywords" != *"$kw"* ]]; then
+            fail "$akey" "missing keyword: $kw (got: $act_keywords)"
+            keyword_miss=true
+            break
+          fi
+        done < <(echo "$exp_keywords_json" | jq -r '.[]')
+
+        if [[ "$keyword_miss" == "true" ]]; then
+          continue
+        fi
+      fi
+
+      detail="action:$act_action voice:${act_voice_ms}ms"
+      [[ -n "$act_keywords" ]] && detail="${detail} kw:$act_keywords"
+      pass "$akey" "$detail"
+    done
+  fi
+
 fi  # end threshold/strict/infrastructure-only branching
 
 # ═══════════════════════════════════════════════════════════════
@@ -1384,19 +1619,19 @@ if [[ "$JSON_OUTPUT" == "false" && "$SUMMARY_ONLY" == "false" ]]; then
     printf "  %-25s %5s  %8s  %8s  %8s  %8s  %8s\n" "Metric" "Count" "Min" "Avg" "P50" "P95" "Max"
     printf "  %-25s %5s  %8s  %8s  %8s  %8s  %8s\n" "─────────────────────────" "─────" "────────" "────────" "────────" "────────" "────────"
 
-    print_timing_stats "Gateway total (ms)"     "${gw_total_ms[@]}"
-    print_timing_stats "Gateway proxy scan (us)" "${gw_scan_us[@]}"
-    print_timing_stats "Gateway proxy FPE (us)"  "${gw_fpe_us[@]}"
-    print_timing_stats "Embedded total (ms)"     "${em_total_ms[@]}"
-    print_timing_stats "Embedded regex (ms)"     "${em_regex_ms[@]}"
-    print_timing_stats "Embedded NER (ms)"       "${em_ner_ms[@]}"
-    print_timing_stats "Visual pipeline (ms)"    "${vis_pipeline_ms[@]}"
-    print_timing_stats "Visual NSFW (ms)"        "${vis_nsfw_ms[@]}"
-    print_timing_stats "Visual face (ms)"        "${vis_face_ms[@]}"
-    print_timing_stats "Visual OCR (ms)"         "${vis_ocr_ms[@]}"
-    print_timing_stats "Audio pipeline (ms)"     "${aud_pipeline_ms[@]}"
-    print_timing_stats "Audio voice (ms)"        "${aud_voice_ms[@]}"
-    print_timing_stats "Audio KWS (ms)"          "${aud_kws_ms[@]}"
+    print_timing_stats "Gateway total (ms)"     "${gw_total_ms[@]+"${gw_total_ms[@]}"}"
+    print_timing_stats "Gateway proxy scan (us)" "${gw_scan_us[@]+"${gw_scan_us[@]}"}"
+    print_timing_stats "Gateway proxy FPE (us)"  "${gw_fpe_us[@]+"${gw_fpe_us[@]}"}"
+    print_timing_stats "Embedded total (ms)"     "${em_total_ms[@]+"${em_total_ms[@]}"}"
+    print_timing_stats "Embedded regex (ms)"     "${em_regex_ms[@]+"${em_regex_ms[@]}"}"
+    print_timing_stats "Embedded NER (ms)"       "${em_ner_ms[@]+"${em_ner_ms[@]}"}"
+    print_timing_stats "Visual pipeline (ms)"    "${vis_pipeline_ms[@]+"${vis_pipeline_ms[@]}"}"
+    print_timing_stats "Visual NSFW (ms)"        "${vis_nsfw_ms[@]+"${vis_nsfw_ms[@]}"}"
+    print_timing_stats "Visual face (ms)"        "${vis_face_ms[@]+"${vis_face_ms[@]}"}"
+    print_timing_stats "Visual OCR (ms)"         "${vis_ocr_ms[@]+"${vis_ocr_ms[@]}"}"
+    print_timing_stats "Audio pipeline (ms)"     "${aud_pipeline_ms[@]+"${aud_pipeline_ms[@]}"}"
+    print_timing_stats "Audio voice (ms)"        "${aud_voice_ms[@]+"${aud_voice_ms[@]}"}"
+    print_timing_stats "Audio KWS (ms)"          "${aud_kws_ms[@]+"${aud_kws_ms[@]}"}"
   fi
 fi
 
