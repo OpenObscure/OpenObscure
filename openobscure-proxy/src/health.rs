@@ -127,7 +127,7 @@ pub struct HealthStats {
     pii_matches_total: Arc<AtomicU64>,
     requests_total: Arc<AtomicU64>,
     images_processed_total: Arc<AtomicU64>,
-    faces_blurred_total: Arc<AtomicU64>,
+    faces_redacted_total: Arc<AtomicU64>,
     text_regions_total: Arc<AtomicU64>,
     nsfw_blocked_total: Arc<AtomicU64>,
     screenshots_detected_total: Arc<AtomicU64>,
@@ -145,7 +145,7 @@ impl HealthStats {
             pii_matches_total: Arc::new(AtomicU64::new(0)),
             requests_total: Arc::new(AtomicU64::new(0)),
             images_processed_total: Arc::new(AtomicU64::new(0)),
-            faces_blurred_total: Arc::new(AtomicU64::new(0)),
+            faces_redacted_total: Arc::new(AtomicU64::new(0)),
             text_regions_total: Arc::new(AtomicU64::new(0)),
             nsfw_blocked_total: Arc::new(AtomicU64::new(0)),
             screenshots_detected_total: Arc::new(AtomicU64::new(0)),
@@ -173,9 +173,10 @@ impl HealthStats {
             .fetch_add(count, Ordering::Relaxed);
     }
 
-    /// Record faces blurred.
-    pub fn record_faces_blurred(&self, count: u64) {
-        self.faces_blurred_total.fetch_add(count, Ordering::Relaxed);
+    /// Record faces redacted.
+    pub fn record_faces_redacted(&self, count: u64) {
+        self.faces_redacted_total
+            .fetch_add(count, Ordering::Relaxed);
     }
 
     /// Record text regions detected.
@@ -220,8 +221,8 @@ impl HealthStats {
         self.images_processed_total.load(Ordering::Relaxed)
     }
 
-    pub fn faces_blurred_total(&self) -> u64 {
-        self.faces_blurred_total.load(Ordering::Relaxed)
+    pub fn faces_redacted_total(&self) -> u64 {
+        self.faces_redacted_total.load(Ordering::Relaxed)
     }
 
     pub fn text_regions_total(&self) -> u64 {
@@ -291,7 +292,7 @@ pub struct HealthResponse {
     pub pii_matches_total: u64,
     pub requests_total: u64,
     pub images_processed_total: u64,
-    pub faces_blurred_total: u64,
+    pub faces_redacted_total: u64,
     pub text_regions_total: u64,
     pub nsfw_blocked_total: u64,
     pub screenshots_detected_total: u64,
@@ -346,7 +347,7 @@ pub async fn health_handler(
         pii_matches_total: stats.pii_matches_total(),
         requests_total: stats.requests_total(),
         images_processed_total: stats.images_processed_total(),
-        faces_blurred_total: stats.faces_blurred_total(),
+        faces_redacted_total: stats.faces_redacted_total(),
         text_regions_total: stats.text_regions_total(),
         nsfw_blocked_total: stats.nsfw_blocked_total(),
         screenshots_detected_total: stats.screenshots_detected_total(),

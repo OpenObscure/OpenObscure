@@ -3,11 +3,11 @@
 #
 # Produces dual output per image:
 #   test/data/output/Visual_PII/json/<name>_visual.json       (pipeline metadata)
-#   test/data/output/Visual_PII/redacted/<name>.<ext>          (blurred image)
+#   test/data/output/Visual_PII/redacted/<name>.<ext>          (redacted image)
 #
 # The proxy's image pipeline processes base64-encoded images:
-#   - Face detection + Gaussian blur (SCRFD/BlazeFace)
-#   - OCR text detection + blur (PaddleOCR)
+#   - Face detection + solid-color fill (SCRFD/BlazeFace)
+#   - OCR text detection + redaction (PaddleOCR)
 #   - NSFW detection (NudeNet)
 #   - EXIF metadata stripping
 #   - Screenshot detection heuristics
@@ -73,7 +73,7 @@ fi
 
 # Get baseline stats
 BASELINE_IMAGES=$(echo "$HEALTH" | jq '.images_processed_total // 0')
-BASELINE_FACES=$(echo "$HEALTH" | jq '.faces_blurred_total // 0')
+BASELINE_FACES=$(echo "$HEALTH" | jq '.faces_redacted_total // 0')
 BASELINE_TEXT=$(echo "$HEALTH" | jq '.text_regions_total // 0')
 BASELINE_NSFW=$(echo "$HEALTH" | jq '.nsfw_blocked_total // 0')
 BASELINE_SCREENSHOTS=$(echo "$HEALTH" | jq '.screenshots_detected_total // 0')
@@ -121,7 +121,7 @@ test_image() {
   local before_health
   before_health=$(curl -sf "$HEALTH_ENDPOINT" ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} 2>/dev/null)
   local before_images=$(echo "$before_health" | jq '.images_processed_total // 0')
-  local before_faces=$(echo "$before_health" | jq '.faces_blurred_total // 0')
+  local before_faces=$(echo "$before_health" | jq '.faces_redacted_total // 0')
   local before_text=$(echo "$before_health" | jq '.text_regions_total // 0')
   local before_nsfw=$(echo "$before_health" | jq '.nsfw_blocked_total // 0')
   local before_screenshots=$(echo "$before_health" | jq '.screenshots_detected_total // 0')
@@ -177,7 +177,7 @@ test_image() {
   local after_health
   after_health=$(curl -sf "$HEALTH_ENDPOINT" ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} 2>/dev/null)
   local after_images=$(echo "$after_health" | jq '.images_processed_total // 0')
-  local after_faces=$(echo "$after_health" | jq '.faces_blurred_total // 0')
+  local after_faces=$(echo "$after_health" | jq '.faces_redacted_total // 0')
   local after_text=$(echo "$after_health" | jq '.text_regions_total // 0')
   local after_nsfw=$(echo "$after_health" | jq '.nsfw_blocked_total // 0')
   local after_screenshots=$(echo "$after_health" | jq '.screenshots_detected_total // 0')
@@ -189,7 +189,7 @@ test_image() {
   local delta_screenshots=$((after_screenshots - before_screenshots))
 
   # ── Extract processed image from the echo server capture file ──
-  # The proxy rewrites base64 data in the request body (faces blurred, OCR blurred,
+  # The proxy rewrites base64 data in the request body (faces redacted, OCR redacted,
   # EXIF stripped) before forwarding. The echo server saves each request body to
   # $CAPTURE_DIR/<X-Capture-Id>.json, so we can extract the processed image.
   local image_saved=false
@@ -236,7 +236,7 @@ test_image() {
     --arg media_type "$media_type" \
     --argjson http_status "$response_code" \
     --argjson images_processed "$delta_images" \
-    --argjson faces_blurred "$delta_faces" \
+    --argjson faces_redacted "$delta_faces" \
     --argjson text_regions "$delta_text" \
     --argjson nsfw_blocked "$delta_nsfw" \
     --argjson screenshot_detected "$delta_screenshots" \
@@ -252,7 +252,7 @@ test_image() {
       http_status: $http_status,
       pipeline_results: {
         images_processed: $images_processed,
-        faces_blurred: $faces_blurred,
+        faces_redacted: $faces_redacted,
         text_regions_detected: $text_regions,
         nsfw_blocked: ($nsfw_blocked > 0),
         screenshot_detected: ($screenshot_detected > 0)
@@ -261,7 +261,7 @@ test_image() {
         pipeline_ms: $pipeline_ms
       },
       redacted_image_captured: $image_captured,
-      note: (if $image_captured then "Blurred image saved" else "Original copied — run with echo upstream to capture pipeline output" end),
+      note: (if $image_captured then "Redacted image saved" else "Original copied — run with echo upstream to capture pipeline output" end),
       timestamp: $ts
     }')
 
@@ -321,14 +321,14 @@ done
 # Final stats
 FINAL_HEALTH=$(curl -sf "$HEALTH_ENDPOINT" ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} 2>/dev/null)
 TOTAL_IMAGES=$(($(echo "$FINAL_HEALTH" | jq '.images_processed_total // 0') - BASELINE_IMAGES))
-TOTAL_FACES=$(($(echo "$FINAL_HEALTH" | jq '.faces_blurred_total // 0') - BASELINE_FACES))
+TOTAL_FACES=$(($(echo "$FINAL_HEALTH" | jq '.faces_redacted_total // 0') - BASELINE_FACES))
 TOTAL_TEXT=$(($(echo "$FINAL_HEALTH" | jq '.text_regions_total // 0') - BASELINE_TEXT))
 TOTAL_NSFW=$(($(echo "$FINAL_HEALTH" | jq '.nsfw_blocked_total // 0') - BASELINE_NSFW))
 TOTAL_SCREENSHOTS=$(($(echo "$FINAL_HEALTH" | jq '.screenshots_detected_total // 0') - BASELINE_SCREENSHOTS))
 
 echo "=== Summary ==="
 echo "Images processed:     $TOTAL_IMAGES"
-echo "Faces blurred:        $TOTAL_FACES"
+echo "Faces redacted:       $TOTAL_FACES"
 echo "Text regions:         $TOTAL_TEXT"
 echo "NSFW blocked:         $TOTAL_NSFW"
 echo "Screenshots detected: $TOTAL_SCREENSHOTS"

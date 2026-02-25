@@ -2,7 +2,7 @@
 //!
 //! Detects exposed body parts in images to flag nudity. If any exposed
 //! region is found above the confidence threshold, the image is flagged
-//! as NSFW and the pipeline blurs the entire image.
+//! as NSFW and the pipeline redacts the entire image.
 //!
 //! Model: NudeNet 320n (YOLOv8n-based, ~12MB, MIT license)
 //! Input: [1, 3, 320, 320] NCHW, float32 [0,1]

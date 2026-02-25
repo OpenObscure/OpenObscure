@@ -13,7 +13,7 @@
 # Strict mode (--strict): Reads snapshot.json and checks exact counts:
 #   - Gateway: total_matches and per-type counts must match exactly
 #   - Audio: pii_detected, keywords, action must match exactly
-#   - Visual: faces_blurred, text_regions, nsfw_blocked, screenshot_detected must match exactly
+#   - Visual: faces_redacted, text_regions, nsfw_blocked, screenshot_detected must match exactly
 #
 # Also checks for input files NOT in the manifest (coverage gaps).
 #
@@ -308,18 +308,18 @@ if [[ "$STRICT" == "true" ]]; then
           continue
         fi
 
-        exp_faces=$(jq -r ".visual[\"$key\"].faces_blurred" "$SNAPSHOT")
+        exp_faces=$(jq -r ".visual[\"$key\"].faces_redacted" "$SNAPSHOT")
         exp_text=$(jq -r ".visual[\"$key\"].text_regions_detected" "$SNAPSHOT")
         exp_nsfw=$(jq -r ".visual[\"$key\"].nsfw_blocked // false" "$SNAPSHOT")
         exp_screenshot=$(jq -r ".visual[\"$key\"].screenshot_detected // false" "$SNAPSHOT")
 
-        act_faces=$(jq '.pipeline_results.faces_blurred // 0' "$visual_json")
+        act_faces=$(jq '.pipeline_results.faces_redacted // 0' "$visual_json")
         act_text=$(jq '.pipeline_results.text_regions_detected // 0' "$visual_json")
         act_nsfw=$(jq '.pipeline_results.nsfw_blocked // false' "$visual_json")
         act_screenshot=$(jq '.pipeline_results.screenshot_detected // false' "$visual_json")
 
         if [[ "$act_faces" -ne "$exp_faces" ]]; then
-          fail "$key" "faces_blurred: got $act_faces, expected $exp_faces"
+          fail "$key" "faces_redacted: got $act_faces, expected $exp_faces"
           continue
         fi
 
@@ -602,7 +602,7 @@ print(idx)
       screenshot_exp=$(jq -r ".visual_files[\"$vkey\"].screenshot_expected // false" "$MANIFEST")
 
       # Read actual results
-      act_faces=$(jq '.pipeline_results.faces_blurred // 0' "$visual_json")
+      act_faces=$(jq '.pipeline_results.faces_redacted // 0' "$visual_json")
       act_text=$(jq '.pipeline_results.text_regions_detected // 0' "$visual_json")
       act_nsfw=$(jq '.pipeline_results.nsfw_blocked // false' "$visual_json")
       act_screenshot=$(jq '.pipeline_results.screenshot_detected // false' "$visual_json")

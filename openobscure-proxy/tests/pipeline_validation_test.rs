@@ -33,7 +33,7 @@ fn make_pipeline_config() -> ImageConfig {
         enabled: true,
         face_detection: face_dir.exists() || scrfd_dir.exists(),
         ocr_enabled: ocr_dir.exists(),
-        ocr_tier: "detect_and_blur".to_string(),
+        ocr_tier: "detect_and_fill".to_string(),
         max_dimension: 960,
         model_idle_timeout_secs: 300,
         face_model,
@@ -81,9 +81,9 @@ fn test_face_image_pipeline_validates() {
 
     // Should detect at least 1 face
     assert!(
-        stats.faces_blurred >= 1,
+        stats.faces_redacted >= 1,
         "Expected ≥1 face, got {}",
-        stats.faces_blurred
+        stats.faces_redacted
     );
 
     // Validate face bboxes
@@ -99,11 +99,11 @@ fn test_face_image_pipeline_validates() {
         errors.iter().map(|e| &e.message).collect::<Vec<_>>()
     );
 
-    // Face should be selective blur (area < 80%)
+    // Face should be selective redaction (area < 80%)
     for face in &meta.faces {
         assert!(
             face.area_ratio() < 0.8,
-            "Face area ratio {:.1}% should be < 80% for selective blur",
+            "Face area ratio {:.1}% should be < 80% for selective redaction",
             face.area_ratio() * 100.0
         );
     }
@@ -137,9 +137,9 @@ fn test_child_image_pipeline_validates() {
 
     // Should detect at least 1 face (child)
     assert!(
-        stats.faces_blurred >= 1,
+        stats.faces_redacted >= 1,
         "Expected ≥1 child face, got {}",
-        stats.faces_blurred
+        stats.faces_redacted
     );
 
     // All face bboxes should pass validation
@@ -192,7 +192,7 @@ fn test_text_image_pipeline_validates() {
     );
 
     // Should have 0 faces in a document photo
-    assert_eq!(stats.faces_blurred, 0, "Document should have 0 faces");
+    assert_eq!(stats.faces_redacted, 0, "Document should have 0 faces");
 }
 
 #[test]
@@ -329,7 +329,7 @@ fn test_ocr_recognition_quality_v4() {
 }
 
 #[test]
-fn test_tier2_pii_selective_blur() {
+fn test_tier2_pii_selective_redaction() {
     let ocr_dir = Path::new("models/paddleocr");
     if !ocr_dir.join("rec_model.onnx").exists() {
         eprintln!("Skipping: OCR recognition model not available");
@@ -352,10 +352,10 @@ fn test_tier2_pii_selective_blur() {
     let manager = ImageModelManager::new(config);
     let (_result, stats, _meta) = manager.process_image(img, None).unwrap();
 
-    eprintln!("\n=== Tier 2 PII Selective Blur ===");
+    eprintln!("\n=== Tier 2 PII Selective Redaction ===");
     eprintln!("  Text regions found: {}", stats.text_regions_found);
 
-    // In Tier 2 (full_recognition), the pipeline recognizes text and only blurs PII.
+    // In Tier 2 (full_recognition), the pipeline recognizes text and only redacts PII.
     // The test validates the pipeline runs without errors in Tier 2 mode.
     assert!(
         stats.text_regions_found >= 1,

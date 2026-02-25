@@ -64,9 +64,9 @@ pub struct FeatureBudget {
     pub crf_enabled: bool,
     /// Enable ensemble confidence voting (agreement bonus).
     pub ensemble_enabled: bool,
-    /// Enable image pipeline (face blur, OCR blur, NSFW).
+    /// Enable image pipeline (face redaction, OCR redaction, NSFW).
     pub image_pipeline_enabled: bool,
-    /// OCR processing tier: "full_recognition" or "detect_and_blur".
+    /// OCR processing tier: "full_recognition" or "detect_and_fill".
     pub ocr_tier: String,
     /// Enable NSFW/nudity detection model.
     pub nsfw_enabled: bool,
@@ -269,7 +269,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: true,
-            ocr_tier: "detect_and_blur".to_string(),
+            ocr_tier: "detect_and_fill".to_string(),
             nsfw_enabled: false,
             screen_guard_enabled: false,
             face_model: "blazeface".to_string(),
@@ -305,7 +305,7 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: max_ram >= 100,
-            ocr_tier: "detect_and_blur".to_string(),
+            ocr_tier: "detect_and_fill".to_string(),
             nsfw_enabled: max_ram >= 150,
             screen_guard_enabled: true,
             face_model: "scrfd".to_string(),
@@ -318,7 +318,7 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             crf_enabled: max_ram >= 25,
             ensemble_enabled: false,
             image_pipeline_enabled: max_ram >= 40,
-            ocr_tier: "detect_and_blur".to_string(),
+            ocr_tier: "detect_and_fill".to_string(),
             nsfw_enabled: false,
             screen_guard_enabled: false,
             face_model: "blazeface".to_string(),
@@ -476,7 +476,7 @@ mod tests {
         assert!(!b.ner_enabled);
         assert!(b.crf_enabled);
         assert!(!b.ensemble_enabled);
-        assert_eq!(b.ocr_tier, "detect_and_blur");
+        assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
         assert_eq!(b.face_model, "blazeface");
@@ -510,7 +510,7 @@ mod tests {
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled); // 275 >= 80
         assert!(b.image_pipeline_enabled); // 275 >= 100
-        assert_eq!(b.ocr_tier, "detect_and_blur");
+        assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(b.nsfw_enabled); // 275 >= 150
         assert!(b.screen_guard_enabled);
         assert_eq!(b.face_model, "scrfd");
@@ -526,7 +526,7 @@ mod tests {
         assert!(!b.ner_enabled);
         assert!(b.crf_enabled); // 102 >= 25
         assert!(b.image_pipeline_enabled); // 102 >= 40
-        assert_eq!(b.ocr_tier, "detect_and_blur");
+        assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
         assert_eq!(b.face_model, "blazeface");
@@ -542,7 +542,7 @@ mod tests {
         assert!(!b.ner_enabled);
         assert!(!b.crf_enabled); // 12 < 25
         assert!(!b.image_pipeline_enabled); // 12 < 40
-        assert_eq!(b.ocr_tier, "detect_and_blur");
+        assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
         assert_eq!(b.face_model, "blazeface");

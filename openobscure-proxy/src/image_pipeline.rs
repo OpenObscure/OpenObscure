@@ -16,7 +16,7 @@ use image::{DynamicImage, GenericImageView, ImageFormat};
 use crate::config::ImageConfig;
 use crate::detection_meta::{NsfwMeta, PipelineMeta};
 use crate::face_detector::{FaceDetection, FaceDetector, ScrfdDetector};
-use crate::image_blur;
+use crate::image_redact;
 use crate::keyword_dict::KeywordDict;
 use crate::nsfw_detector::NsfwDetector;
 use crate::ocr_engine::{OcrDetector, OcrRecognizer, OcrTier};
@@ -103,7 +103,7 @@ pub fn encode_image(img: &DynamicImage, format: OutputFormat) -> Result<Vec<u8>,
 /// Stats from processing a single image.
 #[derive(Debug, Default)]
 pub struct ImageStats {
-    pub faces_blurred: u32,
+    pub faces_redacted: u32,
     pub text_regions_found: u32,
     pub is_screenshot: bool,
     pub nsfw_detected: bool,
@@ -202,7 +202,7 @@ impl ImageModelManager {
 
     /// Process a single image through the full pipeline.
     ///
-    /// Steps: NSFW check → face detection → redact faces → OCR detection → redact text.
+    /// Steps: NSFW check → face detection → fill faces → OCR detection → fill text.
     /// If NSFW content detected, solid-fill entire image and skip face/OCR phases.
     /// Models are loaded on demand and released between phases to minimize RAM.
     ///
@@ -261,7 +261,7 @@ impl ImageModelManager {
             *last = Instant::now();
         }
 
-        // Phase 0: NSFW detection — if nudity found, blur entire image and skip other phases
+        // Phase 0: NSFW detection — if nudity found, redact entire image and skip other phases
         if self.config.nsfw_detection {
             if let Some(ref dir) = self.config.nsfw_model_dir {
                 let mut guard = self.nsfw_detector.lock().unwrap_or_else(|e| e.into_inner());
@@ -292,13 +292,13 @@ impl ImageModelManager {
                                     category = ?result.category);
                                 // Solid fill entire image
                                 let (rw, rh) = (rgb.width(), rgb.height());
-                                image_blur::solid_fill_region(
+                                image_redact::solid_fill_region(
                                     &mut rgb,
                                     0,
                                     0,
                                     rw,
                                     rh,
-                                    image_blur::SOLID_FILL_COLOR,
+                                    image_redact::SOLID_FILL_COLOR,
                                 );
                                 // Skip face/OCR — image is already fully redacted
                                 drop(guard);
@@ -319,7 +319,7 @@ impl ImageModelManager {
             }
         }
 
-        // Phase 1: Face detection + blur
+        // Phase 1: Face detection + redaction
         // Uses SCRFD (Full/Standard) or BlazeFace (Lite) based on config.face_model.
         if self.config.face_detection {
             let faces = self.detect_faces(&dyn_img, &mut stats.onnx_panics);
@@ -336,29 +336,29 @@ impl ImageModelManager {
                     let face_area = face_w * face_h;
                     if face_area / img_area > 0.8 {
                         // Face dominates frame — redact entire image
-                        image_blur::solid_fill_region(
+                        image_redact::solid_fill_region(
                             &mut rgb,
                             0,
                             0,
                             img_w,
                             img_h,
-                            image_blur::SOLID_FILL_COLOR,
+                            image_redact::SOLID_FILL_COLOR,
                         );
                     } else {
-                        let (x, y, w, h) = image_blur::expand_bbox(
+                        let (x, y, w, h) = image_redact::expand_bbox(
                             face.x_min, face.y_min, face.x_max, face.y_max, 0.15, img_w, img_h,
                         );
-                        image_blur::solid_fill_region_elliptical(
+                        image_redact::solid_fill_region_elliptical(
                             &mut rgb,
                             x,
                             y,
                             w,
                             h,
-                            image_blur::SOLID_FILL_COLOR,
+                            image_redact::SOLID_FILL_COLOR,
                         );
                     }
                 }
-                stats.faces_blurred = faces.len() as u32;
+                stats.faces_redacted = faces.len() as u32;
                 oo_debug!(
                     crate::oo_log::modules::FACE,
                     "Faces redacted",
@@ -398,13 +398,13 @@ impl ImageModelManager {
                                 .collect();
 
                             match tier {
-                                OcrTier::DetectAndBlur => {
+                                OcrTier::DetectAndFill => {
                                     // Tier 1: redact all detected text regions
                                     for region in &regions {
-                                        image_blur::solid_fill_quad_region(
+                                        image_redact::solid_fill_quad_region(
                                             &mut rgb,
                                             &region.points,
-                                            image_blur::SOLID_FILL_COLOR,
+                                            image_redact::SOLID_FILL_COLOR,
                                         );
                                     }
                                 }
@@ -441,10 +441,10 @@ impl ImageModelManager {
                                                         .scan_text(&rt.text)
                                                         .is_empty();
                                                     if has_regex_pii || has_keyword_pii {
-                                                        image_blur::solid_fill_quad_region(
+                                                        image_redact::solid_fill_quad_region(
                                                             &mut rgb,
                                                             &rt.region.points,
-                                                            image_blur::SOLID_FILL_COLOR,
+                                                            image_redact::SOLID_FILL_COLOR,
                                                         );
                                                         pii_count += 1;
                                                     }
@@ -726,7 +726,7 @@ mod tests {
         let (result, stats, _meta) = manager.process_image(img, None).unwrap();
         assert_eq!(result.width(), 100);
         assert_eq!(result.height(), 100);
-        assert_eq!(stats.faces_blurred, 0);
+        assert_eq!(stats.faces_redacted, 0);
         assert_eq!(stats.text_regions_found, 0);
     }
 
@@ -752,7 +752,7 @@ mod tests {
         let img = make_test_image(50, 50);
         let (result, stats, _meta) = manager.process_image(img, None).unwrap();
         assert_eq!(result.width(), 50);
-        assert_eq!(stats.faces_blurred, 0);
+        assert_eq!(stats.faces_redacted, 0);
         assert_eq!(stats.text_regions_found, 0);
     }
 }

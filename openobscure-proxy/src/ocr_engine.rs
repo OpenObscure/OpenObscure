@@ -5,8 +5,8 @@
 //! - **Recognizer** (`OcrRecognizer`): PP-OCRv4 English — reads characters from cropped regions
 //!
 //! Supports two tiers configured via `ocr_tier`:
-//! - `detect_and_blur` (Tier 1): Detect text regions → blur all. No recognition needed.
-//! - `full_recognition` (Tier 2+): Detect → recognize → scan for PII → selectively blur.
+//! - `detect_and_fill` (Tier 1): Detect text regions → solid-fill all. No recognition needed.
+//! - `full_recognition` (Tier 2+): Detect → recognize → scan for PII → selectively redact.
 //!
 //! Model files expected:
 //! - `det_model.onnx` — PaddleOCR v3 text detection (~2.4MB)
@@ -42,9 +42,9 @@ const MIN_REGION_SIZE: f32 = 3.0;
 /// OCR processing tier.
 #[derive(Debug, Clone, PartialEq)]
 pub enum OcrTier {
-    /// Detect text regions and blur all of them. No recognition.
-    DetectAndBlur,
-    /// Detect, recognize text, scan for PII, selectively blur.
+    /// Detect text regions and solid-fill all of them. No recognition.
+    DetectAndFill,
+    /// Detect, recognize text, scan for PII, selectively redact.
     FullRecognition,
 }
 
@@ -52,7 +52,7 @@ impl OcrTier {
     pub fn from_config(s: &str) -> Self {
         match s {
             "full_recognition" => OcrTier::FullRecognition,
-            _ => OcrTier::DetectAndBlur,
+            _ => OcrTier::DetectAndFill,
         }
     }
 }
@@ -609,14 +609,14 @@ mod tests {
     #[test]
     fn test_ocr_tier_from_config() {
         assert_eq!(
-            OcrTier::from_config("detect_and_blur"),
-            OcrTier::DetectAndBlur
+            OcrTier::from_config("detect_and_fill"),
+            OcrTier::DetectAndFill
         );
         assert_eq!(
             OcrTier::from_config("full_recognition"),
             OcrTier::FullRecognition
         );
-        assert_eq!(OcrTier::from_config("unknown"), OcrTier::DetectAndBlur);
+        assert_eq!(OcrTier::from_config("unknown"), OcrTier::DetectAndFill);
     }
 
     #[test]

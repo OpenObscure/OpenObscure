@@ -367,7 +367,7 @@ nested_json_depth = 2       # Scan PII inside escaped JSON strings
 enabled = true
 face_detection = true
 ocr_enabled = true
-ocr_tier = "detect_and_blur"  # "detect_and_blur" or "full_recognition"
+ocr_tier = "detect_and_fill"  # "detect_and_fill" or "full_recognition"
 max_dimension = 960
 
 [response_integrity]

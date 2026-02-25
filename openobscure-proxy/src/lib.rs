@@ -24,9 +24,9 @@ pub mod multilingual;
 // Image pipeline modules — exported for examples and integration tests
 pub mod config;
 pub mod face_detector;
-pub mod image_blur;
 pub mod image_detect;
 pub mod image_pipeline;
+pub mod image_redact;
 pub mod nsfw_detector;
 pub mod ocr_engine;
 pub mod screen_guard;

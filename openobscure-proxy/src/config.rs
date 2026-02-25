@@ -302,7 +302,7 @@ pub struct ImageConfig {
     /// Enable OCR text detection (default: true).
     #[serde(default = "default_true")]
     pub ocr_enabled: bool,
-    /// OCR processing tier: "detect_and_blur" (default) or "full_recognition".
+    /// OCR processing tier: "detect_and_fill" (default) or "full_recognition".
     #[serde(default = "default_ocr_tier")]
     pub ocr_tier: String,
     /// Maximum image dimension in pixels before resize (default: 960).
@@ -491,7 +491,7 @@ fn default_face_model() -> String {
     "blazeface".to_string()
 }
 fn default_ocr_tier() -> String {
-    "detect_and_blur".to_string()
+    "detect_and_fill".to_string()
 }
 fn default_max_dimension() -> u32 {
     960
@@ -723,7 +723,7 @@ nsfw_detection = false
         assert!(config.image.enabled);
         assert!(config.image.face_detection);
         assert!(config.image.ocr_enabled);
-        assert_eq!(config.image.ocr_tier, "detect_and_blur");
+        assert_eq!(config.image.ocr_tier, "detect_and_fill");
         assert_eq!(config.image.max_dimension, 960);
         assert_eq!(config.image.model_idle_timeout_secs, 300);
         assert_eq!(config.image.face_model, "blazeface");

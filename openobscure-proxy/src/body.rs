@@ -16,7 +16,7 @@ use crate::voice_pipeline;
 /// Process a request body: scan for PII, FPE-encrypt or redact matches, return modified body + mappings.
 ///
 /// Two-pass processing:
-/// 1. Image pass: find base64 image blocks, decode → EXIF strip → resize → face blur → OCR blur → re-encode
+/// 1. Image pass: find base64 image blocks, decode → EXIF strip → resize → face redact → OCR redact → re-encode
 /// 2. Text pass: scan JSON string values for PII, FPE-encrypt or redact
 ///
 /// Images are processed FIRST so that byte offsets in the text pass remain correct.
@@ -137,7 +137,7 @@ pub fn process_request_body(
 /// Walk a JSON tree and process any embedded base64 images.
 ///
 /// Finds Anthropic and OpenAI image content blocks, decodes them,
-/// runs the image pipeline (EXIF strip, resize, face blur, OCR blur),
+/// runs the image pipeline (EXIF strip, resize, face redact, OCR redact),
 /// and replaces the base64 data in-place.
 fn process_images_in_json(json: &mut Value, models: &ImageModelManager) -> Vec<ImageStats> {
     let mut stats = Vec::new();
@@ -517,7 +517,7 @@ mod tests {
 
         // Should have processed 1 image (decode → resize → encode, no face/OCR)
         assert_eq!(stats.len(), 1);
-        assert_eq!(stats[0].faces_blurred, 0);
+        assert_eq!(stats[0].faces_redacted, 0);
         assert_eq!(stats[0].text_regions_found, 0);
 
         // The base64 data should have been replaced
@@ -572,7 +572,7 @@ mod tests {
         let stats = process_images_in_json(&mut json, &models);
         // Image is processed (decode/encode) but no face/OCR work done
         assert_eq!(stats.len(), 1);
-        assert_eq!(stats[0].faces_blurred, 0);
+        assert_eq!(stats[0].faces_redacted, 0);
         assert_eq!(stats[0].text_regions_found, 0);
     }
 

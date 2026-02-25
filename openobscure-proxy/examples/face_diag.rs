@@ -50,7 +50,7 @@ fn main() {
             face_area,
             ratio * 100.0,
             f.confidence,
-            if ratio > 0.8 { "→ FULL BLUR" } else { "→ SELECTIVE BLUR" }
+            if ratio > 0.8 { "→ FULL REDACTION" } else { "→ SELECTIVE REDACTION" }
         );
     }
 }

@@ -6,7 +6,7 @@
 //! - Visual: high color uniformity in the top strip (status/title bar)
 //!
 //! When a screenshot is detected, the image pipeline switches to aggressive mode:
-//! all text regions are blurred regardless of PII detection tier.
+//! all text regions are redacted regardless of PII detection tier.
 
 use image::{DynamicImage, GenericImageView};
 

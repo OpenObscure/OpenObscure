@@ -238,7 +238,7 @@ impl OpenObscureMobile {
             let ocr_tier = budget
                 .as_ref()
                 .map(|b| b.ocr_tier.clone())
-                .unwrap_or_else(|| "detect_and_blur".to_string());
+                .unwrap_or_else(|| "detect_and_fill".to_string());
             let screen_guard = budget
                 .as_ref()
                 .map(|b| b.screen_guard_enabled)
@@ -423,7 +423,7 @@ impl OpenObscureMobile {
         result
     }
 
-    /// Process an image for visual PII (face blur, OCR text blur, EXIF strip).
+    /// Process an image for visual PII (face redaction, OCR text redaction, EXIF strip).
     ///
     /// Returns the sanitized image bytes in the same format as input (JPEG/PNG).
     pub fn sanitize_image(&self, image_bytes: &[u8]) -> Result<Vec<u8>, MobileError> {

@@ -1,7 +1,7 @@
 //! OpenObscure Image Pipeline Demo
 //!
 //! Processes an image through the full visual PII pipeline:
-//! face detection + blur, OCR text detection + blur, EXIF strip.
+//! face detection + redaction, OCR text detection + redaction, EXIF strip.
 //!
 //! Usage:
 //!   # First download models
@@ -9,11 +9,11 @@
 //!
 //!   # Then run the demo
 //!   cargo run --example demo_image_pipeline -- \
-//!     --input photo.jpg --output photo-blurred.jpg
+//!     --input photo.jpg --output photo-redacted.jpg
 //!
 //!   # Custom model directory
 //!   cargo run --example demo_image_pipeline -- \
-//!     --input photo.jpg --output photo-blurred.jpg \
+//!     --input photo.jpg --output photo-redacted.jpg \
 //!     --models-dir /path/to/models
 
 use std::path::PathBuf;
@@ -100,7 +100,7 @@ fn main() {
         enabled: true,
         face_detection: face_dir.exists(),
         ocr_enabled: ocr_dir.exists(),
-        ocr_tier: "detect_and_blur".to_string(),
+        ocr_tier: "detect_and_fill".to_string(),
         max_dimension: 960,
         model_idle_timeout_secs: 300,
         face_model_dir: if face_dir.exists() {
@@ -172,7 +172,7 @@ fn main() {
     println!("");
     println!("=== Results ===");
     println!("NSFW detected:      {}", stats.nsfw_detected);
-    println!("Faces blurred:      {}", stats.faces_blurred);
+    println!("Faces redacted:     {}", stats.faces_redacted);
     println!("Text regions found: {}", stats.text_regions_found);
     println!("Screenshot:         {}", stats.is_screenshot);
     println!("Processing time:    {:.0}ms", elapsed.as_millis());

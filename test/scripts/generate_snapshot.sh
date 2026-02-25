@@ -52,14 +52,14 @@ while IFS= read -r -d '' visual_file; do
   orig_file=$(jq -r '.file' "$visual_file")
   subcategory=$(jq -r '.subcategory // "unknown"' "$visual_file")
   key="Visual_PII/${orig_file}"
-  faces=$(jq '.pipeline_results.faces_blurred // 0' "$visual_file")
+  faces=$(jq '.pipeline_results.faces_redacted // 0' "$visual_file")
   text_regions=$(jq '.pipeline_results.text_regions_detected // 0' "$visual_file")
   nsfw_blocked=$(jq '.pipeline_results.nsfw_blocked // false' "$visual_file")
   screenshot_detected=$(jq '.pipeline_results.screenshot_detected // false' "$visual_file")
   visual_json=$(echo "$visual_json" | jq --arg k "$key" --arg sub "$subcategory" \
     --argjson f "$faces" --argjson tr "$text_regions" \
     --argjson nsfw "$nsfw_blocked" --argjson ss "$screenshot_detected" \
-    '. + {($k): {"subcategory": $sub, "faces_blurred": $f, "text_regions_detected": $tr, "nsfw_blocked": $nsfw, "screenshot_detected": $ss}}')
+    '. + {($k): {"subcategory": $sub, "faces_redacted": $f, "text_regions_detected": $tr, "nsfw_blocked": $nsfw, "screenshot_detected": $ss}}')
 done < <(find "$OUTPUT_DIR/Visual_PII" -path "*/json/*_visual.json" -print0 2>/dev/null | sort -z)
 
 # ─── Assemble snapshot ───────────────────────────────────────

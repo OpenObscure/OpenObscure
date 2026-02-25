@@ -109,7 +109,7 @@ src/
 ├── face_detector.rs     SCRFD-2.5GF (Full/Standard, 640x640) + BlazeFace (Lite, 128x128) face detection
 ├── nsfw_detector.rs     NudeNet 320n ONNX NSFW/nudity detection (YOLOv8n, 320x320)
 ├── ocr_engine.rs        PaddleOCR PP-OCRv4 det+rec ONNX (text region detection, CTC decode)
-├── image_blur.rs        Solid-color fill for face and text regions (irreversible redaction)
+├── image_redact.rs      Solid-color fill for face and text regions (irreversible redaction)
 ├── screen_guard.rs      Screenshot heuristics (EXIF, resolution, status bar uniformity)
 ├── detection_meta.rs    BboxMeta, NsfwMeta, ScreenshotMeta detection metadata types
 ├── detection_validators.rs  Detection verification framework (bbox sanity, NSFW consistency)

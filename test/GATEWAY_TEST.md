@@ -51,7 +51,7 @@ curl -s http://127.0.0.1:18790/_openobscure/health | jq .
   "pii_matches_total": 0,
   "requests_total": 0,
   "images_processed_total": 0,
-  "faces_blurred_total": 0,
+  "faces_redacted_total": 0,
   "text_regions_total": 0,
   "scan_latency_p50_us": 0,
   "scan_latency_p95_us": 0,
@@ -337,7 +337,7 @@ nsfw_detection = true
 nsfw_threshold = 0.45
 ```
 
-Health endpoint tracks: `images_processed_total`, `faces_blurred_total`, `text_regions_total`.
+Health endpoint tracks: `images_processed_total`, `faces_redacted_total`, `text_regions_total`.
 
 ---
 

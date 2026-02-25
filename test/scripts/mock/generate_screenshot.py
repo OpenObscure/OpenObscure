@@ -4,7 +4,7 @@ Generate a synthetic screenshot containing PII text for OpenObscure testing.
 
 Creates a realistic-looking multi-section document with names, SSNs, credit cards,
 phone numbers, emails, addresses, and medical info — all fictitious. This lets
-the OCR pipeline demonstrate text-region blurring on sensitive content.
+the OCR pipeline demonstrate text-region redaction on sensitive content.
 
 Usage:
     python3 test/scripts/mock/generate_screenshot.py [--output docs/examples/images/screenshot-original.png]

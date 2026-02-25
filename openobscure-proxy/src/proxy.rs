@@ -119,7 +119,7 @@ pub async fn proxy_handler(
                 // Record image processing stats
                 for is in &image_stats {
                     state.health.record_images_processed(1);
-                    state.health.record_faces_blurred(is.faces_blurred as u64);
+                    state.health.record_faces_redacted(is.faces_redacted as u64);
                     state
                         .health
                         .record_text_regions(is.text_regions_found as u64);

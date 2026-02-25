@@ -313,9 +313,9 @@ have `json/` and `redacted/` subfolders for each category.
 
 | Category | Count | Types | Validated Metrics |
 |----------|:-----:|-------|-------------------|
-| `Visual_PII/Faces/` | 13 | Frontal, profile, group, small-in-landscape | `faces_blurred`, `text_regions_detected` |
+| `Visual_PII/Faces/` | 13 | Frontal, profile, group, small-in-landscape | `faces_redacted`, `text_regions_detected` |
 | `Visual_PII/Screenshots/` | 7 | Desktop/mobile at various resolutions | `text_regions_detected`, `screenshot_detected` |
-| `Visual_PII/Documents/` | 8 | DL, SSN card, passport, CC, W-2, etc. | `faces_blurred`, `text_regions_detected` |
+| `Visual_PII/Documents/` | 8 | DL, SSN card, passport, CC, W-2, etc. | `faces_redacted`, `text_regions_detected` |
 | `Visual_PII/EXIF/` | 12 | Screenshot tools, cameras (with/without GPS), no-EXIF controls | `screenshot_detected`, EXIF stripping |
 | `Visual_PII/NSFW/` | 7 | 5 safe controls + 2 placeholders | `nsfw_blocked` |
 
@@ -717,11 +717,11 @@ The snapshot captures exact detection counts from a known-good test run:
   "audio": {"Audio_PII/audio_ssn_single.wav": {"pii_detected": true, "keywords": "SOCIAL SECURITY", "action": "PII_DETECTED"}},
   "visual": {
     "Visual_PII/face_single_frontal_01.jpg": {
-      "subcategory": "Faces", "faces_blurred": 1, "text_regions_detected": 0,
+      "subcategory": "Faces", "faces_redacted": 1, "text_regions_detected": 0,
       "nsfw_blocked": false, "screenshot_detected": false
     },
     "Visual_PII/screenshot_email_inbox_1920x1080.png": {
-      "subcategory": "Screenshots", "faces_blurred": 0, "text_regions_detected": 5,
+      "subcategory": "Screenshots", "faces_redacted": 0, "text_regions_detected": 5,
       "nsfw_blocked": false, "screenshot_detected": true
     }
   }
@@ -732,7 +732,7 @@ The snapshot captures exact detection counts from a known-good test run:
 |---------|----------------|-----------|
 | `gateway` | `total_matches` + per-type counts | Exact match |
 | `audio` | `pii_detected`, `action`, `keywords` | Exact match (keywords warns only) |
-| `visual` | `faces_blurred`, `text_regions_detected`, `nsfw_blocked`, `screenshot_detected` | Exact match |
+| `visual` | `faces_redacted`, `text_regions_detected`, `nsfw_blocked`, `screenshot_detected` | Exact match |
 
 To regenerate the snapshot after scanner changes:
 
@@ -752,7 +752,7 @@ To regenerate the snapshot after scanner changes:
 | 4 | `must_detect` strings covered by matches | Specific PII item regression (offset + type) |
 | 5 | Redacted output file exists | FPE capture file missing, echo server not saving |
 | 6 | Redacted file differs from original | Echo server down, proxy not FPE-encrypting, wrong config |
-| 7 | Visual: `faces_blurred >= min_faces` | Face detector regression (Faces, Documents) |
+| 7 | Visual: `faces_redacted >= min_faces` | Face detector regression (Faces, Documents) |
 | 8 | Visual: `text_regions >= min_text_regions` | OCR pipeline regression (Documents, Screenshots) |
 | 9 | Visual: `nsfw_blocked` matches expected | NSFW detector false positive/negative |
 | 10 | Visual: `screenshot_detected` matches expected | Screenshot heuristic regression (EXIF, Screenshots) |
@@ -764,7 +764,7 @@ To regenerate the snapshot after scanner changes:
 | 1 | Gateway `total_matches` matches snapshot | Any change in detection count |
 | 2 | Gateway per-type counts match snapshot | Type distribution shifts |
 | 3 | Audio `pii_detected` + `action` match | KWS detection regression |
-| 4 | Visual `faces_blurred` + `text_regions` match | Image pipeline face/OCR regression |
+| 4 | Visual `faces_redacted` + `text_regions` match | Image pipeline face/OCR regression |
 | 5 | Visual `nsfw_blocked` + `screenshot_detected` match | NSFW/screenshot detection regression |
 
 Additional checks (both modes):
