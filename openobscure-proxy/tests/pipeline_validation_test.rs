@@ -35,8 +35,6 @@ fn make_pipeline_config() -> ImageConfig {
         ocr_enabled: ocr_dir.exists(),
         ocr_tier: "detect_and_blur".to_string(),
         max_dimension: 960,
-        face_blur_sigma: 25.0,
-        text_blur_sigma: 20.0,
         model_idle_timeout_secs: 300,
         face_model,
         face_model_dir: if face_dir.exists() {
@@ -79,7 +77,7 @@ fn test_face_image_pipeline_validates() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, stats, meta) = manager.process_image(img).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
 
     // Should detect at least 1 face
     assert!(
@@ -135,7 +133,7 @@ fn test_child_image_pipeline_validates() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, stats, meta) = manager.process_image(img).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
 
     // Should detect at least 1 face (child)
     assert!(
@@ -171,7 +169,7 @@ fn test_text_image_pipeline_validates() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, stats, meta) = manager.process_image(img).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
 
     // Should detect text regions
     assert!(
@@ -210,7 +208,7 @@ fn test_screenshot_pipeline_validates() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, stats, meta) = manager.process_image(img).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
 
     // Screenshot should have many text regions (PII form)
     assert!(
@@ -246,7 +244,7 @@ fn test_nsfw_meta_consistent_when_clean() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, _stats, meta) = manager.process_image(img).unwrap();
+    let (_result, _stats, meta) = manager.process_image(img, None).unwrap();
 
     // If NSFW model was loaded, validate the metadata
     if let Some(ref nsfw_meta) = meta.nsfw {
@@ -352,7 +350,7 @@ fn test_tier2_pii_selective_blur() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(config);
-    let (_result, stats, _meta) = manager.process_image(img).unwrap();
+    let (_result, stats, _meta) = manager.process_image(img, None).unwrap();
 
     eprintln!("\n=== Tier 2 PII Selective Blur ===");
     eprintln!("  Text regions found: {}", stats.text_regions_found);
@@ -378,7 +376,7 @@ fn test_all_bbox_sanity_on_face_image() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, _stats, meta) = manager.process_image(img).unwrap();
+    let (_result, _stats, meta) = manager.process_image(img, None).unwrap();
 
     // Every bbox (face + text) should pass generic sanity checks
     for bbox in meta.faces.iter().chain(meta.text_regions.iter()) {

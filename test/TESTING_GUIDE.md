@@ -1271,3 +1271,73 @@ have dedicated scripts). No script changes needed.
 | Multilingual PII missed | Language detection disabled | Ensure `whatlang` feature enabled in proxy build |
 | Code fence PII missed | `respect_code_fences = true` | Set to `false` in config to scan inside code fences |
 | Agent nested JSON missed | Nesting depth > 2 | Known limitation — proxy scans 2 levels of nested JSON |
+
+---
+
+## Response Integrity Testing
+
+Response integrity (cognitive firewall) scans LLM responses for persuasion and manipulation techniques. Testing covers two tiers: R1 (dictionary) and R2 (TinyBERT classifier).
+
+### R1 Dictionary Testing
+
+R1 uses pattern-based matching against ~250 phrases across 7 categories. No model files required.
+
+**Test approach:** Send text containing known persuasion phrases through the proxy (or use the echo server to return manipulative text as an LLM response). Verify detection in proxy logs.
+
+| Category | Example phrases | Expected behavior |
+|----------|----------------|-------------------|
+| Urgency | "act now", "limited time", "don't delay" | Detected, severity depends on match count |
+| Scarcity | "only a few left", "selling fast" | Detected |
+| Social Proof | "everyone is buying", "most popular" | Detected |
+| Fear | "you could lose everything", "don't fall behind" | Detected |
+| Authority | "experts agree", "studies show" | Detected |
+| Commercial | "best deal", "free trial", "buy now" | Detected |
+| Flattery | "smart choice", "you deserve this" | Detected |
+
+**Configuration:**
+
+```toml
+[response_integrity]
+enabled = true
+sensitivity = "high"   # Ensures all detections are reported
+log_only = true        # Observe without modifying responses
+```
+
+### R2 Model Testing
+
+R2 uses a TinyBERT FP32 ONNX multi-label classifier for 4 EU AI Act Article 5 categories. Requires the ONNX model to be present in the configured `ri_model_dir`.
+
+**Prerequisites:**
+- R2 model files: `model.onnx` (54.9 MB) + `vocab.txt` in the model directory
+- Config: `ri_model_dir = "models/r2_persuasion_tinybert"` (or your model path)
+
+**Article 5 categories detected by R2:**
+
+| Category | What it catches |
+|----------|----------------|
+| `Art_5_1_a_Deceptive` | Deceptive/manipulative techniques |
+| `Art_5_1_b_Age` | Age vulnerability exploitation |
+| `Art_5_1_b_SocioEcon` | Socioeconomic vulnerability exploitation |
+| `Art_5_1_c_Social_Scoring` | Social scoring patterns |
+
+### Cascade Verification
+
+Check proxy logs for R2 cascade behavior:
+
+| R2Role | Meaning | Log indicator |
+|--------|---------|---------------|
+| `Confirm` | R1 flagged, R2 agrees | `r2_role=Confirm` |
+| `Suppress` | R1 flagged, R2 sees benign | `r2_role=Suppress` (false positive removed) |
+| `Upgrade` | R1 flagged, R2 finds more | `r2_role=Upgrade` |
+| `Discover` | R1 clean, R2 finds manipulation | `r2_role=Discover` |
+
+### Sensitivity Tier Testing
+
+| Sensitivity | R1 clean path | R1 flagged path |
+|-------------|---------------|-----------------|
+| `off` | No scanning | No scanning |
+| `low` | Skip R2 | R2 confirms/suppresses |
+| `medium` | R2 samples 10% | R2 confirms/suppresses |
+| `high` | R2 scans all | R2 confirms/suppresses |
+
+Test by varying `sensitivity` in config and verifying R2 invocation behavior in logs.

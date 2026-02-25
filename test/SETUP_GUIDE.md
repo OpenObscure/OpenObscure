@@ -136,6 +136,8 @@ cd ~/Desktop/OpenObscure
 
 This downloads about 25 MB of model files. You only need to do this once.
 
+> **Optional:** To enable the R2 cognitive firewall (AI-based persuasion detection), you also need the R2 TinyBERT model (~55 MB). This is an advanced feature — the proxy works fine without it using R1 dictionary detection only. If you want R2, either train it with `python3 scripts/r2_finetune.py` or download a pre-trained checkpoint to `models/r2_persuasion_tinybert/`.
+
 ### Step 8 — Set Up a Local LLM (Optional — Skip If Using Cloud API)
 
 If you want everything to run on your MacBook with no cloud dependency, install Ollama and download an open-source model. **Skip this step if you're using Anthropic or OpenAI.**

@@ -516,15 +516,21 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 
 
 /**
- * The main mobile API handle. Thread-safe and reusable across calls.
+ * Opaque handle exposed to Swift/Kotlin via UniFFI.
+ *
+ * Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
+ * crate (where `UniFfiTag` exists) rather than on the shared struct.
  */
-public protocol OpenObscureMobileProtocol: AnyObject, Sendable {
+public protocol OpenObscureHandleProtocol: AnyObject, Sendable {
     
 }
 /**
- * The main mobile API handle. Thread-safe and reusable across calls.
+ * Opaque handle exposed to Swift/Kotlin via UniFFI.
+ *
+ * Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
+ * crate (where `UniFfiTag` exists) rather than on the shared struct.
  */
-open class OpenObscureMobile: OpenObscureMobileProtocol, @unchecked Sendable {
+open class OpenObscureHandle: OpenObscureHandleProtocol, @unchecked Sendable {
     fileprivate let pointer: UnsafeMutableRawPointer!
 
     /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
@@ -561,7 +567,7 @@ open class OpenObscureMobile: OpenObscureMobileProtocol, @unchecked Sendable {
     @_documentation(visibility: private)
 #endif
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_openobscure_proxy_fn_clone_openobscuremobile(self.pointer, $0) }
+        return try! rustCall { uniffi_openobscure_proxy_fn_clone_openobscurehandle(self.pointer, $0) }
     }
     // No primary constructor declared for this class.
 
@@ -570,7 +576,7 @@ open class OpenObscureMobile: OpenObscureMobileProtocol, @unchecked Sendable {
             return
         }
 
-        try! rustCall { uniffi_openobscure_proxy_fn_free_openobscuremobile(pointer, $0) }
+        try! rustCall { uniffi_openobscure_proxy_fn_free_openobscurehandle(pointer, $0) }
     }
 
     
@@ -583,20 +589,20 @@ open class OpenObscureMobile: OpenObscureMobileProtocol, @unchecked Sendable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeOpenObscureMobile: FfiConverter {
+public struct FfiConverterTypeOpenObscureHandle: FfiConverter {
 
     typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = OpenObscureMobile
+    typealias SwiftType = OpenObscureHandle
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> OpenObscureMobile {
-        return OpenObscureMobile(unsafeFromRawPointer: pointer)
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> OpenObscureHandle {
+        return OpenObscureHandle(unsafeFromRawPointer: pointer)
     }
 
-    public static func lower(_ value: OpenObscureMobile) -> UnsafeMutableRawPointer {
+    public static func lower(_ value: OpenObscureHandle) -> UnsafeMutableRawPointer {
         return value.uniffiClonePointer()
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OpenObscureMobile {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OpenObscureHandle {
         let v: UInt64 = try readInt(&buf)
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -607,7 +613,7 @@ public struct FfiConverterTypeOpenObscureMobile: FfiConverter {
         return try lift(ptr!)
     }
 
-    public static func write(_ value: OpenObscureMobile, into buf: inout [UInt8]) {
+    public static func write(_ value: OpenObscureHandle, into buf: inout [UInt8]) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
@@ -618,15 +624,15 @@ public struct FfiConverterTypeOpenObscureMobile: FfiConverter {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeOpenObscureMobile_lift(_ pointer: UnsafeMutableRawPointer) throws -> OpenObscureMobile {
-    return try FfiConverterTypeOpenObscureMobile.lift(pointer)
+public func FfiConverterTypeOpenObscureHandle_lift(_ pointer: UnsafeMutableRawPointer) throws -> OpenObscureHandle {
+    return try FfiConverterTypeOpenObscureHandle.lift(pointer)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeOpenObscureMobile_lower(_ value: OpenObscureMobile) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeOpenObscureMobile.lower(value)
+public func FfiConverterTypeOpenObscureHandle_lower(_ value: OpenObscureHandle) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeOpenObscureHandle.lower(value)
 }
 
 
@@ -966,8 +972,8 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
  * # Returns
  * An opaque handle to use with other functions.
  */
-public func createOpenobscure(configJson: String, fpeKeyHex: String)throws  -> OpenObscureMobile  {
-    return try  FfiConverterTypeOpenObscureMobile_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
+public func createOpenobscure(configJson: String, fpeKeyHex: String)throws  -> OpenObscureHandle  {
+    return try  FfiConverterTypeOpenObscureHandle_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
     uniffi_openobscure_proxy_fn_func_create_openobscure(
         FfiConverterString.lower(configJson),
         FfiConverterString.lower(fpeKeyHex),$0
@@ -977,34 +983,34 @@ public func createOpenobscure(configJson: String, fpeKeyHex: String)throws  -> O
 /**
  * Get current statistics for diagnostics.
  */
-public func getStats(handle: OpenObscureMobile) -> MobileStatsFfi  {
+public func getStats(handle: OpenObscureHandle) -> MobileStatsFfi  {
     return try!  FfiConverterTypeMobileStatsFFI_lift(try! rustCall() {
     uniffi_openobscure_proxy_fn_func_get_stats(
-        FfiConverterTypeOpenObscureMobile_lower(handle),$0
+        FfiConverterTypeOpenObscureHandle_lower(handle),$0
     )
 })
 }
 /**
  * Restore original PII values in response text using saved mappings.
  */
-public func restoreText(handle: OpenObscureMobile, text: String, mappingJson: String) -> String  {
+public func restoreText(handle: OpenObscureHandle, text: String, mappingJson: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_openobscure_proxy_fn_func_restore_text(
-        FfiConverterTypeOpenObscureMobile_lower(handle),
+        FfiConverterTypeOpenObscureHandle_lower(handle),
         FfiConverterString.lower(text),
         FfiConverterString.lower(mappingJson),$0
     )
 })
 }
 /**
- * Process an image for visual PII (face blur, OCR text blur, EXIF strip).
+ * Process an image for visual PII (face redaction, OCR text redaction, EXIF strip).
  *
  * Returns sanitized image bytes (JPEG format).
  */
-public func sanitizeImage(handle: OpenObscureMobile, imageBytes: Data)throws  -> Data  {
+public func sanitizeImage(handle: OpenObscureHandle, imageBytes: Data)throws  -> Data  {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
     uniffi_openobscure_proxy_fn_func_sanitize_image(
-        FfiConverterTypeOpenObscureMobile_lower(handle),
+        FfiConverterTypeOpenObscureHandle_lower(handle),
         FfiConverterData.lower(imageBytes),$0
     )
 })
@@ -1014,10 +1020,10 @@ public func sanitizeImage(handle: OpenObscureMobile, imageBytes: Data)throws  ->
  *
  * Returns a result with sanitized text and mapping data for later restoration.
  */
-public func sanitizeText(handle: OpenObscureMobile, text: String)throws  -> SanitizeResultFfi  {
+public func sanitizeText(handle: OpenObscureHandle, text: String)throws  -> SanitizeResultFfi  {
     return try  FfiConverterTypeSanitizeResultFFI_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
     uniffi_openobscure_proxy_fn_func_sanitize_text(
-        FfiConverterTypeOpenObscureMobile_lower(handle),
+        FfiConverterTypeOpenObscureHandle_lower(handle),
         FfiConverterString.lower(text),$0
     )
 })
@@ -1038,19 +1044,19 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_create_openobscure() != 4398) {
+    if (uniffi_openobscure_proxy_checksum_func_create_openobscure() != 27473) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_get_stats() != 2743) {
+    if (uniffi_openobscure_proxy_checksum_func_get_stats() != 30522) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_restore_text() != 28518) {
+    if (uniffi_openobscure_proxy_checksum_func_restore_text() != 12720) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_sanitize_image() != 60095) {
+    if (uniffi_openobscure_proxy_checksum_func_sanitize_image() != 8013) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_sanitize_text() != 65098) {
+    if (uniffi_openobscure_proxy_checksum_func_sanitize_text() != 27391) {
         return InitializationResult.apiChecksumMismatch
     }
 

@@ -606,6 +606,8 @@ fn scan_response_integrity(
         severity = %report.severity,
         flags = flag_count,
         categories = %category_names.join(", "),
+        r2_role = %report.r2_role,
+        r2_categories = %report.r2_categories.join(", "),
         scan_time_us = report.scan_time_us);
 
     // If log_only mode, don't modify the response

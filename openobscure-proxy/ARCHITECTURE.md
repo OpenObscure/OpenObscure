@@ -72,7 +72,7 @@ flowchart LR
 ```
 src/
 ├── main.rs              Entry point: CLI (clap subcommands), config, vault init, auth token, server startup, model eviction
-├── config.rs            TOML config deserialization and validation (ImageConfig, VoiceConfig)
+├── config.rs            TOML config deserialization and validation (ImageConfig, VoiceConfig, ResponseIntegrityConfig)
 ├── server.rs            axum Router, middleware stack, graceful shutdown, NER endpoint
 ├── proxy.rs             Reverse proxy handler (the core request/response loop)
 │
@@ -120,6 +120,11 @@ src/
 ├── kws_engine.rs        KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8, PII trigger phrases)
 ├── voice_pipeline.rs    KWS-gated selective audio strip: detect PII trigger phrases → strip matching blocks
 │
+│   ── Response Integrity (Cognitive Firewall, Phases R1 + 12) ──
+├── persuasion_dict.rs    R1 dictionary (~250 phrases, 7 Cialdini categories, HashSet O(1) lookup)
+├── response_integrity.rs R1→R2 cascade: sensitivity tiers, R2Role dispatch, severity computation
+├── ri_model.rs           R2 TinyBERT FP32 ONNX multi-label classifier (4 EU AI Act Article 5 categories)
+│
 │   ── Infrastructure ──
 ├── device_profile.rs    Hardware profiler: detect RAM/cores, classify tier (Full/Standard/Lite), derive FeatureBudget
 ├── ort_ep.rs            ONNX Runtime EP selection: CoreML (Apple), NNAPI (Android), CPU fallback
@@ -128,6 +133,7 @@ src/
 ├── oo_log.rs            Unified logging macros (oo_info!, oo_warn!, oo_audit!) + module constants
 ├── pii_scrub_layer.rs   PII scrub filter for log output (tracing MakeWriter wrapper)
 ├── crash_buffer.rs      mmap ring buffer for crash diagnostics (survives SIGKILL/OOM)
+├── sse_accumulator.rs   SSE frame accumulation for cross-frame PII token and FPE ciphertext reassembly
 ├── error.rs             Unified error types
 ├── integration_tests.rs E2E tests (wiremock + tower::oneshot)
 │
@@ -194,6 +200,13 @@ src/
     │   - Sort by ciphertext length desc (prevent partial matches)
     │
 12. Return decrypted response to the host agent
+        │
+12b. Response integrity scan (if enabled):
+    │   a. Extract text from response JSON (Anthropic/OpenAI format)
+    │   b. R1: Dictionary scan (~250 phrases, 7 categories)
+    │   c. R2: If triggered by sensitivity/R1 result, run TinyBERT classifier
+    │   d. Cascade: Confirm/Suppress/Upgrade/Discover
+    │   e. If flagged & log_only=false: prepend warning label
         │
 13. Clean up request mappings from store
 ```
@@ -353,7 +366,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **994** (411 lib + 561 bin + 14 accuracy + 8 pipeline) |
+| Test count | — | **1,166** (500 lib + 666 bin) |
 
 ## Technology Stack
 

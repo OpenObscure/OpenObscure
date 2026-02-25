@@ -60,7 +60,7 @@ flowchart LR
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
 - **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin)
-- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face/OCR/NSFW solid-fill redaction, EXIF strip), voice PII detection (KWS keyword spotting), response integrity (cognitive firewall), SSE streaming
+- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face/OCR/NSFW solid-fill redaction, EXIF strip), voice PII detection (KWS keyword spotting), response integrity (R1 dictionary + R2 TinyBERT classifier — cognitive firewall), SSE streaming
 - **Use case:** Desktop apps, servers, VPS, Raspberry Pi — anywhere the agent's Gateway runs
 
 ### Embedded Model (Mobile / Library)
@@ -386,10 +386,10 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
-**1,169 tests** across all components (1,103 Rust proxy + 50 TypeScript plugin + 16 crypto).
+**~1,232 tests** across all components (1,166 Rust proxy + 50 TypeScript plugin + 16 crypto).
 
 ```bash
-# L0 Proxy (1,103 tests)
+# L0 Proxy (1,166 tests)
 cd openobscure-proxy && cargo test
 
 # L1 Plugin (50 tests)
@@ -431,7 +431,7 @@ PII detection uses a hybrid approach:
 - **Keyword dictionary** (~700 terms) for health and child-related terms
 - **Image pipeline** (SCRFD/BlazeFace + PaddleOCR ONNX) for visual PII in photos — faces redacted with solid fill (irreversible)
 - **Voice PII detection** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks
-- **Response integrity** (cognitive firewall) — scans LLM responses for persuasion/manipulation techniques (urgency, scarcity, social proof, fear, authority, commercial, flattery) and optionally prepends warning labels
+- **Response integrity** (cognitive firewall) — R1 dictionary scan (~250 phrases, 7 categories) plus R2 TinyBERT multi-label classifier (4 EU AI Act Article 5 categories) with cascade logic (Confirm/Suppress/Upgrade/Discover). Optionally prepends warning labels
 
 ---
 
@@ -502,7 +502,7 @@ Most privacy tools focus on what you *send*. OpenObscure also protects what you 
 
 LLM providers can embed persuasion techniques in responses — urgency ("act now!"), false authority ("experts agree"), fear appeals ("you could lose everything"), commercial pressure ("limited-time offer") — to influence user behavior. [EU AI Act Article 5](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) explicitly prohibits subliminal and manipulative AI techniques, but no enforcement mechanism exists at the endpoint. OpenObscure's cognitive firewall fills that gap: it scans every LLM response for persuasion patterns across 7 categories (~250 phrases) and flags or labels responses before they reach the user.
 
-This is pattern-based detection today (R1), with semantic model-based analysis planned for R2. The dictionary approach is fast (sub-millisecond), has zero false negatives on known phrases, and requires no additional ML models.
+Detection uses a two-tier cascade: R1 (pattern-based dictionary, <1ms) runs on every response, and R2 (TinyBERT FP32 multi-label classifier, ~30ms) runs conditionally based on sensitivity level to confirm, suppress, or upgrade R1 detections — or discover manipulation that R1 alone cannot detect.
 
 ### How It Works
 
@@ -516,8 +516,9 @@ sequenceDiagram
     P->>L: Forward to provider
     L->>P: Response
     Note over P: 1. FPE decrypt ciphertexts
-    Note over P: 2. Scan for persuasion phrases<br/>(~250 terms, 7 categories)
-    Note over P: 3. Compute severity tier
+    Note over P: 2. R1 dict scan (~250 phrases, 7 categories)
+    Note over P: 3. R2 TinyBERT classifier (conditional)
+    Note over P: 4. Cascade: Confirm/Suppress/Upgrade/Discover
     alt Persuasion detected & log_only=false
         Note over P: Prepend warning label
     end
@@ -544,6 +545,30 @@ sequenceDiagram
 | **WARNING** | 2-3 categories or 3+ matches | Log + optional label |
 | **CAUTION** | 4+ categories or commercial+fear/urgency combo | Log + optional label |
 
+### R2 Semantic Classifier (Phase 12)
+
+R2 adds semantic model-based analysis to detect manipulation that dictionary matching alone cannot catch — paraphrased techniques, context-dependent vulnerability exploitation, and social scoring patterns.
+
+**EU AI Act Article 5 categories:**
+
+| Category | What it catches |
+|----------|----------------|
+| `Art_5_1_a_Deceptive` | Deceptive/manipulative techniques (urgency, scarcity, social proof, fear, authority, flattery, anchoring) |
+| `Art_5_1_b_Age` | Age vulnerability exploitation (child gamification, elderly confusion) |
+| `Art_5_1_b_SocioEcon` | Socioeconomic vulnerability exploitation (debt pressure, health anxiety, isolation) |
+| `Art_5_1_c_Social_Scoring` | Social scoring patterns (trust score threats, behavioral compliance, access restriction) |
+
+**R2 cascade roles:**
+
+| Role | Trigger | Behavior |
+|------|---------|----------|
+| **Confirm** | R1 flagged, R2 agrees | Severity stays or upgrades |
+| **Suppress** | R1 flagged, R2 sees benign | R1 false positive suppressed |
+| **Upgrade** | R1 flagged, R2 finds more | Severity tier upgraded |
+| **Discover** | R1 clean, R2 finds manipulation | New detection R1 missed |
+
+**Model stats:** 54.9 MB FP32 ONNX, macro precision 80.9%, macro recall 74.5%, macro F1 77.3%, benign accuracy 94.9%.
+
 ### Configuration
 
 ```toml
@@ -551,10 +576,18 @@ sequenceDiagram
 enabled = true            # Enable the cognitive firewall
 sensitivity = "medium"    # off, low, medium, high
 log_only = true           # true = log detections; false = prepend warning labels
+
+# R2 model (optional — omit for R1-only mode)
+ri_model_dir = "models/r2"       # Path to R2 ONNX model directory
+ri_threshold = 0.55              # R2 classification threshold
+ri_early_exit_threshold = 0.30   # Below this on first 128 tokens → skip full inference
+ri_idle_evict_secs = 300         # Evict R2 model after idle (seconds)
+ri_sample_rate = 0.10            # R2 sampling rate at medium sensitivity
 ```
 
 - **Disabled by default** — opt-in, zero overhead when off
 - **Log-only by default** — observe detections before deciding to modify responses
+- **R2 optional** — when `ri_model_dir` is not set, operates with R1 dictionary only
 - **Fail-open** — if response JSON can't be parsed, forward unchanged
 
 ### Warning Label Example

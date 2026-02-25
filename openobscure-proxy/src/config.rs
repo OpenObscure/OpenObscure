@@ -425,7 +425,7 @@ pub struct ResponseIntegrityConfig {
     /// - off: scanner disabled at scan level (even if enabled=true)
     /// - low: only report WARNING/CAUTION severity (2+ categories or commercial+fear combos)
     /// - medium: report all detections including NOTICE
-    /// - high: report all detections including NOTICE
+    /// - high: report all detections including NOTICE, R2 scans all responses
     #[serde(default = "default_ri_sensitivity")]
     pub sensitivity: String,
 
@@ -434,6 +434,29 @@ pub struct ResponseIntegrityConfig {
     /// When false, a warning label is prepended to the response content.
     #[serde(default = "default_true")]
     pub log_only: bool,
+
+    /// Path to R2 TinyBERT ONNX model directory (containing model_int8.onnx + vocab.txt).
+    /// When None, R2 is disabled and only R1 dictionary scanning is used.
+    #[serde(default)]
+    pub ri_model_dir: Option<String>,
+
+    /// R2 classification threshold (0.0–1.0). Sigmoid outputs above this are positive (default: 0.70).
+    #[serde(default = "default_ri_threshold")]
+    pub ri_threshold: f32,
+
+    /// R2 early-exit threshold (0.0–1.0). If max sigmoid score in the first window is below this,
+    /// skip full-sequence inference (default: 0.30).
+    #[serde(default = "default_ri_early_exit_threshold")]
+    pub ri_early_exit_threshold: f32,
+
+    /// Seconds before idle R2 model is evicted from memory (default: 300).
+    #[serde(default = "default_model_idle_timeout")]
+    pub ri_idle_evict_secs: u64,
+
+    /// Fraction of responses to scan with R2 when R1 did not flag (0.0–1.0, default: 0.10).
+    /// Only applies at sensitivity=medium. At high, all responses are scanned.
+    #[serde(default = "default_ri_sample_rate")]
+    pub ri_sample_rate: f32,
 }
 
 impl Default for ResponseIntegrityConfig {
@@ -442,12 +465,26 @@ impl Default for ResponseIntegrityConfig {
             enabled: false,
             sensitivity: default_ri_sensitivity(),
             log_only: true,
+            ri_model_dir: None,
+            ri_threshold: default_ri_threshold(),
+            ri_early_exit_threshold: default_ri_early_exit_threshold(),
+            ri_idle_evict_secs: default_model_idle_timeout(),
+            ri_sample_rate: default_ri_sample_rate(),
         }
     }
 }
 
 fn default_ri_sensitivity() -> String {
     "medium".to_string()
+}
+fn default_ri_threshold() -> f32 {
+    0.55
+}
+fn default_ri_early_exit_threshold() -> f32 {
+    0.30
+}
+fn default_ri_sample_rate() -> f32 {
+    0.10
 }
 
 fn default_face_model() -> String {
@@ -980,6 +1017,11 @@ route_prefix = "/test"
         assert!(!config.response_integrity.enabled);
         assert_eq!(config.response_integrity.sensitivity, "medium");
         assert!(config.response_integrity.log_only);
+        assert!(config.response_integrity.ri_model_dir.is_none());
+        assert_eq!(config.response_integrity.ri_threshold, 0.55);
+        assert_eq!(config.response_integrity.ri_early_exit_threshold, 0.30);
+        assert_eq!(config.response_integrity.ri_idle_evict_secs, 300);
+        assert_eq!(config.response_integrity.ri_sample_rate, 0.10);
     }
 
     #[test]
@@ -992,12 +1034,25 @@ route_prefix = "/test"
 enabled = true
 sensitivity = "high"
 log_only = false
+ri_model_dir = "models/r2"
+ri_threshold = 0.80
+ri_early_exit_threshold = 0.25
+ri_idle_evict_secs = 600
+ri_sample_rate = 0.50
 "#,
         )
         .unwrap();
         assert!(config.response_integrity.enabled);
         assert_eq!(config.response_integrity.sensitivity, "high");
         assert!(!config.response_integrity.log_only);
+        assert_eq!(
+            config.response_integrity.ri_model_dir.as_deref(),
+            Some("models/r2")
+        );
+        assert_eq!(config.response_integrity.ri_threshold, 0.80);
+        assert_eq!(config.response_integrity.ri_early_exit_threshold, 0.25);
+        assert_eq!(config.response_integrity.ri_idle_evict_secs, 600);
+        assert_eq!(config.response_integrity.ri_sample_rate, 0.50);
     }
 
     #[test]
@@ -1013,6 +1068,7 @@ port = 8080
         assert!(!config.response_integrity.enabled);
         assert_eq!(config.response_integrity.sensitivity, "medium");
         assert!(config.response_integrity.log_only);
+        assert!(config.response_integrity.ri_model_dir.is_none());
     }
 
     #[test]
@@ -1030,6 +1086,29 @@ sensitivity = "{}"
             let config = AppConfig::from_toml(&toml).unwrap();
             assert_eq!(config.response_integrity.sensitivity, *sensitivity);
         }
+    }
+
+    #[test]
+    fn test_response_integrity_r2_partial_override() {
+        // Only override some R2 fields — others should use defaults
+        let config = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[response_integrity]
+enabled = true
+ri_model_dir = "models/r2"
+"#,
+        )
+        .unwrap();
+        assert!(config.response_integrity.enabled);
+        assert_eq!(
+            config.response_integrity.ri_model_dir.as_deref(),
+            Some("models/r2")
+        );
+        assert_eq!(config.response_integrity.ri_threshold, 0.55);
+        assert_eq!(config.response_integrity.ri_early_exit_threshold, 0.30);
+        assert_eq!(config.response_integrity.ri_sample_rate, 0.10);
     }
 
     // --- Custom patterns ---

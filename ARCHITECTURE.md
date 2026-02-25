@@ -204,7 +204,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 1,103 (470 lib + 633 bin) |
+| **Tests** | 1,166 (500 lib + 666 bin) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -419,6 +419,8 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 | **Phase 9** (complete) | **99%** | Runtime hardware capability detection — device profiler auto-selects features based on RAM; mobile devices with 8GB+ get full NER + ensemble parity with gateway |
 | **Phase 10** (complete) | **99.5%** | Multilingual PII (9 languages, national ID validation), voice anonymization (KWS keyword spotting via sherpa-onnx Zipformer), mobile test apps (iOS + Android), UniFFI binding automation, TinyBERT fine-tuning dataset, OpenClaw `before_tool_call` preparation |
 | **Phase R1** (complete) | **99.5%** | Response integrity cognitive firewall — persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases), severity tiers (Notice/Warning/Caution), optional warning labels (EU AI Act Article 5), Anthropic + OpenAI format support |
+| **Phase 11** (complete) | **99.5%** | SSE frame accumulation buffer (`SseAccumulator`), model pre-warming (`ReadinessState`), tier-aware body size limits, request/response FPE mapping module |
+| **Phase 12** (complete) | **99.5%** | R2 cognitive firewall — TinyBERT FP32 multi-label classifier (4 EU AI Act Article 5 categories), R1→R2 cascade (Confirm/Suppress/Upgrade/Discover), first-window early exit, ONNX FP32 export (54.9 MB), macro P=80.9% R=74.5% F1=77.3% |
 
 ## Project Layout
 
@@ -493,7 +495,10 @@ OpenObscure/
 | Per-record FPE tweaks | Prevents frequency analysis across requests |
 | L1 redacts, not encrypts | Tool results are internal — redaction is simpler and guarantees removal |
 | Synchronous hooks only | OpenClaw-specific: OpenClaw silently skips async hook returns |
-| INT8 quantization mandatory | FP32 TinyBERT = ~200MB; INT8 = ~50MB — difference between fitting and OOM |
+| INT8 quantization for NER | FP32 TinyBERT NER = ~200MB; INT8 = ~50MB — difference between fitting and OOM. R2 uses FP32 (see below) |
+| FP32 for R2, not INT8 | INT8 dynamic quantization produced 7.45 max logit error — too much accuracy loss for multi-label classification. FP32 is accurate (0.000013 max diff) at 54.9 MB |
+| R1→R2 cascade | R1 is <1ms (dictionary). R2 is ~30ms (ONNX). Cascade avoids R2 overhead on clean responses at low/medium sensitivity |
+| Interior mutability for R2 (`Mutex<Option<RiModel>>`) | R2 ONNX session needs `&mut self`. Mutex allows `scan(&self)` on Arc-shared scanner across async request handlers |
 | Solid-fill redaction (all regions) | Gaussian blur is partially reversible by AI deblurring models; solid color fill destroys original pixels completely, compresses better in base64, and clearly signals intentional redaction. Applied to faces, OCR text, and NSFW images. |
 | On-demand model loading | Face + OCR models load/evict per image, saving ~43MB between images |
 | Sequential model loading | Face model loaded/used/dropped before OCR model loaded — never both in RAM |
@@ -761,30 +766,43 @@ flowchart TB
 
 ---
 
-## Response Integrity — Cognitive Firewall (Phase R1)
+## Response Integrity — Cognitive Firewall (Phases R1 + R2)
 
 OpenObscure protects the **outbound path** (user PII encrypted before reaching LLM providers) and the **inbound path** (LLM responses scanned for manipulation before reaching users).
 
 **Why this matters:** Privacy tools typically stop at input sanitization — they protect what you send. But LLM providers control the response side: they can embed persuasion techniques (urgency, scarcity, false authority, fear appeals, commercial pressure) to influence user behavior. EU AI Act Article 5 prohibits such subliminal/manipulative techniques, but there is no enforcement mechanism at the user's endpoint. OpenObscure's cognitive firewall provides that enforcement — scanning every response before it reaches the user or agent.
 
-**Current approach (R1):** Pattern-based dictionary matching (~250 phrases across 7 categories). Sub-millisecond overhead, zero additional models, no false negatives on known phrases. This is a foundation — R2 will add semantic model-based analysis for context-aware detection and SSE streaming support.
+**Two-tier cascade:** R1 (pattern-based dictionary, ~250 phrases across 7 Cialdini categories, <1ms) runs on every response. R2 (TinyBERT FP32 multi-label classifier, ~30ms, 4 EU AI Act Article 5 categories) runs conditionally based on sensitivity level and R1 results — confirming, suppressing, upgrading, or discovering manipulation that R1 alone cannot detect.
 
-The response integrity scanner operates after FPE decryption on buffered (non-SSE) responses.
+The response integrity scanner operates after FPE decryption. SSE responses are accumulated via `SseAccumulator` for cross-frame token reassembly before scanning.
 
 ```mermaid
 flowchart LR
     llm["LLM Response"] --> decrypt["FPE Decrypt"]
     decrypt --> extract["Extract text from JSON"]
-    extract --> scan["Persuasion Dict scan"]
-    scan -->|"clean"| pass["Pass through"]
-    scan -->|"flagged"| severity["Compute severity"]
+    extract --> r1["R1 Dict Scan"]
+    r1 -->|"clean"| r2check{"Sensitivity?"}
+    r1 -->|"flagged"| r2confirm["R2 Cascade"]
+    r2check -->|"off/low"| pass["Pass through"]
+    r2check -->|"medium (sample)"| r2discover["R2 Discover"]
+    r2check -->|"high"| r2full["R2 Full Scan"]
+    r2confirm -->|"Confirm/Upgrade"| severity["Compute severity"]
+    r2confirm -->|"Suppress"| pass
+    r2discover -->|"flagged"| severity
+    r2discover -->|"clean"| pass
+    r2full -->|"flagged"| severity
+    r2full -->|"clean"| pass
     severity -->|"log_only=true"| logonly["Log + pass through"]
     severity -->|"log_only=false"| label["Prepend warning label"]
 
     style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
     style decrypt fill:#545b64,stroke:#232F3E,color:#fff
     style extract fill:#545b64,stroke:#232F3E,color:#fff
-    style scan fill:#545b64,stroke:#232F3E,color:#fff
+    style r1 fill:#545b64,stroke:#232F3E,color:#fff
+    style r2check fill:#545b64,stroke:#232F3E,color:#fff
+    style r2confirm fill:#ff9900,stroke:#232F3E,color:#fff
+    style r2discover fill:#ff9900,stroke:#232F3E,color:#fff
+    style r2full fill:#ff9900,stroke:#232F3E,color:#fff
     style pass fill:#545b64,stroke:#232F3E,color:#fff
     style severity fill:#545b64,stroke:#232F3E,color:#fff
     style logonly fill:#545b64,stroke:#232F3E,color:#fff
@@ -823,9 +841,65 @@ flowchart LR
 - **Opt-in, log-only default** — observe before acting, matches fail-open philosophy
 - **Fail-open** — JSON parse errors or unrecognized response formats forward unchanged
 - **Supports Anthropic and OpenAI response formats** — extracts text from `content[].text` or `choices[].message.content`
-- **SSE streaming deferred** — phrase matching across chunk boundaries needs an accumulation buffer (future R2 phase)
+- **SSE streaming supported** — `SseAccumulator` buffers SSE frames for cross-frame token reassembly before R1+R2 scanning
 - **~250 phrases** across 7 categories, HashSet O(1) lookup with 3→2→1 word scanning (longest match first)
-- **No new dependencies** — uses only std, serde_json, bytes, tracing (all already present)
+- **R2 model optional** — when `ri_model_dir` is not set, degrades gracefully to R1-only
+
+### R2 Semantic Classifier (Phase 12)
+
+R2 is a TinyBERT FP32 ONNX multi-label classifier that detects manipulation techniques aligned to EU AI Act Article 5 prohibited categories. It runs conditionally after R1, adding semantic understanding that dictionary matching alone cannot provide.
+
+**Model:** `huawei-noah/TinyBERT_General_4L_312D`, fine-tuned on 2,750 synthetic examples (1,924 train / 411 val / 415 test). Exported as ONNX FP32 (54.9 MB). INT8 quantization was evaluated but rejected due to excessive accuracy loss (7.45 max logit error).
+
+**Article 5 categories:**
+
+| Category | What it catches | Examples |
+|----------|----------------|----------|
+| `Art_5_1_a_Deceptive` | Deceptive/manipulative techniques | Urgency, scarcity, social proof, fear, authority, flattery, anchoring, confirmshaming |
+| `Art_5_1_b_Age` | Age vulnerability exploitation | Child gamification, elderly confusion, oversimplified risk |
+| `Art_5_1_b_SocioEcon` | Socioeconomic vulnerability exploitation | Debt pressure, health anxiety, unemployment exploitation, isolation |
+| `Art_5_1_c_Social_Scoring` | Social scoring patterns | Trust score threats, behavioral compliance, access restriction |
+
+**R2 Role (cascade behavior):**
+
+| Role | Trigger | Behavior |
+|------|---------|----------|
+| **Confirm** | R1 flagged, R2 agrees | Severity stays or upgrades based on R2 category count |
+| **Suppress** | R1 flagged, R2 sees benign | R1 false positive suppressed — no detection reported |
+| **Upgrade** | R1 flagged, R2 finds more categories | Severity tier upgraded |
+| **Discover** | R1 clean, R2 finds manipulation | New detection that R1 missed (paraphrased manipulation) |
+
+**Sensitivity tiers (R2 activation):**
+
+| Sensitivity | R1 Clean | R1 Flagged | Overhead |
+|-------------|----------|------------|----------|
+| `off` | Skip all | Skip all | 0ms |
+| `low` | Skip R2 | R2 confirms | ~30ms on 1-5% |
+| `medium` | R2 samples 10% | R2 confirms | ~30ms on ~11-15% |
+| `high` | R2 full scan | R2 confirms | ~30ms on 100% |
+
+**Performance (held-out test set, threshold=0.55):**
+
+| Metric | Value |
+|--------|-------|
+| Macro precision | 80.9% |
+| Macro recall | 74.5% |
+| Macro F1 | 77.3% |
+| Benign accuracy | 94.9% |
+| Model size | 54.9 MB (FP32 ONNX) |
+| Inference | ~30ms (first-window early exit on clean text) |
+
+**Implementation:** R2 model is held behind `Mutex<Option<RiModel>>` inside `ResponseIntegrityScanner`, allowing `scan(&self)` on the `Arc`-shared scanner. First-window early exit: if max sigmoid score on the first 128 tokens is below `early_exit_threshold` (0.30), full-sequence inference is skipped.
+
+**Configuration** (`[response_integrity]` section):
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `ri_model_dir` | `None` | Path to R2 ONNX model directory. `None` = R2 disabled, R1-only |
+| `ri_threshold` | `0.55` | Per-category sigmoid threshold for positive detection |
+| `ri_early_exit_threshold` | `0.30` | Below this on first 128 tokens → skip full inference |
+| `ri_idle_evict_secs` | `300` | Evict R2 model from memory after N seconds idle |
+| `ri_sample_rate` | `0.10` | Fraction of R1-clean responses scanned by R2 at `medium` sensitivity |
 
 ---
 
@@ -923,9 +997,12 @@ Recently completed:
 - **Mobile test apps** — iOS (SwiftUI, 25 runner + 23 XCTest) and Android (Compose, 29 instrumented + 8 UI) — DONE (Phase 10A)
 - **`before_tool_call` preparation** — L1 plugin prepared handler that auto-activates when OpenClaw wires the hook — DONE (Phase 10F)
 - **Response integrity cognitive firewall** — Persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases, severity tiers, warning labels, EU AI Act Article 5) — DONE (Phase R1)
+- **SSE frame accumulation** — `SseAccumulator` cross-frame buffer for PII token and FPE ciphertext reassembly in streaming responses — DONE (Phase 11)
+- **Model pre-warming** — `ReadinessState` enum (Cold/Warming/Ready) in health.rs, health returns 503 until warm — DONE (Phase 11)
+- **Tier-aware body limits** — Per-tier body size limits (Lite 10MB, Standard 50MB, Full 100MB) with streaming early-reject — DONE (Phase 11)
+- **Response integrity R2** — TinyBERT FP32 multi-label classifier for 4 EU AI Act Article 5 categories, R1→R2 cascade (Confirm/Suppress/Upgrade/Discover), first-window early exit, SSE streaming via SseAccumulator — DONE (Phase 12)
 
 Planned (future):
 - **Protection status header** — L0 injects `X-OpenObscure-Protection` response header (`pii=on; ri=on; image=on`) so L1 or any UI client can display a "Privacy Protection ON" indicator; header stripped before upstream forwarding
-- **Response integrity R2** — Semantic model for context-aware persuasion detection, SSE streaming support via accumulation buffer
 - **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D, deferred)
 - **Streaming redaction** — Incremental redaction for large tool results (blocked by OpenClaw's synchronous hook API)

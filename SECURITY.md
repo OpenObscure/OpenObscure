@@ -46,6 +46,7 @@ Critical vulnerabilities (key extraction, proxy bypass, plaintext PII leaks) wil
 - Denial of service against the proxy
 - Dependency vulnerabilities with exploitable paths in OpenObscure
 - ONNX model substitution attacks (replacing SCRFD/BlazeFace/PaddleOCR models with malicious ones)
+- Response integrity model bypass (crafting text that evades both R1 dictionary and R2 classifier detection)
 - Image processing bypass (crafting images where faces/text aren't detected)
 - Resource exhaustion via image processing (OOM, CPU spin on adversarial inputs)
 - Base64 bomb attacks (crafted base64 strings that decode to extremely large images)
@@ -132,6 +133,17 @@ The image pipeline introduces additional attack surfaces that are actively mitig
 | **ONNX model substitution** (replacing `.onnx` files with malicious models) | Models verified by SHA256 checksum against trusted manifest. Model paths are admin-configured, not user-supplied. |
 | **Resource exhaustion** (large images causing OOM or CPU spin) | 960px resize cap, sequential model loading (never both face + OCR in RAM), 224MB hard ceiling. |
 | **EXIF-based attacks** (crafted EXIF metadata) | EXIF read via `kamadak-exif` for screenshot detection only; EXIF is stripped by re-encoding (pixels only). |
+
+### Response Integrity Attack Surface (Phase 12)
+
+The R2 cognitive firewall introduces a TinyBERT ONNX classifier for persuasion detection:
+
+| Attack | Mitigation |
+|--------|-----------|
+| **R2 model substitution** (replacing ONNX file with malicious model) | Model path is admin-configured, not user-supplied. SHA256 checksum verification against trusted manifest. |
+| **R2 adversarial inputs** (crafting manipulative text that evades R2) | R2 is supplementary to R1 dictionary. Adversarial text evading R2 may still be caught by R1 phrase matching. Fail-open: R2 model failure falls back to R1-only. |
+| **R2 model extraction** (extracting model weights from ONNX file) | Model weights are readable from the ONNX file. Not a security concern — the model detects manipulation patterns, it does not contain user data. |
+| **R2 denial of service** (triggering expensive inference repeatedly) | First-window early exit (128 tokens) limits inference cost for clean text. Model evicted after idle timeout (default 300s). Sensitivity tier controls R2 invocation rate. |
 
 ## Threat Model
 

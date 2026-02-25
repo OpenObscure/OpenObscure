@@ -251,14 +251,14 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
     );
 
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_CLONE_OPENOBSCUREMOBILE
-#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_CLONE_OPENOBSCUREMOBILE
-void*_Nonnull uniffi_openobscure_proxy_fn_clone_openobscuremobile(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_CLONE_OPENOBSCUREHANDLE
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_CLONE_OPENOBSCUREHANDLE
+void*_Nonnull uniffi_openobscure_proxy_fn_clone_openobscurehandle(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
-#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FREE_OPENOBSCUREMOBILE
-#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FREE_OPENOBSCUREMOBILE
-void uniffi_openobscure_proxy_fn_free_openobscuremobile(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FREE_OPENOBSCUREHANDLE
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FREE_OPENOBSCUREHANDLE
+void uniffi_openobscure_proxy_fn_free_openobscurehandle(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_CREATE_OPENOBSCURE

@@ -1362,6 +1362,7 @@ fn build_ri_config(upstream_url: &str, enabled: bool, log_only: bool) -> AppConf
         enabled,
         sensitivity: "medium".to_string(),
         log_only,
+        ..ResponseIntegrityConfig::default()
     };
     // Increase max body to accommodate response JSON
     config.proxy.max_body_bytes = 65536;

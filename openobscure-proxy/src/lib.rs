@@ -43,6 +43,7 @@ pub mod ort_ep;
 // Response integrity (cognitive firewall)
 pub mod persuasion_dict;
 pub mod response_integrity;
+pub mod ri_model;
 
 // Detection verification framework
 pub mod detection_meta;

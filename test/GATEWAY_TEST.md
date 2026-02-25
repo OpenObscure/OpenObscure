@@ -420,6 +420,46 @@ See [config/openobscure.toml](../openobscure-proxy/config/openobscure.toml) for 
 
 ---
 
+## 9. Response Integrity (Cognitive Firewall)
+
+Response integrity scans LLM responses for persuasion and manipulation techniques. R1 uses dictionary matching; R2 uses a TinyBERT ONNX classifier (optional).
+
+### R1 Dictionary Detection
+
+R1 runs on every response when `[response_integrity]` is enabled. Configure the echo server to return manipulative text and verify detection:
+
+```bash
+# Echo server returns persuasive text, proxy detects it
+curl -s http://localhost:18790/anthropic/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "X-Api-Key: test" \
+  -d '{"model":"test","messages":[{"role":"user","content":"test"}]}'
+```
+
+Check proxy logs for detection output: category names, match count, severity tier (Notice/Warning/Caution).
+
+### R2 Model Detection (Optional)
+
+R2 requires the ONNX model files. Configure:
+
+```toml
+[response_integrity]
+enabled = true
+sensitivity = "high"        # Force R2 on every response
+log_only = true
+ri_model_dir = "models/r2_persuasion_tinybert"
+ri_threshold = 0.55
+ri_sample_rate = 0.10
+```
+
+With `sensitivity = "high"`, R2 runs on every response. Check logs for `r2_role` (Confirm/Suppress/Upgrade/Discover) and `r2_categories` fields.
+
+### R2 Graceful Degradation
+
+When `ri_model_dir` is not set or the model directory doesn't exist, the proxy falls back to R1-only. No error — this is the expected default behavior.
+
+---
+
 ## Feature Parity
 
 With hardware capability detection (Phase 9), NER and ensemble voting are now available on capable mobile devices (8GB+ RAM). The following features remain **Gateway-only**:
@@ -428,6 +468,7 @@ With hardware capability detection (Phase 9), NER and ensemble voting are now av
 |---------|-----------------|
 | SSE streaming | HTTP proxy feature |
 | Auth token passthrough | HTTP proxy feature |
+| Response integrity (R1+R2 cognitive firewall) | Response-path scanning is a proxy feature |
 
 The following features are **tier-dependent** (available on both Gateway and Embedded if the device has sufficient RAM):
 

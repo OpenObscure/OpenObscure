@@ -272,5 +272,6 @@ The following features remain **Gateway-only**:
 |---------|-----|
 | SSE streaming | HTTP proxy feature |
 | Auth token passthrough | HTTP proxy feature |
+| Response integrity (R1+R2 cognitive firewall) | Response-path scanning is a proxy feature |
 
 See [GATEWAY_TEST.md](GATEWAY_TEST.md) for these Gateway-specific features.

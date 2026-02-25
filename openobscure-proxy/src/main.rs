@@ -38,6 +38,7 @@ mod pii_scrub_layer;
 mod pii_types;
 mod proxy;
 mod response_integrity;
+mod ri_model;
 mod scanner;
 mod screen_guard;
 mod server;
@@ -292,11 +293,45 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
             );
             None
         } else {
-            let scanner = response_integrity::ResponseIntegrityScanner::new(sensitivity);
+            let scanner = response_integrity::ResponseIntegrityScanner::with_r2(
+                sensitivity,
+                None, // R2 model loaded below if configured
+                config.response_integrity.ri_sample_rate,
+            );
+
+            // Load R2 model if configured
+            if let Some(ref model_dir) = config.response_integrity.ri_model_dir {
+                let model_path = std::path::Path::new(model_dir);
+                match scanner.load_r2(
+                    model_path,
+                    config.response_integrity.ri_threshold,
+                    config.response_integrity.ri_early_exit_threshold,
+                ) {
+                    Ok(true) => {
+                        oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY,
+                            "R2 model loaded successfully",
+                            model_dir = %model_dir,
+                            threshold = config.response_integrity.ri_threshold,
+                            early_exit = config.response_integrity.ri_early_exit_threshold);
+                    }
+                    Ok(false) => {
+                        oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY,
+                            "R2 model not found, running R1-only mode",
+                            model_dir = %model_dir);
+                    }
+                    Err(e) => {
+                        oo_warn!(crate::oo_log::modules::RESPONSE_INTEGRITY,
+                            "R2 model loading failed, running R1-only mode",
+                            error = %e);
+                    }
+                }
+            }
+
             oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY,
                 "Response integrity scanner enabled",
                 sensitivity = %config.response_integrity.sensitivity,
                 log_only = config.response_integrity.log_only,
+                r2_available = scanner.has_r2(),
                 phrases = scanner.dict_count());
             Some(Arc::new(scanner))
         }

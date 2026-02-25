@@ -798,9 +798,9 @@ internal interface UniffiLib : Library {
     }
 
     // FFI functions
-    fun uniffi_openobscure_proxy_fn_clone_openobscuremobile(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_openobscure_proxy_fn_clone_openobscurehandle(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Pointer
-fun uniffi_openobscure_proxy_fn_free_openobscuremobile(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_proxy_fn_free_openobscurehandle(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
 fun uniffi_openobscure_proxy_fn_func_create_openobscure(`configJson`: RustBuffer.ByValue,`fpeKeyHex`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Pointer
@@ -938,19 +938,19 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
-    if (lib.uniffi_openobscure_proxy_checksum_func_create_openobscure() != 4398.toShort()) {
+    if (lib.uniffi_openobscure_proxy_checksum_func_create_openobscure() != 27473.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_openobscure_proxy_checksum_func_get_stats() != 2743.toShort()) {
+    if (lib.uniffi_openobscure_proxy_checksum_func_get_stats() != 30522.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_openobscure_proxy_checksum_func_restore_text() != 28518.toShort()) {
+    if (lib.uniffi_openobscure_proxy_checksum_func_restore_text() != 12720.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_openobscure_proxy_checksum_func_sanitize_image() != 60095.toShort()) {
+    if (lib.uniffi_openobscure_proxy_checksum_func_sanitize_image() != 8013.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_openobscure_proxy_checksum_func_sanitize_text() != 65098.toShort()) {
+    if (lib.uniffi_openobscure_proxy_checksum_func_sanitize_text() != 27391.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1341,17 +1341,23 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 
 
 /**
- * The main mobile API handle. Thread-safe and reusable across calls.
+ * Opaque handle exposed to Swift/Kotlin via UniFFI.
+ *
+ * Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
+ * crate (where `UniFfiTag` exists) rather than on the shared struct.
  */
-public interface OpenObscureMobileInterface {
+public interface OpenObscureHandleInterface {
     
     companion object
 }
 
 /**
- * The main mobile API handle. Thread-safe and reusable across calls.
+ * Opaque handle exposed to Swift/Kotlin via UniFFI.
+ *
+ * Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
+ * crate (where `UniFfiTag` exists) rather than on the shared struct.
  */
-open class OpenObscureMobile: Disposable, AutoCloseable, OpenObscureMobileInterface
+open class OpenObscureHandle: Disposable, AutoCloseable, OpenObscureHandleInterface
 {
 
     constructor(pointer: Pointer) {
@@ -1421,7 +1427,7 @@ open class OpenObscureMobile: Disposable, AutoCloseable, OpenObscureMobileInterf
         override fun run() {
             pointer?.let { ptr ->
                 uniffiRustCall { status ->
-                    UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_free_openobscuremobile(ptr, status)
+                    UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_free_openobscurehandle(ptr, status)
                 }
             }
         }
@@ -1429,7 +1435,7 @@ open class OpenObscureMobile: Disposable, AutoCloseable, OpenObscureMobileInterf
 
     fun uniffiClonePointer(): Pointer {
         return uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_clone_openobscuremobile(pointer!!, status)
+            UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_clone_openobscurehandle(pointer!!, status)
         }
     }
 
@@ -1444,25 +1450,25 @@ open class OpenObscureMobile: Disposable, AutoCloseable, OpenObscureMobileInterf
 /**
  * @suppress
  */
-public object FfiConverterTypeOpenObscureMobile: FfiConverter<OpenObscureMobile, Pointer> {
+public object FfiConverterTypeOpenObscureHandle: FfiConverter<OpenObscureHandle, Pointer> {
 
-    override fun lower(value: OpenObscureMobile): Pointer {
+    override fun lower(value: OpenObscureHandle): Pointer {
         return value.uniffiClonePointer()
     }
 
-    override fun lift(value: Pointer): OpenObscureMobile {
-        return OpenObscureMobile(value)
+    override fun lift(value: Pointer): OpenObscureHandle {
+        return OpenObscureHandle(value)
     }
 
-    override fun read(buf: ByteBuffer): OpenObscureMobile {
+    override fun read(buf: ByteBuffer): OpenObscureHandle {
         // The Rust code always writes pointers as 8 bytes, and will
         // fail to compile if they don't fit.
         return lift(Pointer(buf.getLong()))
     }
 
-    override fun allocationSize(value: OpenObscureMobile) = 8UL
+    override fun allocationSize(value: OpenObscureHandle) = 8UL
 
-    override fun write(value: OpenObscureMobile, buf: ByteBuffer) {
+    override fun write(value: OpenObscureHandle, buf: ByteBuffer) {
         // The Rust code always expects pointers written as 8 bytes,
         // and will fail to compile if they don't fit.
         buf.putLong(Pointer.nativeValue(lower(value)))
@@ -1724,8 +1730,8 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
          * # Returns
          * An opaque handle to use with other functions.
          */
-    @Throws(MobileBindingException::class) fun `createOpenobscure`(`configJson`: kotlin.String, `fpeKeyHex`: kotlin.String): OpenObscureMobile {
-            return FfiConverterTypeOpenObscureMobile.lift(
+    @Throws(MobileBindingException::class) fun `createOpenobscure`(`configJson`: kotlin.String, `fpeKeyHex`: kotlin.String): OpenObscureHandle {
+            return FfiConverterTypeOpenObscureHandle.lift(
     uniffiRustCallWithError(MobileBindingException) { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_create_openobscure(
         FfiConverterString.lower(`configJson`),FfiConverterString.lower(`fpeKeyHex`),_status)
@@ -1736,11 +1742,11 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 
         /**
          * Get current statistics for diagnostics.
-         */ fun `getStats`(`handle`: OpenObscureMobile): MobileStatsFfi {
+         */ fun `getStats`(`handle`: OpenObscureHandle): MobileStatsFfi {
             return FfiConverterTypeMobileStatsFFI.lift(
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_get_stats(
-        FfiConverterTypeOpenObscureMobile.lower(`handle`),_status)
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),_status)
 }
     )
     }
@@ -1748,26 +1754,26 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 
         /**
          * Restore original PII values in response text using saved mappings.
-         */ fun `restoreText`(`handle`: OpenObscureMobile, `text`: kotlin.String, `mappingJson`: kotlin.String): kotlin.String {
+         */ fun `restoreText`(`handle`: OpenObscureHandle, `text`: kotlin.String, `mappingJson`: kotlin.String): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_restore_text(
-        FfiConverterTypeOpenObscureMobile.lower(`handle`),FfiConverterString.lower(`text`),FfiConverterString.lower(`mappingJson`),_status)
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`text`),FfiConverterString.lower(`mappingJson`),_status)
 }
     )
     }
     
 
         /**
-         * Process an image for visual PII (face blur, OCR text blur, EXIF strip).
+         * Process an image for visual PII (face redaction, OCR text redaction, EXIF strip).
          *
          * Returns sanitized image bytes (JPEG format).
          */
-    @Throws(MobileBindingException::class) fun `sanitizeImage`(`handle`: OpenObscureMobile, `imageBytes`: kotlin.ByteArray): kotlin.ByteArray {
+    @Throws(MobileBindingException::class) fun `sanitizeImage`(`handle`: OpenObscureHandle, `imageBytes`: kotlin.ByteArray): kotlin.ByteArray {
             return FfiConverterByteArray.lift(
     uniffiRustCallWithError(MobileBindingException) { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_sanitize_image(
-        FfiConverterTypeOpenObscureMobile.lower(`handle`),FfiConverterByteArray.lower(`imageBytes`),_status)
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterByteArray.lower(`imageBytes`),_status)
 }
     )
     }
@@ -1778,11 +1784,11 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
          *
          * Returns a result with sanitized text and mapping data for later restoration.
          */
-    @Throws(MobileBindingException::class) fun `sanitizeText`(`handle`: OpenObscureMobile, `text`: kotlin.String): SanitizeResultFfi {
+    @Throws(MobileBindingException::class) fun `sanitizeText`(`handle`: OpenObscureHandle, `text`: kotlin.String): SanitizeResultFfi {
             return FfiConverterTypeSanitizeResultFFI.lift(
     uniffiRustCallWithError(MobileBindingException) { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_sanitize_text(
-        FfiConverterTypeOpenObscureMobile.lower(`handle`),FfiConverterString.lower(`text`),_status)
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`text`),_status)
 }
     )
     }

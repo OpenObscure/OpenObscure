@@ -102,8 +102,6 @@ fn main() {
         ocr_enabled: ocr_dir.exists(),
         ocr_tier: "detect_and_blur".to_string(),
         max_dimension: 960,
-        face_blur_sigma: 25.0,
-        text_blur_sigma: 20.0,
         model_idle_timeout_secs: 300,
         face_model_dir: if face_dir.exists() {
             Some(face_dir.to_string_lossy().into_owned())
@@ -145,7 +143,7 @@ fn main() {
     let manager = ImageModelManager::new(config);
     let start = Instant::now();
 
-    let (result_img, stats, _meta) = manager.process_image(img).unwrap_or_else(|e| {
+    let (result_img, stats, _meta) = manager.process_image(img, None).unwrap_or_else(|e| {
         eprintln!("Pipeline error: {}", e);
         std::process::exit(1);
     });
