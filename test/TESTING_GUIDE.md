@@ -35,7 +35,7 @@ for testing is how PII is redacted in the output files:
 | **Redaction Entry** | Proxy pass-through (FPE) | `redactPii()` returns labeled text |
 | **Detection** | Regex + Keywords + NER + CRF + Ensemble | Regex (+ NER via L0 bridge) |
 | **Redaction Mode** | **FF1 FPE** for 5 types + labels for 9 types | **`[REDACTED-*]` labels** for all types |
-| **Image Pipeline** | Face/OCR/NSFW blur via proxy | `sanitize_image()` on mobile |
+| **Image Pipeline** | Face/OCR/NSFW redaction via proxy | `sanitize_image()` on mobile |
 | **Voice Pipeline** | KWS keyword spotting + PII audio strip | N/A |
 | **Auth** | `X-OpenObscure-Token` header | N/A |
 | **Streaming** | SSE pass-through | N/A |
@@ -358,7 +358,7 @@ have `json/` and `redacted/` subfolders for each category.
 | **Detect + FPE redact** | `POST /anthropic/v1/messages` (pass-through) | N/A (label redaction only) |
 | **NER response** | `[{start, end, type, confidence}]` | N/A |
 | **Redact response** | FPE-encrypted body (captured from echo) | `{text, count, types}` |
-| **Image processing** | Base64 in JSON → blurred | `sanitize_image(bytes)` |
+| **Image processing** | Base64 in JSON → redacted (solid fill) | `sanitize_image(bytes)` |
 | **Health check** | `GET /_openobscure/health` | `HeartbeatMonitor.check()` |
 
 ---
@@ -537,13 +537,13 @@ test/data/output/
 │       └── agent_anthropic_text_pii.json        # FPE-encrypted JSON structure
 ├── Visual_PII/
 │   ├── json/
-│   │   ├── face_single_frontal_01_visual.json   # Face/text blur stats
+│   │   ├── face_single_frontal_01_visual.json   # Face/text redaction stats
 │   │   ├── doc_passport_01_visual.json          # Document OCR + face stats
 │   │   ├── screenshot_email_inbox_1920x1080_visual.json  # Screenshot detection
 │   │   ├── exif_screenshot_cleanshot_visual.json # EXIF-based detection
 │   │   └── nsfw_positive_placeholder_01_visual.json      # NSFW detection
 │   └── redacted/
-│       └── face_single_frontal_01.jpg           # Blurred image
+│       └── face_single_frontal_01.jpg           # Redacted image
 └── ...
 ```
 
@@ -580,7 +580,7 @@ test/data/output/
 | `test_embedded_category.mjs` | Embedded | Batch: all files in one input subfolder |
 | `test_embedded_all.mjs` | Embedded | Full suite: all 5 text categories |
 | `test_agent_json.sh` | Gateway | FPE for agent tool result JSON files |
-| `test_visual.sh` | Gateway | Image pipeline: face/OCR/NSFW blur stats + blurred output |
+| `test_visual.sh` | Gateway | Image pipeline: face/OCR/NSFW redaction stats + redacted output |
 | `validate_results.sh` | Both | Pass/fail validator (threshold or strict snapshot mode) |
 | `generate_snapshot.sh` | Both | Generates snapshot.json from current output for `--strict` mode |
 
@@ -598,7 +598,7 @@ test/data/output/
 |------------|:----------------:|--------|
 | **Gateway text** | FPE capture | Wraps file in Anthropic message → proxy FPE-encrypts → echo server saves → script extracts message content |
 | **Gateway agent JSON** | FPE capture (nested) | Serializes entire JSON as string → proxy's nested JSON scanner FPE-encrypts PII within → deserialized back |
-| **Gateway visual** | Proxy pipeline | Proxy blurs faces/text in base64 images → script captures from echo server response |
+| **Gateway visual** | Proxy pipeline | Proxy redacts faces/text in base64 images → script captures from echo server response |
 | **Embedded text** | `redactPii()` | Plugin returns `result.text` with `[REDACTED-*]` labels → written directly |
 | **Both** | No proxy/plugin code modified | All scripts are API consumers only |
 

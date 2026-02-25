@@ -22,7 +22,7 @@ You (Discord) ──► OpenClaw (AI Agent) ──► OpenObscure (Privacy) ─�
 | **OpenObscure** | Sits between OpenClaw and the LLM. Finds personal information in your messages (credit cards, SSNs, names, faces in photos) and encrypts it before it leaves your MacBook |
 | **Ollama** (optional) | Runs an open-source LLM locally on your MacBook so nothing leaves your machine at all |
 
-**Key point:** Your personal information never reaches the cloud. OpenObscure replaces real data with encrypted lookalikes. The LLM sees fake credit card numbers, fake SSNs, and blurred faces. When the response comes back, OpenObscure decrypts it so you see the correct information.
+**Key point:** Your personal information never reaches the cloud. OpenObscure replaces real data with encrypted lookalikes. The LLM sees fake credit card numbers, fake SSNs, and redacted faces. When the response comes back, OpenObscure decrypts it so you see the correct information.
 
 **Fully local option:** If you run a local LLM via Ollama (Qwen3 or Llama 3.2), your messages never leave your MacBook — not even in encrypted form. OpenObscure still protects you in case the local model logs or leaks data, giving you defense in depth.
 
@@ -489,8 +489,8 @@ If the bot spells out something other than "j-o-h-n-.-d-o-e", the LLM saw an enc
 ```
 INFO  IMAGE Detected base64 image in request (jpeg, 245KB)
 INFO  IMAGE EXIF stripped (GPS, camera model removed)
-INFO  IMAGE Face detected: 1 face(s) — applying blur
-INFO  IMAGE Pipeline complete: face_blur=1, ocr_blur=0
+INFO  FACE  Faces redacted: count=1
+INFO  IMAGE Pipeline complete: faces_redacted=1, text_regions=0
 ```
 
 **What to check (any device — behavioral):**
@@ -501,11 +501,11 @@ After sending the photo, ask:
 Describe the person's face in the photo I sent. What expression are they making? What color are their eyes?
 ```
 
-**If face blur is working:** The LLM will say the face is blurred, obscured, or that it can't make out facial details. It may describe the rest of the image (background, clothing) normally.
+**If face redaction is working:** The LLM will say the face is obscured, filled with gray, or that it can't make out facial details. It may describe the rest of the image (background, clothing) normally.
 
 **If NOT working:** The LLM describes specific facial features — eye color, expression, smile, glasses, etc.
 
-### Test 5 — Screenshot with PII Text (OCR Blur)
+### Test 5 — Screenshot with PII Text (OCR Redaction)
 
 Take a screenshot containing visible personal information. For example, open the Notes app and type:
 
@@ -523,8 +523,8 @@ Screenshot it and send that image to the bot.
 ```
 INFO  IMAGE Detected base64 image in request (png, 180KB)
 INFO  IMAGE OCR detected: 4 text region(s) — scanning for PII
-INFO  IMAGE PII text regions blurred: 3
-INFO  IMAGE Pipeline complete: face_blur=0, ocr_blur=3
+INFO  OCR   PII-selective redaction: pii_regions=3
+INFO  IMAGE Pipeline complete: faces_redacted=0, text_regions=3
 ```
 
 **What to check (any device — behavioral):**
@@ -535,7 +535,7 @@ After sending the screenshot, ask:
 Read all the text you can see in that screenshot. List every value.
 ```
 
-**If OCR blur is working:** The LLM can read "Favorite Color: Blue" (non-PII) but reports the SSN, card number, and name as blurred or unreadable. This proves selective blurring — only PII text regions are obscured.
+**If OCR redaction is working:** The LLM can read "Favorite Color: Blue" (non-PII) but reports the SSN, card number, and name as obscured or unreadable. This proves selective redaction — only PII text regions are solid-filled.
 
 **If NOT working:** The LLM reads back `078-05-1120` and `4532-8970-1234-5678` from the image.
 
@@ -545,7 +545,7 @@ Read all the text you can see in that screenshot. List every value.
 What is the SSN shown in the screenshot?
 ```
 
-If the LLM can't answer, OCR blur is working. If it reads the exact SSN, protection is not active.
+If the LLM can't answer, OCR redaction is working. If it reads the exact SSN, protection is not active.
 
 ### Test 6 — Audio with PII Trigger Phrases (Voice KWS)
 
@@ -795,8 +795,8 @@ Now send PII messages, photos, or audio from Discord on the same iPhone. You'll 
 | **1. Credit Card** | Card number in text | Ask for last 4 digits | Bot answers wrong digits (saw encrypted number) |
 | **2. SSN** | Social security number | Ask for last 4 digits | Bot answers wrong digits |
 | **3. Email/Phone** | Email and phone number | Ask bot to spell the email username | Bot spells different letters |
-| **4. Face Blur** | Photo with a face | Ask to describe the face | Bot says face is blurred/obscured |
-| **5. OCR Blur** | Screenshot with PII text | Ask to read the SSN in the image | Bot can't read PII text, can read non-PII text |
+| **4. Face Redaction** | Photo with a face | Ask to describe the face | Bot says face is obscured/gray |
+| **5. OCR Redaction** | Screenshot with PII text | Ask to read the SSN in the image | Bot can't read PII text, can read non-PII text |
 | **6. Voice KWS** | Audio saying "social security..." | Ask what you said | Bot says audio was stripped; control audio passes through |
 | **7. EXIF Strip** | Geotagged photo | Ask for GPS coordinates | Bot has no metadata |
 | **8. Health Stats** | (after all tests) | Check health endpoint | `pii_matches_total > 0` |

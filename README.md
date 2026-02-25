@@ -474,11 +474,11 @@ cargo run --example demo_image_pipeline -- \
 
 | Scenario | Before | After |
 |----------|--------|-------|
-| **Screenshot PII Redaction** — Full patient record with names, SSNs, credit cards, phone numbers, emails, addresses, and medical history. PaddleOCR detects all text regions and solid-fills them. | ![Original screenshot](docs/examples/images/screenshot-original.png) | ![Screenshot redacted](docs/examples/images/screenshot-blurred.png) |
-| **Face Detection + Solid Fill** — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces and fills with solid light gray. Original pixels are destroyed — not recoverable by AI deblurring. | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face redacted](docs/examples/images/face-blurred.jpg) |
-| **Multi-Face Detection** — Detects and redacts multiple faces independently in group photos. Each face gets its own elliptical solid-fill region. | ![Original group photo](docs/examples/images/group-original.jpg) | ![Group faces redacted](docs/examples/images/group-blurred.jpg) |
-| **Child Face Privacy** — Automatically detects and redacts children's faces with solid fill to protect minors' privacy. | ![Original child photo](docs/examples/images/child-original.jpg) | ![Child face redacted](docs/examples/images/child-blurred.jpg) |
-| **OCR PII Redaction** — PaddleOCR detects text regions, then PII scanner filters and solid-fills only sensitive values (names, SSNs, emails, phones, card numbers) while leaving non-PII text readable. | ![Original document](docs/examples/images/text-original.jpg) | ![PII redacted](docs/examples/images/text-blurred.jpg) |
+| **Screenshot PII Redaction** — Full patient record with names, SSNs, credit cards, phone numbers, emails, addresses, and medical history. PaddleOCR detects all text regions and solid-fills them. | ![Original screenshot](docs/examples/images/screenshot-original.png) | ![Screenshot redacted](docs/examples/images/screenshot-redacted.png) |
+| **Face Detection + Solid Fill** — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces and fills with solid light gray. Original pixels are destroyed — not recoverable by AI deblurring. | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face redacted](docs/examples/images/face-redacted.jpg) |
+| **Multi-Face Detection** — Detects and redacts multiple faces independently in group photos. Each face gets its own elliptical solid-fill region. | ![Original group photo](docs/examples/images/group-original.jpg) | ![Group faces redacted](docs/examples/images/group-redacted.jpg) |
+| **Child Face Privacy** — Automatically detects and redacts children's faces with solid fill to protect minors' privacy. | ![Original child photo](docs/examples/images/child-original.jpg) | ![Child face redacted](docs/examples/images/child-redacted.jpg) |
+| **OCR PII Redaction** — PaddleOCR detects text regions, then PII scanner filters and solid-fills only sensitive values (names, SSNs, emails, phones, card numbers) while leaving non-PII text readable. | ![Original document](docs/examples/images/text-original.jpg) | ![PII redacted](docs/examples/images/text-redacted.jpg) |
 
 ### Pipeline Details
 
