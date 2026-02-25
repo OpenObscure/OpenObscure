@@ -1,0 +1,43 @@
+# OpenObscure Test Configuration — Audit Logging
+#
+# Like test_fpe.toml but with audit_log_path enabled.
+# The proxy writes GDPR audit events to the specified JSONL file.
+#
+# Usage:
+#   OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
+#     ./target/release/openobscure-proxy --config test/config/test_audit.toml serve
+
+[proxy]
+listen_addr = "127.0.0.1"
+port = 18790
+request_timeout_secs = 180
+max_body_bytes = 16777216
+fail_mode = "open"
+
+[fpe]
+enabled = true
+keychain_service = "openobscure"
+keychain_user = "fpe-master-key"
+
+[scanner]
+enabled = true
+ner_model_dir = "openobscure-proxy/models/ner"
+skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
+
+[image]
+enabled = false
+
+[voice]
+enabled = false
+
+[logging]
+level = "info"
+json_output = false
+pii_scrub = true
+audit_log_path = "/tmp/oo_test_audit.jsonl"
+
+# Echo server as upstream
+[providers.anthropic]
+upstream_url = "http://127.0.0.1:18791"
+route_prefix = "/anthropic"
+strip_headers = ["x-openobscure-internal"]

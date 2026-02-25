@@ -136,6 +136,15 @@ pub struct HealthStats {
     onnx_panics_total: Arc<AtomicU64>,
     pub scan_latency: LatencyHistogram,
     pub request_latency: LatencyHistogram,
+    // Per-feature latency histograms
+    pub text_scan_latency: LatencyHistogram,
+    pub image_latency: LatencyHistogram,
+    pub nsfw_latency: LatencyHistogram,
+    pub face_latency: LatencyHistogram,
+    pub ocr_latency: LatencyHistogram,
+    pub voice_latency: LatencyHistogram,
+    pub fpe_latency: LatencyHistogram,
+    pub ri_latency: LatencyHistogram,
 }
 
 impl HealthStats {
@@ -154,6 +163,14 @@ impl HealthStats {
             onnx_panics_total: Arc::new(AtomicU64::new(0)),
             scan_latency: LatencyHistogram::new(),
             request_latency: LatencyHistogram::new(),
+            text_scan_latency: LatencyHistogram::new(),
+            image_latency: LatencyHistogram::new(),
+            nsfw_latency: LatencyHistogram::new(),
+            face_latency: LatencyHistogram::new(),
+            ocr_latency: LatencyHistogram::new(),
+            voice_latency: LatencyHistogram::new(),
+            fpe_latency: LatencyHistogram::new(),
+            ri_latency: LatencyHistogram::new(),
         }
     }
 
@@ -308,6 +325,23 @@ pub struct HealthResponse {
     pub request_latency_p99_us: u64,
     pub device_tier: String,
     pub feature_budget: FeatureBudgetSummary,
+    // Per-feature latency percentiles (microseconds)
+    pub text_scan_latency_p50_us: u64,
+    pub text_scan_latency_p95_us: u64,
+    pub image_latency_p50_us: u64,
+    pub image_latency_p95_us: u64,
+    pub face_latency_p50_us: u64,
+    pub face_latency_p95_us: u64,
+    pub ocr_latency_p50_us: u64,
+    pub ocr_latency_p95_us: u64,
+    pub nsfw_latency_p50_us: u64,
+    pub nsfw_latency_p95_us: u64,
+    pub voice_latency_p50_us: u64,
+    pub voice_latency_p95_us: u64,
+    pub fpe_latency_p50_us: u64,
+    pub fpe_latency_p95_us: u64,
+    pub ri_latency_p50_us: u64,
+    pub ri_latency_p95_us: u64,
 }
 
 /// GET /_openobscure/health — returns proxy health status.
@@ -365,6 +399,22 @@ pub async fn health_handler(
         request_latency_p99_us: stats.request_latency.percentile(99.0),
         device_tier: health_state.device_tier.clone(),
         feature_budget: health_state.feature_budget.clone(),
+        text_scan_latency_p50_us: stats.text_scan_latency.percentile(50.0),
+        text_scan_latency_p95_us: stats.text_scan_latency.percentile(95.0),
+        image_latency_p50_us: stats.image_latency.percentile(50.0),
+        image_latency_p95_us: stats.image_latency.percentile(95.0),
+        face_latency_p50_us: stats.face_latency.percentile(50.0),
+        face_latency_p95_us: stats.face_latency.percentile(95.0),
+        ocr_latency_p50_us: stats.ocr_latency.percentile(50.0),
+        ocr_latency_p95_us: stats.ocr_latency.percentile(95.0),
+        nsfw_latency_p50_us: stats.nsfw_latency.percentile(50.0),
+        nsfw_latency_p95_us: stats.nsfw_latency.percentile(95.0),
+        voice_latency_p50_us: stats.voice_latency.percentile(50.0),
+        voice_latency_p95_us: stats.voice_latency.percentile(95.0),
+        fpe_latency_p50_us: stats.fpe_latency.percentile(50.0),
+        fpe_latency_p95_us: stats.fpe_latency.percentile(95.0),
+        ri_latency_p50_us: stats.ri_latency.percentile(50.0),
+        ri_latency_p95_us: stats.ri_latency.percentile(95.0),
     };
 
     Ok((http_status, Json(response)))

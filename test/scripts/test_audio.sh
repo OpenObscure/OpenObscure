@@ -38,7 +38,10 @@ cleanup_audio() {
   rm -f /tmp/oo_audio_*.json 2>/dev/null || true
   rm -f /tmp/oo_audio_payload_*.json 2>/dev/null || true
   rm -f /tmp/oo_audio_b64_*.txt 2>/dev/null || true
+  rm -f /tmp/oo_audio_hdr_* 2>/dev/null || true
 }
+# Extract an X-OO-* header value from a curl header dump, defaulting to 0.
+_oo_hdr() { local v; v=$({ grep -i "^${1}:" "$2" 2>/dev/null || true; } | head -1 | awk '{print $2}' | tr -d '\r\n '); echo "${v:-0}"; }
 trap cleanup_audio EXIT
 
 # Auth token
@@ -145,16 +148,27 @@ test_audio() {
   fi
 
   # Send audio through proxy — echo server captures the processed request body
+  local tmp_headers
+  tmp_headers=$(mktemp /tmp/oo_audio_hdr_XXXXXX)
+
   local proxy_start
   proxy_start=$(_ms)
   local response_code
-  response_code=$(curl -s -o "$tmp_response" -w "%{http_code}" \
+  response_code=$(curl -s -o "$tmp_response" -w "%{http_code}" -D "$tmp_headers" \
     --max-time "$AUDIO_TIMEOUT" \
     -X POST "${PROXY_URL}/anthropic/v1/messages" \
     "${curl_headers[@]}" \
     -d @"$tmp_payload" 2>/dev/null || echo "000")
   local proxy_elapsed_ms=$(( $(_ms) - proxy_start ))
   rm -f "$tmp_payload"
+
+  # Extract per-phase timing from X-OO-* response headers
+  local voice_ms kws_ms scan_us proxy_total_us
+  voice_ms=$(_oo_hdr "x-oo-voice-ms" "$tmp_headers")
+  kws_ms=$(_oo_hdr "x-oo-kws-ms" "$tmp_headers")
+  scan_us=$(_oo_hdr "x-oo-scan-us" "$tmp_headers")
+  proxy_total_us=$(_oo_hdr "x-oo-total-us" "$tmp_headers")
+  rm -f "$tmp_headers"
 
   # Parse the CAPTURED request body (what the proxy sent upstream)
   # The echo server saves it to $CAPTURE_DIR/<capture_id>.json
@@ -203,6 +217,10 @@ test_audio() {
     --arg action "$action" \
     --arg device_tier "$DEVICE_TIER" \
     --argjson pipeline_ms "$proxy_elapsed_ms" \
+    --argjson voice_ms "$voice_ms" \
+    --argjson kws_ms "$kws_ms" \
+    --argjson scan_us "$scan_us" \
+    --argjson proxy_total_us "$proxy_total_us" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{
       file: $file,
@@ -217,7 +235,11 @@ test_audio() {
         action: $action
       },
       timing: {
-        pipeline_ms: $pipeline_ms
+        pipeline_ms: $pipeline_ms,
+        voice_ms: $voice_ms,
+        kws_ms: $kws_ms,
+        scan_us: $scan_us,
+        proxy_total_us: $proxy_total_us
       },
       device_tier: $device_tier,
       timestamp: $ts
@@ -244,8 +266,12 @@ test_audio() {
     status_icon="ERR"
   fi
 
-  printf "  %-4s %-12s %-35s %6sB  HTTP %s  %5sms%s\n" \
-    "$status_icon" "$action" "$filename" "$file_size" "$response_code" "$proxy_elapsed_ms" "$keywords_display"
+  local voice_info=""
+  [[ "$voice_ms" -gt 0 ]] && voice_info="  voice:${voice_ms}ms"
+  [[ "$kws_ms" -gt 0 ]] && voice_info="${voice_info} kws:${kws_ms}ms"
+
+  printf "  %-4s %-12s %-35s %6sB  HTTP %s  %5sms%s%s\n" \
+    "$status_icon" "$action" "$filename" "$file_size" "$response_code" "$proxy_elapsed_ms" "$keywords_display" "$voice_info"
 }
 
 # ── Main ──

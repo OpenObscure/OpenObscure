@@ -13,6 +13,25 @@ use crate::kws_engine::KwsEngine;
 use crate::mapping::{FpeMapping, RequestMappings};
 use crate::voice_pipeline;
 
+/// Result of processing a request body, including per-feature timing.
+pub struct BodyProcessingResult {
+    pub body: Bytes,
+    pub mappings: RequestMappings,
+    pub image_stats: Vec<ImageStats>,
+    /// Image processing total time (microseconds).
+    pub image_us: u64,
+    /// Voice processing total time (microseconds).
+    pub voice_us: u64,
+    /// Voice audio decode time (microseconds).
+    pub voice_decode_us: u64,
+    /// Voice KWS inference time (microseconds).
+    pub voice_kws_us: u64,
+    /// Text scanning time (microseconds).
+    pub text_scan_us: u64,
+    /// FPE encryption time (microseconds).
+    pub fpe_us: u64,
+}
+
 /// Process a request body: scan for PII, FPE-encrypt or redact matches, return modified body + mappings.
 ///
 /// Two-pass processing:
@@ -30,10 +49,11 @@ pub fn process_request_body(
     skip_fields: &[String],
     image_models: Option<&Arc<ImageModelManager>>,
     kws_engine: Option<&Arc<KwsEngine>>,
-) -> Result<(Bytes, RequestMappings, Vec<ImageStats>), BodyError> {
+) -> Result<BodyProcessingResult, BodyError> {
     let mut json: Value = serde_json::from_slice(body).map_err(BodyError::Json)?;
 
     // Pass 1: Process images in JSON (before text scanning)
+    let img_start = std::time::Instant::now();
     let image_stats = if let Some(models) = image_models {
         if models.config().enabled {
             process_images_in_json(&mut json, models)
@@ -43,29 +63,68 @@ pub fn process_request_body(
     } else {
         Vec::new()
     };
+    let image_us = img_start.elapsed().as_micros() as u64;
 
     // Pass 1.5: Scan audio blocks for PII keywords (KWS-gated)
-    let voice_modified = if let Some(engine) = kws_engine {
+    let (voice_modified, voice_us, voice_decode_us, voice_kws_us) = if let Some(engine) = kws_engine
+    {
         let result = voice_pipeline::scan_and_strip_audio_blocks(&mut json, engine);
-        result.blocks_stripped > 0
+        let modified = result.blocks_stripped > 0;
+        (
+            modified,
+            result.total_ms as u64 * 1000,
+            result.decode_ms as u64 * 1000,
+            result.kws_ms as u64 * 1000,
+        )
     } else {
-        false
+        (false, 0, 0, 0)
     };
 
+    let make_result = |body: Bytes,
+                       mappings: RequestMappings,
+                       image_stats: Vec<ImageStats>,
+                       text_scan_us: u64,
+                       fpe_us: u64|
+     -> BodyProcessingResult {
+        BodyProcessingResult {
+            body,
+            mappings,
+            image_stats,
+            image_us,
+            voice_us,
+            voice_decode_us,
+            voice_kws_us,
+            text_scan_us,
+            fpe_us,
+        }
+    };
+
+    let scan_start = std::time::Instant::now();
     let matches = scanner.scan_json(&json, skip_fields);
+    let text_scan_us = scan_start.elapsed().as_micros() as u64;
+
     if matches.is_empty() && image_stats.is_empty() && !voice_modified {
-        return Ok((body.clone(), RequestMappings::new(*request_id), image_stats));
+        return Ok(make_result(
+            body.clone(),
+            RequestMappings::new(*request_id),
+            image_stats,
+            text_scan_us,
+            0,
+        ));
     }
     if matches.is_empty() {
         // Images/audio were modified but no text PII found — re-serialize the modified JSON
         let modified = serde_json::to_vec(&json).map_err(BodyError::Json)?;
-        return Ok((
+        return Ok(make_result(
             Bytes::from(modified),
             RequestMappings::new(*request_id),
             image_stats,
+            text_scan_us,
+            0,
         ));
     }
 
+    let fpe_start = std::time::Instant::now();
     let mut mappings = RequestMappings::new(*request_id);
     let mut replacements: Vec<FpeResult> = Vec::new();
 
@@ -118,20 +177,39 @@ pub fn process_request_body(
             });
         }
     }
+    let fpe_us = fpe_start.elapsed().as_micros() as u64;
 
     if replacements.is_empty() {
         if !image_stats.is_empty() {
             let modified = serde_json::to_vec(&json).map_err(BodyError::Json)?;
-            return Ok((Bytes::from(modified), mappings, image_stats));
+            return Ok(make_result(
+                Bytes::from(modified),
+                mappings,
+                image_stats,
+                text_scan_us,
+                fpe_us,
+            ));
         }
-        return Ok((body.clone(), mappings, image_stats));
+        return Ok(make_result(
+            body.clone(),
+            mappings,
+            image_stats,
+            text_scan_us,
+            fpe_us,
+        ));
     }
 
     // Apply replacements to JSON string values
     apply_replacements_to_json(&mut json, &replacements);
 
     let modified = serde_json::to_vec(&json).map_err(BodyError::Json)?;
-    Ok((Bytes::from(modified), mappings, image_stats))
+    Ok(make_result(
+        Bytes::from(modified),
+        mappings,
+        image_stats,
+        text_scan_us,
+        fpe_us,
+    ))
 }
 
 /// Walk a JSON tree and process any embedded base64 images.

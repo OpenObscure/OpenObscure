@@ -119,8 +119,11 @@ CAPTURE_ID="${FILENAME}_$$_$(date +%s)"
 # Ensure capture file is cleaned up on any exit (error, Ctrl+C, etc.)
 cleanup_capture() {
   rm -f "$CAPTURE_DIR/${CAPTURE_ID}.json" 2>/dev/null || true
+  rm -f /tmp/oo_gw_hdr_* 2>/dev/null || true
 }
 trap cleanup_capture EXIT
+# Extract an X-OO-* header value from a curl header dump, defaulting to 0.
+_oo_hdr() { local v; v=$({ grep -i "^${1}:" "$2" 2>/dev/null || true; } | head -1 | awk '{print $2}' | tr -d '\r\n '); echo "${v:-0}"; }
 
 FPE_PAYLOAD=$(jq -n --arg text "$TEXT" '{
   model: "test-fpe-capture",
@@ -128,15 +131,24 @@ FPE_PAYLOAD=$(jq -n --arg text "$TEXT" '{
   messages: [{role: "user", content: $text}]
 }')
 
+TMP_FPE_HEADERS=$(mktemp /tmp/oo_gw_hdr_XXXXXX)
+
 FPE_START=$(_ms)
-FPE_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$FPE_ENDPOINT" \
+FPE_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -D "$TMP_FPE_HEADERS" -X POST "$FPE_ENDPOINT" \
   -H "Content-Type: application/json" \
   -H "x-api-key: test-fpe-scan" \
   -H "anthropic-version: 2023-06-01" \
   -H "X-Capture-Id: $CAPTURE_ID" \
+  ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} \
   -d "$FPE_PAYLOAD" 2>/dev/null)
 FPE_ELAPSED_MS=$(( $(_ms) - FPE_START ))
 TOTAL_ELAPSED_MS=$(( NER_ELAPSED_MS + FPE_ELAPSED_MS ))
+
+# Extract per-feature timing from X-OO-* response headers
+PROXY_SCAN_US=$(_oo_hdr "x-oo-scan-us" "$TMP_FPE_HEADERS")
+PROXY_FPE_US=$(_oo_hdr "x-oo-fpe-us" "$TMP_FPE_HEADERS")
+PROXY_TOTAL_US=$(_oo_hdr "x-oo-total-us" "$TMP_FPE_HEADERS")
+rm -f "$TMP_FPE_HEADERS"
 
 # Read the captured FPE body from echo server
 CAPTURE_FILE="$CAPTURE_DIR/${CAPTURE_ID}.json"
@@ -172,6 +184,9 @@ RESULT=$(jq -n \
   --argjson ner_ms "$NER_ELAPSED_MS" \
   --argjson fpe_ms "$FPE_ELAPSED_MS" \
   --argjson total_ms "$TOTAL_ELAPSED_MS" \
+  --argjson proxy_scan_us "$PROXY_SCAN_US" \
+  --argjson proxy_fpe_us "$PROXY_FPE_US" \
+  --argjson proxy_total_us "$PROXY_TOTAL_US" \
   '{
     file: $file,
     path: $path,
@@ -184,7 +199,10 @@ RESULT=$(jq -n \
     timing: {
       ner_scan_ms: $ner_ms,
       fpe_pass_ms: $fpe_ms,
-      total_ms: $total_ms
+      total_ms: $total_ms,
+      proxy_scan_us: $proxy_scan_us,
+      proxy_fpe_us: $proxy_fpe_us,
+      proxy_total_us: $proxy_total_us
     },
     matches: $matches
   }')
@@ -202,7 +220,7 @@ if [[ -n "$OUTPUT_DIR" ]]; then
   # Write FPE-encrypted file (preserving original filename)
   printf '%s' "$FPE_TEXT" > "$REDACTED_DIR/$FILENAME"
 
-  echo "OK  $FILENAME — $MATCH_COUNT matches, FPE HTTP $FPE_HTTP_CODE, ${TOTAL_ELAPSED_MS}ms (ner:${NER_ELAPSED_MS}ms fpe:${FPE_ELAPSED_MS}ms)"
+  echo "OK  $FILENAME — $MATCH_COUNT matches, FPE HTTP $FPE_HTTP_CODE, ${TOTAL_ELAPSED_MS}ms (ner:${NER_ELAPSED_MS}ms fpe:${FPE_ELAPSED_MS}ms, proxy scan:${PROXY_SCAN_US}us fpe:${PROXY_FPE_US}us)"
 else
   echo "=== JSON Metadata ==="
   echo "$RESULT" | jq .

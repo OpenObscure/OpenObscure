@@ -18,8 +18,8 @@ import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TEST_DIR = dirname(__dirname);
-const INPUT_DIR = join(TEST_DIR, "input");
-const OUTPUT_DIR = join(TEST_DIR, "output");
+const INPUT_DIR = join(TEST_DIR, "data", "input");
+const OUTPUT_DIR = join(TEST_DIR, "data", "output");
 
 // Load plugin
 const PLUGIN_PATH = join(TEST_DIR, "..", "openobscure-plugin", "dist", "core.js");

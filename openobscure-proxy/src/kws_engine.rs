@@ -43,6 +43,8 @@ pub struct KwsResult {
     pub pii_detected: bool,
     /// List of detected keyword phrases.
     pub keywords_found: Vec<String>,
+    /// KWS inference time in milliseconds (excludes audio decode).
+    pub inference_ms: u64,
 }
 
 /// Keyword spotter engine for PII detection in audio.
@@ -193,6 +195,8 @@ impl KwsEngine {
             ));
         }
 
+        let infer_start = std::time::Instant::now();
+
         // Feed audio + decode inside catch_unwind to recover from sherpa-onnx panics.
         // The stream pointer is raw and must be destroyed regardless of outcome.
         let spotter = self.spotter;
@@ -237,10 +241,13 @@ impl KwsEngine {
             SherpaOnnxDestroyOnlineStream(stream);
         }
 
+        let inference_ms = infer_start.elapsed().as_millis() as u64;
+
         match decode_result {
             Ok(keywords) => Ok(KwsResult {
                 pii_detected: !keywords.is_empty(),
                 keywords_found: keywords,
+                inference_ms,
             }),
             Err(_) => Err(KwsError::InferenceError(
                 "sherpa-onnx panicked during keyword detection".to_string(),
@@ -310,6 +317,7 @@ mod tests {
         let result = KwsResult {
             pii_detected: false,
             keywords_found: Vec::new(),
+            inference_ms: 0,
         };
         assert!(!result.pii_detected);
         assert!(result.keywords_found.is_empty());
@@ -320,6 +328,7 @@ mod tests {
         let result = KwsResult {
             pii_detected: true,
             keywords_found: vec!["social security".to_string()],
+            inference_ms: 0,
         };
         assert!(result.pii_detected);
         assert_eq!(result.keywords_found.len(), 1);

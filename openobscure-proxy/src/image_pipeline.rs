@@ -109,6 +109,12 @@ pub struct ImageStats {
     pub nsfw_detected: bool,
     pub processing_ms: u64,
     pub onnx_panics: u32,
+    /// Phase 0: NSFW detection time (milliseconds).
+    pub nsfw_ms: u64,
+    /// Phase 1: Face detection + redaction time (milliseconds).
+    pub face_ms: u64,
+    /// Phase 2: OCR detection + redaction time (milliseconds).
+    pub ocr_ms: u64,
 }
 
 /// On-demand image model manager.
@@ -262,6 +268,7 @@ impl ImageModelManager {
         }
 
         // Phase 0: NSFW detection — if nudity found, redact entire image and skip other phases
+        let nsfw_start = Instant::now();
         if self.config.nsfw_detection {
             if let Some(ref dir) = self.config.nsfw_model_dir {
                 let mut guard = self.nsfw_detector.lock().unwrap_or_else(|e| e.into_inner());
@@ -302,6 +309,7 @@ impl ImageModelManager {
                                 );
                                 // Skip face/OCR — image is already fully redacted
                                 drop(guard);
+                                stats.nsfw_ms = nsfw_start.elapsed().as_millis() as u64;
                                 stats.processing_ms = start.elapsed().as_millis() as u64;
                                 return Ok((DynamicImage::ImageRgb8(rgb), stats, meta));
                             }
@@ -318,9 +326,11 @@ impl ImageModelManager {
                 drop(guard);
             }
         }
+        stats.nsfw_ms = nsfw_start.elapsed().as_millis() as u64;
 
         // Phase 1: Face detection + redaction
         // Uses SCRFD (Full/Standard) or BlazeFace (Lite) based on config.face_model.
+        let face_start = Instant::now();
         if self.config.face_detection {
             let faces = self.detect_faces(&dyn_img, &mut stats.onnx_panics);
 
@@ -368,8 +378,10 @@ impl ImageModelManager {
                 dyn_img = DynamicImage::ImageRgb8(rgb.clone());
             }
         }
+        stats.face_ms = face_start.elapsed().as_millis() as u64;
 
         // Phase 2: OCR detection + redaction
+        let ocr_start = Instant::now();
         if self.config.ocr_enabled {
             if let Some(ref dir) = self.config.ocr_model_dir {
                 let tier = OcrTier::from_config(&self.config.ocr_tier);
@@ -467,6 +479,7 @@ impl ImageModelManager {
                                         }
                                     }
                                     // Early return to avoid double-drop of det_guard
+                                    stats.ocr_ms = ocr_start.elapsed().as_millis() as u64;
                                     stats.processing_ms = start.elapsed().as_millis() as u64;
                                     return Ok((DynamicImage::ImageRgb8(rgb), stats, meta));
                                 }
@@ -483,6 +496,7 @@ impl ImageModelManager {
                 }
             }
         }
+        stats.ocr_ms = ocr_start.elapsed().as_millis() as u64;
 
         stats.processing_ms = start.elapsed().as_millis() as u64;
         Ok((DynamicImage::ImageRgb8(rgb), stats, meta))

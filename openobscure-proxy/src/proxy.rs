@@ -97,7 +97,7 @@ pub async fn proxy_handler(
 
     // 4. Scan and encrypt PII (only for JSON bodies)
     let versioned_engine = state.key_manager.current().await;
-    let (modified_body, mappings) = if should_scan {
+    let (modified_body, mappings, body_timing) = if should_scan {
         let scan_start = std::time::Instant::now();
         match crate::body::process_request_body(
             &body_bytes,
@@ -109,15 +109,40 @@ pub async fn proxy_handler(
             state.image_models.as_ref(),
             state.kws_engine.as_ref(),
         ) {
-            Ok((body, mappings, image_stats)) => {
+            Ok(result) => {
                 state.health.scan_latency.record(scan_start.elapsed());
-                if !mappings.is_empty() {
-                    let count = mappings.by_ciphertext.len() as u64;
+                if !result.mappings.is_empty() {
+                    let count = result.mappings.by_ciphertext.len() as u64;
                     state.health.record_pii_matches(count);
-                    log_pii_stats(&request_id, &mappings);
+                    log_pii_stats(&request_id, &result.mappings);
                 }
-                // Record image processing stats
-                for is in &image_stats {
+                // Record per-feature latency histograms
+                if result.text_scan_us > 0 {
+                    state
+                        .health
+                        .text_scan_latency
+                        .record(std::time::Duration::from_micros(result.text_scan_us));
+                }
+                if result.fpe_us > 0 {
+                    state
+                        .health
+                        .fpe_latency
+                        .record(std::time::Duration::from_micros(result.fpe_us));
+                }
+                if result.image_us > 0 {
+                    state
+                        .health
+                        .image_latency
+                        .record(std::time::Duration::from_micros(result.image_us));
+                }
+                if result.voice_us > 0 {
+                    state
+                        .health
+                        .voice_latency
+                        .record(std::time::Duration::from_micros(result.voice_us));
+                }
+                // Record per-image stats and per-phase histograms
+                for is in &result.image_stats {
                     state.health.record_images_processed(1);
                     state.health.record_faces_redacted(is.faces_redacted as u64);
                     state
@@ -132,8 +157,37 @@ pub async fn proxy_handler(
                     for _ in 0..is.onnx_panics {
                         state.health.record_onnx_panic();
                     }
+                    if is.nsfw_ms > 0 {
+                        state
+                            .health
+                            .nsfw_latency
+                            .record(std::time::Duration::from_millis(is.nsfw_ms));
+                    }
+                    if is.face_ms > 0 {
+                        state
+                            .health
+                            .face_latency
+                            .record(std::time::Duration::from_millis(is.face_ms));
+                    }
+                    if is.ocr_ms > 0 {
+                        state
+                            .health
+                            .ocr_latency
+                            .record(std::time::Duration::from_millis(is.ocr_ms));
+                    }
                 }
-                (body, mappings)
+                // Stash timing for response headers
+                let body_timing = (
+                    result.text_scan_us,
+                    result.fpe_us,
+                    result.image_us,
+                    result.voice_us,
+                    result.voice_kws_us,
+                    result.image_stats.iter().map(|s| s.nsfw_ms).sum::<u64>(),
+                    result.image_stats.iter().map(|s| s.face_ms).sum::<u64>(),
+                    result.image_stats.iter().map(|s| s.ocr_ms).sum::<u64>(),
+                );
+                (result.body, result.mappings, body_timing)
             }
             Err(e) => {
                 state.health.scan_latency.record(scan_start.elapsed());
@@ -145,6 +199,7 @@ pub async fn proxy_handler(
                         (
                             body_bytes.clone(),
                             crate::mapping::RequestMappings::new(request_id),
+                            (0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64),
                         )
                     }
                     FailMode::Closed => {
@@ -157,7 +212,11 @@ pub async fn proxy_handler(
             }
         }
     } else {
-        (body_bytes, crate::mapping::RequestMappings::new(request_id))
+        (
+            body_bytes,
+            crate::mapping::RequestMappings::new(request_id),
+            (0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64),
+        )
     };
 
     // 4. Store mappings for response decryption
@@ -291,7 +350,13 @@ pub async fn proxy_handler(
             response.headers_mut().insert(key.clone(), value.clone());
         }
 
-        state.health.request_latency.record(request_start.elapsed());
+        let total_us = request_start.elapsed().as_micros() as u64;
+        state
+            .health
+            .request_latency
+            .record(std::time::Duration::from_micros(total_us));
+        inject_timing_headers(response.headers_mut(), body_timing, 0, total_us);
+
         oo_info!(crate::oo_log::modules::PROXY, "SSE response streaming",
             request_id = %request_id,
             status = %response.status());
@@ -324,11 +389,19 @@ pub async fn proxy_handler(
 
     // 8b. Response integrity scan (cognitive firewall)
     // No content-type check here: extract_response_text returns None for non-JSON (fail-open).
+    let ri_start = std::time::Instant::now();
     let final_body = if let Some(ref ri_scanner) = state.response_integrity {
         scan_response_integrity(&final_body, ri_scanner, &request_id, &state)
     } else {
         final_body
     };
+    let ri_us = ri_start.elapsed().as_micros() as u64;
+    if ri_us > 0 {
+        state
+            .health
+            .ri_latency
+            .record(std::time::Duration::from_micros(ri_us));
+    }
 
     // 9. Rebuild response with correct content-length
     let mut response = Response::new(Body::from(final_body.clone()));
@@ -347,7 +420,13 @@ pub async fn proxy_handler(
         HeaderValue::from_str(&final_body.len().to_string()).unwrap(),
     );
 
-    state.health.request_latency.record(request_start.elapsed());
+    let total_us = request_start.elapsed().as_micros() as u64;
+    state
+        .health
+        .request_latency
+        .record(std::time::Duration::from_micros(total_us));
+    inject_timing_headers(response.headers_mut(), body_timing, ri_us, total_us);
+
     oo_info!(crate::oo_log::modules::PROXY, "Response sent",
         request_id = %request_id,
         status = %response.status());
@@ -620,6 +699,40 @@ fn scan_response_integrity(
     match inject_warning_label(body, &label) {
         Some(modified) => modified,
         None => body.clone(), // Fail-open: return original on injection error
+    }
+}
+
+/// Inject `X-OO-*` per-feature timing headers into a response.
+/// Only emits headers with non-zero values.
+fn inject_timing_headers(
+    headers: &mut HeaderMap,
+    body_timing: (u64, u64, u64, u64, u64, u64, u64, u64),
+    ri_us: u64,
+    total_us: u64,
+) {
+    let (scan_us, fpe_us, image_us, voice_us, kws_us, nsfw_ms, face_ms, ocr_ms) = body_timing;
+
+    let pairs: &[(&str, u64)] = &[
+        ("x-oo-scan-us", scan_us),
+        ("x-oo-fpe-us", fpe_us),
+        ("x-oo-image-us", image_us),
+        ("x-oo-voice-ms", voice_us / 1000),
+        ("x-oo-kws-ms", kws_us / 1000),
+        ("x-oo-nsfw-ms", nsfw_ms),
+        ("x-oo-face-ms", face_ms),
+        ("x-oo-ocr-ms", ocr_ms),
+        ("x-oo-ri-us", ri_us),
+        ("x-oo-total-us", total_us),
+    ];
+
+    for &(name, value) in pairs {
+        if value > 0 {
+            if let Ok(hv) = HeaderValue::from_str(&value.to_string()) {
+                if let Ok(hn) = name.parse::<header::HeaderName>() {
+                    headers.insert(hn, hv);
+                }
+            }
+        }
     }
 }
 

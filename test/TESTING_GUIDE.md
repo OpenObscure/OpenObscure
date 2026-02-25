@@ -17,8 +17,9 @@
 8. [Test Scripts Reference](#test-scripts-reference)
 9. [Output Format](#output-format)
 10. [Pass/Fail Validation](#passfail-validation)
-11. [Managing Test Data & Validation](#managing-test-data--validation)
-12. [Troubleshooting](#troubleshooting)
+11. [Infrastructure Testing](#infrastructure-testing)
+12. [Managing Test Data & Validation](#managing-test-data--validation)
+13. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -484,14 +485,25 @@ node test/scripts/test_embedded_category.mjs PII_Detection                      
 node test/scripts/test_embedded_file.mjs <file> <output_dir>                    # One file
 USE_NER=1 node test/scripts/test_embedded_all.mjs                               # With NER bridge
 
+# ── Infrastructure ──
+./test/scripts/test_health.sh                                                   # Health endpoint validation
+./test/scripts/test_auth.sh                                                     # Auth token enforcement
+./test/scripts/test_device_tier.sh                                              # Device tier + feature budget
+./test/scripts/test_body_limits.sh                                              # Body size limit enforcement
+./test/scripts/test_fail_mode.sh                                                # Fail mode (open/closed)
+./test/scripts/test_key_rotation.sh                                             # FPE key rotation CLI
+./test/scripts/test_response_integrity.sh                                       # Cognitive firewall (needs RI mock)
+./test/scripts/test_sse_streaming.sh                                            # SSE streaming (needs SSE mock)
+
 # ── Validation ──
 ./test/scripts/validate_results.sh                                              # Threshold validation (~85% min)
 ./test/scripts/validate_results.sh --strict                                     # Exact snapshot comparison
+./test/scripts/validate_results.sh --infrastructure                             # Infrastructure test results
 ./test/scripts/validate_results.sh --summary                                    # Summary only
 ./test/scripts/validate_results.sh --json                                       # JSON report (for CI)
 ./test/scripts/validate_results.sh --gateway-only                               # Skip embedded checks
 ./test/scripts/validate_results.sh --check-redacted                             # Validate redacted file content
-./test/scripts/validate_results.sh --strict --json                              # Strict + JSON (CI regression)
+./test/scripts/validate_results.sh --strict --infrastructure --json             # Full CI regression
 ./test/scripts/generate_snapshot.sh                                             # Regenerate snapshot.json
 ```
 
@@ -581,7 +593,15 @@ test/data/output/
 | `test_embedded_all.mjs` | Embedded | Full suite: all 5 text categories |
 | `test_agent_json.sh` | Gateway | FPE for agent tool result JSON files |
 | `test_visual.sh` | Gateway | Image pipeline: face/OCR/NSFW redaction stats + redacted output |
-| `validate_results.sh` | Both | Pass/fail validator (threshold or strict snapshot mode) |
+| `test_health.sh` | Infra | Health endpoint schema, types, counters, readiness |
+| `test_auth.sh` | Infra | Auth token enforcement on health + NER endpoints |
+| `test_device_tier.sh` | Infra | Device tier detection + feature budget validation |
+| `test_body_limits.sh` | Infra | Body size limits: within/over limit + 413 rejection |
+| `test_fail_mode.sh` | Infra | Fail mode behavior: open (forward) vs closed (reject) |
+| `test_key_rotation.sh` | Infra | FPE key rotation CLI + version tracking |
+| `test_response_integrity.sh` | Infra | Cognitive firewall: R1 dict + R2 model cascade |
+| `test_sse_streaming.sh` | Infra | SSE streaming pass-through with PII scanning |
+| `validate_results.sh` | Both | Pass/fail validator (threshold, strict, or infrastructure) |
 | `generate_snapshot.sh` | Both | Generates snapshot.json from current output for `--strict` mode |
 
 ### Config & Data
@@ -589,6 +609,12 @@ test/data/output/
 | File | Purpose |
 |------|---------|
 | `test/config/test_fpe.toml` | Proxy config routing Anthropic provider to echo server |
+| `test/config/test_ri.toml` | Config with response integrity enabled, upstream → RI mock (port 18793) |
+| `test/config/test_sse.toml` | Config with upstream → SSE mock server (port 18792) |
+| `test/config/test_fail_closed.toml` | Config with `fail_mode = "closed"` |
+| `test/config/test_audit.toml` | Config with audit log path enabled |
+| `test/scripts/mock/ri_mock_server.mjs` | Canned persuasive/clean responses for RI testing (port 18793) |
+| `test/scripts/mock/sse_mock_server.mjs` | SSE streaming echo server for SSE testing (port 18792) |
 | `test/expected_results.json` | Per-file expected minimum match counts, types, and must_detect items (threshold mode) |
 | `test/snapshot.json` | Exact detection counts for regression testing (strict mode, generated) |
 
@@ -791,6 +817,9 @@ Additional checks (both modes):
 # Strict snapshot comparison (exact counts)
 ./test/scripts/validate_results.sh --strict
 
+# Infrastructure test results (health, auth, tier, body limits, etc.)
+./test/scripts/validate_results.sh --infrastructure
+
 # Summary only (no per-file lines)
 ./test/scripts/validate_results.sh --summary
 
@@ -803,8 +832,8 @@ Additional checks (both modes):
 # Redacted content validation (must_not_contain + EXIF stripping)
 ./test/scripts/validate_results.sh --check-redacted
 
-# Strict + JSON (for CI regression testing)
-./test/scripts/validate_results.sh --strict --json
+# Full CI regression (strict + infrastructure + JSON)
+./test/scripts/validate_results.sh --strict --infrastructure --json
 
 # Regenerate snapshot after scanner changes
 ./test/scripts/generate_snapshot.sh
@@ -1341,3 +1370,212 @@ Check proxy logs for R2 cascade behavior:
 | `high` | R2 scans all | R2 confirms/suppresses |
 
 Test by varying `sensitivity` in config and verifying R2 invocation behavior in logs.
+
+---
+
+## Infrastructure Testing
+
+Infrastructure tests validate proxy features beyond PII detection: health endpoint, authentication, device tier gating, body limits, fail modes, key rotation, response integrity, and SSE streaming. Each script is independently runnable and produces structured JSON output.
+
+### Quick Start
+
+```bash
+# These scripts use the standard proxy (test_fpe.toml) — no extra infra needed:
+./test/scripts/test_health.sh           # Health endpoint schema + counters
+./test/scripts/test_auth.sh             # Auth token enforcement
+./test/scripts/test_device_tier.sh      # Device tier + feature budget
+./test/scripts/test_body_limits.sh      # Body size limit enforcement
+./test/scripts/test_fail_mode.sh        # Fail mode detection + behavior
+./test/scripts/test_key_rotation.sh     # FPE key rotation CLI
+
+# These require dedicated mock servers + config variants:
+node test/scripts/mock/ri_mock_server.mjs &                        # RI mock (port 18793)
+# Restart proxy with: --config test/config/test_ri.toml
+./test/scripts/test_response_integrity.sh                          # Cognitive firewall
+
+node test/scripts/mock/sse_mock_server.mjs &                       # SSE mock (port 18792)
+# Restart proxy with: --config test/config/test_sse.toml
+./test/scripts/test_sse_streaming.sh                               # SSE streaming
+
+# Aggregate all infrastructure results:
+./test/scripts/validate_results.sh --infrastructure
+```
+
+### Test Scripts
+
+| Script | Config | Extra Infra | Tests |
+|--------|--------|-------------|:-----:|
+| `test_health.sh` | `test_fpe.toml` | None | 12 |
+| `test_auth.sh` | `test_fpe.toml` | None | 7 |
+| `test_device_tier.sh` | `test_fpe.toml` | None | 7 |
+| `test_body_limits.sh` | `test_fpe.toml` | None | 3 |
+| `test_fail_mode.sh` | `test_fpe.toml` or `test_fail_closed.toml` | None | 3-5 |
+| `test_key_rotation.sh` | `test_fpe.toml` | None | 4 |
+| `test_response_integrity.sh` | `test_ri.toml` | `ri_mock_server.mjs` | 6 |
+| `test_sse_streaming.sh` | `test_sse.toml` | `sse_mock_server.mjs` | 5 |
+
+### test_health.sh
+
+Validates the `/_openobscure/health` endpoint's JSON schema, types, and counter behavior.
+
+| # | Check | What it validates |
+|---|-------|-------------------|
+| 1 | Schema completeness | All 22+ top-level fields present |
+| 2 | `version` semver | Matches `X.Y.Z` pattern |
+| 3 | `ready` boolean | Type is boolean, not string |
+| 4 | `uptime_secs` non-negative | Integer >= 0 |
+| 5 | `fpe_key_version` >= 1 | Key vault initialized |
+| 6 | `device_tier` enum | One of `full`, `standard`, `lite` |
+| 7 | Latency percentiles | All 6 values >= 0 |
+| 8 | Feature budget fields | All 10 nested fields present |
+| 9 | Feature budget booleans | 6 boolean fields have correct type |
+| 10 | Feature budget `max_ram_mb` | Positive integer |
+| 11 | Counter monotonicity | `requests_total` increments after PII request |
+| 12 | Readiness HTTP code | `ready=true` → 200, `ready=false` → 503 |
+
+### test_auth.sh
+
+Tests auth token enforcement on internal endpoints. Skips gracefully if no auth token is configured.
+
+| # | Check | Expected |
+|---|-------|----------|
+| 1 | Health + valid token | 200 |
+| 2 | Health + no token | 401 |
+| 3 | Health + wrong token | 401 |
+| 4 | NER + valid token | 200 |
+| 5 | NER + no token | 401 |
+| 6 | NER + wrong token | 401 |
+| 7 | Provider route + no token | Non-401 (no auth gate on pass-through) |
+
+### test_device_tier.sh
+
+Validates device tier detection and feature budget consistency.
+
+| # | Check | What it validates |
+|---|-------|-------------------|
+| 1 | `device_tier` enum | One of `full`, `standard`, `lite` |
+| 2 | Tier-specific features | Full: ner+ensemble+scrfd; Standard: ner; Lite: crf+blazeface |
+| 3 | `ocr_tier` valid | One of `none`, `lite`, `standard`, `full` |
+| 4 | `face_model` valid | One of `none`, `blazeface`, `scrfd` |
+| 5 | Budget tier consistency | `feature_budget.tier` matches top-level `device_tier` |
+| 6 | RAM check | `max_ram_mb` > 0 |
+| 7 | System RAM sanity | Available RAM >= reported `max_ram_mb` |
+
+### test_body_limits.sh
+
+Tests body size limit enforcement (configured via `max_body_bytes` in TOML).
+
+| # | Check | Expected |
+|---|-------|----------|
+| 1 | 1KB request | 200 OK |
+| 2 | 17MB request (over 16MB limit) | 413 Payload Too Large |
+| 3 | Empty body | Not 413 |
+
+### test_fail_mode.sh
+
+Auto-detects the proxy's current fail mode by probing with malformed JSON, then runs mode-specific tests.
+
+| Mode | # | Check | Expected |
+|------|---|-------|----------|
+| Open | 1 | Malformed JSON body | 200 (forwarded to upstream) |
+| Open | 2 | Echo capture of malformed body | Contains original PII |
+| Open | 3 | Valid JSON with PII | Normal FPE processing |
+| Closed | 1 | Malformed JSON body | 502 Bad Gateway |
+| Closed | 2 | Valid JSON with PII | Normal FPE processing |
+
+### test_key_rotation.sh
+
+Tests the `key-rotate` CLI subcommand and FPE key version tracking.
+
+| # | Check | What it validates |
+|---|-------|-------------------|
+| 1 | Record `fpe_key_version` | Baseline from health endpoint |
+| 2 | Run `key-rotate` | Exit code 0, success message |
+| 3 | FPE still works | PII request processed after rotation |
+| 4 | Version documentation | Notes that increment requires proxy restart |
+
+### test_response_integrity.sh
+
+Tests the cognitive firewall (R1 dictionary + R2 model cascade). Requires the RI mock server and `test_ri.toml` config.
+
+| # | Check | Expected |
+|---|-------|----------|
+| 1 | Clean response | No `[OpenObscure]` label in body |
+| 2 | Persuasive response | `[OpenObscure]` warning label prepended |
+| 3 | Commercial response | Warning label present |
+| 4 | Fear-based response | Caution-level label (escalated severity) |
+| 5 | `ri_scans_total` increment | Counter increases after scanning |
+| 6 | `ri_flags_total` increment | Counter increases after flagging |
+
+### test_sse_streaming.sh
+
+Tests SSE streaming pass-through with PII scanning. Requires the SSE mock server and `test_sse.toml` config.
+
+| # | Check | Expected |
+|---|-------|----------|
+| 1 | Content-Type | `text/event-stream` |
+| 2 | SSE data events | `data:` prefixed lines present |
+| 3 | Termination event | `[DONE]` or `message_stop` present |
+| 4 | Content passthrough | User content echoed in response |
+| 5 | `requests_total` | Counter increments |
+
+### Mock Servers
+
+| Server | Port | Started by | Purpose |
+|--------|:----:|------------|---------|
+| `echo_server.mjs` | 18791 | `test_gateway_all.sh` (auto) | Captures FPE-encrypted request bodies |
+| `ri_mock_server.mjs` | 18793 | Manual | Returns canned persuasive/clean responses via `X-Mock-Response` header |
+| `sse_mock_server.mjs` | 18792 | Manual | Returns `text/event-stream` SSE responses, echoing request content |
+
+**RI mock server** responds based on the `X-Mock-Response` request header:
+
+| Header value | Response content |
+|-------------|-----------------|
+| `clean` | Benign informational text |
+| `persuasive` | Urgency + scarcity + authority phrases |
+| `commercial` | Sales pressure + urgency phrases |
+| `fear` | Fear-based + commercial persuasion |
+
+**SSE mock server** parses the request body, extracts the user message, and streams it back as chunked SSE events following the Anthropic streaming format (`message_start` → `content_block_delta` → `message_stop` → `[DONE]`).
+
+### Config Variants
+
+| Config | Delta from `test_fpe.toml` | Used by |
+|--------|---------------------------|---------|
+| `test_ri.toml` | `[response_integrity] enabled=true, log_only=false`, upstream → port 18793 | `test_response_integrity.sh` |
+| `test_sse.toml` | Upstream → port 18792 (SSE mock) | `test_sse_streaming.sh` |
+| `test_fail_closed.toml` | `fail_mode = "closed"` | `test_fail_mode.sh` (closed mode) |
+| `test_audit.toml` | `audit_log_path = "/tmp/oo_test_audit.jsonl"` | Future audit log testing |
+
+### Validation JSON Schema
+
+All infrastructure test scripts produce a standardized JSON file in `test/data/output/<suite>/`:
+
+```json
+{
+  "test_suite": "health",
+  "timestamp": "2026-02-25T12:00:00Z",
+  "total": 12,
+  "pass": 11,
+  "fail": 0,
+  "warn": 1,
+  "skip": 0,
+  "results": [
+    {"name": "schema_all_fields_present", "status": "pass", "detail": "22/22 fields"},
+    {"name": "counter_pii_matches_incremented", "status": "warn", "detail": "echo server may not be running"}
+  ]
+}
+```
+
+Use `validate_results.sh --infrastructure` to aggregate all suite results:
+
+```bash
+./test/scripts/validate_results.sh --infrastructure
+# Output:
+# --- Infrastructure Test Results ---
+#   PASS  health                                          11/12 passed, 1 warnings
+#   PASS  auth                                            7/7 passed
+#   PASS  device_tier                                     7/7 passed
+#   ...
+#   Infrastructure totals: 47 passed, 0 failed, 2 warnings (8 suites)
+```

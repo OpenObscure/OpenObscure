@@ -60,17 +60,29 @@ const useNer = process.env.USE_NER === "1";
 const proxyUrl = process.env.PROXY_URL || "http://127.0.0.1:18790";
 
 let result;
+let regexMs = 0;
+let nerMs = 0;
 const startMs = Date.now();
 
 if (useNer && redactPiiWithNer) {
+  // Run regex first for timing baseline
+  const regexStart = Date.now();
+  const regexResult = redactPii(text);
+  regexMs = Date.now() - regexStart;
+
+  // Then run NER-enhanced version
   try {
+    const nerStart = Date.now();
     result = redactPiiWithNer(text, proxyUrl, process.env.AUTH_TOKEN || undefined);
+    nerMs = Date.now() - nerStart;
   } catch (err) {
     console.error(`Warning: NER bridge failed (${err.message}), falling back to regex-only`);
-    result = redactPii(text);
+    result = regexResult;
   }
 } else {
+  const regexStart = Date.now();
   result = redactPii(text);
+  regexMs = Date.now() - regexStart;
 }
 
 const elapsedMs = Date.now() - startMs;
@@ -86,6 +98,11 @@ const envelope = {
   elapsed_ms: elapsedMs,
   total_matches: result.count,
   type_summary: result.types,
+  timing: {
+    total_ms: elapsedMs,
+    regex_ms: regexMs,
+    ner_ms: nerMs,
+  },
 };
 
 // Output

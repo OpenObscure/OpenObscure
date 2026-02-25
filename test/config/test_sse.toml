@@ -1,0 +1,49 @@
+# OpenObscure Test Configuration — SSE Streaming Testing
+#
+# Like test_fpe.toml but with upstream pointing to the SSE mock server
+# (returns text/event-stream responses with chunked content deltas).
+#
+# Usage:
+#   # Terminal 1: Start SSE mock server
+#   node test/scripts/mock/sse_mock_server.mjs
+#
+#   # Terminal 2: Start proxy with this config
+#   OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
+#     ./target/release/openobscure-proxy --config test/config/test_sse.toml serve
+#
+#   # Terminal 3: Run tests
+#   ./test/scripts/test_sse_streaming.sh
+
+[proxy]
+listen_addr = "127.0.0.1"
+port = 18790
+request_timeout_secs = 180
+max_body_bytes = 16777216
+fail_mode = "open"
+
+[fpe]
+enabled = true
+keychain_service = "openobscure"
+keychain_user = "fpe-master-key"
+
+[scanner]
+enabled = true
+ner_model_dir = "openobscure-proxy/models/ner"
+skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
+
+[image]
+enabled = false
+
+[voice]
+enabled = false
+
+[logging]
+level = "info"
+json_output = false
+pii_scrub = true
+
+# SSE mock server as upstream — returns text/event-stream
+[providers.anthropic]
+upstream_url = "http://127.0.0.1:18792"
+route_prefix = "/anthropic"
+strip_headers = ["x-openobscure-internal"]

@@ -393,3 +393,47 @@ fn test_all_bbox_sanity_on_face_image() {
         );
     }
 }
+
+/// Validate SCRFD detection on a multi-face group photo from the E2E test corpus.
+#[test]
+fn test_scrfd_group_photo_detection() {
+    let scrfd_dir = Path::new("models/scrfd");
+    if !scrfd_dir.exists() {
+        eprintln!("Skipping: SCRFD model not available");
+        return;
+    }
+
+    let path = "../test/data/input/Visual_PII/Faces/face_group_02.jpg";
+    if !Path::new(path).exists() {
+        eprintln!("Skipping: face_group_02.jpg not found");
+        return;
+    }
+
+    let bytes = std::fs::read(path).unwrap();
+    let img = decode_image(&bytes).unwrap();
+    let img = resize_if_needed(img, 960);
+
+    let config = make_pipeline_config();
+    let manager = ImageModelManager::new(config);
+    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
+
+    // Group photo should have multiple faces detected and redacted
+    assert!(
+        stats.faces_redacted >= 2,
+        "Expected ≥2 faces in group photo, got {}",
+        stats.faces_redacted
+    );
+
+    // All face bboxes should pass validation
+    let (img_w, img_h) = meta.image_size;
+    let face_issues = validate_face_detections(&meta.faces, img_w, img_h);
+    let errors: Vec<_> = face_issues
+        .iter()
+        .filter(|i| i.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "Group photo face validation errors: {:?}",
+        errors.iter().map(|e| &e.message).collect::<Vec<_>>()
+    );
+}

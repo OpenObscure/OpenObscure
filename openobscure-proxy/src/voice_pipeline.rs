@@ -20,6 +20,12 @@ pub struct VoiceScanResult {
     pub blocks_stripped: usize,
     /// PII keywords that triggered stripping.
     pub keywords_found: Vec<String>,
+    /// Total voice pipeline time (milliseconds).
+    pub total_ms: u64,
+    /// Audio decode time (milliseconds).
+    pub decode_ms: u64,
+    /// KWS inference time (milliseconds).
+    pub kws_ms: u64,
 }
 
 /// Scan audio blocks for PII keywords and strip blocks where PII is detected.
@@ -36,6 +42,9 @@ pub fn scan_and_strip_audio_blocks(json: &mut Value, kws_engine: &KwsEngine) -> 
             blocks_scanned: 0,
             blocks_stripped: 0,
             keywords_found: Vec::new(),
+            total_ms: 0,
+            decode_ms: 0,
+            kws_ms: 0,
         };
     }
 
@@ -45,15 +54,20 @@ pub fn scan_and_strip_audio_blocks(json: &mut Value, kws_engine: &KwsEngine) -> 
         count = blocks.len()
     );
 
+    let pipeline_start = std::time::Instant::now();
     let mut scanned = 0;
     let mut stripped = 0;
     let mut all_keywords = Vec::new();
+    let mut total_decode_ms: u64 = 0;
+    let mut total_kws_ms: u64 = 0;
 
     for block in &blocks {
         scanned += 1;
 
         match scan_single_block(block, kws_engine) {
-            Ok(Some(keywords)) => {
+            Ok((Some(keywords), decode_ms, kws_ms)) => {
+                total_decode_ms += decode_ms;
+                total_kws_ms += kws_ms;
                 // PII detected — strip this audio block
                 let notice = format!(
                     "[AUDIO_PII_DETECTED: keywords={{{}}} — audio stripped]",
@@ -64,7 +78,9 @@ pub fn scan_and_strip_audio_blocks(json: &mut Value, kws_engine: &KwsEngine) -> 
                     all_keywords.extend(keywords);
                 }
             }
-            Ok(None) => {
+            Ok((None, decode_ms, kws_ms)) => {
+                total_decode_ms += decode_ms;
+                total_kws_ms += kws_ms;
                 // No PII — leave audio block unchanged
                 oo_debug!(
                     crate::oo_log::modules::VOICE,
@@ -97,24 +113,30 @@ pub fn scan_and_strip_audio_blocks(json: &mut Value, kws_engine: &KwsEngine) -> 
         blocks_scanned: scanned,
         blocks_stripped: stripped,
         keywords_found: all_keywords,
+        total_ms: pipeline_start.elapsed().as_millis() as u64,
+        decode_ms: total_decode_ms,
+        kws_ms: total_kws_ms,
     }
 }
 
 /// Scan a single audio block for PII keywords.
-/// Returns Ok(Some(keywords)) if PII detected, Ok(None) if clean.
+/// Returns Ok((Some(keywords), decode_ms, kws_ms)) if PII detected,
+/// Ok((None, decode_ms, kws_ms)) if clean.
 fn scan_single_block(
     block: &AudioBlock,
     kws_engine: &KwsEngine,
-) -> Result<Option<Vec<String>>, String> {
+) -> Result<(Option<Vec<String>>, u64, u64), String> {
     // Determine audio format from MIME type
     let format = AudioFormat::from_mime(&block.media_type);
 
     // Decode base64 audio to PCM f32 mono at original sample rate
+    let decode_start = std::time::Instant::now();
     let (pcm, sample_rate) = crate::audio_decode::decode_audio_to_pcm(&block.data, format)
         .map_err(|e| format!("audio decode: {}", e))?;
+    let decode_ms = decode_start.elapsed().as_millis() as u64;
 
     if pcm.is_empty() {
-        return Ok(None);
+        return Ok((None, decode_ms, 0));
     }
 
     // Run keyword spotter (sherpa-onnx resamples internally if needed)
@@ -122,10 +144,11 @@ fn scan_single_block(
         .detect_pii(pcm, sample_rate)
         .map_err(|e| format!("KWS: {}", e))?;
 
+    let kws_ms = result.inference_ms;
     if result.pii_detected {
-        Ok(Some(result.keywords_found))
+        Ok((Some(result.keywords_found), decode_ms, kws_ms))
     } else {
-        Ok(None)
+        Ok((None, decode_ms, kws_ms))
     }
 }
 
@@ -321,6 +344,9 @@ mod tests {
             blocks_scanned: 0,
             blocks_stripped: 0,
             keywords_found: Vec::new(),
+            total_ms: 0,
+            decode_ms: 0,
+            kws_ms: 0,
         };
         assert_eq!(result.blocks_scanned, 0);
         assert_eq!(result.blocks_stripped, 0);

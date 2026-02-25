@@ -1,0 +1,55 @@
+# OpenObscure Test Configuration — Fail-Closed Mode
+#
+# Identical to test_fpe.toml but with fail_mode = "closed".
+# In closed mode, the proxy rejects requests with 502 if body processing fails
+# (e.g., malformed JSON that can't be parsed for PII scanning).
+#
+# Usage:
+#   OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
+#     ./target/release/openobscure-proxy --config test/config/test_fail_closed.toml serve
+
+[proxy]
+listen_addr = "127.0.0.1"
+port = 18790
+request_timeout_secs = 180
+max_body_bytes = 16777216
+fail_mode = "closed"
+
+[fpe]
+enabled = true
+keychain_service = "openobscure"
+keychain_user = "fpe-master-key"
+
+[scanner]
+enabled = true
+ner_model_dir = "openobscure-proxy/models/ner"
+skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
+
+[image]
+enabled = true
+face_detection = true
+face_model = "scrfd"
+face_model_dir_scrfd = "openobscure-proxy/models/scrfd"
+face_model_dir = "openobscure-proxy/models/blazeface"
+ocr_enabled = true
+ocr_model_dir = "openobscure-proxy/models/paddleocr"
+nsfw_detection = true
+nsfw_model_dir = "openobscure-proxy/models/nudenet"
+screen_guard = true
+exif_strip = true
+
+[voice]
+enabled = true
+kws_model_dir = "openobscure-proxy/models/kws"
+kws_keywords_file = "openobscure-proxy/models/kws/keywords.txt"
+
+[logging]
+level = "info"
+json_output = false
+pii_scrub = true
+
+# Echo server as upstream
+[providers.anthropic]
+upstream_url = "http://127.0.0.1:18791"
+route_prefix = "/anthropic"
+strip_headers = ["x-openobscure-internal"]

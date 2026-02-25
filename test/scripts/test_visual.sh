@@ -42,8 +42,11 @@ cleanup_visual() {
   rm -f /tmp/oo_visual_resp_* 2>/dev/null || true
   rm -f /tmp/oo_visual_payload_* 2>/dev/null || true
   rm -f /tmp/oo_visual_b64_* 2>/dev/null || true
+  rm -f /tmp/oo_visual_hdr_* 2>/dev/null || true
   rm -f "$CAPTURE_DIR"/visual_*.json 2>/dev/null || true
 }
+# Extract an X-OO-* header value from a curl header dump, defaulting to 0.
+_oo_hdr() { local v; v=$({ grep -i "^${1}:" "$2" 2>/dev/null || true; } | head -1 | awk '{print $2}' | tr -d '\r\n '); echo "${v:-0}"; }
 trap cleanup_visual EXIT
 
 # Auth token
@@ -159,19 +162,33 @@ test_image() {
     }' > "$tmp_payload"
   rm -f "$tmp_b64_file"
 
+  local tmp_headers
+  tmp_headers=$(mktemp /tmp/oo_visual_hdr_XXXXXX)
+
   local proxy_start
   proxy_start=$(_ms)
 
   local response_code
-  response_code=$(curl -s -o "$tmp_response" -w "%{http_code}" -X POST \
+  response_code=$(curl -s -o "$tmp_response" -w "%{http_code}" -D "$tmp_headers" -X POST \
     "${PROXY_URL}/anthropic/v1/messages" \
     -H "Content-Type: application/json" \
     -H "x-api-key: test-visual-scan" \
     -H "anthropic-version: 2023-06-01" \
     -H "X-Capture-Id: $capture_id" \
+    ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} \
     -d @"$tmp_payload" 2>/dev/null)
   local proxy_elapsed_ms=$(( $(_ms) - proxy_start ))
   rm -f "$tmp_payload"
+
+  # Extract per-phase timing from X-OO-* response headers
+  local nsfw_ms face_ms ocr_ms image_us scan_us proxy_total_us
+  nsfw_ms=$(_oo_hdr "x-oo-nsfw-ms" "$tmp_headers")
+  face_ms=$(_oo_hdr "x-oo-face-ms" "$tmp_headers")
+  ocr_ms=$(_oo_hdr "x-oo-ocr-ms" "$tmp_headers")
+  image_us=$(_oo_hdr "x-oo-image-us" "$tmp_headers")
+  scan_us=$(_oo_hdr "x-oo-scan-us" "$tmp_headers")
+  proxy_total_us=$(_oo_hdr "x-oo-total-us" "$tmp_headers")
+  rm -f "$tmp_headers"
 
   # Check health stats after — delta tells us what the pipeline did
   local after_health
@@ -242,6 +259,12 @@ test_image() {
     --argjson screenshot_detected "$delta_screenshots" \
     --argjson image_captured "$image_saved" \
     --argjson pipeline_ms "$proxy_elapsed_ms" \
+    --argjson nsfw_ms "$nsfw_ms" \
+    --argjson face_ms "$face_ms" \
+    --argjson ocr_ms "$ocr_ms" \
+    --argjson image_us "$image_us" \
+    --argjson scan_us "$scan_us" \
+    --argjson proxy_total_us "$proxy_total_us" \
     --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
     '{
       file: $file,
@@ -258,7 +281,13 @@ test_image() {
         screenshot_detected: ($screenshot_detected > 0)
       },
       timing: {
-        pipeline_ms: $pipeline_ms
+        pipeline_ms: $pipeline_ms,
+        nsfw_ms: $nsfw_ms,
+        face_ms: $face_ms,
+        ocr_ms: $ocr_ms,
+        image_us: $image_us,
+        scan_us: $scan_us,
+        proxy_total_us: $proxy_total_us
       },
       redacted_image_captured: $image_captured,
       note: (if $image_captured then "Redacted image saved" else "Original copied — run with echo upstream to capture pipeline output" end),
@@ -274,7 +303,12 @@ test_image() {
   [[ "$delta_nsfw" -gt 0 ]] && extras="${extras}, nsfw: YES"
   [[ "$delta_screenshots" -gt 0 ]] && extras="${extras}, screenshot: YES"
 
-  echo "$status $filename (${dimensions}, ${file_size}B) — HTTP $response_code, faces: +$delta_faces, text: +$delta_text${extras}, captured: $image_saved, ${proxy_elapsed_ms}ms"
+  local phase_info=""
+  [[ "$nsfw_ms" -gt 0 ]] && phase_info="${phase_info} nsfw:${nsfw_ms}ms"
+  [[ "$face_ms" -gt 0 ]] && phase_info="${phase_info} face:${face_ms}ms"
+  [[ "$ocr_ms" -gt 0 ]] && phase_info="${phase_info} ocr:${ocr_ms}ms"
+
+  echo "$status $filename (${dimensions}, ${file_size}B) — HTTP $response_code, faces: +$delta_faces, text: +$delta_text${extras}, captured: $image_saved, ${proxy_elapsed_ms}ms${phase_info:+ ($phase_info)}"
 }
 
 # ── Main ──

@@ -14,6 +14,17 @@ use crate::scanner::{PiiMatch, PiiScanner};
 /// Maximum depth for recursive JSON-in-string parsing.
 const MAX_NESTED_JSON_DEPTH: usize = 2;
 
+/// Per-scanner timing breakdown from a scan_text call.
+#[derive(Debug, Default, Clone)]
+pub struct ScanTiming {
+    pub regex_us: u64,
+    pub keyword_us: u64,
+    pub semantic_us: u64,
+    pub multilingual_us: u64,
+    pub voting_us: u64,
+    pub total_us: u64,
+}
+
 /// Scanner source for confidence voting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum ScannerSource {
@@ -114,6 +125,14 @@ impl HybridScanner {
 
     /// Scan text through all enabled scanners, resolve overlaps via confidence voting.
     pub fn scan_text(&self, text: &str) -> Vec<PiiMatch> {
+        self.scan_text_with_timing(text).0
+    }
+
+    /// Scan text with per-scanner timing breakdown.
+    pub fn scan_text_with_timing(&self, text: &str) -> (Vec<PiiMatch>, ScanTiming) {
+        let total_start = std::time::Instant::now();
+        let mut timing = ScanTiming::default();
+
         let effective_text = if self.respect_code_fences {
             mask_code_fences(text)
         } else {
@@ -124,14 +143,17 @@ impl HybridScanner {
         let mut tagged: Vec<TaggedMatch> = Vec::new();
 
         // 1a. Regex (deterministic, confidence = 1.0)
+        let t = std::time::Instant::now();
         for m in self.regex_scanner.scan_text(&effective_text) {
             tagged.push(TaggedMatch {
                 pii_match: m,
                 source: ScannerSource::Regex,
             });
         }
+        timing.regex_us = t.elapsed().as_micros() as u64;
 
         // 1b. Keyword dictionary (if enabled)
+        let t = std::time::Instant::now();
         if self.keywords_enabled {
             for m in self.keyword_dict.scan_text(&effective_text) {
                 tagged.push(TaggedMatch {
@@ -140,8 +162,10 @@ impl HybridScanner {
                 });
             }
         }
+        timing.keyword_us = t.elapsed().as_micros() as u64;
 
         // 1c. Semantic backend (NER or CRF, if loaded)
+        let t = std::time::Instant::now();
         if let Some(ref backend) = self.semantic {
             let semantic_matches = match backend {
                 SemanticBackend::Ner(ner_mutex) => {
@@ -166,11 +190,13 @@ impl HybridScanner {
                 });
             }
         }
+        timing.semantic_us = t.elapsed().as_micros() as u64;
 
         // 1d. Multilingual patterns (language-specific national IDs, phones, IBANs)
         // Run detected language first; if non-English detected, also try closely
         // related languages (e.g., Portuguese ↔ Spanish) since whatlang can
         // confuse them on short texts. Validation functions prevent FPs.
+        let t = std::time::Instant::now();
         {
             let detected = lang_detect::detect_language(&effective_text);
             let langs = multilingual::languages_to_scan(detected.as_ref());
@@ -183,8 +209,10 @@ impl HybridScanner {
                 }
             }
         }
+        timing.multilingual_us = t.elapsed().as_micros() as u64;
 
         // Phase 2: Cluster overlapping spans
+        let t = std::time::Instant::now();
         let clusters = cluster_overlapping(&tagged);
 
         // Phase 3: Vote within each cluster
@@ -195,6 +223,7 @@ impl HybridScanner {
             winners.retain(|m| m.confidence >= self.min_confidence);
             results.extend(winners);
         }
+        timing.voting_us = t.elapsed().as_micros() as u64;
 
         // Restore raw_value from original text (masking replaced chars with spaces)
         if self.respect_code_fences {
@@ -207,7 +236,9 @@ impl HybridScanner {
 
         // Sort by start offset
         results.sort_by_key(|m| (m.start, std::cmp::Reverse(m.end)));
-        results
+
+        timing.total_us = total_start.elapsed().as_micros() as u64;
+        (results, timing)
     }
 
     /// Scan a JSON body, traversing string values and tracking JSON paths.

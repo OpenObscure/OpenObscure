@@ -26,6 +26,7 @@
 #   ./test/scripts/validate_results.sh --gateway-only       # Skip embedded checks
 #   ./test/scripts/validate_results.sh --summary            # Summary only (no per-file output)
 #   ./test/scripts/validate_results.sh --json               # JSON report to stdout
+#   ./test/scripts/validate_results.sh --infrastructure     # Infrastructure test results
 
 set -euo pipefail
 
@@ -42,6 +43,7 @@ SUMMARY_ONLY=false
 JSON_OUTPUT=false
 STRICT=false
 CHECK_REDACTED=false
+INFRASTRUCTURE=false
 for arg in "$@"; do
   case "$arg" in
     --gateway-only) GATEWAY_ONLY=true ;;
@@ -49,11 +51,14 @@ for arg in "$@"; do
     --json) JSON_OUTPUT=true ;;
     --strict) STRICT=true ;;
     --check-redacted) CHECK_REDACTED=true ;;
+    --infrastructure) INFRASTRUCTURE=true ;;
   esac
 done
 
-# Verify required files exist
-if [[ "$STRICT" == "true" ]]; then
+# Verify required files exist (skip for infrastructure-only mode)
+if [[ "$INFRASTRUCTURE" == "true" && $GW_JSON_COUNT -eq 0 && $EM_JSON_COUNT -eq 0 ]]; then
+  : # Infrastructure-only mode: no manifest/snapshot needed
+elif [[ "$STRICT" == "true" ]]; then
   if [[ ! -f "$SNAPSHOT" ]]; then
     echo "Error: Snapshot not found: $SNAPSHOT"
     echo "Generate it first: ./test/scripts/generate_snapshot.sh"
@@ -79,7 +84,11 @@ FAILURES=()
 WARNINGS=()
 
 # Mode label
-if [[ "$STRICT" == "true" ]]; then
+if [[ "$INFRASTRUCTURE" == "true" && "$STRICT" == "false" ]]; then
+  MODE_LABEL="infrastructure"
+elif [[ "$STRICT" == "true" && "$INFRASTRUCTURE" == "true" ]]; then
+  MODE_LABEL="strict+infrastructure"
+elif [[ "$STRICT" == "true" ]]; then
   MODE_LABEL="strict"
 else
   MODE_LABEL="threshold"
@@ -117,6 +126,40 @@ skip() {
   fi
 }
 
+# Print timing statistics (min/avg/p50/p95/max) for a list of values.
+# Usage: print_timing_stats "metric_name" val1 val2 val3...
+# Skips if no values provided.
+print_timing_stats() {
+  local metric="$1"
+  shift
+  local -a values=("$@")
+  local count=${#values[@]}
+  [[ $count -eq 0 ]] && return
+
+  # Sort values numerically
+  IFS=$'\n' read -r -d '' -a sorted < <(printf '%s\n' "${values[@]}" | sort -n && printf '\0') || true
+
+  local min=${sorted[0]}
+  local max=${sorted[$((count - 1))]}
+
+  # Average
+  local sum=0
+  for v in "${sorted[@]}"; do sum=$((sum + v)); done
+  local avg=$((sum / count))
+
+  # p50 (median): index = ceil(count * 0.50) - 1
+  local p50_idx=$(( (count * 50 + 49) / 100 - 1 ))
+  [[ $p50_idx -lt 0 ]] && p50_idx=0
+  local p50=${sorted[$p50_idx]}
+
+  # p95: index = ceil(count * 0.95) - 1
+  local p95_idx=$(( (count * 95 + 49) / 100 - 1 ))
+  [[ $p95_idx -ge $count ]] && p95_idx=$((count - 1))
+  local p95=${sorted[$p95_idx]}
+
+  printf "  %-25s %5d  %8d  %8d  %8d  %8d  %8d\n" "$metric" "$count" "$min" "$avg" "$p50" "$p95" "$max"
+}
+
 # ─── Header ───────────────────────────────────────────────────
 
 if [[ "$JSON_OUTPUT" == "false" ]]; then
@@ -151,7 +194,7 @@ if [[ "$JSON_OUTPUT" == "false" ]]; then
   echo ""
 fi
 
-if [[ $GW_JSON_COUNT -eq 0 && $EM_JSON_COUNT -eq 0 ]]; then
+if [[ $GW_JSON_COUNT -eq 0 && $EM_JSON_COUNT -eq 0 && "$INFRASTRUCTURE" == "false" ]]; then
   if [[ "$JSON_OUTPUT" == "false" ]]; then
     echo "Error: No test results found in $OUTPUT_DIR"
     echo ""
@@ -166,7 +209,9 @@ fi
 # STRICT MODE: Exact snapshot comparison
 # ═══════════════════════════════════════════════════════════════
 
-if [[ "$STRICT" == "true" ]]; then
+if [[ $GW_JSON_COUNT -eq 0 && $EM_JSON_COUNT -eq 0 ]]; then
+  : # No PII results — skip strict/threshold validation (infrastructure-only mode)
+elif [[ "$STRICT" == "true" ]]; then
 
   # ─── Strict: Gateway validation ──────────────────────────────
 
@@ -646,7 +691,7 @@ print(idx)
     done
   fi
 
-fi  # end threshold/strict branching
+fi  # end threshold/strict/infrastructure-only branching
 
 # ═══════════════════════════════════════════════════════════════
 # REDACTED CONTENT VALIDATION (--check-redacted)
@@ -827,14 +872,99 @@ except Exception:
   fi
 fi
 
+# ═══════════════════════════════════════════════════════════════
+# INFRASTRUCTURE TEST RESULTS (--infrastructure)
+# ═══════════════════════════════════════════════════════════════
+
+if [[ "$INFRASTRUCTURE" == "true" ]]; then
+
+  INFRA_DIRS=(health auth device_tier body_limits fail_mode key_rotation ri sse)
+  INFRA_TOTAL=0
+  INFRA_PASS=0
+  INFRA_FAIL=0
+  INFRA_WARN=0
+  INFRA_SKIP=0
+  INFRA_FOUND=0
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo ""
+    echo "--- Infrastructure Test Results ---"
+  fi
+
+  for dir_name in "${INFRA_DIRS[@]}"; do
+    validation_dir="$OUTPUT_DIR/$dir_name"
+    [[ -d "$validation_dir" ]] || continue
+
+    for vfile in "$validation_dir"/*_validation.json; do
+      [[ -f "$vfile" ]] || continue
+      INFRA_FOUND=$((INFRA_FOUND + 1))
+
+      suite_name=$(jq -r '.test_suite // "unknown"' "$vfile")
+      suite_pass=$(jq '.pass // 0' "$vfile")
+      suite_fail=$(jq '.fail // 0' "$vfile")
+      suite_warn=$(jq '.warn // 0' "$vfile")
+      suite_skip=$(jq '.skip // 0' "$vfile")
+      suite_total=$(jq '.total // 0' "$vfile")
+
+      INFRA_PASS=$((INFRA_PASS + suite_pass))
+      INFRA_FAIL=$((INFRA_FAIL + suite_fail))
+      INFRA_WARN=$((INFRA_WARN + suite_warn))
+      INFRA_SKIP=$((INFRA_SKIP + suite_skip))
+      INFRA_TOTAL=$((INFRA_TOTAL + suite_total))
+
+      # Add to global counters
+      PASS=$((PASS + suite_pass))
+      FAIL=$((FAIL + suite_fail))
+      WARN=$((WARN + suite_warn))
+      SKIP=$((SKIP + suite_skip))
+      TOTAL=$((TOTAL + suite_total))
+
+      if [[ "$SUMMARY_ONLY" == "false" && "$JSON_OUTPUT" == "false" ]]; then
+        if [[ "$suite_fail" -eq 0 ]]; then
+          printf "  \033[32mPASS\033[0m  %-45s  %d/%d passed" "$suite_name" "$suite_pass" "$suite_total"
+        else
+          printf "  \033[31mFAIL\033[0m  %-45s  %d/%d passed, %d failed" "$suite_name" "$suite_pass" "$suite_total" "$suite_fail"
+        fi
+        [[ "$suite_warn" -gt 0 ]] && printf ", %d warnings" "$suite_warn"
+        echo ""
+      fi
+
+      # Add individual failures to the FAILURES array
+      if [[ "$suite_fail" -gt 0 ]]; then
+        while IFS= read -r result_line; do
+          result_name=$(echo "$result_line" | jq -r '.name')
+          result_detail=$(echo "$result_line" | jq -r '.detail')
+          FAILURES+=("$suite_name/$result_name: $result_detail")
+        done < <(jq -c '.results[] | select(.status == "fail")' "$vfile" 2>/dev/null)
+      fi
+    done
+  done
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    if [[ $INFRA_FOUND -eq 0 ]]; then
+      echo "  No infrastructure validation files found."
+      echo "  Run infrastructure test scripts first (test_health.sh, test_auth.sh, etc.)"
+    else
+      echo ""
+      printf "  Infrastructure totals: %d passed, %d failed" "$INFRA_PASS" "$INFRA_FAIL"
+      [[ $INFRA_WARN -gt 0 ]] && printf ", %d warnings" "$INFRA_WARN"
+      [[ $INFRA_SKIP -gt 0 ]] && printf ", %d skipped" "$INFRA_SKIP"
+      printf " (%d suites)\n" "$INFRA_FOUND"
+    fi
+  fi
+fi
+
 # ─── Coverage check: input files not in manifest ─────────────
+
+UNCOVERED=0
+
+if [[ $GW_JSON_COUNT -gt 0 || $EM_JSON_COUNT -gt 0 ]]; then
 
 if [[ "$JSON_OUTPUT" == "false" ]]; then
   echo ""
   echo "--- Coverage Check ---"
 fi
 
-UNCOVERED=0
 COVERED_CATEGORIES=(
   "PII_Detection"
   "Multilingual_PII"
@@ -910,6 +1040,8 @@ if [[ "$JSON_OUTPUT" == "false" ]]; then
   fi
 fi
 
+fi  # end coverage check guard (PII results exist)
+
 # ─── Type breakdown ──────────────────────────────────────────
 
 if [[ "$JSON_OUTPUT" == "false" && "$SUMMARY_ONLY" == "false" ]]; then
@@ -918,6 +1050,81 @@ if [[ "$JSON_OUTPUT" == "false" && "$SUMMARY_ONLY" == "false" ]]; then
   for gw_file in $(find "$OUTPUT_DIR" -path "*/json/*_gateway.json" 2>/dev/null | sort); do
     jq -r '.type_summary // {} | to_entries[] | "\(.key)\t\(.value)"' "$gw_file" 2>/dev/null
   done | sort | awk -F'\t' '{counts[$1]+=$2} END {for(t in counts) printf "  %-20s %d\n", t, counts[t]}' | sort -t' ' -k2 -nr
+fi
+
+# ─── Timing Statistics ────────────────────────────────────────
+
+if [[ "$JSON_OUTPUT" == "false" && "$SUMMARY_ONLY" == "false" ]]; then
+  _has_timing=false
+
+  # Collect gateway timing
+  gw_total_ms=(); gw_scan_us=(); gw_fpe_us=()
+  for gw_file in $(find "$OUTPUT_DIR" -path "*/json/*_gateway.json" 2>/dev/null | sort); do
+    v=$(jq '.timing.total_ms // empty' "$gw_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && gw_total_ms+=("$v")
+    v=$(jq '.timing.proxy_scan_us // empty' "$gw_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && gw_scan_us+=("$v")
+    v=$(jq '.timing.proxy_fpe_us // empty' "$gw_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && gw_fpe_us+=("$v")
+  done
+
+  # Collect embedded timing
+  em_total_ms=(); em_regex_ms=(); em_ner_ms=()
+  for em_file in $(find "$OUTPUT_DIR" -path "*/json/*_embedded.json" 2>/dev/null | sort); do
+    v=$(jq '.timing.total_ms // .elapsed_ms // empty' "$em_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && em_total_ms+=("$v")
+    v=$(jq '.timing.regex_ms // empty' "$em_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && em_regex_ms+=("$v")
+    v=$(jq '.timing.ner_ms // empty' "$em_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && em_ner_ms+=("$v")
+  done
+
+  # Collect visual timing
+  vis_pipeline_ms=(); vis_nsfw_ms=(); vis_face_ms=(); vis_ocr_ms=()
+  for vis_file in $(find "$OUTPUT_DIR" -path "*/json/*_visual.json" 2>/dev/null | sort); do
+    v=$(jq '.timing.pipeline_ms // empty' "$vis_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && vis_pipeline_ms+=("$v")
+    v=$(jq '.timing.nsfw_ms // empty' "$vis_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && vis_nsfw_ms+=("$v")
+    v=$(jq '.timing.face_ms // empty' "$vis_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && vis_face_ms+=("$v")
+    v=$(jq '.timing.ocr_ms // empty' "$vis_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && vis_ocr_ms+=("$v")
+  done
+
+  # Collect audio timing
+  aud_pipeline_ms=(); aud_voice_ms=(); aud_kws_ms=()
+  for aud_file in $(find "$OUTPUT_DIR" -path "*/json/*_audio.json" 2>/dev/null | sort); do
+    v=$(jq '.timing.pipeline_ms // empty' "$aud_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && aud_pipeline_ms+=("$v")
+    v=$(jq '.timing.voice_ms // empty' "$aud_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && aud_voice_ms+=("$v")
+    v=$(jq '.timing.kws_ms // empty' "$aud_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && aud_kws_ms+=("$v")
+  done
+
+  # Print if any timing data exists
+  total_timing_count=$(( ${#gw_total_ms[@]} + ${#em_total_ms[@]} + ${#vis_pipeline_ms[@]} + ${#aud_pipeline_ms[@]} ))
+  if [[ $total_timing_count -gt 0 ]]; then
+    echo ""
+    echo "--- Timing Statistics ---"
+    printf "  %-25s %5s  %8s  %8s  %8s  %8s  %8s\n" "Metric" "Count" "Min" "Avg" "P50" "P95" "Max"
+    printf "  %-25s %5s  %8s  %8s  %8s  %8s  %8s\n" "─────────────────────────" "─────" "────────" "────────" "────────" "────────" "────────"
+
+    print_timing_stats "Gateway total (ms)"     "${gw_total_ms[@]}"
+    print_timing_stats "Gateway proxy scan (us)" "${gw_scan_us[@]}"
+    print_timing_stats "Gateway proxy FPE (us)"  "${gw_fpe_us[@]}"
+    print_timing_stats "Embedded total (ms)"     "${em_total_ms[@]}"
+    print_timing_stats "Embedded regex (ms)"     "${em_regex_ms[@]}"
+    print_timing_stats "Embedded NER (ms)"       "${em_ner_ms[@]}"
+    print_timing_stats "Visual pipeline (ms)"    "${vis_pipeline_ms[@]}"
+    print_timing_stats "Visual NSFW (ms)"        "${vis_nsfw_ms[@]}"
+    print_timing_stats "Visual face (ms)"        "${vis_face_ms[@]}"
+    print_timing_stats "Visual OCR (ms)"         "${vis_ocr_ms[@]}"
+    print_timing_stats "Audio pipeline (ms)"     "${aud_pipeline_ms[@]}"
+    print_timing_stats "Audio voice (ms)"        "${aud_voice_ms[@]}"
+    print_timing_stats "Audio KWS (ms)"          "${aud_kws_ms[@]}"
+  fi
 fi
 
 # ─── Summary ─────────────────────────────────────────────────
