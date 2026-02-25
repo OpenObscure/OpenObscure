@@ -38,6 +38,8 @@
 | Proxy port | 18790 |
 | Sample count | 105 files (47 visual + 13 audio + 45 text gateway) |
 | NER model | TinyBERT 4L-312D INT8 (13.7 MB, 11 labels) |
+| Image models | FP32 — NudeNet (11.6 MB), PaddleOCR det/rec (2.3+7.3 MB), SCRFD (3.1 MB), BlazeFace (0.4 MB) |
+| KWS models | INT8 — sherpa-onnx Zipformer encoder/decoder/joiner (~5 MB total) |
 | Collection date | 2026-02-25 |
 
 ---
@@ -571,6 +573,49 @@ Real gateway test results with all 45 text files (proxy-internal `x-oo-scan-us`)
 > scan_us includes regex + JSON traversal + ensemble. With NER removed as the
 > dominant factor, the regex/traversal cost is now the baseline — and it was
 > always fast.
+
+### Image Model Quantization Results (2026-02-25)
+
+All 4 image pipeline models (NudeNet, PaddleOCR det/rec, SCRFD) were quantized
+from FP32 to INT8 using ONNX Runtime dynamic quantization (`quantize_dynamic`,
+`QUInt8`). The quantization achieved significant size reduction but caused a
+**latency regression** on Apple Silicon.
+
+#### Size Reduction (successful)
+
+| Model | FP32 Size | INT8 Size | Reduction |
+|---|---|---|---|
+| NudeNet 320n | 11.6 MB | 3.1 MB | 73.4% |
+| PaddleOCR rec v4 | 7.3 MB | 2.0 MB | 72.6% |
+| SCRFD-2.5GF | 3.1 MB | 0.8 MB | 73.1% |
+| PaddleOCR det v4 | 2.3 MB | 0.8 MB | 67.3% |
+| **Total** | **24.3 MB** | **6.7 MB** | **72.4%** |
+
+#### Latency Regression (CoreML EP fallback to CPU)
+
+CoreML EP on Apple Silicon does **not** support quantized ONNX operators
+(`QLinearConv`, `MatMulInteger`, `DynamicQuantizeLinear`). With INT8 models,
+CoreML assigned only 27/90 nodes (30%) to the Neural Engine — the remaining
+quantized ops fell back to CPU, causing significant regression:
+
+| Model | FP32 Median | INT8 Median | Regression |
+|---|---|---|---|
+| **NSFW (NudeNet)** | 4 ms | 23 ms | 5.75x slower |
+| **Face (SCRFD)** | 9 ms | 54 ms | 6x slower |
+| **OCR (PaddleOCR)** | 106 ms | 238 ms | 2.2x slower |
+| **Pipeline total** | 342 ms | 541 ms | 1.6x slower |
+
+#### Decision: Keep FP32 for Apple Silicon
+
+INT8 models were **reverted to FP32**. The 17.6 MB size savings do not justify
+the latency regression. Image models remain FP32 (24.3 MB total).
+
+> **Note for Android/NNAPI**: NNAPI EP *does* support `QLinearConv` and
+> `QLinearMatMul`. INT8 quantization should be re-evaluated for Android
+> deployments where it would likely deliver both size and speed benefits.
+
+> **Quantization script**: `build/quantize_image_models.py` is preserved for
+> future use on platforms with native INT8 operator support.
 
 ### Tier Latency Summary (Updated)
 
