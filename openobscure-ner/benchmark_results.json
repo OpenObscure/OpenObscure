@@ -1,0 +1,38 @@
+[
+  {
+    "model": "tinybert4l-onnx",
+    "model_path": "models/tinybert4l-onnx/model_int8.onnx",
+    "model_size_mb": 13.7,
+    "num_labels": 11,
+    "samples": 760,
+    "latency_ms": {
+      "p50": 0.76,
+      "p95": 0.97,
+      "p99": 1.38,
+      "mean": 0.78,
+      "min": 0.53,
+      "max": 3.72,
+      "stdev": 0.17
+    },
+    "entities_detected": 1383,
+    "entities_per_sample": 1.82
+  },
+  {
+    "model": "distilbert-onnx",
+    "model_path": "models/distilbert-onnx/model_int8.onnx",
+    "model_size_mb": 63.7,
+    "num_labels": 11,
+    "samples": 760,
+    "latency_ms": {
+      "p50": 4.34,
+      "p95": 5.67,
+      "p99": 6.06,
+      "mean": 4.38,
+      "min": 2.83,
+      "max": 8.25,
+      "stdev": 0.74
+    },
+    "entities_detected": 1735,
+    "entities_per_sample": 2.28
+  }
+]
