@@ -11,6 +11,9 @@
 // Environment:
 //   USE_NER=1   — Enable NER bridge mode (requires proxy running)
 //   PROXY_URL   — Proxy URL for NER bridge (default: http://127.0.0.1:18790)
+//
+// Note: If @openobscure/scanner-napi is installed, redactPii() automatically
+// uses the native Rust HybridScanner (14 PII types) instead of JS regex (5 types).
 
 import { readdirSync, statSync, readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "fs";
 import { join, dirname, basename, extname } from "path";
@@ -55,6 +58,7 @@ const CATEGORIES = [
   "Code_Config_PII",
   "Structured_Data_PII",
   "Agent_Tool_Results",
+  // Cognitive_Firewall is tested via test_cognitive_firewall.sh (proxy RI pipeline, not PII scanning)
 ];
 
 let grandTotalFiles = 0;
@@ -131,15 +135,19 @@ for (const category of CATEGORIES) {
 
       const elapsedMs = Date.now() - t0;
 
-      // Write JSON metadata
+      // Write JSON metadata (aligned with gateway format)
       const envelope = {
         file,
         path: inputPath,
         architecture: mode,
+        redaction_mode: "label",
         timestamp: new Date().toISOString(),
-        elapsed_ms: elapsedMs,
         total_matches: result.count,
         type_summary: result.types,
+        timing: {
+          total_ms: elapsedMs,
+        },
+        matches: result.matches,
       };
       writeFileSync(join(jsonDir, `${nameNoExt}_embedded.json`), JSON.stringify(envelope, null, 2) + "\n");
 

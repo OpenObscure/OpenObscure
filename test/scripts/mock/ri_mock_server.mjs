@@ -6,6 +6,7 @@
 //   "persuasive"  — urgency + scarcity + authority phrases
 //   "commercial"  — commercial pressure + urgency (triggers Warning)
 //   "fear"        — fear-based + commercial (triggers Caution)
+//   "echo"        — echoes the user message content back as the response
 //
 // If no header is provided, returns "clean" by default.
 //
@@ -43,13 +44,28 @@ const server = createServer((req, res) => {
     requestCount++;
 
     const mockType = req.headers["x-mock-response"] || "clean";
-    const responseData = RESPONSES[mockType] || RESPONSES.clean;
+
+    // Echo mode: return the user's message content as the response
+    let responseText;
+    if (mockType === "echo") {
+      try {
+        const parsed = JSON.parse(body);
+        const msgs = parsed.messages || [];
+        const userMsg = msgs.find((m) => m.role === "user");
+        responseText = userMsg?.content || "No user message found";
+      } catch {
+        responseText = body || "Empty request body";
+      }
+    } else {
+      const responseData = RESPONSES[mockType] || RESPONSES.clean;
+      responseText = responseData.text;
+    }
 
     const response = {
       id: `msg_ri_mock_${requestCount}`,
       type: "message",
       role: "assistant",
-      content: [{ type: "text", text: responseData.text }],
+      content: [{ type: "text", text: responseText }],
       model: "ri-mock-server",
       stop_reason: "end_turn",
       usage: { input_tokens: 10, output_tokens: 50 },
@@ -62,7 +78,7 @@ const server = createServer((req, res) => {
 
 server.listen(PORT, "127.0.0.1", () => {
   console.log(`RI mock server listening on 127.0.0.1:${PORT}`);
-  console.log(`Modes: clean, persuasive, commercial, fear`);
+  console.log(`Modes: clean, persuasive, commercial, fear, echo`);
   console.log(`Set mode via X-Mock-Response header`);
 });
 

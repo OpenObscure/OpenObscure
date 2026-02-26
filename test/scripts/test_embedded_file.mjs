@@ -14,6 +14,9 @@
 // Environment:
 //   PROXY_URL  — Proxy URL for NER bridge mode (default: http://127.0.0.1:18790)
 //   USE_NER    — Set to "1" to use redactPiiWithNer instead of redactPii
+//
+// Note: If @openobscure/scanner-napi is installed, redactPii() automatically
+// uses the native Rust HybridScanner (14 PII types) instead of JS regex (5 types).
 
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { basename, dirname, extname, join } from "path";
@@ -87,15 +90,14 @@ if (useNer && redactPiiWithNer) {
 
 const elapsedMs = Date.now() - startMs;
 
-// Build JSON metadata envelope
+// Build JSON metadata envelope (aligned with gateway format)
 const filename = basename(inputFile);
 const envelope = {
   file: filename,
   path: inputFile,
   architecture: useNer ? "embedded+ner" : "embedded",
-  mode: useNer ? "redactPiiWithNer" : "redactPii",
+  redaction_mode: "label",
   timestamp: new Date().toISOString(),
-  elapsed_ms: elapsedMs,
   total_matches: result.count,
   type_summary: result.types,
   timing: {
@@ -103,6 +105,7 @@ const envelope = {
     regex_ms: regexMs,
     ner_ms: nerMs,
   },
+  matches: result.matches,
 };
 
 // Output
