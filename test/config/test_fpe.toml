@@ -19,6 +19,7 @@ listen_addr = "127.0.0.1"
 port = 18790
 request_timeout_secs = 180
 max_body_bytes = 16777216
+body_limit_full = 16777216
 fail_mode = "open"
 
 [fpe]

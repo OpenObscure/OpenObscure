@@ -81,8 +81,7 @@ if [[ "$HTTP_CODE" == "000" || -z "$HEALTH" || "$HEALTH" == "{}" ]]; then
   exit 1
 fi
 
-# Save raw health response
-echo "$HEALTH" | jq . > "$OUTPUT_DIR/health_raw.json"
+# Raw health response saved after counter test (so latency histograms have data)
 
 # ─── Test 1: Schema — all expected top-level fields ───────────
 EXPECTED_FIELDS=(
@@ -246,6 +245,9 @@ sleep 0.3
 AFTER_HEALTH=$(curl -sf "${AUTH_HEADER[@]}" "$HEALTH_ENDPOINT" 2>/dev/null || echo "{}")
 AFTER_REQUESTS=$(echo "$AFTER_HEALTH" | jq '.requests_total // 0')
 AFTER_PII=$(echo "$AFTER_HEALTH" | jq '.pii_matches_total // 0')
+
+# Save post-request health snapshot (latency histograms now have data)
+echo "$AFTER_HEALTH" | jq . > "$OUTPUT_DIR/health_raw.json"
 
 if [[ "$AFTER_REQUESTS" -gt "$BEFORE_REQUESTS" ]]; then
   pass "counter_requests_incremented" "$BEFORE_REQUESTS → $AFTER_REQUESTS"

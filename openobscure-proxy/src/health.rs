@@ -54,22 +54,22 @@ pub struct LatencyHistogram {
 
 /// Upper bound of each bucket in microseconds.
 const BUCKET_BOUNDS_US: [u64; 16] = [
-    100,       // 0.1ms
-    250,       // 0.25ms
-    500,       // 0.5ms
-    1_000,     // 1ms
-    2_500,     // 2.5ms
-    5_000,     // 5ms
-    10_000,    // 10ms
-    25_000,    // 25ms
-    50_000,    // 50ms
-    100_000,   // 100ms
-    250_000,   // 250ms
-    500_000,   // 500ms
-    1_000_000, // 1s
-    2_500_000, // 2.5s
-    5_000_000, // 5s
-    u64::MAX,  // +inf
+    100,        // 0.1ms
+    250,        // 0.25ms
+    500,        // 0.5ms
+    1_000,      // 1ms
+    2_500,      // 2.5ms
+    5_000,      // 5ms
+    10_000,     // 10ms
+    25_000,     // 25ms
+    50_000,     // 50ms
+    100_000,    // 100ms
+    250_000,    // 250ms
+    500_000,    // 500ms
+    1_000_000,  // 1s
+    2_500_000,  // 2.5s
+    5_000_000,  // 5s
+    10_000_000, // 10s (overflow cap — avoids u64::MAX in JSON output)
 ];
 
 impl LatencyHistogram {
@@ -612,9 +612,9 @@ mod tests {
     #[test]
     fn test_histogram_very_large_latency() {
         let h = LatencyHistogram::new();
-        h.record(std::time::Duration::from_secs(10)); // 10s → bucket 15 (+inf)
+        h.record(std::time::Duration::from_secs(10)); // 10s → bucket 15 (overflow cap)
         assert_eq!(h.count(), 1);
-        assert_eq!(h.percentile(50.0), u64::MAX);
+        assert_eq!(h.percentile(50.0), 10_000_000);
     }
 
     // ── Auth Token Tests ──────────────────────────────────────────────
