@@ -56,7 +56,7 @@ pub fn process_request_body(
     let img_start = std::time::Instant::now();
     let image_stats = if let Some(models) = image_models {
         if models.config().enabled {
-            process_images_in_json(&mut json, models)
+            process_images_in_json(&mut json, models, scanner)
         } else {
             Vec::new()
         }
@@ -217,9 +217,13 @@ pub fn process_request_body(
 /// Finds Anthropic and OpenAI image content blocks, decodes them,
 /// runs the image pipeline (EXIF strip, resize, face redact, OCR redact),
 /// and replaces the base64 data in-place.
-fn process_images_in_json(json: &mut Value, models: &ImageModelManager) -> Vec<ImageStats> {
+fn process_images_in_json(
+    json: &mut Value,
+    models: &ImageModelManager,
+    scanner: &HybridScanner,
+) -> Vec<ImageStats> {
     let mut stats = Vec::new();
-    walk_json_for_images(json, models, &mut stats);
+    walk_json_for_images(json, models, scanner, &mut stats);
     stats
 }
 
@@ -227,6 +231,7 @@ fn process_images_in_json(json: &mut Value, models: &ImageModelManager) -> Vec<I
 fn walk_json_for_images(
     value: &mut Value,
     models: &ImageModelManager,
+    scanner: &HybridScanner,
     stats: &mut Vec<ImageStats>,
 ) {
     match value {
@@ -242,6 +247,7 @@ fn walk_json_for_images(
                             &detected.media_type,
                             &img_ref,
                             models,
+                            scanner,
                         ) {
                             Ok((new_bytes, img_stats)) => {
                                 // Replace the base64 data in the JSON object
@@ -264,12 +270,12 @@ fn walk_json_for_images(
             }
             // Recurse into all values
             for (_, v) in map.iter_mut() {
-                walk_json_for_images(v, models, stats);
+                walk_json_for_images(v, models, scanner, stats);
             }
         }
         Value::Array(arr) => {
             for item in arr.iter_mut() {
-                walk_json_for_images(item, models, stats);
+                walk_json_for_images(item, models, scanner, stats);
             }
         }
         _ => {}
@@ -282,6 +288,7 @@ fn process_single_image(
     media_type: &str,
     _img_ref: &image_detect::ImageContentRef,
     models: &ImageModelManager,
+    scanner: &HybridScanner,
 ) -> Result<(Vec<u8>, ImageStats), image_pipeline::ImageError> {
     // Check for screenshot (before decoding strips EXIF)
     let screen_result = if models.config().screen_guard {
@@ -306,7 +313,7 @@ fn process_single_image(
 
     // Run face detection + OCR redaction
     let sg_ref = screen_result.as_ref().map(|(_, sg)| sg);
-    let (processed, stats, _meta) = models.process_image(img, sg_ref)?;
+    let (processed, stats, _meta) = models.process_image(img, sg_ref, Some(scanner))?;
 
     // Re-encode
     let format = OutputFormat::from_media_type(media_type);
@@ -539,6 +546,7 @@ mod tests {
     fn test_walk_json_skips_non_image_objects() {
         let config = crate::config::ImageConfig::default();
         let models = ImageModelManager::new(config);
+        let scanner = HybridScanner::new(true, None);
         let mut json = serde_json::json!({
             "messages": [
                 {"role": "user", "content": "hello world"},
@@ -547,7 +555,7 @@ mod tests {
         });
 
         let mut stats = Vec::new();
-        walk_json_for_images(&mut json, &models, &mut stats);
+        walk_json_for_images(&mut json, &models, &scanner, &mut stats);
         assert!(
             stats.is_empty(),
             "Non-image JSON should produce no image stats"
@@ -589,9 +597,10 @@ mod tests {
             ..crate::config::ImageConfig::default()
         };
         let models = ImageModelManager::new(config);
+        let scanner = HybridScanner::new(true, None);
 
         let mut stats = Vec::new();
-        walk_json_for_images(&mut json, &models, &mut stats);
+        walk_json_for_images(&mut json, &models, &scanner, &mut stats);
 
         // Should have processed 1 image (decode → resize → encode, no face/OCR)
         assert_eq!(stats.len(), 1);
@@ -647,7 +656,8 @@ mod tests {
         };
         let models = ImageModelManager::new(config);
 
-        let stats = process_images_in_json(&mut json, &models);
+        let scanner = HybridScanner::new(true, None);
+        let stats = process_images_in_json(&mut json, &models, &scanner);
         // Image is processed (decode/encode) but no face/OCR work done
         assert_eq!(stats.len(), 1);
         assert_eq!(stats[0].faces_redacted, 0);
@@ -673,8 +683,9 @@ mod tests {
         let config = crate::config::ImageConfig::default();
         let models = ImageModelManager::new(config);
 
+        let scanner = HybridScanner::new(true, None);
         let mut stats = Vec::new();
-        walk_json_for_images(&mut json, &models, &mut stats);
+        walk_json_for_images(&mut json, &models, &scanner, &mut stats);
 
         // Should not have processed anything (bad base64 → extraction returns None or bad magic)
         assert!(

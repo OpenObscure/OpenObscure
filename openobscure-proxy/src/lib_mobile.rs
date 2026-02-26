@@ -439,7 +439,7 @@ impl OpenObscureMobile {
         let img = crate::image_pipeline::resize_if_needed(img, max_dim);
 
         let (result_img, _stats, _meta) = manager
-            .process_image(img, None)
+            .process_image(img, None, None)
             .map_err(|e| MobileError::ImageError(e.to_string()))?;
 
         // Update stats

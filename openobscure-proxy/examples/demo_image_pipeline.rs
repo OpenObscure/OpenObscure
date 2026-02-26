@@ -143,7 +143,7 @@ fn main() {
     let manager = ImageModelManager::new(config);
     let start = Instant::now();
 
-    let (result_img, stats, _meta) = manager.process_image(img, None).unwrap_or_else(|e| {
+    let (result_img, stats, _meta) = manager.process_image(img, None, None).unwrap_or_else(|e| {
         eprintln!("Pipeline error: {}", e);
         std::process::exit(1);
     });

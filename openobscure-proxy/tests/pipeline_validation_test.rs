@@ -77,7 +77,7 @@ fn test_face_image_pipeline_validates() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None, None).unwrap();
 
     // Should detect at least 1 face
     assert!(
@@ -133,7 +133,7 @@ fn test_child_image_pipeline_validates() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None, None).unwrap();
 
     // Should detect at least 1 face (child)
     assert!(
@@ -169,7 +169,7 @@ fn test_text_image_pipeline_validates() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None, None).unwrap();
 
     // Should detect text regions
     assert!(
@@ -208,7 +208,7 @@ fn test_screenshot_pipeline_validates() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None, None).unwrap();
 
     // Screenshot should have many text regions (PII form)
     assert!(
@@ -244,7 +244,7 @@ fn test_nsfw_meta_consistent_when_clean() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, _stats, meta) = manager.process_image(img, None).unwrap();
+    let (_result, _stats, meta) = manager.process_image(img, None, None).unwrap();
 
     // If NSFW model was loaded, validate the metadata
     if let Some(ref nsfw_meta) = meta.nsfw {
@@ -350,7 +350,7 @@ fn test_tier2_pii_selective_redaction() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(config);
-    let (_result, stats, _meta) = manager.process_image(img, None).unwrap();
+    let (_result, stats, _meta) = manager.process_image(img, None, None).unwrap();
 
     eprintln!("\n=== Tier 2 PII Selective Redaction ===");
     eprintln!("  Text regions found: {}", stats.text_regions_found);
@@ -376,7 +376,7 @@ fn test_all_bbox_sanity_on_face_image() {
     let img = resize_if_needed(img, 960);
 
     let manager = ImageModelManager::new(make_pipeline_config());
-    let (_result, _stats, meta) = manager.process_image(img, None).unwrap();
+    let (_result, _stats, meta) = manager.process_image(img, None, None).unwrap();
 
     // Every bbox (face + text) should pass generic sanity checks
     for bbox in meta.faces.iter().chain(meta.text_regions.iter()) {
@@ -415,7 +415,7 @@ fn test_scrfd_group_photo_detection() {
 
     let config = make_pipeline_config();
     let manager = ImageModelManager::new(config);
-    let (_result, stats, meta) = manager.process_image(img, None).unwrap();
+    let (_result, stats, meta) = manager.process_image(img, None, None).unwrap();
 
     // Group photo should have multiple faces detected and redacted
     assert!(

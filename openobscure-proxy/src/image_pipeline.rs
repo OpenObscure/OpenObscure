@@ -16,6 +16,7 @@ use image::{DynamicImage, GenericImageView, ImageFormat};
 use crate::config::ImageConfig;
 use crate::detection_meta::{NsfwMeta, PipelineMeta};
 use crate::face_detector::{FaceDetection, FaceDetector, ScrfdDetector};
+use crate::hybrid_scanner::HybridScanner;
 use crate::image_redact;
 use crate::keyword_dict::KeywordDict;
 use crate::nsfw_detector::NsfwDetector;
@@ -220,6 +221,7 @@ impl ImageModelManager {
         &self,
         img: DynamicImage,
         screen_guard: Option<&crate::screen_guard::ScreenGuardResult>,
+        text_scanner: Option<&HybridScanner>,
     ) -> Result<(DynamicImage, ImageStats, PipelineMeta), ImageError> {
         let start = Instant::now();
         let mut stats = ImageStats::default();
@@ -441,32 +443,88 @@ impl ImageModelManager {
                                     if let Some(ref mut recognizer) = *rec_guard {
                                         match recognizer.recognize(&dyn_img, &regions) {
                                             Ok(texts) => {
-                                                let pii_scanner = PiiScanner::new();
-                                                let keyword_dict = KeywordDict::new();
-                                                let mut pii_count = 0u32;
-                                                for rt in &texts {
-                                                    oo_debug!(crate::oo_log::modules::OCR,
-                                                        "OCR recognized", text = %rt.text, confidence = rt.confidence);
-                                                    let has_regex_pii =
-                                                        !pii_scanner.scan_text(&rt.text).is_empty();
-                                                    let has_keyword_pii = !keyword_dict
-                                                        .scan_text(&rt.text)
-                                                        .is_empty();
-                                                    if has_regex_pii || has_keyword_pii {
+                                                // Concatenate all OCR text for a single
+                                                // scan pass through the full pipeline
+                                                // (regex + keywords + NER).
+                                                let combined: String = texts
+                                                    .iter()
+                                                    .map(|rt| {
+                                                        oo_debug!(crate::oo_log::modules::OCR,
+                                                            "OCR recognized", text = %rt.text, confidence = rt.confidence);
+                                                        rt.text.as_str()
+                                                    })
+                                                    .collect::<Vec<_>>()
+                                                    .join(" ");
+
+                                                // Low-confidence fallback: if OCR can't read
+                                                // the text reliably, we can't verify it's not
+                                                // PII — privacy-first means redact it.
+                                                let avg_confidence: f32 = if texts.is_empty() {
+                                                    1.0
+                                                } else {
+                                                    texts
+                                                        .iter()
+                                                        .map(|rt| rt.confidence)
+                                                        .sum::<f32>()
+                                                        / texts.len() as f32
+                                                };
+                                                let low_confidence = avg_confidence < 0.80;
+
+                                                let has_pii = if low_confidence {
+                                                    true // Can't verify — assume PII
+                                                } else if let Some(scanner) = text_scanner {
+                                                    // Full pipeline: regex + keywords + NER
+                                                    !scanner.scan_text(&combined).is_empty()
+                                                } else {
+                                                    // Fallback: regex + keywords only
+                                                    let pii_scanner = PiiScanner::new();
+                                                    let keyword_dict = KeywordDict::new();
+                                                    !pii_scanner.scan_text(&combined).is_empty()
+                                                        || !keyword_dict
+                                                            .scan_text(&combined)
+                                                            .is_empty()
+                                                };
+
+                                                // If PII is found (or confidence is too low),
+                                                // redact ALL detected text regions — not just
+                                                // the ones the recognizer successfully read.
+                                                // The recognizer may fail on some regions
+                                                // (e.g. embossed card numbers) but those
+                                                // regions still potentially contain PII.
+                                                let pii_count;
+                                                if has_pii {
+                                                    for region in &regions {
                                                         image_redact::solid_fill_quad_region(
                                                             &mut rgb,
-                                                            &rt.region.points,
+                                                            &region.points,
                                                             image_redact::SOLID_FILL_COLOR,
                                                         );
-                                                        pii_count += 1;
                                                     }
+                                                    pii_count = regions.len() as u32;
+                                                    if low_confidence {
+                                                        oo_info!(
+                                                            crate::oo_log::modules::OCR,
+                                                            "OCR Tier 2: low confidence — redacting all text regions",
+                                                            avg_confidence = format!("{:.2}", avg_confidence),
+                                                            total_regions = texts.len()
+                                                        );
+                                                    } else {
+                                                        oo_info!(
+                                                            crate::oo_log::modules::OCR,
+                                                            "OCR Tier 2: PII detected — redacting all text regions",
+                                                            total_regions = texts.len()
+                                                        );
+                                                    }
+                                                } else {
+                                                    pii_count = 0;
+                                                    oo_info!(
+                                                        crate::oo_log::modules::OCR,
+                                                        "OCR Tier 2: no PII detected — preserving text",
+                                                        avg_confidence = format!("{:.2}", avg_confidence),
+                                                        total_regions = texts.len()
+                                                    );
                                                 }
-                                                oo_info!(
-                                                    crate::oo_log::modules::OCR,
-                                                    "OCR Tier 2: PII-selective redaction",
-                                                    pii_regions = pii_count,
-                                                    total_regions = texts.len()
-                                                );
+                                                let _ = pii_count;
                                             }
                                             Err(e) => {
                                                 if matches!(&e, ImageError::OnnxRuntime(msg) if msg.contains("panicked"))
@@ -737,7 +795,7 @@ mod tests {
         };
         let manager = ImageModelManager::new(config);
         let img = make_test_image(100, 100);
-        let (result, stats, _meta) = manager.process_image(img, None).unwrap();
+        let (result, stats, _meta) = manager.process_image(img, None, None).unwrap();
         assert_eq!(result.width(), 100);
         assert_eq!(result.height(), 100);
         assert_eq!(stats.faces_redacted, 0);
@@ -764,7 +822,7 @@ mod tests {
         };
         let manager = ImageModelManager::new(config);
         let img = make_test_image(50, 50);
-        let (result, stats, _meta) = manager.process_image(img, None).unwrap();
+        let (result, stats, _meta) = manager.process_image(img, None, None).unwrap();
         assert_eq!(result.width(), 50);
         assert_eq!(stats.faces_redacted, 0);
         assert_eq!(stats.text_regions_found, 0);
