@@ -1,17 +1,123 @@
 /**
- * PII Redactor — regex-based PII detection and redaction, with optional
- * NER-enhanced scanning via L0 proxy endpoint.
+ * PII Redactor — in-process PII detection and redaction for the L1 plugin.
  *
- * Complementary to L0 proxy FPE: catches PII in tool results that
- * bypass the proxy (local tools, file reads, etc.). Replaces with
- * [REDACTED-TYPE] placeholders since FPE is not available in-process.
+ * Automatically uses the best available engine:
+ * - **Native addon** (`@openobscure/scanner-napi`): Rust HybridScanner with
+ *   regex + keywords + NER TinyBERT — detects 14 PII types (auto-detected)
+ * - **JS regex** fallback: 5 structured types (CC, SSN, phone, email, API key)
  *
- * When L0 is healthy, `redactPiiWithNer()` calls the L0 /ner endpoint
- * to detect semantic PII (person names, locations, organizations) that
- * regex alone cannot catch.
+ * `redactPiiWithNer()` provides an alternative path via the L0 proxy's /ner
+ * HTTP endpoint (useful when proxy is running but addon is not installed).
  */
 
 import { execFileSync } from "child_process";
+import { existsSync } from "fs";
+import { dirname, resolve } from "path";
+
+// ── Native Scanner (optional dependency) ─────────────────────────────
+// Auto-loaded at module init. If available, redactPii() uses the native
+// Rust HybridScanner for 14-type detection. Otherwise, JS regex (5 types).
+
+interface NativeScanMatch {
+  start: number;
+  end: number;
+  piiType: string;
+  confidence: number;
+  rawValue: string;
+}
+
+interface NativeScanResult {
+  matches: NativeScanMatch[];
+  timingUs: number;
+}
+
+interface NativeScannerClass {
+  new (nerModelDir?: string | null): {
+    scanText(text: string): NativeScanResult;
+    hasNer(): boolean;
+  };
+}
+
+let NativeScanner: NativeScannerClass | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const mod = require("@openobscure/scanner-napi");
+  NativeScanner = mod.OpenObscureScanner;
+} catch {
+  // Not installed — redactPii() falls back to JS regex
+}
+
+let _nativeInstance: InstanceType<NativeScannerClass> | null = null;
+
+/**
+ * Auto-detect NER model directory relative to the addon's location.
+ * Looks for models at `../openobscure-proxy/models/ner` from the addon dir.
+ * Returns the path if model files exist, undefined otherwise.
+ */
+function autoDetectNerModelDir(): string | undefined {
+  try {
+    const addonDir = dirname(
+      require.resolve("@openobscure/scanner-napi/package.json"),
+    );
+    const candidate = resolve(addonDir, "..", "openobscure-proxy", "models", "ner");
+    if (
+      existsSync(resolve(candidate, "model_int8.onnx")) ||
+      existsSync(resolve(candidate, "model.onnx"))
+    ) {
+      return candidate;
+    }
+  } catch {
+    // addon not installed
+  }
+  return undefined;
+}
+
+/**
+ * Run native scanner on text and return RedactionResult.
+ * Caller must ensure NativeScanner is not null before calling.
+ */
+function redactViaNative(text: string): RedactionResult {
+  if (!_nativeInstance) {
+    const modelDir = autoDetectNerModelDir() ?? null;
+    _nativeInstance = new NativeScanner!(modelDir);
+  }
+
+  const result = _nativeInstance.scanText(text);
+
+  let redacted = text;
+  const types: Record<string, number> = {};
+  const matches: RedactionMatch[] = [];
+
+  // Collect matches (ascending order for output)
+  for (const m of result.matches) {
+    if (m.start >= text.length || m.end > text.length) continue;
+    matches.push({
+      start: m.start,
+      end: m.end,
+      type: m.piiType,
+      confidence: m.confidence,
+    });
+    types[m.piiType] = (types[m.piiType] || 0) + 1;
+  }
+  matches.sort((a, b) => a.start - b.start);
+
+  // Apply redactions from end to start to preserve offsets
+  const descending = [...matches].sort((a, b) => b.start - a.start);
+  for (const m of descending) {
+    const label = NER_TYPE_LABELS[m.type] ?? "[REDACTED]";
+    redacted = redacted.slice(0, m.start) + label + redacted.slice(m.end);
+  }
+
+  return { text: redacted, count: matches.length, types, matches };
+}
+
+/** A single PII match with position in the original (pre-redaction) text. */
+export interface RedactionMatch {
+  start: number;
+  end: number;
+  type: string;
+  confidence: number;
+}
 
 export interface RedactionResult {
   /** Redacted text. */
@@ -20,6 +126,8 @@ export interface RedactionResult {
   count: number;
   /** Per-type counts. */
   types: Record<string, number>;
+  /** Per-match details with positions in the original text. */
+  matches: RedactionMatch[];
 }
 
 interface PiiPattern {
@@ -62,27 +170,62 @@ const PII_PATTERNS: PiiPattern[] = [
   },
 ];
 
-/** Redact all detected PII in the given text. */
+/**
+ * Redact all detected PII in the given text.
+ *
+ * Automatically uses the best available engine:
+ * - If `@openobscure/scanner-napi` is installed: Rust HybridScanner
+ *   (regex + keywords + NER) detecting up to 14 PII types
+ * - Otherwise: JS regex detecting 5 structured types
+ */
 export function redactPii(text: string): RedactionResult {
-  let result = text;
-  let totalCount = 0;
-  const types: Record<string, number> = {};
-
-  for (const pattern of PII_PATTERNS) {
-    // Reset regex lastIndex for global patterns
-    pattern.regex.lastIndex = 0;
-
-    result = result.replace(pattern.regex, (match) => {
-      if (pattern.validate && !pattern.validate(match)) {
-        return match; // Failed validation, don't redact
-      }
-      totalCount++;
-      types[pattern.type] = (types[pattern.type] || 0) + 1;
-      return pattern.replacement;
-    });
+  // Auto-upgrade to native scanner when available
+  if (NativeScanner) {
+    return redactViaNative(text);
   }
 
-  return { text: result, count: totalCount, types };
+  return redactPiiJs(text);
+}
+
+/** JS regex-only PII redaction (5 structured types). */
+function redactPiiJs(text: string): RedactionResult {
+  // Pass 1: Collect all valid matches with original-text positions
+  const allMatches: RedactionMatch[] = [];
+
+  for (const pattern of PII_PATTERNS) {
+    pattern.regex.lastIndex = 0;
+    let m;
+    while ((m = pattern.regex.exec(text)) !== null) {
+      if (pattern.validate && !pattern.validate(m[0])) continue;
+      allMatches.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        type: pattern.type,
+        confidence: 1.0,
+      });
+    }
+  }
+
+  // Sort ascending by start, then resolve overlaps (first match wins)
+  allMatches.sort((a, b) => a.start - b.start);
+  const matches: RedactionMatch[] = [];
+  for (const m of allMatches) {
+    if (matches.length > 0 && m.start < matches[matches.length - 1].end) {
+      continue; // Skip overlapping match
+    }
+    matches.push(m);
+  }
+
+  // Pass 2: Apply replacements from end to start to preserve earlier offsets
+  let result = text;
+  const types: Record<string, number> = {};
+  for (const m of [...matches].reverse()) {
+    const pat = PII_PATTERNS.find((p) => p.type === m.type)!;
+    result = result.slice(0, m.start) + pat.replacement + result.slice(m.end);
+    types[m.type] = (types[m.type] || 0) + 1;
+  }
+
+  return { text: result, count: matches.length, types, matches };
 }
 
 /** Luhn algorithm check for credit card numbers. */
@@ -185,19 +328,23 @@ export function callNerEndpoint(
 }
 
 /**
- * Enhanced PII redaction: regex + NER semantic scanning via L0 endpoint.
+ * Enhanced PII redaction: regex + NER semantic scanning.
  *
- * 1. Calls L0 /ner to get semantic matches on original text
- * 2. Applies NER redactions from end to start (preserves offsets)
- * 3. Runs regex redaction on the result (catches structured PII)
- * 4. Merges match counts
+ * Uses the best available engine:
+ * - If native addon is installed: uses it directly (same engine, no HTTP)
+ * - Otherwise: calls L0 /ner endpoint via curl, then merges with JS regex
  */
 export function redactPiiWithNer(
   text: string,
   proxyUrl: string,
   authToken?: string,
 ): RedactionResult {
-  // Step 1: Get NER matches from L0 on original text
+  // Native addon has the same HybridScanner — use it directly, skip HTTP
+  if (NativeScanner) {
+    return redactViaNative(text);
+  }
+
+  // Fallback: call L0 proxy /ner endpoint via curl
   const nerMatches = callNerEndpoint(text, proxyUrl, authToken);
 
   // Step 2: Apply NER redactions from end to start to preserve offsets
@@ -233,15 +380,41 @@ export function redactPiiWithNer(
     }
   }
 
+  // Collect NER matches for the output
+  const collectedNerMatches: RedactionMatch[] = [];
+  if (nerMatches && nerMatches.length > 0) {
+    const semanticTypes = new Set([
+      "person", "location", "organization", "health_keyword",
+      "child_keyword", "ipv4_address", "ipv6_address",
+      "gps_coordinate", "mac_address",
+    ]);
+    for (const m of nerMatches.filter((m) => semanticTypes.has(m.type))) {
+      if (m.start < text.length && m.end <= text.length) {
+        collectedNerMatches.push({
+          start: m.start,
+          end: m.end,
+          type: m.type,
+          confidence: m.confidence,
+        });
+      }
+    }
+  }
+
   // Step 3: Run regex redaction on (possibly NER-redacted) text
   const regexResult = redactPii(result);
 
-  // Step 4: Merge counts
+  // Step 4: Merge counts and matches
   const totalCount = nerCount + regexResult.count;
   const mergedTypes = { ...nerTypes };
   for (const [type, count] of Object.entries(regexResult.types)) {
     mergedTypes[type] = (mergedTypes[type] || 0) + count;
   }
 
-  return { text: regexResult.text, count: totalCount, types: mergedTypes };
+  // Note: regex match offsets are in the NER-redacted text, not the original.
+  // NER matches are in the original. We return both sorted by start position.
+  const mergedMatches = [...collectedNerMatches, ...regexResult.matches]
+    .sort((a, b) => a.start - b.start);
+
+  return { text: regexResult.text, count: totalCount, types: mergedTypes, matches: mergedMatches };
 }
+

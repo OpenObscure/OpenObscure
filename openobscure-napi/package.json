@@ -1,0 +1,27 @@
+{
+  "name": "@openobscure/scanner-napi",
+  "version": "0.1.0",
+  "description": "OpenObscure native PII scanner — HybridScanner (regex + keywords + NER) via napi-rs",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT OR Apache-2.0",
+  "napi": {
+    "name": "scanner",
+    "triples": {
+      "defaults": false,
+      "additional": [
+        "aarch64-apple-darwin",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu"
+      ]
+    }
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^2"
+  },
+  "scripts": {
+    "build": "napi build --release",
+    "build-debug": "napi build"
+  }
+}

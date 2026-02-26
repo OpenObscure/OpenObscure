@@ -11,7 +11,7 @@
 
 // PII Redaction
 export { redactPii } from "./redactor";
-export type { RedactionResult } from "./redactor";
+export type { RedactionResult, RedactionMatch } from "./redactor";
 
 // Tool types (for before_tool_call integration)
 export type { ToolCall } from "./types";
