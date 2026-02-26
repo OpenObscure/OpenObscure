@@ -456,6 +456,28 @@ With `sensitivity = "high"`, R2 runs on every response. Check logs for `r2_role`
 
 When `ri_model_dir` is not set or the model directory doesn't exist, the proxy falls back to R1-only. No error — this is the expected default behavior.
 
+### Cognitive Firewall Gateway Test
+
+The `test_cognitive_firewall.sh` script validates the full RI pipeline by routing test input files through the proxy's response integrity scanner using the RI mock server's echo mode.
+
+**Prerequisites:**
+- RI mock server: `node test/scripts/mock/ri_mock_server.mjs`
+- Proxy with `test/config/test_ri.toml` (response_integrity enabled, `log_only = false`)
+
+**Run:**
+
+```bash
+./test/scripts/test_cognitive_firewall.sh
+```
+
+The script sends each `test/data/input/Cognitive_Firewall/*.txt` file through the proxy as a mock LLM response (echo mode returns user content as the response). The proxy's RI scanner detects persuasion techniques and prepends `[OpenObscure]` warning labels.
+
+**Output:**
+- `test/data/output/Cognitive_Firewall/gateway/` — Labeled text files
+- `test/data/output/Cognitive_Firewall/json/` — JSON metadata (`has_warning_label`, `label_text`)
+
+**Validation:** Persuasion files get `[OpenObscure]` labels; clean files pass through without labels.
+
 ---
 
 ## Feature Parity

@@ -59,8 +59,8 @@ flowchart LR
 ```
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
-- **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin)
-- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face/OCR/NSFW solid-fill redaction, EXIF strip), voice PII detection (KWS keyword spotting), response integrity (R1 dictionary + R2 TinyBERT classifier — cognitive firewall), SSE streaming
+- **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin) + optional NAPI native addon
+- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face/OCR/NSFW solid-fill redaction, EXIF strip), voice PII detection (KWS keyword spotting), response integrity (R1 dictionary + R2 TinyBERT classifier — cognitive firewall), SSE streaming, NAPI native addon (14-type in-process scanning for Node.js agents)
 - **Use case:** Desktop apps, servers, VPS, Raspberry Pi — anywhere the agent's Gateway runs
 
 ### Embedded Model (Mobile / Library)
@@ -278,7 +278,7 @@ flowchart LR
 | Layer | Language | What it does |
 |-------|----------|-------------|
 | **L0** — PII Proxy | Rust | **Request path:** scans JSON for PII (structured, network/device, semantic, keywords), encrypts with FF1 FPE or redacts. Processes images (face/OCR/NSFW solid-fill redaction, EXIF strip). **Response path:** decrypts FPE ciphertexts, scans for persuasion/manipulation techniques (cognitive firewall). |
-| **L1** — Gateway Plugin | TypeScript | Hooks tool results, redacts PII. Heartbeat monitor for L0 health. |
+| **L1** — Gateway Plugin | TypeScript | Hooks tool results, redacts PII. Auto-upgrades to 14-type native scanning when NAPI addon installed. Heartbeat monitor for L0 health. |
 
 For the full architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -298,6 +298,16 @@ For the full architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 cd openobscure-proxy
 cargo build --release
 ```
+
+### 1a. Build the NAPI scanner addon (optional)
+
+If you use the L1 TypeScript plugin, the native addon upgrades PII detection from 5 regex types to 14 types (same Rust engine as L0):
+
+```bash
+./build/build_napi.sh
+```
+
+The L1 plugin auto-detects the addon at startup — no configuration needed.
 
 ### 2. Generate an FPE key (first time only)
 
@@ -349,7 +359,8 @@ For programmatic access to the L1 redaction from TypeScript/JavaScript, import d
 ```typescript
 import { redactPii } from "openobscure-plugin/core";
 
-// Scan text for PII
+// Auto-uses native scanner (14 types) if @openobscure/scanner-napi installed,
+// otherwise falls back to JS regex (5 types)
 const result = redactPii(toolOutput);
 if (result.count > 0) toolOutput = result.text;
 ```
@@ -394,17 +405,17 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
-**~1,254 tests** across all components (1,188 Rust proxy + 50 TypeScript plugin + 16 crypto).
+**~1,257 tests** across all components (1,191 Rust proxy + 50 TypeScript plugin + 16 crypto).
 
 ```bash
-# L0 Proxy (1,188 tests: 500 lib + 666 bin + 14 accuracy + 8 pipeline)
+# L0 Proxy (1,191 tests: 501 lib + 667 bin + 14 accuracy + 9 pipeline)
 cd openobscure-proxy && cargo test
 
 # L1 Plugin (50 tests)
 cd openobscure-plugin && npm test
 
 # L2 Crypto (16 tests)
-cd openobscure-crypto && cargo test
+cd enterprise/openobscure-crypto && cargo test
 ```
 
 ---

@@ -250,6 +250,44 @@ MobileBindingError
 
 ---
 
+## 6. NAPI Native Addon (Node.js Embedded Alternative)
+
+For Node.js/TypeScript agents, the NAPI addon provides embedded-style PII scanning without a running proxy. It wraps the same Rust HybridScanner as the L0 proxy, giving 14-type detection in-process.
+
+### Build
+
+```bash
+./build/build_napi.sh
+```
+
+### Usage
+
+```javascript
+const { OpenObscureScanner } = require('@openobscure/scanner-napi');
+
+// Regex + keywords (no NER model needed)
+const scanner = new OpenObscureScanner();
+const result = scanner.scanText('My SSN is 123-45-6789');
+// result.matches: [{ piiType: "ssn", start: 10, end: 21, confidence: 1.0, rawValue: "123-45-6789" }]
+// result.timingUs: 42
+
+// With NER (optional — requires model files)
+const scannerNer = new OpenObscureScanner('path/to/models/ner');
+console.log(scannerNer.hasNer()); // true
+```
+
+### L1 Plugin Auto-Detection
+
+When the NAPI addon is installed as `@openobscure/scanner-napi`, the L1 plugin's `redactPii()` automatically uses it. No code changes required — the plugin tries `require("@openobscure/scanner-napi")` at module load and falls back to JS regex if not found.
+
+### Smoke Test
+
+```bash
+node test/scripts/test_napi_smoke.mjs
+```
+
+---
+
 ## Feature Parity
 
 The following features are **Embedded-only** (not available in Gateway mode):

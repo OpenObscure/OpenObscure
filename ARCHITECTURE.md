@@ -182,7 +182,7 @@ flowchart TB
 | Layer | Language | Why |
 |-------|----------|-----|
 | **L0 Proxy** | Rust | Sits in the hot path of every LLM request — low latency and predictable memory are non-negotiable. Rust's ownership model enforces the 275MB RAM ceiling without GC pauses. ONNX model inference (face detection, OCR, NER) and audio keyword spotting require efficient memory management with multiple models loaded simultaneously. Cross-compiles to mobile targets (iOS/Android) via UniFFI-generated Swift/Kotlin bindings. |
-| **L1 Plugin** | TypeScript | Runs in-process inside the host agent's runtime. OpenClaw (primary integration) is Node.js/TypeScript — same language means direct hook access (`tool_result_persist`, `before_tool_call`) with no FFI or IPC overhead. Lightweight by design: no ML models, no heavy computation, just regex matching and HTTP calls to L0's `/ner` endpoint. |
+| **L1 Plugin** | TypeScript | Runs in-process inside the host agent's runtime. OpenClaw (primary integration) is Node.js/TypeScript — same language means direct hook access (`tool_result_persist`, `before_tool_call`) with no FFI or IPC overhead. When `@openobscure/scanner-napi` is installed, auto-upgrades to the Rust HybridScanner for 14-type detection without requiring L0. Falls back to regex-only otherwise. |
 | **L2 Storage** | Rust | Shares the L0 crate ecosystem. AES-256-GCM encryption and Argon2id KDF benefit from Rust's constant-time cryptography crates. |
 
 **Design principle:** L0 is Rust because it's a performance-critical network proxy with ML models. L1 is TypeScript because it must speak the host agent's language. Each layer uses the right tool for its job — not a single language forced across both.
@@ -204,7 +204,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 1,188 (500 lib + 666 bin + 14 accuracy + 8 pipeline) |
+| **Tests** | 1,191 (501 lib + 667 bin + 14 accuracy + 9 pipeline) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -214,8 +214,8 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. When L0 is healthy, uses NER-enhanced redaction via `POST /_openobscure/ner` endpoint (semantic NER + regex merge); falls back to regex-only when L0 is unavailable. Prepared `before_tool_call` handler activates when host agent supports it. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
-| **PII handling** | NER-enhanced redaction (when L0 active) or regex-only redaction (`[REDACTED]`), not FPE — tool results are internal, don't need format preservation |
+| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Three detection paths (auto-selected): **(1)** Native NAPI addon (`@openobscure/scanner-napi`) — 14-type Rust HybridScanner in-process, no L0 needed; **(2)** NER-enhanced via `POST /_openobscure/ner` — semantic NER + regex merge when L0 is healthy; **(3)** JS regex fallback — 5 structured types. Prepared `before_tool_call` handler activates when host agent supports it. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
+| **PII handling** | Native addon (14 types, in-process), NER-enhanced via L0 (when active), or regex-only (`[REDACTED]`) — always redaction, not FPE, since tool results are internal |
 | **Heartbeat** | Pings L0 `/_openobscure/health` every 30s with `X-OpenObscure-Token` auth header. Warns user when L0 is down, logs recovery. |
 | **Hook model** | Synchronous — must not return a Promise. OpenClaw-specific: OpenClaw silently skips async hooks. Prepared `before_tool_call` handler (hard enforcement) activates automatically when wired upstream. |
 | **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output |
@@ -434,6 +434,7 @@ OpenObscure/
 ├── build/
 │   ├── download_models.sh       Download ONNX models for image + voice pipeline
 │   ├── download_kws_models.sh   Download sherpa-onnx KWS models for voice pipeline
+│   ├── build_napi.sh            Build NAPI native scanner addon for current platform
 │   ├── build_ios.sh             Build iOS static library + XCFramework
 │   ├── build_android.sh         Build Android shared library via cargo-ndk
 │   ├── generate_bindings.sh     Generate UniFFI Swift/Kotlin bindings
@@ -464,6 +465,10 @@ OpenObscure/
 │   ├── models/                  ONNX models (git-ignored, download via script)
 │   ├── config/openobscure.toml    Default configuration
 │   └── install/                 Process watchdog templates (launchd, systemd)
+├── openobscure-napi/               NAPI native scanner addon (Rust via napi-rs)
+│   ├── ARCHITECTURE.md          NAPI architecture details
+│   ├── src/lib.rs               OpenObscureScanner class (scanText, hasNer)
+│   └── package.json             @openobscure/scanner-napi
 ├── review-notes/                Architecture review analysis & responses
 ├── openobscure-plugin/            L1: Gateway plugin
 │   ├── ARCHITECTURE.md          L1 architecture details
