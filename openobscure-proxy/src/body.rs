@@ -6,6 +6,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::fpe_engine::{FpeEngine, FpeResult, TweakGenerator};
+use crate::hash_token::TokenGenerator;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_detect;
 use crate::image_pipeline::{self, ImageModelManager, ImageStats, OutputFormat};
@@ -127,9 +128,7 @@ pub fn process_request_body(
     let fpe_start = std::time::Instant::now();
     let mut mappings = RequestMappings::new(*request_id);
     let mut replacements: Vec<FpeResult> = Vec::new();
-
-    // Track redaction label counters per PII type for unique labels
-    let mut redaction_counters: HashMap<&'static str, usize> = HashMap::new();
+    let mut token_gen = TokenGenerator::new(*request_id);
 
     for m in &matches {
         if m.pii_type.is_fpe_eligible() {
@@ -155,24 +154,19 @@ pub fn process_request_body(
                 }
             }
         } else {
-            // Non-FPE: redact with unique indexed label (e.g., [HEALTH_0], [PERSON_1])
-            let base_label = m.pii_type.redaction_label();
-            // Strip brackets for counter key: "[HEALTH]" -> "HEALTH"
-            let key = &base_label[1..base_label.len() - 1];
-            let counter = redaction_counters.entry(key).or_insert(0);
-            let label = format!("[{}_{counter}]", key);
-            *counter += 1;
+            // Non-FPE: redact with hash-based token (e.g., OO_PER_a7f2)
+            let token = token_gen.generate(m.pii_type, &m.raw_value);
 
             mappings.insert(FpeMapping {
                 pii_type: m.pii_type,
                 plaintext: m.raw_value.clone(),
-                ciphertext: label.clone(),
+                ciphertext: token.clone(),
                 tweak: vec![],
                 key_version,
             });
             replacements.push(FpeResult {
                 original: m.clone(),
-                encrypted: label,
+                encrypted: token,
                 tweak: vec![],
             });
         }
@@ -345,14 +339,113 @@ fn replace_image_data(
 }
 
 /// Process a response body: find encrypted values and replace with originals.
+///
+/// Handles two response formats:
+/// 1. NDJSON (Ollama streaming): multiple newline-delimited JSON objects where
+///    `message.content` tokens are split across frames. Ciphertext can span frames,
+///    so we concatenate all content, decrypt, and rebuild as a single response.
+/// 2. Standard JSON / text: simple string replacement on the full body.
 pub fn process_response_body(body: &Bytes, mappings: &RequestMappings) -> Bytes {
     if mappings.is_empty() {
         return body.clone();
     }
 
+    // Try NDJSON collapse first (Ollama streaming format)
+    if let Some(collapsed) = collapse_ndjson_response(body, mappings) {
+        return collapsed;
+    }
+
+    // Standard path: string replacement on full response
     let text = String::from_utf8_lossy(body);
     let decrypted = mappings.decrypt_response(&text);
     Bytes::from(decrypted)
+}
+
+/// Detect and handle Ollama-style NDJSON streaming responses.
+///
+/// Ollama returns streaming responses as newline-delimited JSON (NDJSON),
+/// where each line is a JSON object with partial `message.content` or `response`.
+/// FPE ciphertext can be split across multiple NDJSON frames, making simple string
+/// replacement on the raw bytes fail.
+///
+/// This function:
+/// 1. Detects NDJSON format (multiple JSON lines with Ollama-style fields)
+/// 2. Concatenates all content fragments into a single string
+/// 3. Decrypts the concatenated text (ciphertext is now contiguous)
+/// 4. Returns a single JSON response object with the full decrypted content
+fn collapse_ndjson_response(body: &Bytes, mappings: &RequestMappings) -> Option<Bytes> {
+    let text = std::str::from_utf8(body).ok()?;
+    let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
+
+    // Must have at least 2 lines to be NDJSON streaming
+    if lines.len() < 2 {
+        return None;
+    }
+
+    // Quick check: first line must be a JSON object with Ollama fields
+    let first: Value = serde_json::from_str(lines[0]).ok()?;
+    if !first.is_object() {
+        return None;
+    }
+
+    let is_chat = first.get("message").is_some() && first.get("model").is_some();
+    let is_generate = first.get("response").is_some() && first.get("model").is_some();
+    if !is_chat && !is_generate {
+        return None;
+    }
+
+    // Parse all lines and concatenate content fragments
+    let mut full_content = String::new();
+    let mut last_obj: Option<Value> = None;
+
+    for line in &lines {
+        let obj: Value = match serde_json::from_str(line) {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+
+        if is_chat {
+            if let Some(content) = obj
+                .get("message")
+                .and_then(|m| m.get("content"))
+                .and_then(|c| c.as_str())
+            {
+                full_content.push_str(content);
+            }
+        } else if let Some(content) = obj.get("response").and_then(|c| c.as_str()) {
+            full_content.push_str(content);
+        }
+
+        last_obj = Some(obj);
+    }
+
+    if full_content.is_empty() {
+        return None;
+    }
+
+    // Decrypt the full concatenated content (ciphertext is now contiguous)
+    let decrypted_content = mappings.decrypt_response(&full_content);
+
+    // Build single response from the last object (has done=true and timing stats)
+    let mut final_obj = last_obj?;
+    if is_chat {
+        if let Some(message) = final_obj.get_mut("message") {
+            message["content"] = Value::String(decrypted_content);
+        }
+    } else {
+        final_obj["response"] = Value::String(decrypted_content);
+    }
+
+    let serialized = serde_json::to_vec(&final_obj).ok()?;
+
+    oo_info!(
+        crate::oo_log::modules::BODY,
+        "Collapsed NDJSON response for decryption",
+        lines = lines.len(),
+        content_len = full_content.len()
+    );
+
+    Some(Bytes::from(serialized))
 }
 
 /// Apply FPE replacements to JSON string values by doing string replacement
@@ -691,6 +784,153 @@ mod tests {
         assert!(
             stats.is_empty(),
             "Invalid base64 should be skipped (fail-open)"
+        );
+    }
+
+    // ---- NDJSON collapse tests ----
+
+    fn make_mappings(pairs: &[(&str, &str)]) -> RequestMappings {
+        let mut m = RequestMappings::new(uuid::Uuid::new_v4());
+        for (ct, pt) in pairs {
+            m.insert(FpeMapping {
+                pii_type: crate::pii_types::PiiType::PhoneNumber,
+                plaintext: pt.to_string(),
+                ciphertext: ct.to_string(),
+                tweak: vec![],
+                key_version: 1,
+            });
+        }
+        m
+    }
+
+    #[test]
+    fn test_ndjson_collapse_ollama_chat() {
+        // Simulate Ollama NDJSON streaming where phone ciphertext is split across frames
+        let ndjson = [
+            r#"{"model":"llava:7b","created_at":"2026-02-26T00:00:00Z","message":{"role":"assistant","content":"My phone is "},"done":false}"#,
+            r#"{"model":"llava:7b","created_at":"2026-02-26T00:00:01Z","message":{"role":"assistant","content":"658"},"done":false}"#,
+            r#"{"model":"llava:7b","created_at":"2026-02-26T00:00:02Z","message":{"role":"assistant","content":"-297"},"done":false}"#,
+            r#"{"model":"llava:7b","created_at":"2026-02-26T00:00:03Z","message":{"role":"assistant","content":"-2527"},"done":false}"#,
+            r#"{"model":"llava:7b","created_at":"2026-02-26T00:00:04Z","message":{"role":"assistant","content":"."},"done":true,"total_duration":1000000}"#,
+        ].join("\n");
+
+        let body = Bytes::from(ndjson);
+        let mappings = make_mappings(&[("658-297-2527", "410-111-0277")]);
+
+        let result = process_response_body(&body, &mappings);
+        let result_str = String::from_utf8(result.to_vec()).unwrap();
+
+        // Should be a single JSON object with decrypted content
+        let parsed: Value = serde_json::from_str(&result_str).unwrap();
+        let content = parsed["message"]["content"].as_str().unwrap();
+        assert!(
+            content.contains("410-111-0277"),
+            "Phone should be decrypted: {content}"
+        );
+        assert!(
+            !content.contains("658-297-2527"),
+            "Ciphertext should be removed: {content}"
+        );
+        assert!(parsed["done"].as_bool().unwrap());
+    }
+
+    #[test]
+    fn test_ndjson_collapse_ollama_generate() {
+        // Ollama /api/generate uses "response" field instead of "message.content"
+        let ndjson = [
+            r#"{"model":"qwen3:4b","created_at":"2026-02-26T00:00:00Z","response":"Call ","done":false}"#,
+            r#"{"model":"qwen3:4b","created_at":"2026-02-26T00:00:01Z","response":"847-","done":false}"#,
+            r#"{"model":"qwen3:4b","created_at":"2026-02-26T00:00:02Z","response":"29-3651","done":false}"#,
+            r#"{"model":"qwen3:4b","created_at":"2026-02-26T00:00:03Z","response":"","done":true,"total_duration":500000}"#,
+        ].join("\n");
+
+        let body = Bytes::from(ndjson);
+        let mappings = make_mappings(&[("847-29-3651", "123-45-6789")]);
+
+        let result = process_response_body(&body, &mappings);
+        let parsed: Value =
+            serde_json::from_str(&String::from_utf8(result.to_vec()).unwrap()).unwrap();
+        let content = parsed["response"].as_str().unwrap();
+        assert!(
+            content.contains("123-45-6789"),
+            "SSN should be decrypted: {content}"
+        );
+    }
+
+    #[test]
+    fn test_ndjson_collapse_not_triggered_for_single_json() {
+        // A single JSON response should NOT trigger NDJSON collapse
+        let single = r#"{"model":"qwen3:4b","message":{"role":"assistant","content":"Phone is 658-297-2527."},"done":true}"#;
+        let body = Bytes::from(single);
+        let mappings = make_mappings(&[("658-297-2527", "410-111-0277")]);
+
+        let result = process_response_body(&body, &mappings);
+        let result_str = String::from_utf8(result.to_vec()).unwrap();
+        // Standard decrypt_response should handle single JSON fine
+        assert!(
+            result_str.contains("410-111-0277"),
+            "Single JSON decryption should work: {result_str}"
+        );
+    }
+
+    #[test]
+    fn test_ndjson_collapse_not_triggered_for_non_ollama() {
+        // Non-Ollama NDJSON should NOT trigger collapse
+        let ndjson = [
+            r#"{"type":"log","message":"processing"}"#,
+            r#"{"type":"log","message":"done"}"#,
+        ]
+        .join("\n");
+
+        let body = Bytes::from(ndjson);
+        let mappings = make_mappings(&[("SECRET", "public")]);
+
+        let result = collapse_ndjson_response(&body, &mappings);
+        assert!(
+            result.is_none(),
+            "Non-Ollama NDJSON should not trigger collapse"
+        );
+    }
+
+    #[test]
+    fn test_ndjson_collapse_multiple_pii_types() {
+        // Test decryption of multiple PII types in one NDJSON stream
+        let ndjson = [
+            r#"{"model":"llava:7b","created_at":"T","message":{"role":"assistant","content":"Email: fk6rup7."},"done":false}"#,
+            r#"{"model":"llava:7b","created_at":"T","message":{"role":"assistant","content":"cqmr6v@gmail.com, "},"done":false}"#,
+            r#"{"model":"llava:7b","created_at":"T","message":{"role":"assistant","content":"Phone: 658-"},"done":false}"#,
+            r#"{"model":"llava:7b","created_at":"T","message":{"role":"assistant","content":"297-2527"},"done":false}"#,
+            r#"{"model":"llava:7b","created_at":"T","message":{"role":"assistant","content":""},"done":true}"#,
+        ].join("\n");
+
+        let body = Bytes::from(ndjson);
+        let mut mappings = RequestMappings::new(uuid::Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: crate::pii_types::PiiType::PhoneNumber,
+            plaintext: "410-111-0277".to_string(),
+            ciphertext: "658-297-2527".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+        mappings.insert(FpeMapping {
+            pii_type: crate::pii_types::PiiType::Email,
+            plaintext: "john.doe@gmail.com".to_string(),
+            ciphertext: "fk6rup7.cqmr6v@gmail.com".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        let result = process_response_body(&body, &mappings);
+        let result_str = String::from_utf8(result.to_vec()).unwrap();
+        let parsed: Value = serde_json::from_str(&result_str).unwrap();
+        let content = parsed["message"]["content"].as_str().unwrap();
+        assert!(
+            content.contains("410-111-0277"),
+            "Phone decrypted: {content}"
+        );
+        assert!(
+            content.contains("john.doe@gmail.com"),
+            "Email decrypted: {content}"
         );
     }
 }

@@ -14,6 +14,7 @@ mod device_profile;
 mod error;
 mod face_detector;
 mod fpe_engine;
+mod hash_token;
 mod health;
 mod hybrid_scanner;
 mod image_detect;

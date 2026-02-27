@@ -13,6 +13,7 @@
 
 use crate::config::ImageConfig;
 use crate::fpe_engine::{FpeEngine, FpeError, TweakGenerator};
+use crate::hash_token::TokenGenerator;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_pipeline::ImageModelManager;
 
@@ -354,6 +355,7 @@ impl OpenObscureMobile {
         // Build replacements sorted by position (reverse order for safe replacement)
         let mut replacements: Vec<(usize, usize, String)> = Vec::new();
         let mut mapping_data: Vec<(String, String)> = Vec::new();
+        let mut token_gen = TokenGenerator::new(request_id);
 
         for m in &matches {
             if m.pii_type.is_fpe_eligible() {
@@ -364,17 +366,17 @@ impl OpenObscureMobile {
                         replacements.push((m.start, m.end, result.encrypted));
                     }
                     Err(_) => {
-                        // FPE failed (e.g. domain too small) — fall back to redaction
-                        let label = format!("[{}]", m.pii_type);
-                        mapping_data.push((label.clone(), m.raw_value.clone()));
-                        replacements.push((m.start, m.end, label));
+                        // FPE failed (e.g. domain too small) — fall back to hash token
+                        let token = token_gen.generate(m.pii_type, &m.raw_value);
+                        mapping_data.push((token.clone(), m.raw_value.clone()));
+                        replacements.push((m.start, m.end, token));
                     }
                 }
             } else {
-                // Non-FPE types get redacted with label
-                let label = format!("[{}]", m.pii_type);
-                mapping_data.push((label.clone(), m.raw_value.clone()));
-                replacements.push((m.start, m.end, label));
+                // Non-FPE types get hash-based token (e.g., OO_PER_a7f2)
+                let token = token_gen.generate(m.pii_type, &m.raw_value);
+                mapping_data.push((token.clone(), m.raw_value.clone()));
+                replacements.push((m.start, m.end, token));
             }
         }
 

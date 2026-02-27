@@ -49,6 +49,9 @@ pub mod ri_model;
 pub mod detection_meta;
 pub mod detection_validators;
 
+// Hash-based redaction tokens for non-FPE PII
+pub mod hash_token;
+
 // Request/response mapping + SSE frame accumulation
 pub mod mapping;
 pub mod sse_accumulator;

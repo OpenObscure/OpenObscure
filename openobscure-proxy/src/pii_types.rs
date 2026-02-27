@@ -131,6 +131,25 @@ impl PiiType {
         }
     }
 
+    /// Short prefix for hash-based redaction tokens (3 chars).
+    ///
+    /// Used by `TokenGenerator` to produce tokens like `OO_PER_a7f2`.
+    pub fn hash_token_prefix(&self) -> &'static str {
+        match self {
+            PiiType::Ipv4Address => "IP4",
+            PiiType::Ipv6Address => "IP6",
+            PiiType::GpsCoordinate => "GPS",
+            PiiType::MacAddress => "MAC",
+            PiiType::HealthKeyword => "HLT",
+            PiiType::ChildKeyword => "CHL",
+            PiiType::Person => "PER",
+            PiiType::Location => "LOC",
+            PiiType::Organization => "ORG",
+            // FPE types shouldn't call this, but provide a fallback
+            _ => "RED",
+        }
+    }
+
     /// Config key name used for type_overrides in TOML.
     pub fn config_key(&self) -> &'static str {
         match self {
