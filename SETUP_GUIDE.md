@@ -227,16 +227,23 @@ curl -s http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
 
 You should see a JSON response containing `"status": "ok"`. This confirms the proxy is running and ready.
 
-### Step 11 — Download OpenClaw
+### Step 11 — Download and Build OpenClaw
 
 In the same new Terminal window:
 
 ```bash
+brew install pnpm
 cd ~/Desktop
 git clone https://github.com/openclaw/openclaw.git
 cd openclaw
-npm install
+pnpm install
+pnpm ui:build
+pnpm build
 ```
+
+This installs dependencies, builds the web UI, and compiles OpenClaw from TypeScript to JavaScript. The first build may take a minute or two.
+
+> **Reinstalling or upgrading?** If you had a previous OpenClaw installation, purge stale config and state first — see [Purging a stale OpenClaw setup](#purging-a-stale-openclaw-setup) in Troubleshooting below. Then continue with Step 12.
 
 ### Step 12 — Create a Discord Bot
 
@@ -258,7 +265,9 @@ npm install
 
 ### Step 13 — Configure OpenClaw with OpenObscure
 
-Create a configuration file for OpenClaw. In Terminal:
+OpenClaw uses two configuration sources: a `.env` file for secrets (API keys, tokens) and an `openclaw.json` file for settings (channels, plugins, model routing).
+
+#### Create the secrets file
 
 ```bash
 cd ~/Desktop/openclaw
@@ -266,92 +275,128 @@ cd ~/Desktop/openclaw
 
 Choose the `.env` file that matches your LLM provider:
 
-#### Option A — Cloud LLM (Anthropic Claude)
+**Option A — Cloud LLM (Anthropic Claude):**
 
 ```bash
 cat > .env << 'ENVFILE'
-# Discord bot token (from Step 12)
-DISCORD_TOKEN=paste-your-discord-bot-token-here
-
-# LLM provider API key
+DISCORD_BOT_TOKEN=paste-your-discord-bot-token-here
 ANTHROPIC_API_KEY=paste-your-anthropic-key-here
-
-# Route ALL LLM traffic through OpenObscure proxy
-LLM_API_BASE=http://127.0.0.1:18790/anthropic
-
-# OpenObscure auth token (auto-generated)
-OPENOBSCURE_TOKEN_FILE=~/.openobscure/.auth-token
 ENVFILE
 ```
 
-Replace the placeholder values:
-- `paste-your-discord-bot-token-here` — the bot token from Step 12
-- `paste-your-anthropic-key-here` — your Anthropic API key
-
-If you're using **OpenAI instead of Anthropic**, change `ANTHROPIC_API_KEY` to `OPENAI_API_KEY` and `/anthropic` to `/openai`.
-
-#### Option B — Cloud LLM (OpenAI GPT)
+**Option B — Cloud LLM (OpenAI GPT):**
 
 ```bash
 cat > .env << 'ENVFILE'
-# Discord bot token (from Step 12)
-DISCORD_TOKEN=paste-your-discord-bot-token-here
-
-# LLM provider API key
+DISCORD_BOT_TOKEN=paste-your-discord-bot-token-here
 OPENAI_API_KEY=paste-your-openai-key-here
-
-# Route ALL LLM traffic through OpenObscure proxy
-LLM_API_BASE=http://127.0.0.1:18790/openai
-
-# OpenObscure auth token (auto-generated)
-OPENOBSCURE_TOKEN_FILE=~/.openobscure/.auth-token
 ENVFILE
 ```
 
-#### Option C — Local LLM (Ollama with Qwen3 or Llama 3.2)
+**Option C — Local LLM (Ollama):**
 
 ```bash
 cat > .env << 'ENVFILE'
-# Discord bot token (from Step 12)
-DISCORD_TOKEN=paste-your-discord-bot-token-here
-
-# No API key needed — Ollama runs locally
-
-# Route LLM traffic through OpenObscure proxy to local Ollama
-LLM_API_BASE=http://127.0.0.1:18790/ollama
-
-# Tell OpenClaw which model to use
-OLLAMA_MODEL=qwen3:8b
-
-# OpenObscure auth token (auto-generated)
-OPENOBSCURE_TOKEN_FILE=~/.openobscure/.auth-token
+DISCORD_BOT_TOKEN=paste-your-discord-bot-token-here
 ENVFILE
 ```
 
-Replace `qwen3:8b` with `llama3.2:3b` if you downloaded Llama instead.
+Replace the placeholder values with your actual tokens from Step 12 and your LLM provider.
 
-**No API key is needed** for the local option. Your messages go from Discord to OpenClaw to OpenObscure to Ollama — all on your MacBook.
-
-### Step 14 — Install the OpenObscure Plugin (Optional)
-
-This adds a second layer of PII protection directly inside OpenClaw:
+#### Create the configuration file
 
 ```bash
-cp -r ~/Desktop/OpenObscure/openobscure-plugin ~/Desktop/openclaw/extensions/openobscure-plugin
+mkdir -p ~/.openclaw
 ```
 
-Then enable it in OpenClaw's plugin configuration (refer to OpenClaw's documentation for enabling extensions).
+Choose the config that matches your LLM provider:
+
+**Option A — Anthropic Claude:**
+
+```bash
+cat > ~/.openclaw/openclaw.json << 'JSONFILE'
+{
+  "models": {
+    "default": "anthropic/claude-sonnet-4-6"
+  },
+  "channels": {
+    "discord": {
+      "dmPolicy": "pairing"
+    }
+  },
+  "plugins": {
+    "enabled": true,
+    "entries": {
+      "openobscure-plugin": {
+        "enabled": true,
+        "config": {
+          "redactToolResults": true,
+          "heartbeat": true,
+          "proxyUrl": "http://127.0.0.1:18790",
+          "heartbeatIntervalMs": 30000
+        }
+      }
+    }
+  }
+}
+JSONFILE
+```
+
+**Option B — OpenAI GPT:**
+
+Same as above, but change the `models` section:
+
+```json
+  "models": {
+    "default": "openai/gpt-4.1"
+  },
+```
+
+**Option C — Local LLM (Ollama):**
+
+Same as Option A, but change the `models` section:
+
+```json
+  "models": {
+    "default": "ollama/qwen3:8b"
+  },
+```
+
+Replace `qwen3:8b` with `llama3.2:3b` if you downloaded Llama instead. **No API key is needed** for the local option — your messages go from Discord to OpenClaw to OpenObscure to Ollama, all on your MacBook.
+
+### Step 14 — Verify the OpenObscure Plugin
+
+The OpenObscure plugin ships bundled with OpenClaw in `extensions/openobscure-plugin/`. No manual installation is needed — Step 13 already enabled it in `openclaw.json`.
+
+Verify it's present:
+
+```bash
+ls ~/Desktop/openclaw/extensions/openobscure-plugin/package.json
+```
+
+You should see the file listed. The plugin will activate automatically when the gateway starts (Step 15) and will connect to the OpenObscure proxy running on port 18790 (Step 9).
 
 ### Step 15 — Start OpenClaw
 
 ```bash
 cd ~/Desktop/openclaw
-npm start
+pnpm start
 ```
 
-You should see output indicating the bot has connected to Discord. Go to your Discord server — the bot should appear as **online** in the member list.
+You should see output indicating the gateway has started and the Discord bot has connected. Go to your Discord server — the bot should appear as **online** in the member list.
+
+> **First time?** You can also run `pnpm openclaw onboard` for an interactive setup wizard that walks you through configuration.
 
 **If using Ollama (local LLM):** Make sure the Ollama server from Step 8 is still running in its own Terminal window. You should now have **three** Terminal windows open: Ollama, OpenObscure proxy, and OpenClaw.
+
+**DM pairing:** The first time you message the bot via DM, it will respond with a short pairing code. Approve it from the MacBook Terminal:
+
+```bash
+cd ~/Desktop/openclaw
+pnpm openclaw pairing approve discord <code>
+```
+
+After approval, the bot will respond normally to your messages.
 
 ### Step 16 — Test It
 
@@ -840,20 +885,24 @@ If you see a keychain access dialog, click **Allow** or **Always Allow**.
 ### Bot appears offline in Discord
 
 1. Make sure the OpenClaw Terminal (Step 15) is still running
-2. Verify your Discord bot token in the `.env` file is correct
+2. Verify your Discord bot token in the `.env` file is correct (the env var is `DISCORD_BOT_TOKEN`)
 3. Check that you enabled **Message Content Intent** in the Discord Developer Portal (Step 12)
 4. Try restarting OpenClaw:
    ```bash
    cd ~/Desktop/openclaw
-   npm start
+   pnpm start
+   ```
+5. Run diagnostics:
+   ```bash
+   pnpm openclaw doctor
    ```
 
 ### Bot responds but PII is not being encrypted
 
 1. Verify the proxy is running (Step 9)
-2. Make sure `LLM_API_BASE` in the `.env` file points to `http://127.0.0.1:18790/anthropic` (or `/openai` or `/ollama`)
-3. Check proxy logs for errors — if you see no log activity at all when chatting, OpenClaw may not be routing through the proxy
-4. Restart OpenClaw after any `.env` changes
+2. Make sure the OpenObscure plugin is enabled in `~/.openclaw/openclaw.json` with `proxyUrl` set to `http://127.0.0.1:18790`
+3. Check proxy logs for errors — if you see no log activity at all when chatting, the plugin may not be connecting to the proxy
+4. Restart OpenClaw after any config changes
 
 ### "Model not found" errors in proxy logs
 
@@ -878,11 +927,91 @@ cd ~/Desktop/OpenObscure
    ```bash
    ollama pull llama3.2:1b
    ```
-   Then update `OLLAMA_MODEL=llama3.2:1b` in the `.env` file and restart OpenClaw.
+   Then update the model in `~/.openclaw/openclaw.json` (change `"default": "ollama/qwen3:8b"` to `"default": "ollama/llama3.2:1b"`) and restart OpenClaw.
 
 ### Slow first response
 
 The first message after starting the proxy may take a few extra seconds while AI models load into memory. Subsequent messages will be faster. If using a local LLM via Ollama, the first response will also include model loading time — this is normal.
+
+### Purging a stale OpenClaw setup
+
+If you're reinstalling, upgrading, or running into config conflicts from a previous OpenClaw installation, follow these steps to start fresh.
+
+#### Option A — Use the built-in reset command (recommended)
+
+```bash
+cd ~/Desktop/openclaw
+
+# Preview what would be deleted (dry run — nothing is deleted)
+pnpm openclaw reset --scope full --dry-run
+
+# Reset everything: config, credentials, sessions, workspace
+pnpm openclaw reset --scope full --yes
+```
+
+Reset scopes (from least to most destructive):
+
+| Scope | What it deletes |
+|-------|----------------|
+| `config` | Only `openclaw.json` |
+| `config+creds+sessions` | Config + OAuth tokens + session transcripts (keeps workspace) |
+| `full` | Everything: entire `~/.openclaw/` directory, workspace, and all state |
+
+#### Option B — Manual cleanup
+
+If the reset command isn't available (e.g., older install that won't start), remove the state directory manually:
+
+```bash
+# Back up your config first (optional)
+cp ~/.openclaw/openclaw.json ~/Desktop/openclaw-config-backup.json 2>/dev/null
+
+# Remove the state directory
+rm -rf ~/.openclaw
+```
+
+#### Remove legacy directories
+
+Older versions of OpenClaw used different directory names. Check for and remove these if they exist:
+
+```bash
+# Legacy state directories (no longer used)
+rm -rf ~/.clawdbot
+rm -rf ~/.moldbot
+rm -rf ~/.moltbot
+```
+
+Also check for legacy config file names inside `~/.openclaw/` if you're keeping the directory:
+
+```bash
+# Legacy config filenames (superseded by openclaw.json)
+rm -f ~/.openclaw/clawdbot.json
+rm -f ~/.openclaw/moldbot.json
+rm -f ~/.openclaw/moltbot.json
+
+# Stale backup files from previous config migrations
+rm -f ~/.openclaw/openclaw.json.bak*
+```
+
+#### Remove old .env files
+
+If you previously used `LLM_API_BASE` or `DISCORD_TOKEN` (without `_BOT`) in your `.env`, delete the old file and recreate it per Step 13:
+
+```bash
+rm ~/Desktop/openclaw/.env
+```
+
+#### Verify clean state
+
+After purging, run the diagnostic tool:
+
+```bash
+cd ~/Desktop/openclaw
+pnpm openclaw doctor
+```
+
+This checks for stale paths, misconfigured settings, and security issues. Use `pnpm openclaw doctor --fix` to auto-repair common problems.
+
+Then proceed with Step 13 to reconfigure from scratch.
 
 ### iPhone messages not working
 
@@ -915,7 +1044,7 @@ cargo run --release -- -c config/openobscure.toml
 **Terminal 3 — Start OpenClaw:**
 ```bash
 cd ~/Desktop/openclaw
-npm start
+pnpm start
 ```
 
 **If using a cloud LLM (Anthropic/OpenAI):**
@@ -929,7 +1058,7 @@ cargo run --release -- -c config/openobscure.toml
 **Terminal 2 — Start OpenClaw:**
 ```bash
 cd ~/Desktop/openclaw
-npm start
+pnpm start
 ```
 
 Then open Discord on your MacBook or iPhone and start chatting.
