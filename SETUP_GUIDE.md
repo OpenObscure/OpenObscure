@@ -298,8 +298,11 @@ ENVFILE
 ```bash
 cat > .env << 'ENVFILE'
 DISCORD_BOT_TOKEN=paste-your-discord-bot-token-here
+OLLAMA_API_KEY=ollama-local
 ENVFILE
 ```
+
+> `OLLAMA_API_KEY` can be any non-empty value — Ollama itself ignores it, but OpenClaw uses it to register Ollama as a provider.
 
 Replace the placeholder values with your actual tokens from Step 12 and your LLM provider.
 
@@ -309,7 +312,7 @@ Replace the placeholder values with your actual tokens from Step 12 and your LLM
 mkdir -p ~/.openclaw
 ```
 
-Choose the config that matches your LLM provider:
+Choose the config that matches your LLM provider. The `models.providers` section is the key integration point — it tells OpenClaw to route all LLM API calls through the OpenObscure proxy (`localhost:18790`) instead of directly to the provider. This is how PII gets intercepted and redacted before reaching the LLM.
 
 **Option A — Anthropic Claude:**
 
@@ -322,6 +325,16 @@ cat > ~/.openclaw/openclaw.json << 'JSONFILE'
   "agents": {
     "defaults": {
       "model": "anthropic/claude-sonnet-4-6"
+    }
+  },
+  "models": {
+    "providers": {
+      "anthropic": {
+        "baseUrl": "http://127.0.0.1:18790/anthropic",
+        "models": [
+          { "id": "claude-sonnet-4-6", "name": "Claude Sonnet 4.6" }
+        ]
+      }
     }
   },
   "channels": {
@@ -349,7 +362,7 @@ JSONFILE
 
 **Option B — OpenAI GPT:**
 
-Same as above, but change the `agents.defaults.model` value:
+Same structure as above, but change the `agents.defaults.model` and `models.providers` sections:
 
 ```json
   "agents": {
@@ -357,11 +370,21 @@ Same as above, but change the `agents.defaults.model` value:
       "model": "openai/gpt-4.1"
     }
   },
+  "models": {
+    "providers": {
+      "openai": {
+        "baseUrl": "http://127.0.0.1:18790/openai",
+        "models": [
+          { "id": "gpt-4.1", "name": "GPT-4.1" }
+        ]
+      }
+    }
+  },
 ```
 
 **Option C — Local LLM (Ollama):**
 
-Same as Option A, but change the `agents.defaults.model` value:
+Same structure as Option A, but change the `agents.defaults.model` and `models.providers` sections:
 
 ```json
   "agents": {
@@ -369,9 +392,22 @@ Same as Option A, but change the `agents.defaults.model` value:
       "model": "ollama/qwen3:8b"
     }
   },
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://127.0.0.1:18790/ollama",
+        "api": "ollama",
+        "models": [
+          { "id": "qwen3:8b", "name": "Qwen3 8B" }
+        ]
+      }
+    }
+  },
 ```
 
-Replace `qwen3:8b` with `llama3.2:3b` if you downloaded Llama instead. **No API key is needed** for the local option — your messages go from Discord to OpenClaw to OpenObscure to Ollama, all on your MacBook.
+Replace `qwen3:8b` with `llama3.2:3b` (and update the `models` array to match) if you downloaded Llama instead. **No API key is needed** for the local option — your messages go from Discord to OpenClaw to OpenObscure to Ollama, all on your MacBook.
+
+> **How it works:** The `baseUrl` in each provider points to the OpenObscure proxy's route prefix (e.g. `/ollama`). The proxy scans request bodies for PII, redacts or encrypts matches, forwards the sanitized request to the real provider, then restores PII in the response before sending it back to OpenClaw.
 
 ### Step 14 — Verify the OpenObscure Plugin
 
@@ -923,6 +959,16 @@ cd ~/Desktop/OpenObscure
 ./build/download_kws_models.sh
 ```
 
+### "Unknown model: ollama/..." error
+
+OpenClaw requires `OLLAMA_API_KEY` in your `.env` file to register Ollama as a provider (any non-empty value works). Add this line to `~/Desktop/openclaw/.env`:
+
+```
+OLLAMA_API_KEY=ollama-local
+```
+
+Then restart the gateway.
+
 ### Ollama model not responding
 
 1. Make sure the Ollama server is running (`ollama serve` in its own Terminal)
@@ -937,6 +983,25 @@ cd ~/Desktop/OpenObscure
    ollama pull llama3.2:1b
    ```
    Then update the model in `~/.openclaw/openclaw.json` (change `"model": "ollama/qwen3:8b"` to `"model": "ollama/llama3.2:1b"` under `agents.defaults`) and restart OpenClaw.
+
+### PII not being redacted (proxy bypassed)
+
+If the AI responds to PII-containing messages without any sign of redaction, OpenClaw may be talking directly to the LLM instead of going through the proxy. This happens when a stale `models.json` cache preserves the old provider URL.
+
+Fix: delete the cached model config and restart the gateway:
+
+```bash
+rm ~/.openclaw/agents/main/agent/models.json
+# Then restart the gateway
+cd ~/Desktop/openclaw && pnpm openclaw gateway
+```
+
+Verify the fix:
+
+```bash
+cat ~/.openclaw/agents/main/agent/models.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['providers']['ollama']['baseUrl'])"
+# Should print: http://127.0.0.1:18790/ollama (not http://127.0.0.1:11434)
+```
 
 ### Slow first response
 
