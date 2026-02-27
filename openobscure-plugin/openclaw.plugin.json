@@ -1,0 +1,31 @@
+{
+  "id": "openobscure-plugin",
+  "name": "OpenObscure",
+  "description": "PII redaction and privacy controls — encrypts personal data before it reaches the LLM.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "redactToolResults": {
+        "type": "boolean",
+        "default": true
+      },
+      "logStats": {
+        "type": "boolean",
+        "default": true
+      },
+      "heartbeat": {
+        "type": "boolean",
+        "default": true
+      },
+      "proxyUrl": {
+        "type": "string",
+        "default": "http://127.0.0.1:18790"
+      },
+      "heartbeatIntervalMs": {
+        "type": "number",
+        "default": 30000
+      }
+    }
+  }
+}

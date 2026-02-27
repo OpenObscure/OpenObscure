@@ -316,8 +316,13 @@ Choose the config that matches your LLM provider:
 ```bash
 cat > ~/.openclaw/openclaw.json << 'JSONFILE'
 {
-  "models": {
-    "default": "anthropic/claude-sonnet-4-6"
+  "gateway": {
+    "mode": "local"
+  },
+  "agents": {
+    "defaults": {
+      "model": "anthropic/claude-sonnet-4-6"
+    }
   },
   "channels": {
     "discord": {
@@ -344,21 +349,25 @@ JSONFILE
 
 **Option B — OpenAI GPT:**
 
-Same as above, but change the `models` section:
+Same as above, but change the `agents.defaults.model` value:
 
 ```json
-  "models": {
-    "default": "openai/gpt-4.1"
+  "agents": {
+    "defaults": {
+      "model": "openai/gpt-4.1"
+    }
   },
 ```
 
 **Option C — Local LLM (Ollama):**
 
-Same as Option A, but change the `models` section:
+Same as Option A, but change the `agents.defaults.model` value:
 
 ```json
-  "models": {
-    "default": "ollama/qwen3:8b"
+  "agents": {
+    "defaults": {
+      "model": "ollama/qwen3:8b"
+    }
   },
 ```
 
@@ -380,12 +389,12 @@ You should see the file listed. The plugin will activate automatically when the 
 
 ```bash
 cd ~/Desktop/openclaw
-pnpm start
+pnpm openclaw gateway
 ```
 
 You should see output indicating the gateway has started and the Discord bot has connected. Go to your Discord server — the bot should appear as **online** in the member list.
 
-> **First time?** You can also run `pnpm openclaw onboard` for an interactive setup wizard that walks you through configuration.
+> **First time?** You can run `pnpm openclaw onboard` for an interactive setup wizard that walks you through configuration and optionally installs the gateway as a background service (`pnpm openclaw onboard --install-daemon`).
 
 **If using Ollama (local LLM):** Make sure the Ollama server from Step 8 is still running in its own Terminal window. You should now have **three** Terminal windows open: Ollama, OpenObscure proxy, and OpenClaw.
 
@@ -890,7 +899,7 @@ If you see a keychain access dialog, click **Allow** or **Always Allow**.
 4. Try restarting OpenClaw:
    ```bash
    cd ~/Desktop/openclaw
-   pnpm start
+   pnpm openclaw gateway
    ```
 5. Run diagnostics:
    ```bash
@@ -927,7 +936,7 @@ cd ~/Desktop/OpenObscure
    ```bash
    ollama pull llama3.2:1b
    ```
-   Then update the model in `~/.openclaw/openclaw.json` (change `"default": "ollama/qwen3:8b"` to `"default": "ollama/llama3.2:1b"`) and restart OpenClaw.
+   Then update the model in `~/.openclaw/openclaw.json` (change `"model": "ollama/qwen3:8b"` to `"model": "ollama/llama3.2:1b"` under `agents.defaults`) and restart OpenClaw.
 
 ### Slow first response
 
@@ -1044,7 +1053,7 @@ cargo run --release -- -c config/openobscure.toml
 **Terminal 3 — Start OpenClaw:**
 ```bash
 cd ~/Desktop/openclaw
-pnpm start
+pnpm openclaw gateway
 ```
 
 **If using a cloud LLM (Anthropic/OpenAI):**
@@ -1058,7 +1067,7 @@ cargo run --release -- -c config/openobscure.toml
 **Terminal 2 — Start OpenClaw:**
 ```bash
 cd ~/Desktop/openclaw
-pnpm start
+pnpm openclaw gateway
 ```
 
 Then open Discord on your MacBook or iPhone and start chatting.
