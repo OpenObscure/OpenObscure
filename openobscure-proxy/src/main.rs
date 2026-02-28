@@ -18,6 +18,7 @@ mod hash_token;
 mod health;
 mod hybrid_scanner;
 mod image_detect;
+mod image_fetch;
 mod image_pipeline;
 mod image_redact;
 mod key_manager;

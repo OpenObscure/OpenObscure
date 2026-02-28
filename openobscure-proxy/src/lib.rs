@@ -25,6 +25,7 @@ pub mod multilingual;
 pub mod config;
 pub mod face_detector;
 pub mod image_detect;
+pub mod image_fetch;
 pub mod image_pipeline;
 pub mod image_redact;
 pub mod nsfw_detector;

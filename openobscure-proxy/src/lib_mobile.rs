@@ -269,6 +269,10 @@ impl OpenObscureMobile {
                     None
                 },
                 nsfw_threshold: 0.45,
+                url_fetch_enabled: false, // Mobile doesn't fetch URLs
+                url_max_bytes: 0,
+                url_timeout_secs: 0,
+                url_allow_localhost_http: false,
             };
             Some(ImageModelManager::new(img_config))
         } else {

@@ -116,6 +116,10 @@ pub struct ImageStats {
     pub face_ms: u64,
     /// Phase 2: OCR detection + redaction time (milliseconds).
     pub ocr_ms: u64,
+    /// Whether this image was fetched from a URL (vs base64 embedded).
+    pub from_url: bool,
+    /// URL fetch time in milliseconds (0 for base64 images).
+    pub fetch_ms: u64,
 }
 
 /// On-demand image model manager.

@@ -338,6 +338,25 @@ pub struct ImageConfig {
     /// NSFW detection confidence threshold (default: 0.45).
     #[serde(default = "default_nsfw_threshold")]
     pub nsfw_threshold: f32,
+    /// Enable fetching and processing of URL-referenced images (default: true).
+    #[serde(default = "default_true")]
+    pub url_fetch_enabled: bool,
+    /// Maximum download size for URL images in bytes (default: 10MB).
+    #[serde(default = "default_url_max_bytes")]
+    pub url_max_bytes: usize,
+    /// Timeout for URL image fetch in seconds (default: 10).
+    #[serde(default = "default_url_timeout")]
+    pub url_timeout_secs: u64,
+    /// Allow HTTP (non-TLS) for localhost URLs, for testing (default: true).
+    #[serde(default = "default_true")]
+    pub url_allow_localhost_http: bool,
+}
+
+fn default_url_max_bytes() -> usize {
+    10 * 1024 * 1024
+}
+fn default_url_timeout() -> u64 {
+    10
 }
 
 impl Default for ImageConfig {
@@ -358,6 +377,22 @@ impl Default for ImageConfig {
             nsfw_detection: true,
             nsfw_model_dir: None,
             nsfw_threshold: default_nsfw_threshold(),
+            url_fetch_enabled: true,
+            url_max_bytes: default_url_max_bytes(),
+            url_timeout_secs: default_url_timeout(),
+            url_allow_localhost_http: true,
+        }
+    }
+}
+
+impl ImageConfig {
+    /// Convert to `ImageFetchConfig` for the URL fetch module.
+    pub fn to_fetch_config(&self) -> crate::image_fetch::ImageFetchConfig {
+        crate::image_fetch::ImageFetchConfig {
+            enabled: self.url_fetch_enabled && self.enabled,
+            max_bytes: self.url_max_bytes,
+            timeout_secs: self.url_timeout_secs,
+            allow_localhost_http: self.url_allow_localhost_http,
         }
     }
 }

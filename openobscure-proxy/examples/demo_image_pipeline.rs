@@ -137,6 +137,10 @@ fn main() {
         } else {
             None
         },
+        url_fetch_enabled: false,
+        url_max_bytes: 0,
+        url_timeout_secs: 0,
+        url_allow_localhost_http: false,
     };
 
     // Process

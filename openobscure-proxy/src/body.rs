@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use axum::body::Body;
 use bytes::Bytes;
+use hyper_util::client::legacy::Client;
 use serde_json::Value;
 use uuid::Uuid;
 
@@ -9,10 +11,14 @@ use crate::fpe_engine::{FpeEngine, FpeResult, TweakGenerator};
 use crate::hash_token::TokenGenerator;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_detect;
+use crate::image_fetch::{self, ImageFetchConfig};
 use crate::image_pipeline::{self, ImageModelManager, ImageStats, OutputFormat};
 use crate::kws_engine::KwsEngine;
 use crate::mapping::{FpeMapping, RequestMappings};
 use crate::voice_pipeline;
+
+type HttpsConnector =
+    hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>;
 
 /// Result of processing a request body, including per-feature timing.
 pub struct BodyProcessingResult {
@@ -35,13 +41,14 @@ pub struct BodyProcessingResult {
 
 /// Process a request body: scan for PII, FPE-encrypt or redact matches, return modified body + mappings.
 ///
-/// Two-pass processing:
-/// 1. Image pass: find base64 image blocks, decode → EXIF strip → resize → face redact → OCR redact → re-encode
-/// 2. Text pass: scan JSON string values for PII, FPE-encrypt or redact
+/// Multi-pass processing:
+/// 1. Image pass (sync): find base64 images → process; collect URL image refs
+/// 2. URL fetch pass (async): fetch all URL images concurrently, process, replace with base64
+/// 3. Text pass: scan JSON string values for PII, FPE-encrypt or redact
 ///
 /// Images are processed FIRST so that byte offsets in the text pass remain correct.
 #[allow(clippy::too_many_arguments)]
-pub fn process_request_body(
+pub async fn process_request_body(
     body: &Bytes,
     request_id: &Uuid,
     scanner: &HybridScanner,
@@ -50,14 +57,16 @@ pub fn process_request_body(
     skip_fields: &[String],
     image_models: Option<&Arc<ImageModelManager>>,
     kws_engine: Option<&Arc<KwsEngine>>,
+    http_client: Option<&Client<HttpsConnector, Body>>,
+    fetch_config: &ImageFetchConfig,
 ) -> Result<BodyProcessingResult, BodyError> {
     let mut json: Value = serde_json::from_slice(body).map_err(BodyError::Json)?;
 
-    // Pass 1: Process images in JSON (before text scanning)
+    // Pass 1: Process images in JSON (base64 immediately, collect URL refs)
     let img_start = std::time::Instant::now();
     let image_stats = if let Some(models) = image_models {
         if models.config().enabled {
-            process_images_in_json(&mut json, models, scanner)
+            process_images_in_json(&mut json, models, scanner, http_client, fetch_config).await
         } else {
             Vec::new()
         }
@@ -206,31 +215,71 @@ pub fn process_request_body(
     ))
 }
 
-/// Walk a JSON tree and process any embedded base64 images.
+/// A URL image reference found during JSON walk, pending async fetch.
+struct PendingUrlImage {
+    /// JSON path to the object containing the URL image block (array of indices/keys).
+    json_pointer: String,
+    /// The detected URL image reference.
+    url_ref: image_detect::ImageUrlRef,
+}
+
+/// Walk a JSON tree and process images (base64 immediately, URL images via async fetch).
 ///
-/// Finds Anthropic and OpenAI image content blocks, decodes them,
-/// runs the image pipeline (EXIF strip, resize, face redact, OCR redact),
-/// and replaces the base64 data in-place.
-fn process_images_in_json(
+/// Two-phase approach:
+/// 1. Walk JSON: process base64 images in-place, collect URL image refs
+/// 2. Fetch URL images concurrently, process through pipeline, replace URL→base64
+async fn process_images_in_json(
     json: &mut Value,
     models: &ImageModelManager,
     scanner: &HybridScanner,
+    http_client: Option<&Client<HttpsConnector, Body>>,
+    fetch_config: &ImageFetchConfig,
 ) -> Vec<ImageStats> {
     let mut stats = Vec::new();
-    walk_json_for_images(json, models, scanner, &mut stats);
+    let mut pending_urls: Vec<PendingUrlImage> = Vec::new();
+
+    // Phase 1: Walk JSON — process base64 images immediately, collect URL refs
+    walk_json_for_images(json, models, scanner, &mut stats, &mut pending_urls, "");
+
+    // Phase 1b: Fetch URL images concurrently (if any)
+    if !pending_urls.is_empty() {
+        if let Some(client) = http_client {
+            fetch_and_process_url_images(
+                json,
+                &pending_urls,
+                client,
+                fetch_config,
+                models,
+                scanner,
+                &mut stats,
+            )
+            .await;
+        } else {
+            oo_warn!(
+                crate::oo_log::modules::IMAGE,
+                "URL images found but no HTTP client available, skipping",
+                count = pending_urls.len()
+            );
+        }
+    }
+
     stats
 }
 
 /// Recursively walk JSON looking for image content blocks.
+///
+/// Base64 images are processed in-place; URL images are collected into `pending_urls`.
 fn walk_json_for_images(
     value: &mut Value,
     models: &ImageModelManager,
     scanner: &HybridScanner,
     stats: &mut Vec<ImageStats>,
+    pending_urls: &mut Vec<PendingUrlImage>,
+    pointer: &str,
 ) {
     match value {
         Value::Object(map) => {
-            // Check if this object is an image content block
+            // Check if this object is a base64 image content block
             if let Some(img_ref) = image_detect::is_image_content_block(map) {
                 // Extract the base64 image bytes
                 if let Some(detected) = image_detect::extract_image_bytes(map, &img_ref) {
@@ -262,16 +311,169 @@ fn walk_json_for_images(
                     }
                 }
             }
+            // Check if this object is a URL image content block
+            else if let Some(url_ref) = image_detect::detect_url_image_block(map) {
+                pending_urls.push(PendingUrlImage {
+                    json_pointer: pointer.to_string(),
+                    url_ref,
+                });
+            }
             // Recurse into all values
-            for (_, v) in map.iter_mut() {
-                walk_json_for_images(v, models, scanner, stats);
+            let keys: Vec<String> = map.keys().cloned().collect();
+            for key in keys {
+                let child_pointer = format!("{}/{}", pointer, key);
+                if let Some(v) = map.get_mut(&key) {
+                    walk_json_for_images(v, models, scanner, stats, pending_urls, &child_pointer);
+                }
             }
         }
         Value::Array(arr) => {
-            for item in arr.iter_mut() {
-                walk_json_for_images(item, models, scanner, stats);
+            for (i, item) in arr.iter_mut().enumerate() {
+                let child_pointer = format!("{}/{}", pointer, i);
+                walk_json_for_images(item, models, scanner, stats, pending_urls, &child_pointer);
             }
         }
+        _ => {}
+    }
+}
+
+/// Fetch URL images concurrently, process through pipeline, replace URL→base64 in JSON.
+async fn fetch_and_process_url_images(
+    json: &mut Value,
+    pending: &[PendingUrlImage],
+    client: &Client<HttpsConnector, Body>,
+    fetch_config: &ImageFetchConfig,
+    models: &ImageModelManager,
+    scanner: &HybridScanner,
+    stats: &mut Vec<ImageStats>,
+) {
+    // Fetch all URL images concurrently
+    let fetch_futures: Vec<_> = pending
+        .iter()
+        .map(|p| image_fetch::fetch_image_url(&p.url_ref.url, client, fetch_config))
+        .collect();
+
+    let fetch_results = futures_util::future::join_all(fetch_futures).await;
+
+    // Process each fetched image and replace URL with base64 in JSON
+    for (pending_img, fetch_result) in pending.iter().zip(fetch_results.into_iter()) {
+        match fetch_result {
+            Ok(fetched) => {
+                let media_type = if fetched.media_type.is_empty() {
+                    image_detect::detect_media_type(&fetched.bytes)
+                        .unwrap_or("image/png")
+                        .to_string()
+                } else {
+                    fetched.media_type.clone()
+                };
+
+                // Build a temporary ImageContentRef for process_single_image
+                let tmp_ref = image_detect::ImageContentRef {
+                    format: pending_img.url_ref.format,
+                    data_key_path: vec![],
+                    media_type: Some(media_type.clone()),
+                };
+
+                match process_single_image(&fetched.bytes, &media_type, &tmp_ref, models, scanner) {
+                    Ok((new_bytes, mut img_stats)) => {
+                        img_stats.from_url = true;
+                        img_stats.fetch_ms = fetched.fetch_ms;
+
+                        // Replace URL with base64 in JSON at the recorded pointer
+                        replace_url_with_base64(
+                            json,
+                            &pending_img.json_pointer,
+                            &pending_img.url_ref,
+                            &new_bytes,
+                            &media_type,
+                        );
+                        stats.push(img_stats);
+                        oo_info!(crate::oo_log::modules::IMAGE, "URL image fetched and processed",
+                            url = %pending_img.url_ref.url,
+                            fetch_ms = fetched.fetch_ms,
+                            format = ?pending_img.url_ref.format);
+                    }
+                    Err(e) => {
+                        // Fail-open: leave original URL intact
+                        oo_warn!(crate::oo_log::modules::IMAGE,
+                            "URL image processing failed (fail-open)",
+                            url = %pending_img.url_ref.url,
+                            error = %e);
+                    }
+                }
+            }
+            Err(e) => {
+                // Fail-open: leave original URL intact
+                oo_warn!(crate::oo_log::modules::IMAGE,
+                    "URL image fetch failed (fail-open)",
+                    url = %pending_img.url_ref.url,
+                    error = %e);
+            }
+        }
+    }
+}
+
+/// Replace a URL image reference in JSON with a base64-embedded processed image.
+///
+/// Navigates to the object at `json_pointer`, then mutates it:
+/// - Anthropic: `source.type:"url"` → `source.type:"base64"`, remove `url`, add `data` + `media_type`
+/// - OpenAI: `image_url.url:"https://..."` → `image_url.url:"data:image/...;base64,..."`
+fn replace_url_with_base64(
+    json: &mut Value,
+    json_pointer: &str,
+    url_ref: &image_detect::ImageUrlRef,
+    processed_bytes: &[u8],
+    media_type: &str,
+) {
+    // Navigate to the object using JSON pointer
+    let target = if json_pointer.is_empty() {
+        Some(json)
+    } else {
+        json.pointer_mut(json_pointer)
+    };
+
+    let obj = match target.and_then(|v| v.as_object_mut()) {
+        Some(o) => o,
+        None => {
+            oo_warn!(
+                crate::oo_log::modules::IMAGE,
+                "Failed to navigate to URL image object for replacement",
+                pointer = json_pointer
+            );
+            return;
+        }
+    };
+
+    match url_ref.format {
+        image_detect::ImageFormat::AnthropicUrl => {
+            // Convert source.type:"url" → source.type:"base64"
+            if let Some(Value::Object(source)) = obj.get_mut("source") {
+                source.insert("type".to_string(), Value::String("base64".to_string()));
+                source.remove("url");
+                source.insert(
+                    "media_type".to_string(),
+                    Value::String(media_type.to_string()),
+                );
+                let b64 = image_detect::encode_to_base64(
+                    processed_bytes,
+                    media_type,
+                    image_detect::ImageFormat::AnthropicBase64,
+                );
+                source.insert("data".to_string(), Value::String(b64));
+            }
+        }
+        image_detect::ImageFormat::OpenAiExternalUrl => {
+            // Replace image_url.url with data URI
+            if let Some(Value::Object(img_url)) = obj.get_mut("image_url") {
+                let data_uri = image_detect::encode_to_base64(
+                    processed_bytes,
+                    media_type,
+                    image_detect::ImageFormat::OpenAiDataUri,
+                );
+                img_url.insert("url".to_string(), Value::String(data_uri));
+            }
+        }
+        // Base64 formats don't need URL replacement
         _ => {}
     }
 }
@@ -335,6 +537,8 @@ fn replace_image_data(
                 img_url.insert("url".to_string(), Value::String(new_data.to_string()));
             }
         }
+        // URL formats are handled by replace_url_with_base64(), not this function
+        image_detect::ImageFormat::AnthropicUrl | image_detect::ImageFormat::OpenAiExternalUrl => {}
     }
 }
 
@@ -648,10 +852,15 @@ mod tests {
         });
 
         let mut stats = Vec::new();
-        walk_json_for_images(&mut json, &models, &scanner, &mut stats);
+        let mut pending = Vec::new();
+        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
         assert!(
             stats.is_empty(),
             "Non-image JSON should produce no image stats"
+        );
+        assert!(
+            pending.is_empty(),
+            "Non-image JSON should have no pending URL images"
         );
     }
 
@@ -693,12 +902,14 @@ mod tests {
         let scanner = HybridScanner::new(true, None);
 
         let mut stats = Vec::new();
-        walk_json_for_images(&mut json, &models, &scanner, &mut stats);
+        let mut pending = Vec::new();
+        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
 
         // Should have processed 1 image (decode → resize → encode, no face/OCR)
         assert_eq!(stats.len(), 1);
         assert_eq!(stats[0].faces_redacted, 0);
         assert_eq!(stats[0].text_regions_found, 0);
+        assert!(pending.is_empty());
 
         // The base64 data should have been replaced
         let new_data = json["messages"][0]["content"][0]["source"]["data"]
@@ -750,7 +961,16 @@ mod tests {
         let models = ImageModelManager::new(config);
 
         let scanner = HybridScanner::new(true, None);
-        let stats = process_images_in_json(&mut json, &models, &scanner);
+        let fetch_config = ImageFetchConfig::default();
+        let stats = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(process_images_in_json(
+                &mut json,
+                &models,
+                &scanner,
+                None,
+                &fetch_config,
+            ));
         // Image is processed (decode/encode) but no face/OCR work done
         assert_eq!(stats.len(), 1);
         assert_eq!(stats[0].faces_redacted, 0);
@@ -778,7 +998,8 @@ mod tests {
 
         let scanner = HybridScanner::new(true, None);
         let mut stats = Vec::new();
-        walk_json_for_images(&mut json, &models, &scanner, &mut stats);
+        let mut pending = Vec::new();
+        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
 
         // Should not have processed anything (bad base64 → extraction returns None or bad magic)
         assert!(
@@ -931,6 +1152,170 @@ mod tests {
         assert!(
             content.contains("john.doe@gmail.com"),
             "Email decrypted: {content}"
+        );
+    }
+
+    // ---- URL image detection + replacement tests ----
+
+    #[test]
+    fn test_walk_json_collects_anthropic_url_image() {
+        let config = crate::config::ImageConfig::default();
+        let models = ImageModelManager::new(config);
+        let scanner = HybridScanner::new(true, None);
+        let mut json = serde_json::json!({
+            "messages": [{
+                "role": "user",
+                "content": [{
+                    "type": "image",
+                    "source": {
+                        "type": "url",
+                        "url": "https://cdn.discordapp.com/attachments/123/456/image.png",
+                        "media_type": "image/png"
+                    }
+                }]
+            }]
+        });
+
+        let mut stats = Vec::new();
+        let mut pending = Vec::new();
+        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
+
+        assert!(stats.is_empty(), "URL images are not processed immediately");
+        assert_eq!(pending.len(), 1, "Should have collected 1 URL image ref");
+        assert_eq!(
+            pending[0].url_ref.url,
+            "https://cdn.discordapp.com/attachments/123/456/image.png"
+        );
+        assert_eq!(
+            pending[0].url_ref.format,
+            image_detect::ImageFormat::AnthropicUrl
+        );
+    }
+
+    #[test]
+    fn test_walk_json_collects_openai_url_image() {
+        let config = crate::config::ImageConfig::default();
+        let models = ImageModelManager::new(config);
+        let scanner = HybridScanner::new(true, None);
+        let mut json = serde_json::json!({
+            "messages": [{
+                "role": "user",
+                "content": [{
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://cdn.discordapp.com/attachments/123/456/image.png"
+                    }
+                }]
+            }]
+        });
+
+        let mut stats = Vec::new();
+        let mut pending = Vec::new();
+        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
+
+        assert_eq!(pending.len(), 1);
+        assert_eq!(
+            pending[0].url_ref.format,
+            image_detect::ImageFormat::OpenAiExternalUrl
+        );
+    }
+
+    #[test]
+    fn test_replace_url_with_base64_anthropic() {
+        use image::{Rgb, RgbImage};
+        use std::io::Cursor;
+
+        // Create test PNG bytes
+        let img = image::DynamicImage::ImageRgb8(RgbImage::from_pixel(4, 4, Rgb([128, 64, 32])));
+        let mut buf = Cursor::new(Vec::new());
+        img.write_to(&mut buf, image::ImageFormat::Png).unwrap();
+        let png_bytes = buf.into_inner();
+
+        let mut json = serde_json::json!({
+            "messages": [{
+                "role": "user",
+                "content": [{
+                    "type": "image",
+                    "source": {
+                        "type": "url",
+                        "url": "https://cdn.discordapp.com/image.png",
+                        "media_type": "image/png"
+                    }
+                }]
+            }]
+        });
+
+        let url_ref = image_detect::ImageUrlRef {
+            format: image_detect::ImageFormat::AnthropicUrl,
+            url: "https://cdn.discordapp.com/image.png".to_string(),
+            media_type: Some("image/png".to_string()),
+        };
+
+        replace_url_with_base64(
+            &mut json,
+            "/messages/0/content/0",
+            &url_ref,
+            &png_bytes,
+            "image/png",
+        );
+
+        // Verify the source was converted from URL to base64
+        let source = &json["messages"][0]["content"][0]["source"];
+        assert_eq!(source["type"].as_str().unwrap(), "base64");
+        assert!(source.get("url").is_none(), "url field should be removed");
+        assert_eq!(source["media_type"].as_str().unwrap(), "image/png");
+
+        // Verify the data is valid base64 that decodes to a PNG
+        let data = source["data"].as_str().unwrap();
+        let decoded = base64::engine::general_purpose::STANDARD
+            .decode(data)
+            .unwrap();
+        assert!(image_detect::has_image_magic_bytes(&decoded));
+    }
+
+    #[test]
+    fn test_replace_url_with_base64_openai() {
+        use image::{Rgb, RgbImage};
+        use std::io::Cursor;
+
+        let img = image::DynamicImage::ImageRgb8(RgbImage::from_pixel(4, 4, Rgb([128, 64, 32])));
+        let mut buf = Cursor::new(Vec::new());
+        img.write_to(&mut buf, image::ImageFormat::Png).unwrap();
+        let png_bytes = buf.into_inner();
+
+        let mut json = serde_json::json!({
+            "messages": [{
+                "role": "user",
+                "content": [{
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://cdn.discordapp.com/image.png"
+                    }
+                }]
+            }]
+        });
+
+        let url_ref = image_detect::ImageUrlRef {
+            format: image_detect::ImageFormat::OpenAiExternalUrl,
+            url: "https://cdn.discordapp.com/image.png".to_string(),
+            media_type: None,
+        };
+
+        replace_url_with_base64(
+            &mut json,
+            "/messages/0/content/0",
+            &url_ref,
+            &png_bytes,
+            "image/png",
+        );
+
+        // Verify the URL was replaced with a data URI
+        let url = json["messages"][0]["content"][0]["image_url"]["url"]
+            .as_str()
+            .unwrap();
+        assert!(
+            url.starts_with("data:image/png;base64,"),
+            "URL should be replaced with data URI"
         );
     }
 }

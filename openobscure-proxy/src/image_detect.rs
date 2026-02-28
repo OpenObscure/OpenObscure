@@ -1,10 +1,11 @@
-//! Detection of base64-encoded images within JSON request bodies.
+//! Detection of images within JSON request bodies (base64 and URL).
 //!
-//! LLM providers embed images as base64 strings in JSON:
-//! - Anthropic: `{"type":"image","source":{"type":"base64","media_type":"...","data":"..."}}`
-//! - OpenAI: `{"type":"image_url","image_url":{"url":"data:image/...;base64,..."}}`
+//! LLM providers embed images in JSON in two ways:
+//! - **Base64**: Anthropic `source.type:"base64"`, OpenAI `data:image/...;base64,...`
+//! - **URL**: Anthropic `source.type:"url"`, OpenAI `image_url.url:"https://..."`
 //!
-//! This module detects these patterns and extracts the raw image bytes.
+//! This module detects both patterns. Base64 images are extracted directly;
+//! URL images are collected for async fetching by the caller.
 
 use base64::Engine;
 use serde_json::Value;
@@ -27,6 +28,10 @@ pub enum ImageFormat {
     AnthropicBase64,
     /// OpenAI: data URI in "image_url.url" field.
     OpenAiDataUri,
+    /// Anthropic: URL reference in "source.url" field.
+    AnthropicUrl,
+    /// OpenAI: external URL in "image_url.url" field (not a data URI).
+    OpenAiExternalUrl,
 }
 
 /// Reference to an image content block's location in the JSON tree.
@@ -54,12 +59,7 @@ pub fn is_image_content_block(obj: &serde_json::Map<String, Value>) -> Option<Im
             let source = obj.get("source")?.as_object()?;
             let source_type = source.get("type")?.as_str()?;
             if source_type != "base64" {
-                oo_warn!(
-                    crate::oo_log::modules::IMAGE,
-                    "Skipped URL-based image (not yet supported)",
-                    source_type = source_type
-                );
-                return None; // URL-based images not handled (yet)
+                return None; // URL-based images handled by detect_url_image_block()
             }
             let media_type = source
                 .get("media_type")
@@ -78,13 +78,7 @@ pub fn is_image_content_block(obj: &serde_json::Map<String, Value>) -> Option<Im
             let image_url = obj.get("image_url")?.as_object()?;
             let url = image_url.get("url")?.as_str()?;
             if !url.starts_with("data:image/") {
-                let truncated = if url.len() > 80 { &url[..80] } else { url };
-                oo_warn!(
-                    crate::oo_log::modules::IMAGE,
-                    "Skipped external URL image (not yet supported)",
-                    url_prefix = truncated
-                );
-                return None; // External URL images not handled
+                return None; // External URL images handled by detect_url_image_block()
             }
             // Extract media type from data URI: "data:image/png;base64,..."
             let media_type = url
@@ -95,6 +89,60 @@ pub fn is_image_content_block(obj: &serde_json::Map<String, Value>) -> Option<Im
                 format: ImageFormat::OpenAiDataUri,
                 data_key_path: vec!["image_url".to_string(), "url".to_string()],
                 media_type,
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Reference to a URL-based image in a JSON content block.
+#[derive(Debug, Clone)]
+pub struct ImageUrlRef {
+    pub format: ImageFormat,
+    /// The external URL to fetch.
+    pub url: String,
+    /// The media type hint from the JSON structure (may be None).
+    pub media_type: Option<String>,
+}
+
+/// Check if a JSON object is a URL-based image content block.
+///
+/// Complement to `is_image_content_block` — detects Anthropic `source.type:"url"`
+/// and OpenAI external `image_url.url:"https://..."` blocks.
+/// Returns `None` for base64 images or non-image objects.
+pub fn detect_url_image_block(obj: &serde_json::Map<String, Value>) -> Option<ImageUrlRef> {
+    let type_val = obj.get("type")?.as_str()?;
+
+    match type_val {
+        // Anthropic: {"type": "image", "source": {"type": "url", "url": "https://..."}}
+        "image" => {
+            let source = obj.get("source")?.as_object()?;
+            let source_type = source.get("type")?.as_str()?;
+            if source_type != "url" {
+                return None; // base64 or unknown, not a URL image
+            }
+            let url = source.get("url")?.as_str()?;
+            let media_type = source
+                .get("media_type")
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            Some(ImageUrlRef {
+                format: ImageFormat::AnthropicUrl,
+                url: url.to_string(),
+                media_type,
+            })
+        }
+        // OpenAI: {"type": "image_url", "image_url": {"url": "https://..."}}
+        "image_url" => {
+            let image_url = obj.get("image_url")?.as_object()?;
+            let url = image_url.get("url")?.as_str()?;
+            if url.starts_with("data:image/") {
+                return None; // data URI, not an external URL
+            }
+            Some(ImageUrlRef {
+                format: ImageFormat::OpenAiExternalUrl,
+                url: url.to_string(),
+                media_type: None, // inferred from response Content-Type or magic bytes
             })
         }
         _ => None,
@@ -128,6 +176,8 @@ pub fn extract_image_bytes(
                 .unwrap_or_else(|| "image/png".to_string());
             (after_comma, media)
         }
+        // URL formats don't have base64 data — caller should use fetch instead
+        ImageFormat::AnthropicUrl | ImageFormat::OpenAiExternalUrl => return None,
     };
 
     let raw_bytes = base64::engine::general_purpose::STANDARD
@@ -212,8 +262,10 @@ pub fn detect_media_type(bytes: &[u8]) -> Option<&'static str> {
 pub fn encode_to_base64(bytes: &[u8], media_type: &str, format: ImageFormat) -> String {
     let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
     match format {
-        ImageFormat::AnthropicBase64 => b64,
-        ImageFormat::OpenAiDataUri => format!("data:{};base64,{}", media_type, b64),
+        ImageFormat::AnthropicBase64 | ImageFormat::AnthropicUrl => b64,
+        ImageFormat::OpenAiDataUri | ImageFormat::OpenAiExternalUrl => {
+            format!("data:{};base64,{}", media_type, b64)
+        }
     }
 }
 
@@ -276,21 +328,93 @@ mod tests {
     }
 
     #[test]
-    fn test_reject_url_based_image() {
+    fn test_base64_detector_skips_url_image() {
         let obj = json!({
             "type": "image",
             "source": {"type": "url", "url": "https://example.com/image.png"}
         });
+        // is_image_content_block should return None for URL images
         assert!(is_image_content_block(obj.as_object().unwrap()).is_none());
     }
 
     #[test]
-    fn test_reject_external_url_openai() {
+    fn test_base64_detector_skips_external_url_openai() {
         let obj = json!({
             "type": "image_url",
             "image_url": {"url": "https://example.com/image.png"}
         });
         assert!(is_image_content_block(obj.as_object().unwrap()).is_none());
+    }
+
+    // --- URL image detection tests ---
+
+    #[test]
+    fn test_detect_anthropic_url_image() {
+        let obj = json!({
+            "type": "image",
+            "source": {
+                "type": "url",
+                "url": "https://cdn.discordapp.com/attachments/123/456/image.png",
+                "media_type": "image/png"
+            }
+        });
+        let result = detect_url_image_block(obj.as_object().unwrap());
+        assert!(result.is_some());
+        let r = result.unwrap();
+        assert_eq!(r.format, ImageFormat::AnthropicUrl);
+        assert_eq!(
+            r.url,
+            "https://cdn.discordapp.com/attachments/123/456/image.png"
+        );
+        assert_eq!(r.media_type.as_deref(), Some("image/png"));
+    }
+
+    #[test]
+    fn test_detect_openai_external_url() {
+        let obj = json!({
+            "type": "image_url",
+            "image_url": {"url": "https://cdn.discordapp.com/attachments/123/456/image.png"}
+        });
+        let result = detect_url_image_block(obj.as_object().unwrap());
+        assert!(result.is_some());
+        let r = result.unwrap();
+        assert_eq!(r.format, ImageFormat::OpenAiExternalUrl);
+        assert_eq!(
+            r.url,
+            "https://cdn.discordapp.com/attachments/123/456/image.png"
+        );
+        assert!(r.media_type.is_none());
+    }
+
+    #[test]
+    fn test_url_detector_skips_base64() {
+        // Anthropic base64 should not be detected as URL
+        let obj = json!({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/png",
+                "data": tiny_png_base64()
+            }
+        });
+        assert!(detect_url_image_block(obj.as_object().unwrap()).is_none());
+    }
+
+    #[test]
+    fn test_url_detector_skips_data_uri() {
+        // OpenAI data URI should not be detected as URL
+        let data_uri = format!("data:image/png;base64,{}", tiny_png_base64());
+        let obj = json!({
+            "type": "image_url",
+            "image_url": {"url": data_uri}
+        });
+        assert!(detect_url_image_block(obj.as_object().unwrap()).is_none());
+    }
+
+    #[test]
+    fn test_url_detector_skips_text() {
+        let obj = json!({"type": "text", "text": "hello"});
+        assert!(detect_url_image_block(obj.as_object().unwrap()).is_none());
     }
 
     #[test]

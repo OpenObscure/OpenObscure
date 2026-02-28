@@ -44,6 +44,16 @@ pii_scrub = true             # Scrub PII from log output (defense-in-depth)
 # crash_buffer = false       # mmap crash buffer for post-mortem debugging
 # crash_buffer_size = 2097152  # 2MB crash buffer
 
+[image]
+enabled = true
+face_model_dir = "models/blazeface"
+face_model_dir_scrfd = "models/scrfd"
+ocr_model_dir = "models/paddleocr"
+nsfw_model_dir = "models/nudenet"
+# max_dimension = 960           # Resize longest edge (default: 960)
+# nsfw_threshold = 0.45         # NSFW confidence threshold (default: 0.45)
+# model_idle_timeout_secs = 300 # Evict models after N seconds idle (default: 300)
+
 # --- Response Integrity (Cognitive Firewall) ---
 # Scans LLM responses for persuasion/manipulation techniques (EU AI Act Article 5).
 # When enabled, detects urgency, scarcity, social proof, fear, authority, commercial,

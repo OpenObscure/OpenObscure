@@ -99,6 +99,7 @@ pub async fn proxy_handler(
     let versioned_engine = state.key_manager.current().await;
     let (modified_body, mappings, body_timing) = if should_scan {
         let scan_start = std::time::Instant::now();
+        let fetch_config = state.config.image.to_fetch_config();
         match crate::body::process_request_body(
             &body_bytes,
             &request_id,
@@ -108,7 +109,11 @@ pub async fn proxy_handler(
             &state.config.scanner.skip_fields,
             state.image_models.as_ref(),
             state.kws_engine.as_ref(),
-        ) {
+            Some(&state.http_client),
+            &fetch_config,
+        )
+        .await
+        {
             Ok(result) => {
                 let encrypt_elapsed = scan_start.elapsed();
                 state.health.scan_latency.record(encrypt_elapsed);
