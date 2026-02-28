@@ -67,23 +67,11 @@ pub async fn process_request_body(
     let img_start = std::time::Instant::now();
     let image_stats = if let Some(models) = image_models {
         if models.config().enabled {
-            oo_info!(
-                crate::oo_log::modules::IMAGE,
-                "Image pipeline active, scanning JSON for images"
-            );
             process_images_in_json(&mut json, models, scanner, http_client, fetch_config).await
         } else {
-            oo_info!(
-                crate::oo_log::modules::IMAGE,
-                "Image pipeline disabled in config"
-            );
             Vec::new()
         }
     } else {
-        oo_info!(
-            crate::oo_log::modules::IMAGE,
-            "No image models loaded, skipping image processing"
-        );
         Vec::new()
     };
     let image_us = img_start.elapsed().as_micros() as u64;
@@ -251,123 +239,8 @@ async fn process_images_in_json(
     let mut stats = Vec::new();
     let mut pending_urls: Vec<PendingUrlImage> = Vec::new();
 
-    // Diagnostic: log request structure to debug image format detection
-    let top_keys: Vec<&str> = json
-        .as_object()
-        .map(|m| m.keys().map(|k| k.as_str()).collect())
-        .unwrap_or_default();
-    oo_info!(
-        crate::oo_log::modules::IMAGE,
-        "Request top-level keys",
-        keys = format!("{:?}", top_keys)
-    );
-
-    // Check for image-related strings anywhere in the serialized JSON
-    let json_str = serde_json::to_string(&json).unwrap_or_default();
-    let has_image_url_type = json_str.contains("\"image_url\"");
-    let has_image_type = json_str.contains("\"type\":\"image\"");
-    let has_base64_marker = json_str.contains(";base64,") || json_str.contains("\"base64\"");
-    let has_discord_cdn = json_str.contains("cdn.discordapp.com")
-        || json_str.contains("cdn.discord.com")
-        || json_str.contains("media.discordapp.net");
-    oo_info!(
-        crate::oo_log::modules::IMAGE,
-        "Image marker scan",
-        has_image_url_type = has_image_url_type,
-        has_image_type = has_image_type,
-        has_base64_marker = has_base64_marker,
-        has_discord_cdn = has_discord_cdn,
-        body_size = json_str.len()
-    );
-
-    if let Some(messages) = json.get("messages").and_then(|v| v.as_array()) {
-        let msg_count = messages.len();
-        // Only log last 5 messages in detail (most recent, likely to contain image)
-        let start = msg_count.saturating_sub(5);
-        for (i, msg) in messages.iter().enumerate().skip(start) {
-            let role = msg
-                .get("role")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-            let msg_keys: Vec<&str> = msg
-                .as_object()
-                .map(|m| m.keys().map(|k| k.as_str()).collect())
-                .unwrap_or_default();
-            if let Some(content) = msg.get("content") {
-                match content {
-                    Value::String(s) => {
-                        let has_url = s.contains("http://") || s.contains("https://");
-                        oo_info!(
-                            crate::oo_log::modules::IMAGE,
-                            "Message content is string",
-                            msg_index = i,
-                            role = role,
-                            msg_keys = format!("{:?}", msg_keys),
-                            len = s.len(),
-                            has_url = has_url
-                        );
-                    }
-                    Value::Array(arr) => {
-                        let types: Vec<&str> = arr
-                            .iter()
-                            .filter_map(|v| v.get("type").and_then(|t| t.as_str()))
-                            .collect();
-                        oo_info!(
-                            crate::oo_log::modules::IMAGE,
-                            "Message content is array",
-                            msg_index = i,
-                            role = role,
-                            msg_keys = format!("{:?}", msg_keys),
-                            block_count = arr.len(),
-                            block_types = format!("{:?}", types)
-                        );
-                    }
-                    Value::Null => {
-                        oo_info!(
-                            crate::oo_log::modules::IMAGE,
-                            "Message content is null",
-                            msg_index = i,
-                            role = role,
-                            msg_keys = format!("{:?}", msg_keys)
-                        );
-                    }
-                    _ => {
-                        oo_info!(
-                            crate::oo_log::modules::IMAGE,
-                            "Message content is unexpected type",
-                            msg_index = i,
-                            role = role,
-                            msg_keys = format!("{:?}", msg_keys)
-                        );
-                    }
-                }
-            } else {
-                oo_info!(
-                    crate::oo_log::modules::IMAGE,
-                    "Message has no content field",
-                    msg_index = i,
-                    role = role,
-                    msg_keys = format!("{:?}", msg_keys)
-                );
-            }
-        }
-        oo_info!(
-            crate::oo_log::modules::IMAGE,
-            "Messages summary",
-            total_messages = msg_count,
-            detailed_from = start
-        );
-    }
-
     // Phase 1: Walk JSON — process base64 images immediately, collect URL refs
     walk_json_for_images(json, models, scanner, &mut stats, &mut pending_urls, "");
-
-    oo_info!(
-        crate::oo_log::modules::IMAGE,
-        "Image walk complete",
-        base64_processed = stats.len(),
-        url_refs_found = pending_urls.len()
-    );
 
     // Phase 1b: Fetch URL images concurrently (if any)
     if !pending_urls.is_empty() {
@@ -407,15 +280,6 @@ fn walk_json_for_images(
 ) {
     match value {
         Value::Object(map) => {
-            // Log content block types at trace level for diagnostics
-            if let Some(type_val) = map.get("type").and_then(|v| v.as_str()) {
-                oo_trace!(
-                    crate::oo_log::modules::IMAGE,
-                    "Content block found",
-                    block_type = type_val,
-                    pointer = pointer
-                );
-            }
             // Check if this object is a base64 image content block
             if let Some(img_ref) = image_detect::is_image_content_block(map) {
                 // Extract the base64 image bytes
