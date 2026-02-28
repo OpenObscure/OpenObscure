@@ -181,6 +181,23 @@ pub async fn proxy_handler(
                             .record(std::time::Duration::from_millis(is.ocr_ms));
                     }
                 }
+                if !result.image_stats.is_empty() {
+                    let total_faces: u32 =
+                        result.image_stats.iter().map(|s| s.faces_redacted).sum();
+                    let total_ocr: u32 = result
+                        .image_stats
+                        .iter()
+                        .map(|s| s.text_regions_found)
+                        .sum();
+                    let any_nsfw = result.image_stats.iter().any(|s| s.nsfw_detected);
+                    oo_info!(crate::oo_log::modules::IMAGE, "Image pipeline processed",
+                        request_id = %request_id,
+                        images = result.image_stats.len(),
+                        faces_redacted = total_faces,
+                        text_regions = total_ocr,
+                        nsfw_detected = any_nsfw,
+                        elapsed_us = result.image_us);
+                }
                 // Stash timing for response headers
                 let body_timing = (
                     result.text_scan_us,

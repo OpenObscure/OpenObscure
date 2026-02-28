@@ -54,6 +54,11 @@ pub fn is_image_content_block(obj: &serde_json::Map<String, Value>) -> Option<Im
             let source = obj.get("source")?.as_object()?;
             let source_type = source.get("type")?.as_str()?;
             if source_type != "base64" {
+                oo_warn!(
+                    crate::oo_log::modules::IMAGE,
+                    "Skipped URL-based image (not yet supported)",
+                    source_type = source_type
+                );
                 return None; // URL-based images not handled (yet)
             }
             let media_type = source
@@ -73,6 +78,12 @@ pub fn is_image_content_block(obj: &serde_json::Map<String, Value>) -> Option<Im
             let image_url = obj.get("image_url")?.as_object()?;
             let url = image_url.get("url")?.as_str()?;
             if !url.starts_with("data:image/") {
+                let truncated = if url.len() > 80 { &url[..80] } else { url };
+                oo_warn!(
+                    crate::oo_log::modules::IMAGE,
+                    "Skipped external URL image (not yet supported)",
+                    url_prefix = truncated
+                );
                 return None; // External URL images not handled
             }
             // Extract media type from data URI: "data:image/png;base64,..."
