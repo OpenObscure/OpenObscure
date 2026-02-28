@@ -20,7 +20,7 @@ MODELS_DIR="$ROOT_DIR/openobscure-proxy/models"
 # ── NudeNet 320n (GPL-3.0) ──────────────────────────────────────────────────
 # Source: https://github.com/notAI-tech/NudeNet
 # License: GPL-3.0 — cannot be bundled in Apache/MIT repos
-NUDENET_URL="https://huggingface.co/deepghs/imgutils-models/resolve/main/nudenet/320n.onnx"
+NUDENET_URL="https://huggingface.co/deepghs/nudenet_onnx/resolve/main/320n.onnx"
 NUDENET_SHA256="9832f15515bdb06bcb5a77beb60bc8ea54439bd7ecbaac46dac3b760b3dd13cc"
 NUDENET_DIR="$MODELS_DIR/nudenet"
 
