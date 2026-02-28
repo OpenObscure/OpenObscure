@@ -251,9 +251,48 @@ async fn process_images_in_json(
     let mut stats = Vec::new();
     let mut pending_urls: Vec<PendingUrlImage> = Vec::new();
 
-    // Diagnostic: log message content structure to debug image format detection
+    // Diagnostic: log request structure to debug image format detection
+    let top_keys: Vec<&str> = json
+        .as_object()
+        .map(|m| m.keys().map(|k| k.as_str()).collect())
+        .unwrap_or_default();
+    oo_info!(
+        crate::oo_log::modules::IMAGE,
+        "Request top-level keys",
+        keys = format!("{:?}", top_keys)
+    );
+
+    // Check for image-related strings anywhere in the serialized JSON
+    let json_str = serde_json::to_string(&json).unwrap_or_default();
+    let has_image_url_type = json_str.contains("\"image_url\"");
+    let has_image_type = json_str.contains("\"type\":\"image\"");
+    let has_base64_marker = json_str.contains(";base64,") || json_str.contains("\"base64\"");
+    let has_discord_cdn = json_str.contains("cdn.discordapp.com")
+        || json_str.contains("cdn.discord.com")
+        || json_str.contains("media.discordapp.net");
+    oo_info!(
+        crate::oo_log::modules::IMAGE,
+        "Image marker scan",
+        has_image_url_type = has_image_url_type,
+        has_image_type = has_image_type,
+        has_base64_marker = has_base64_marker,
+        has_discord_cdn = has_discord_cdn,
+        body_size = json_str.len()
+    );
+
     if let Some(messages) = json.get("messages").and_then(|v| v.as_array()) {
-        for (i, msg) in messages.iter().enumerate() {
+        let msg_count = messages.len();
+        // Only log last 5 messages in detail (most recent, likely to contain image)
+        let start = msg_count.saturating_sub(5);
+        for (i, msg) in messages.iter().enumerate().skip(start) {
+            let role = msg
+                .get("role")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+            let msg_keys: Vec<&str> = msg
+                .as_object()
+                .map(|m| m.keys().map(|k| k.as_str()).collect())
+                .unwrap_or_default();
             if let Some(content) = msg.get("content") {
                 match content {
                     Value::String(s) => {
@@ -262,6 +301,8 @@ async fn process_images_in_json(
                             crate::oo_log::modules::IMAGE,
                             "Message content is string",
                             msg_index = i,
+                            role = role,
+                            msg_keys = format!("{:?}", msg_keys),
                             len = s.len(),
                             has_url = has_url
                         );
@@ -275,20 +316,47 @@ async fn process_images_in_json(
                             crate::oo_log::modules::IMAGE,
                             "Message content is array",
                             msg_index = i,
+                            role = role,
+                            msg_keys = format!("{:?}", msg_keys),
                             block_count = arr.len(),
                             block_types = format!("{:?}", types)
+                        );
+                    }
+                    Value::Null => {
+                        oo_info!(
+                            crate::oo_log::modules::IMAGE,
+                            "Message content is null",
+                            msg_index = i,
+                            role = role,
+                            msg_keys = format!("{:?}", msg_keys)
                         );
                     }
                     _ => {
                         oo_info!(
                             crate::oo_log::modules::IMAGE,
                             "Message content is unexpected type",
-                            msg_index = i
+                            msg_index = i,
+                            role = role,
+                            msg_keys = format!("{:?}", msg_keys)
                         );
                     }
                 }
+            } else {
+                oo_info!(
+                    crate::oo_log::modules::IMAGE,
+                    "Message has no content field",
+                    msg_index = i,
+                    role = role,
+                    msg_keys = format!("{:?}", msg_keys)
+                );
             }
         }
+        oo_info!(
+            crate::oo_log::modules::IMAGE,
+            "Messages summary",
+            total_messages = msg_count,
+            detailed_from = start
+        );
     }
 
     // Phase 1: Walk JSON — process base64 images immediately, collect URL refs
