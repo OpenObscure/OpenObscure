@@ -92,6 +92,162 @@ impl SseAccumulator {
     }
 }
 
+/// Default maximum text bytes for SseRiBuffer.
+const RI_BUFFER_DEFAULT_MAX: usize = 256 * 1024; // 256KB
+
+/// Parallel text accumulator for SSE streams — extracts text content for RI scanning.
+///
+/// Runs alongside `SseAccumulator` (which handles FPE decryption). This buffer
+/// accumulates the LLM's text output from SSE delta events so that Response
+/// Integrity scanning can run on the complete text after the stream ends.
+///
+/// Supports Anthropic, OpenAI, and Gemini SSE delta formats, plus a generic
+/// fallback that extracts any `"text"` or `"content"` string values.
+pub struct SseRiBuffer {
+    text: String,
+    max_text_bytes: usize,
+    truncated: bool,
+}
+
+impl Default for SseRiBuffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SseRiBuffer {
+    pub fn new() -> Self {
+        Self {
+            text: String::new(),
+            max_text_bytes: RI_BUFFER_DEFAULT_MAX,
+            truncated: false,
+        }
+    }
+
+    pub fn with_max_bytes(max_text_bytes: usize) -> Self {
+        Self {
+            text: String::new(),
+            max_text_bytes,
+            truncated: false,
+        }
+    }
+
+    /// Feed raw SSE frame bytes. Parses `data:` lines and extracts text deltas.
+    pub fn feed_sse_data(&mut self, raw: &[u8]) {
+        if self.truncated {
+            return;
+        }
+
+        let text = match std::str::from_utf8(raw) {
+            Ok(s) => s,
+            Err(_) => return,
+        };
+
+        for line in text.lines() {
+            let data = if let Some(d) = line.strip_prefix("data: ") {
+                d.trim()
+            } else if let Some(d) = line.strip_prefix("data:") {
+                d.trim()
+            } else {
+                continue;
+            };
+
+            // Skip SSE termination and comments
+            if data == "[DONE]" || data.is_empty() {
+                continue;
+            }
+
+            // Try JSON parse
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                self.extract_delta_text(&json);
+            }
+        }
+    }
+
+    /// Extract text from a single SSE JSON delta event.
+    fn extract_delta_text(&mut self, json: &serde_json::Value) {
+        // Anthropic: content_block_delta → delta.text
+        if let Some(text) = json
+            .get("delta")
+            .and_then(|d| d.get("text"))
+            .and_then(|t| t.as_str())
+        {
+            self.append(text);
+            return;
+        }
+
+        // OpenAI: choices[0].delta.content
+        if let Some(content) = json
+            .get("choices")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|choice| choice.get("delta"))
+            .and_then(|d| d.get("content"))
+            .and_then(|c| c.as_str())
+        {
+            self.append(content);
+            return;
+        }
+
+        // Gemini: candidates[0].content.parts[0].text
+        if let Some(text) = json
+            .get("candidates")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|cand| cand.get("content"))
+            .and_then(|c| c.get("parts"))
+            .and_then(|p| p.as_array())
+            .and_then(|parts| parts.first())
+            .and_then(|part| part.get("text"))
+            .and_then(|t| t.as_str())
+        {
+            self.append(text);
+            return;
+        }
+
+        // Generic fallback: any "text" or "content" string at top level
+        if let Some(text) = json.get("text").and_then(|t| t.as_str()) {
+            self.append(text);
+        } else if let Some(content) = json.get("content").and_then(|c| c.as_str()) {
+            self.append(content);
+        }
+    }
+
+    fn append(&mut self, text: &str) {
+        if self.text.len() + text.len() > self.max_text_bytes {
+            // Truncate at limit
+            let remaining = self.max_text_bytes.saturating_sub(self.text.len());
+            if remaining > 0 {
+                // Snap to char boundary (MSRV-safe: floor_char_boundary requires 1.91)
+                let mut end = remaining.min(text.len());
+                while end > 0 && !text.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let safe = &text[..end];
+                self.text.push_str(safe);
+            }
+            self.truncated = true;
+        } else {
+            self.text.push_str(text);
+        }
+    }
+
+    /// Finish accumulation and return the collected text for RI scanning.
+    /// Returns `None` if no text was accumulated.
+    pub fn finish(self) -> Option<String> {
+        if self.text.is_empty() {
+            None
+        } else {
+            Some(self.text)
+        }
+    }
+
+    /// Whether the buffer had to truncate text at the max limit.
+    pub fn is_truncated(&self) -> bool {
+        self.truncated
+    }
+}
+
 /// Snap a byte offset backward to a valid UTF-8 character boundary.
 fn snap_to_char_boundary(data: &[u8], offset: usize) -> usize {
     let mut pos = offset;
@@ -221,5 +377,79 @@ mod tests {
         let data = Bytes::new();
         let result = acc.feed(&data, &m);
         assert!(result.is_empty());
+    }
+
+    // ── SseRiBuffer tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_ri_buffer_anthropic_sse_deltas() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello \"}}\n\n");
+        buf.feed_sse_data(b"event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"world\"}}\n\n");
+        let text = buf.finish().unwrap();
+        assert_eq!(text, "Hello world");
+    }
+
+    #[test]
+    fn test_ri_buffer_openai_sse_deltas() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hello \"}}]}\n\n");
+        buf.feed_sse_data(b"data: {\"choices\":[{\"delta\":{\"content\":\"world\"}}]}\n\n");
+        let text = buf.finish().unwrap();
+        assert_eq!(text, "Hello world");
+    }
+
+    #[test]
+    fn test_ri_buffer_gemini_sse_deltas() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(
+            b"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hello \"}]}}]}\n\n",
+        );
+        buf.feed_sse_data(
+            b"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Gemini\"}]}}]}\n\n",
+        );
+        let text = buf.finish().unwrap();
+        assert_eq!(text, "Hello Gemini");
+    }
+
+    #[test]
+    fn test_ri_buffer_ignores_done() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n");
+        buf.feed_sse_data(b"data: [DONE]\n\n");
+        let text = buf.finish().unwrap();
+        assert_eq!(text, "Hi");
+    }
+
+    #[test]
+    fn test_ri_buffer_max_bytes_truncation() {
+        let mut buf = SseRiBuffer::with_max_bytes(10);
+        buf.feed_sse_data(b"data: {\"text\":\"Hello world this is long\"}\n\n");
+        assert!(buf.is_truncated());
+        let text = buf.finish().unwrap();
+        assert!(text.len() <= 10);
+        assert!(text.starts_with("Hello"));
+    }
+
+    #[test]
+    fn test_ri_buffer_empty_stream() {
+        let buf = SseRiBuffer::new();
+        assert!(buf.finish().is_none());
+    }
+
+    #[test]
+    fn test_ri_buffer_non_json_data() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"data: this is not json\n\n");
+        assert!(buf.finish().is_none());
+    }
+
+    #[test]
+    fn test_ri_buffer_generic_fallback() {
+        let mut buf = SseRiBuffer::new();
+        // Non-standard format with top-level "content" string
+        buf.feed_sse_data(b"data: {\"content\":\"fallback text\"}\n\n");
+        let text = buf.finish().unwrap();
+        assert_eq!(text, "fallback text");
     }
 }

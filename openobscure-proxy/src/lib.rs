@@ -55,6 +55,7 @@ pub mod hash_token;
 
 // Request/response mapping + SSE frame accumulation
 pub mod mapping;
+pub mod response_format;
 pub mod sse_accumulator;
 
 // Mobile library API

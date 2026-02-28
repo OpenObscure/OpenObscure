@@ -39,6 +39,7 @@ mod persuasion_dict;
 mod pii_scrub_layer;
 mod pii_types;
 mod proxy;
+mod response_format;
 mod response_integrity;
 mod ri_model;
 mod scanner;

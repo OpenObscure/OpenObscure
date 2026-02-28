@@ -293,22 +293,49 @@ pub async fn proxy_handler(
         let sse_flush_timeout =
             std::time::Duration::from_millis(state.config.proxy.sse_flush_timeout_ms);
         let accumulator = crate::sse_accumulator::SseAccumulator::new(sse_buffer_size);
+        let ri_buffer = crate::sse_accumulator::SseRiBuffer::new();
+        let ri_scanner = state.response_integrity.clone();
+        let ri_log_only = state.config.response_integrity.log_only;
+        let health = state.health.clone();
 
         // Build streaming body that decrypts each chunk with cross-frame accumulation.
         // `done` flag prevents polling after stream end (flush-then-end pattern).
+        // `ri_done` flag ensures RI warning is emitted only once after flush.
         let stream = futures_util::stream::unfold(
-            (resp_body, mappings, accumulator, false),
-            move |(mut body, mappings, mut accumulator, done)| {
+            (resp_body, mappings, accumulator, ri_buffer, false, false),
+            move |(mut body, mappings, mut accumulator, mut ri_buffer, done, ri_done)| {
                 let mapping_store = mapping_store.clone();
                 let req_id = req_id;
+                let ri_scanner = ri_scanner.clone();
+                let health = health.clone();
                 async move {
-                    if done {
+                    if done && ri_done {
+                        return None;
+                    }
+
+                    // If FPE flush is done but RI warning not yet emitted, emit it
+                    if done && !ri_done {
+                        let warning = emit_sse_ri_warning(
+                            ri_buffer,
+                            ri_scanner.as_deref(),
+                            ri_log_only,
+                            &req_id,
+                            &health,
+                        );
+                        if !warning.is_empty() {
+                            return Some((
+                                Ok::<_, std::convert::Infallible>(warning),
+                                (body, mappings, accumulator, crate::sse_accumulator::SseRiBuffer::new(), true, true),
+                            ));
+                        }
                         return None;
                     }
 
                     match tokio::time::timeout(sse_flush_timeout, body.frame()).await {
                         Ok(Some(Ok(frame))) => {
                             if let Ok(data) = frame.into_data() {
+                                // Feed RI buffer with raw SSE data
+                                ri_buffer.feed_sse_data(&data);
                                 let chunk = if let Some(ref m) = mappings {
                                     accumulator.feed(&data, m)
                                 } else {
@@ -316,11 +343,11 @@ pub async fn proxy_handler(
                                 };
                                 Some((
                                     Ok::<_, std::convert::Infallible>(chunk),
-                                    (body, mappings, accumulator, false),
+                                    (body, mappings, accumulator, ri_buffer, false, false),
                                 ))
                             } else {
                                 // Trailers or other frame types — yield empty bytes
-                                Some((Ok(Bytes::new()), (body, mappings, accumulator, false)))
+                                Some((Ok(Bytes::new()), (body, mappings, accumulator, ri_buffer, false, false)))
                             }
                         }
                         Ok(Some(Err(_))) => {
@@ -332,9 +359,22 @@ pub async fn proxy_handler(
                             };
                             mapping_store.remove(&req_id).await;
                             if !flush.is_empty() {
-                                Some((Ok(flush), (body, mappings, accumulator, true)))
+                                // Transition to done=true, ri_done=false → will emit RI warning next
+                                Some((Ok(flush), (body, mappings, accumulator, ri_buffer, true, false)))
                             } else {
-                                None
+                                // No flush data — emit RI warning directly
+                                let warning = emit_sse_ri_warning(
+                                    ri_buffer,
+                                    ri_scanner.as_deref(),
+                                    ri_log_only,
+                                    &req_id,
+                                    &health,
+                                );
+                                if !warning.is_empty() {
+                                    Some((Ok(warning), (body, mappings, accumulator, crate::sse_accumulator::SseRiBuffer::new(), true, true)))
+                                } else {
+                                    None
+                                }
                             }
                         }
                         Ok(None) => {
@@ -346,9 +386,22 @@ pub async fn proxy_handler(
                             };
                             mapping_store.remove(&req_id).await;
                             if !flush.is_empty() {
-                                Some((Ok(flush), (body, mappings, accumulator, true)))
+                                // Transition to done=true, ri_done=false → will emit RI warning next
+                                Some((Ok(flush), (body, mappings, accumulator, ri_buffer, true, false)))
                             } else {
-                                None
+                                // No flush data — emit RI warning directly
+                                let warning = emit_sse_ri_warning(
+                                    ri_buffer,
+                                    ri_scanner.as_deref(),
+                                    ri_log_only,
+                                    &req_id,
+                                    &health,
+                                );
+                                if !warning.is_empty() {
+                                    Some((Ok(warning), (body, mappings, accumulator, crate::sse_accumulator::SseRiBuffer::new(), true, true)))
+                                } else {
+                                    None
+                                }
                             }
                         }
                         Err(_timeout) => {
@@ -358,7 +411,7 @@ pub async fn proxy_handler(
                             } else {
                                 Bytes::new()
                             };
-                            Some((Ok(flush), (body, mappings, accumulator, false)))
+                            Some((Ok(flush), (body, mappings, accumulator, ri_buffer, false, false)))
                         }
                     }
                 }
@@ -401,18 +454,40 @@ pub async fn proxy_handler(
         })?
         .to_bytes();
 
-    // 8. Decrypt FPE values in response
+    // 8. Decrypt FPE values in response + detect format for RI
+    let resp_content_type = parts
+        .headers
+        .get(header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
     let decrypt_start = std::time::Instant::now();
-    let final_body = if has_mappings {
+    let body_result = if has_mappings {
         if let Some(mappings) = state.mapping_store.get(&request_id).await {
-            let decrypted = crate::body::process_response_body(&resp_bytes, &mappings);
+            let result = crate::body::process_response_body(
+                &resp_bytes,
+                &mappings,
+                resp_content_type.as_deref(),
+            );
             state.mapping_store.remove(&request_id).await;
-            decrypted
+            result
         } else {
-            resp_bytes
+            let format =
+                crate::response_format::detect(resp_content_type.as_deref(), &resp_bytes);
+            let extracted_text = crate::response_format::extract_text(&resp_bytes, format);
+            crate::body::ResponseBodyResult {
+                body: resp_bytes,
+                extracted_text,
+                format,
+            }
         }
     } else {
-        resp_bytes
+        let format = crate::response_format::detect(resp_content_type.as_deref(), &resp_bytes);
+        let extracted_text = crate::response_format::extract_text(&resp_bytes, format);
+        crate::body::ResponseBodyResult {
+            body: resp_bytes,
+            extracted_text,
+            format,
+        }
     };
     let decrypt_elapsed = decrypt_start.elapsed();
     if has_mappings {
@@ -422,12 +497,18 @@ pub async fn proxy_handler(
     }
 
     // 8b. Response integrity scan (cognitive firewall)
-    // No content-type check here: extract_response_text returns None for non-JSON (fail-open).
     let ri_start = std::time::Instant::now();
     let final_body = if let Some(ref ri_scanner) = state.response_integrity {
-        scan_response_integrity(&final_body, ri_scanner, &request_id, &state)
+        scan_response_integrity(
+            &body_result.body,
+            body_result.extracted_text.as_deref(),
+            body_result.format,
+            ri_scanner,
+            &request_id,
+            &state,
+        )
     } else {
-        final_body
+        body_result.body
     };
     let ri_us = ri_start.elapsed().as_micros() as u64;
     if ri_us > 0 {
@@ -611,90 +692,23 @@ fn log_pii_stats(request_id: &uuid::Uuid, mappings: &crate::mapping::RequestMapp
         pii_breakdown = %breakdown.join(", "));
 }
 
-/// Extract text content from an LLM JSON response body.
-/// Supports Anthropic (`content[].text`) and OpenAI (`choices[].message.content`) formats.
-fn extract_response_text(body: &Bytes) -> Option<String> {
-    let json: serde_json::Value = serde_json::from_slice(body).ok()?;
-
-    // Anthropic format: { "content": [{ "type": "text", "text": "..." }] }
-    if let Some(content_arr) = json.get("content").and_then(|c| c.as_array()) {
-        let texts: Vec<&str> = content_arr
-            .iter()
-            .filter_map(|block| block.get("text").and_then(|t| t.as_str()))
-            .collect();
-        if !texts.is_empty() {
-            return Some(texts.join(" "));
-        }
-    }
-
-    // OpenAI format: { "choices": [{ "message": { "content": "..." } }] }
-    if let Some(choices) = json.get("choices").and_then(|c| c.as_array()) {
-        let texts: Vec<&str> = choices
-            .iter()
-            .filter_map(|choice| {
-                choice
-                    .get("message")
-                    .and_then(|m| m.get("content"))
-                    .and_then(|c| c.as_str())
-            })
-            .collect();
-        if !texts.is_empty() {
-            return Some(texts.join(" "));
-        }
-    }
-
-    None
-}
-
-/// Inject a warning label into the first text content of an LLM JSON response.
-/// Returns modified body bytes, or None on parse/format error.
-fn inject_warning_label(body: &Bytes, label: &str) -> Option<Bytes> {
-    let mut json: serde_json::Value = serde_json::from_slice(body).ok()?;
-
-    // Anthropic format
-    if let Some(content_arr) = json.get_mut("content").and_then(|c| c.as_array_mut()) {
-        for block in content_arr.iter_mut() {
-            if let Some(text) = block
-                .get_mut("text")
-                .and_then(|t| t.as_str().map(String::from))
-            {
-                block["text"] = serde_json::Value::String(format!("{}{}", label, text));
-                let serialized = serde_json::to_vec(&json).ok()?;
-                return Some(Bytes::from(serialized));
-            }
-        }
-    }
-
-    // OpenAI format
-    if let Some(choices) = json.get_mut("choices").and_then(|c| c.as_array_mut()) {
-        for choice in choices.iter_mut() {
-            if let Some(content) = choice
-                .get_mut("message")
-                .and_then(|m| m.get_mut("content"))
-                .and_then(|c| c.as_str().map(String::from))
-            {
-                choice["message"]["content"] =
-                    serde_json::Value::String(format!("{}{}", label, content));
-                let serialized = serde_json::to_vec(&json).ok()?;
-                return Some(Bytes::from(serialized));
-            }
-        }
-    }
-
-    None
-}
-
-/// Orchestrate response integrity scanning. Fail-open: returns original body on any error.
+/// Orchestrate response integrity scanning with multi-format support.
+/// Fail-open: returns original body on any error.
 fn scan_response_integrity(
     body: &Bytes,
+    pre_extracted_text: Option<&str>,
+    format: crate::response_format::ResponseFormat,
     scanner: &ResponseIntegrityScanner,
     request_id: &uuid::Uuid,
     state: &AppState,
 ) -> Bytes {
-    // Extract text from response JSON
-    let text = match extract_response_text(body) {
-        Some(t) => t,
-        None => return body.clone(), // Not parseable or no text content → pass through
+    // Use pre-extracted text if available, otherwise extract from body
+    let text = match pre_extracted_text {
+        Some(t) if !t.is_empty() => t.to_string(),
+        _ => match crate::response_format::extract_text(body, format) {
+            Some(t) => t,
+            None => return body.clone(), // Not parseable or no text content → pass through
+        },
     };
 
     state.health.record_ri_scan();
@@ -728,12 +742,73 @@ fn scan_response_integrity(
         return body.clone();
     }
 
-    // Inject warning label
+    // Inject warning label using multi-format support
     let label = ResponseIntegrityScanner::format_warning_label(&report);
-    match inject_warning_label(body, &label) {
+    match crate::response_format::inject_warning(body, format, &label) {
         Some(modified) => modified,
         None => body.clone(), // Fail-open: return original on injection error
     }
+}
+
+/// Emit an SSE trailing warning event if RI scanning finds persuasion techniques.
+///
+/// Called at SSE stream end. Consumes the `SseRiBuffer`, scans accumulated text,
+/// and returns a `Bytes` containing the warning SSE event (or empty if clean).
+fn emit_sse_ri_warning(
+    ri_buffer: crate::sse_accumulator::SseRiBuffer,
+    ri_scanner: Option<&ResponseIntegrityScanner>,
+    log_only: bool,
+    request_id: &uuid::Uuid,
+    health: &HealthStats,
+) -> Bytes {
+    let scanner = match ri_scanner {
+        Some(s) => s,
+        None => return Bytes::new(),
+    };
+
+    let text = match ri_buffer.finish() {
+        Some(t) => t,
+        None => return Bytes::new(),
+    };
+
+    health.record_ri_scan();
+
+    let report = match scanner.scan(&text) {
+        Some(r) => r,
+        None => return Bytes::new(), // Clean → no warning
+    };
+
+    let flag_count = report.flags.len() as u64;
+    health.record_ri_flags(flag_count);
+
+    let category_names: Vec<String> = {
+        let mut names: Vec<String> = report.categories.iter().map(|c| c.to_string()).collect();
+        names.sort();
+        names
+    };
+
+    oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY, "SSE: Persuasion techniques detected",
+        request_id = %request_id,
+        severity = %report.severity,
+        flags = flag_count,
+        categories = %category_names.join(", "),
+        r2_role = %report.r2_role,
+        r2_categories = %report.r2_categories.join(", "),
+        scan_time_us = report.scan_time_us);
+
+    // If log_only, don't inject warning into stream
+    if log_only {
+        return Bytes::new();
+    }
+
+    // Emit trailing SSE event
+    let label = ResponseIntegrityScanner::format_warning_label(&report);
+    let warning_json = serde_json::json!({"warning": label});
+    let sse_event = format!(
+        "\nevent: openobscure_warning\ndata: {}\n\n",
+        warning_json
+    );
+    Bytes::from(sse_event)
 }
 
 /// Inject `X-OO-*` per-feature timing headers into a response.
@@ -851,16 +926,17 @@ mod tests {
         }
     }
 
-    // --- extract_response_text ---
+    // --- response_format extract + inject (via response_format module) ---
 
     #[test]
     fn test_extract_anthropic_response() {
         let body = serde_json::json!({
             "content": [{"type": "text", "text": "Hello, how can I help you?"}],
-            "model": "claude-3-5-sonnet"
+            "model": "claude-sonnet-4-6-20250514"
         });
-        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
-        let text = extract_response_text(&bytes);
+        let bytes = serde_json::to_vec(&body).unwrap();
+        let format = crate::response_format::detect(Some("application/json"), &bytes);
+        let text = crate::response_format::extract_text(&bytes, format);
         assert_eq!(text.unwrap(), "Hello, how can I help you?");
     }
 
@@ -869,35 +945,38 @@ mod tests {
         let body = serde_json::json!({
             "choices": [{"message": {"content": "Hello there!"}, "index": 0}]
         });
-        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
-        let text = extract_response_text(&bytes);
+        let bytes = serde_json::to_vec(&body).unwrap();
+        let format = crate::response_format::detect(Some("application/json"), &bytes);
+        let text = crate::response_format::extract_text(&bytes, format);
         assert_eq!(text.unwrap(), "Hello there!");
     }
 
     #[test]
     fn test_extract_non_json_returns_none() {
-        let bytes = Bytes::from("not json at all");
-        assert!(extract_response_text(&bytes).is_none());
+        let bytes = b"not json at all";
+        let format = crate::response_format::detect(Some("image/png"), bytes.as_slice());
+        assert!(crate::response_format::extract_text(bytes.as_slice(), format).is_none());
     }
 
     #[test]
     fn test_extract_no_text_content() {
         let body = serde_json::json!({"id": "msg_123", "type": "message"});
-        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
-        assert!(extract_response_text(&bytes).is_none());
+        let bytes = serde_json::to_vec(&body).unwrap();
+        let format = crate::response_format::detect(Some("application/json"), &bytes);
+        assert_eq!(format, crate::response_format::ResponseFormat::UnknownJson);
+        assert!(crate::response_format::extract_text(&bytes, format).is_none());
     }
-
-    // --- inject_warning_label ---
 
     #[test]
     fn test_inject_label_anthropic() {
         let body = serde_json::json!({
             "content": [{"type": "text", "text": "Buy now!"}]
         });
-        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
+        let bytes = serde_json::to_vec(&body).unwrap();
         let label = "[OpenObscure] Influence tactics detected: Commercial\n\
                      This content may be designed to manipulate your decision-making.\n\n";
-        let result = inject_warning_label(&bytes, label);
+        let format = crate::response_format::detect(Some("application/json"), &bytes);
+        let result = crate::response_format::inject_warning(&bytes, format, label);
         assert!(result.is_some());
         let modified: serde_json::Value = serde_json::from_slice(&result.unwrap()).unwrap();
         let text = modified["content"][0]["text"].as_str().unwrap();
@@ -910,11 +989,12 @@ mod tests {
         let body = serde_json::json!({
             "choices": [{"message": {"content": "Act now!"}, "index": 0}]
         });
-        let bytes = Bytes::from(serde_json::to_vec(&body).unwrap());
+        let bytes = serde_json::to_vec(&body).unwrap();
         let label = "[OpenObscure] Multiple influence tactics detected: Fear, Urgency\n\
                      This content may be designed to manipulate your decision-making. \
                      Review carefully before acting on it.\n\n";
-        let result = inject_warning_label(&bytes, label);
+        let format = crate::response_format::detect(Some("application/json"), &bytes);
+        let result = crate::response_format::inject_warning(&bytes, format, label);
         assert!(result.is_some());
         let modified: serde_json::Value = serde_json::from_slice(&result.unwrap()).unwrap();
         let text = modified["choices"][0]["message"]["content"]
@@ -926,8 +1006,9 @@ mod tests {
 
     #[test]
     fn test_inject_label_invalid_json() {
-        let bytes = Bytes::from("not json");
-        assert!(inject_warning_label(&bytes, "WARNING: ").is_none());
+        let bytes = b"not json";
+        let format = crate::response_format::detect(Some("application/json"), bytes.as_slice());
+        assert!(crate::response_format::inject_warning(bytes.as_slice(), format, "WARNING: ").is_none());
     }
 
     // --- resolve_provider ---

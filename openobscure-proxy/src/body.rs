@@ -15,6 +15,7 @@ use crate::image_fetch::{self, ImageFetchConfig};
 use crate::image_pipeline::{self, ImageModelManager, ImageStats, OutputFormat};
 use crate::kws_engine::KwsEngine;
 use crate::mapping::{FpeMapping, RequestMappings};
+use crate::response_format::ResponseFormat;
 use crate::voice_pipeline;
 
 type HttpsConnector =
@@ -542,6 +543,16 @@ fn replace_image_data(
     }
 }
 
+/// Result of response body processing, including format detection and pre-extracted text.
+pub struct ResponseBodyResult {
+    /// The processed (FPE-decrypted) response body bytes.
+    pub body: Bytes,
+    /// Pre-extracted text content for RI scanning (avoids re-parsing).
+    pub extracted_text: Option<String>,
+    /// Detected response format.
+    pub format: ResponseFormat,
+}
+
 /// Process a response body: find encrypted values and replace with originals.
 ///
 /// Handles two response formats:
@@ -549,20 +560,46 @@ fn replace_image_data(
 ///    `message.content` tokens are split across frames. Ciphertext can span frames,
 ///    so we concatenate all content, decrypt, and rebuild as a single response.
 /// 2. Standard JSON / text: simple string replacement on the full body.
-pub fn process_response_body(body: &Bytes, mappings: &RequestMappings) -> Bytes {
+///
+/// Also detects the response format and pre-extracts text for RI scanning.
+pub fn process_response_body(
+    body: &Bytes,
+    mappings: &RequestMappings,
+    content_type: Option<&str>,
+) -> ResponseBodyResult {
     if mappings.is_empty() {
-        return body.clone();
+        let format = crate::response_format::detect(content_type, body);
+        let extracted_text = crate::response_format::extract_text(body, format);
+        return ResponseBodyResult {
+            body: body.clone(),
+            extracted_text,
+            format,
+        };
     }
 
     // Try NDJSON collapse first (Ollama streaming format)
-    if let Some(collapsed) = collapse_ndjson_response(body, mappings) {
-        return collapsed;
+    if let Some((collapsed, decrypted_text)) = collapse_ndjson_response(body, mappings) {
+        return ResponseBodyResult {
+            body: collapsed,
+            extracted_text: Some(decrypted_text),
+            format: ResponseFormat::OllamaJson,
+        };
     }
 
     // Standard path: string replacement on full response
     let text = String::from_utf8_lossy(body);
     let decrypted = mappings.decrypt_response(&text);
-    Bytes::from(decrypted)
+    let decrypted_bytes = Bytes::from(decrypted);
+
+    // Detect format and extract text from the decrypted body
+    let format = crate::response_format::detect(content_type, &decrypted_bytes);
+    let extracted_text = crate::response_format::extract_text(&decrypted_bytes, format);
+
+    ResponseBodyResult {
+        body: decrypted_bytes,
+        extracted_text,
+        format,
+    }
 }
 
 /// Detect and handle Ollama-style NDJSON streaming responses.
@@ -576,8 +613,9 @@ pub fn process_response_body(body: &Bytes, mappings: &RequestMappings) -> Bytes 
 /// 1. Detects NDJSON format (multiple JSON lines with Ollama-style fields)
 /// 2. Concatenates all content fragments into a single string
 /// 3. Decrypts the concatenated text (ciphertext is now contiguous)
-/// 4. Returns a single JSON response object with the full decrypted content
-fn collapse_ndjson_response(body: &Bytes, mappings: &RequestMappings) -> Option<Bytes> {
+/// 4. Returns a single JSON response object with the full decrypted content,
+///    plus the decrypted text for RI scanning.
+fn collapse_ndjson_response(body: &Bytes, mappings: &RequestMappings) -> Option<(Bytes, String)> {
     let text = std::str::from_utf8(body).ok()?;
     let lines: Vec<&str> = text.lines().filter(|l| !l.trim().is_empty()).collect();
 
@@ -634,10 +672,10 @@ fn collapse_ndjson_response(body: &Bytes, mappings: &RequestMappings) -> Option<
     let mut final_obj = last_obj?;
     if is_chat {
         if let Some(message) = final_obj.get_mut("message") {
-            message["content"] = Value::String(decrypted_content);
+            message["content"] = Value::String(decrypted_content.clone());
         }
     } else {
-        final_obj["response"] = Value::String(decrypted_content);
+        final_obj["response"] = Value::String(decrypted_content.clone());
     }
 
     let serialized = serde_json::to_vec(&final_obj).ok()?;
@@ -649,7 +687,7 @@ fn collapse_ndjson_response(body: &Bytes, mappings: &RequestMappings) -> Option<
         content_len = full_content.len()
     );
 
-    Some(Bytes::from(serialized))
+    Some((Bytes::from(serialized), decrypted_content))
 }
 
 /// Apply FPE replacements to JSON string values by doing string replacement
@@ -1038,8 +1076,8 @@ mod tests {
         let body = Bytes::from(ndjson);
         let mappings = make_mappings(&[("658-297-2527", "410-111-0277")]);
 
-        let result = process_response_body(&body, &mappings);
-        let result_str = String::from_utf8(result.to_vec()).unwrap();
+        let result = process_response_body(&body, &mappings, Some("application/json"));
+        let result_str = String::from_utf8(result.body.to_vec()).unwrap();
 
         // Should be a single JSON object with decrypted content
         let parsed: Value = serde_json::from_str(&result_str).unwrap();
@@ -1053,6 +1091,9 @@ mod tests {
             "Ciphertext should be removed: {content}"
         );
         assert!(parsed["done"].as_bool().unwrap());
+        // NDJSON collapse should pre-extract text
+        assert!(result.extracted_text.is_some());
+        assert_eq!(result.format, ResponseFormat::OllamaJson);
     }
 
     #[test]
@@ -1068,9 +1109,9 @@ mod tests {
         let body = Bytes::from(ndjson);
         let mappings = make_mappings(&[("847-29-3651", "123-45-6789")]);
 
-        let result = process_response_body(&body, &mappings);
+        let result = process_response_body(&body, &mappings, Some("application/json"));
         let parsed: Value =
-            serde_json::from_str(&String::from_utf8(result.to_vec()).unwrap()).unwrap();
+            serde_json::from_str(core::str::from_utf8(&result.body).unwrap()).unwrap();
         let content = parsed["response"].as_str().unwrap();
         assert!(
             content.contains("123-45-6789"),
@@ -1085,8 +1126,8 @@ mod tests {
         let body = Bytes::from(single);
         let mappings = make_mappings(&[("658-297-2527", "410-111-0277")]);
 
-        let result = process_response_body(&body, &mappings);
-        let result_str = String::from_utf8(result.to_vec()).unwrap();
+        let result = process_response_body(&body, &mappings, Some("application/json"));
+        let result_str = String::from_utf8(result.body.to_vec()).unwrap();
         // Standard decrypt_response should handle single JSON fine
         assert!(
             result_str.contains("410-111-0277"),
@@ -1141,8 +1182,8 @@ mod tests {
             key_version: 1,
         });
 
-        let result = process_response_body(&body, &mappings);
-        let result_str = String::from_utf8(result.to_vec()).unwrap();
+        let result = process_response_body(&body, &mappings, Some("application/json"));
+        let result_str = String::from_utf8(result.body.to_vec()).unwrap();
         let parsed: Value = serde_json::from_str(&result_str).unwrap();
         let content = parsed["message"]["content"].as_str().unwrap();
         assert!(

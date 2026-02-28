@@ -1428,8 +1428,8 @@ async fn test_ri_disabled_passthrough() {
         .and(path("/v1/messages"))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_string(PERSUASIVE_ANTHROPIC_RESPONSE)
-                .insert_header("content-type", "application/json"),
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(PERSUASIVE_ANTHROPIC_RESPONSE.as_bytes()),
         )
         .mount(&mock)
         .await;
@@ -1467,8 +1467,8 @@ async fn test_ri_log_only_no_modification() {
         .and(path("/v1/messages"))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_string(PERSUASIVE_ANTHROPIC_RESPONSE)
-                .insert_header("content-type", "application/json"),
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(PERSUASIVE_ANTHROPIC_RESPONSE.as_bytes()),
         )
         .mount(&mock)
         .await;
@@ -1506,8 +1506,8 @@ async fn test_ri_label_anthropic_format() {
         .and(path("/v1/messages"))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_string(PERSUASIVE_ANTHROPIC_RESPONSE)
-                .insert_header("content-type", "application/json"),
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(PERSUASIVE_ANTHROPIC_RESPONSE.as_bytes()),
         )
         .mount(&mock)
         .await;
@@ -1550,8 +1550,8 @@ async fn test_ri_label_openai_format() {
         .and(path("/v1/chat/completions"))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_string(PERSUASIVE_OPENAI_RESPONSE)
-                .insert_header("content-type", "application/json"),
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(PERSUASIVE_OPENAI_RESPONSE.as_bytes()),
         )
         .mount(&mock)
         .await;
@@ -1592,8 +1592,8 @@ async fn test_ri_clean_response_no_label() {
         .and(path("/v1/messages"))
         .respond_with(
             ResponseTemplate::new(200)
-                .set_body_string(CLEAN_ANTHROPIC_RESPONSE)
-                .insert_header("content-type", "application/json"),
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(CLEAN_ANTHROPIC_RESPONSE.as_bytes()),
         )
         .mount(&mock)
         .await;
@@ -1619,5 +1619,288 @@ async fn test_ri_clean_response_no_label() {
     assert!(
         body.contains("Python function"),
         "Original content should be preserved"
+    );
+}
+
+// ── Multi-format RI integration tests ────────────────────────────────
+
+/// Persuasive Gemini format response.
+const PERSUASIVE_GEMINI_RESPONSE: &str = r#"{"candidates":[{"content":{"parts":[{"text":"Act now! This limited time offer is a smart choice. Experts agree you could lose out. Buy now for the best deal!"}],"role":"model"},"finishReason":"STOP"}]}"#;
+
+/// Persuasive Cohere v2 format response.
+const PERSUASIVE_COHERE_RESPONSE: &str = r#"{"id":"gen-01","text":"Act now! This limited time offer is a smart choice. Experts agree you could lose out. Buy now for the best deal!","generation_id":"abc"}"#;
+
+/// Persuasive Ollama chat format response.
+const PERSUASIVE_OLLAMA_RESPONSE: &str = r#"{"model":"llama3","message":{"role":"assistant","content":"Act now! This limited time offer is a smart choice. Experts agree you could lose out. Buy now for the best deal!"},"done":true}"#;
+
+/// Persuasive plain text response.
+const PERSUASIVE_PLAIN_TEXT_RESPONSE: &str = "Act now! This limited time offer is a smart choice. Experts agree you could lose out. Buy now for the best deal!";
+
+/// RI + Gemini format: warning label injected into candidates[0].content.parts[0].text.
+#[tokio::test]
+async fn test_ri_label_gemini_format() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(PERSUASIVE_GEMINI_RESPONSE.as_bytes()),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"contents":[]}"#))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let text = json["candidates"][0]["content"]["parts"][0]["text"]
+        .as_str()
+        .unwrap();
+    assert!(
+        text.contains("OpenObscure"),
+        "Gemini format should have RI label. Got: {}",
+        text
+    );
+    assert!(text.contains("Act now!"), "Original content preserved");
+}
+
+/// RI + Cohere v2 format: warning label injected into top-level "text".
+#[tokio::test]
+async fn test_ri_label_cohere_format() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(PERSUASIVE_COHERE_RESPONSE.as_bytes()),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"message":"hello"}"#))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let text = json["text"].as_str().unwrap();
+    assert!(
+        text.contains("OpenObscure"),
+        "Cohere format should have RI label. Got: {}",
+        text
+    );
+    assert!(text.contains("Act now!"), "Original content preserved");
+}
+
+/// RI + Ollama chat format: warning label injected into message.content.
+#[tokio::test]
+async fn test_ri_label_ollama_format() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(PERSUASIVE_OLLAMA_RESPONSE.as_bytes()),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"prompt":"hello"}"#))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let text = json["message"]["content"].as_str().unwrap();
+    assert!(
+        text.contains("OpenObscure"),
+        "Ollama format should have RI label. Got: {}",
+        text
+    );
+    assert!(text.contains("Act now!"), "Original content preserved");
+}
+
+/// RI + plain text format: warning label prepended to body.
+#[tokio::test]
+async fn test_ri_label_plain_text_format() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/plain")
+                .set_body_bytes(PERSUASIVE_PLAIN_TEXT_RESPONSE.as_bytes()),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"prompt":"hello"}"#))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    assert!(
+        body.contains("OpenObscure"),
+        "Plain text should have RI label. Got: {}",
+        body
+    );
+    assert!(body.contains("Act now!"), "Original content preserved");
+}
+
+/// RI + unknown JSON format: response passes through unchanged (fail-open).
+#[tokio::test]
+async fn test_ri_unknown_format_passthrough() {
+    let unknown_json = r#"{"custom_field":"Act now! This limited time offer is a smart choice. Experts agree you could lose out. Buy now!"}"#;
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "application/json")
+                .set_body_bytes(unknown_json.as_bytes()),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(r#"{"prompt":"hello"}"#))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    // Unknown format: cannot extract text, so no RI label (fail-open)
+    assert!(
+        !body.contains("OpenObscure"),
+        "Unknown format should not get RI label"
+    );
+    assert_eq!(body, unknown_json, "Body should pass through unchanged");
+}
+
+/// SSE streaming + RI: trailing warning event emitted for persuasive content.
+#[tokio::test]
+async fn test_ri_sse_trailing_warning() {
+    let mock = MockServer::start().await;
+    // Return SSE stream with persuasive content
+    let sse_body = [
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Act now! \"}}]}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"content\":\"This limited time offer \"}}]}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"content\":\"is a smart choice. Experts agree you could lose out. Buy now!\"}}]}\n\n",
+        "data: [DONE]\n\n",
+    ]
+    .join("");
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/event-stream")
+                .set_body_bytes(sse_body.into_bytes()),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    // Need PII in request so SSE path activates (is_sse && has_mappings)
+    // Use SSN which has reliable FPE encryption in test
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"messages":[{"role":"user","content":"My SSN is 123-45-6789"}]}"#,
+        ))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    // Should contain trailing warning event
+    assert!(
+        body.contains("openobscure_warning"),
+        "SSE should have trailing warning event. Got: {}",
+        body
+    );
+    assert!(
+        body.contains("OpenObscure"),
+        "Warning event should contain OpenObscure label"
+    );
+}
+
+/// SSE streaming + RI: clean content should NOT have trailing warning.
+#[tokio::test]
+async fn test_ri_sse_clean_no_warning() {
+    let mock = MockServer::start().await;
+    let sse_body = [
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Here is a \"}}]}\n\n",
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Python function that sorts.\"}}]}\n\n",
+        "data: [DONE]\n\n",
+    ]
+    .join("");
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("content-type", "text/event-stream")
+                .set_body_bytes(sse_body.into_bytes()),
+        )
+        .mount(&mock)
+        .await;
+
+    let config = build_ri_config(&mock.uri(), true, false);
+    let router = app(build_ri_state(config).await);
+
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(
+            r#"{"messages":[{"role":"user","content":"My SSN is 123-45-6789"}]}"#,
+        ))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let body = resp_body(resp).await;
+    assert!(
+        !body.contains("openobscure_warning"),
+        "Clean SSE should NOT have warning event"
     );
 }
