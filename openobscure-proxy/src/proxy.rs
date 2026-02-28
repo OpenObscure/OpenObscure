@@ -396,7 +396,7 @@ pub async fn proxy_handler(
     if has_mappings {
         oo_info!(crate::oo_log::modules::PROXY, "Decrypt (response restore)",
             request_id = %request_id,
-            elapsed_ms = decrypt_elapsed.as_millis() as u64);
+            elapsed_us = decrypt_elapsed.as_micros() as u64);
     }
 
     // 8b. Response integrity scan (cognitive firewall)
