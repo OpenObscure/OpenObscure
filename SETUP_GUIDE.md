@@ -190,7 +190,16 @@ You should see a response. Press `Ctrl+D` to exit the chat.
 
 #### How It Connects
 
-OpenObscure's config already includes an Ollama provider route. When you start the proxy, requests to `/ollama` are forwarded to `http://127.0.0.1:11434` (Ollama's default port). No API key is needed — Ollama runs locally with no authentication.
+OpenObscure's config (`config/openobscure.toml`) already includes provider routes for Anthropic, OpenAI, OpenRouter, and Ollama. When you start the proxy, requests to each route prefix are forwarded to the corresponding upstream API:
+
+| Route Prefix | Upstream URL | Use Case |
+|---|---|---|
+| `/anthropic` | `https://api.anthropic.com` | Anthropic Claude (direct) |
+| `/openai` | `https://api.openai.com` | OpenAI GPT (direct) |
+| `/openrouter` | `https://openrouter.ai/api` | OpenRouter (multi-provider) |
+| `/ollama` | `http://127.0.0.1:11434` | Ollama (local LLM) |
+
+For local LLMs via Ollama, no API key is needed — Ollama runs locally with no authentication.
 
 ```
 Discord ──► OpenClaw ──► OpenObscure (:18790) ──► Ollama (:11434)
@@ -293,7 +302,18 @@ OPENAI_API_KEY=paste-your-openai-key-here
 ENVFILE
 ```
 
-**Option C — Local LLM (Ollama):**
+**Option C — Cloud LLM via OpenRouter (multi-provider access):**
+
+```bash
+cat > .env << 'ENVFILE'
+DISCORD_BOT_TOKEN=paste-your-discord-bot-token-here
+OPENROUTER_API_KEY=paste-your-openrouter-key-here
+ENVFILE
+```
+
+OpenRouter gives you access to many LLM providers (Claude, GPT, Gemini, open-source models) through a single API key. Get one at https://openrouter.ai/keys.
+
+**Option D — Local LLM (Ollama):**
 
 ```bash
 cat > .env << 'ENVFILE'
@@ -373,7 +393,7 @@ Same structure as above, but change the `agents.defaults.model` and `models.prov
   "models": {
     "providers": {
       "openai": {
-        "baseUrl": "http://127.0.0.1:18790/openai",
+        "baseUrl": "http://127.0.0.1:18790/openai/v1",
         "models": [
           { "id": "gpt-4.1", "name": "GPT-4.1" }
         ]
@@ -382,7 +402,45 @@ Same structure as above, but change the `agents.defaults.model` and `models.prov
   },
 ```
 
-**Option C — Local LLM (Ollama):**
+> **Important:** The `baseUrl` must include `/v1` after the route prefix. OpenClaw appends paths like `/chat/completions` to this URL. Without `/v1`, the upstream URL becomes `/api/chat/completions` instead of `/api/v1/chat/completions`, which causes connection errors.
+
+**Option C — OpenRouter (multi-provider):**
+
+Same structure as Option A, but change the `agents.defaults.model` and `models.providers` sections:
+
+```json
+  "agents": {
+    "defaults": {
+      "model": "openrouter/anthropic/claude-sonnet-4-6"
+    }
+  },
+  "models": {
+    "providers": {
+      "openrouter": {
+        "baseUrl": "http://127.0.0.1:18790/openrouter/v1",
+        "api": "openai-completions",
+        "models": [
+          {
+            "id": "anthropic/claude-sonnet-4-6",
+            "name": "Claude Sonnet 4.6 (via OpenRouter)",
+            "input": ["text", "image"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
+        ]
+      }
+    }
+  },
+```
+
+Key details for OpenRouter:
+- **Model prefix:** Use `openrouter/` followed by the OpenRouter model ID (e.g., `openrouter/anthropic/claude-sonnet-4-6`). OpenClaw splits on the first `/` to determine the provider.
+- **`api` field:** Must be `"openai-completions"` — OpenRouter uses the OpenAI-compatible API format.
+- **`baseUrl` includes `/v1`:** The proxy route is `/openrouter`, and OpenRouter's API path requires `/v1`. Without it, API calls fail with connection errors.
+- **`input` field:** Include `["text", "image"]` if the model supports vision. This tells OpenClaw to send images directly in chat requests (enabling OpenObscure's image pipeline to scan them for PII).
+- You can add multiple models to the `models` array (e.g., `auto` for OpenRouter's auto-routing).
+
+**Option D — Local LLM (Ollama):**
 
 Same structure as Option A, but change the `agents.defaults.model` and `models.providers` sections:
 
@@ -407,19 +465,39 @@ Same structure as Option A, but change the `agents.defaults.model` and `models.p
 
 Replace `qwen3:8b` with `llama3.2:3b` (and update the `models` array to match) if you downloaded Llama instead. **No API key is needed** for the local option — your messages go from Discord to OpenClaw to OpenObscure to Ollama, all on your MacBook.
 
-> **How it works:** The `baseUrl` in each provider points to the OpenObscure proxy's route prefix (e.g. `/ollama`). The proxy scans request bodies for PII, redacts or encrypts matches, forwards the sanitized request to the real provider, then restores PII in the response before sending it back to OpenClaw.
+> **Note:** Ollama uses its own API format (`"api": "ollama"`), not the OpenAI format. The `baseUrl` does **not** need `/v1` — just the route prefix (`/ollama`).
 
-### Step 14 — Verify the OpenObscure Plugin
+> **How it works:** The `baseUrl` in each provider points to the OpenObscure proxy's route prefix (e.g. `/ollama`). The proxy strips the route prefix from the URL path and forwards the remainder to the real provider's upstream URL. For example, a request to `http://127.0.0.1:18790/openrouter/v1/chat/completions` gets the `/openrouter` prefix stripped, then forwards `/v1/chat/completions` to `https://openrouter.ai/api`. The proxy scans request bodies for PII, redacts or encrypts matches, and restores PII in the response before sending it back to OpenClaw.
+>
+> **`baseUrl` and API versioning:** For providers that use the OpenAI-compatible API format (`"api": "openai-completions"`), include `/v1` after the route prefix in `baseUrl` (e.g. `http://127.0.0.1:18790/openai/v1`). OpenClaw appends `/chat/completions` to this URL, so without `/v1` the upstream path would be wrong. Anthropic and Ollama use their own API formats and handle versioning internally — their `baseUrl` does not need `/v1`.
 
-The OpenObscure plugin ships bundled with OpenClaw in `extensions/openobscure-plugin/`. No manual installation is needed — Step 13 already enabled it in `openclaw.json`.
+### Step 14 — Build and Verify the OpenObscure Plugin
 
-Verify it's present:
+The OpenObscure plugin ships bundled with OpenClaw in `extensions/openobscure-plugin/`. Step 13 already enabled it in `openclaw.json`, but you need to compile it first.
 
 ```bash
-ls ~/Desktop/openclaw/extensions/openobscure-plugin/package.json
+cd ~/Desktop/openclaw/extensions/openobscure-plugin
+pnpm install
+pnpm run build
+```
+
+Verify the build succeeded:
+
+```bash
+ls ~/Desktop/openclaw/extensions/openobscure-plugin/dist/index.js
 ```
 
 You should see the file listed. The plugin will activate automatically when the gateway starts (Step 15) and will connect to the OpenObscure proxy running on port 18790 (Step 9).
+
+When the gateway starts successfully with the plugin, you should see these log lines:
+
+```
+[OpenObscure L1] [plugin] Auth token loaded path=/Users/<you>/.openobscure/.auth-token
+[gateway] Heartbeat monitor started (proxy: http://127.0.0.1:18790)
+[gateway] OpenObscure plugin registered (redactor=true, heartbeat=true)
+```
+
+> **If the plugin doesn't load:** Check that `dist/` exists (it's created by `pnpm run build`). If the gateway logs don't show the lines above at startup, the plugin wasn't compiled or the `plugins` section in `openclaw.json` is missing.
 
 ### Step 15 — Start OpenClaw
 
@@ -1006,6 +1084,85 @@ cat ~/.openclaw/agents/main/agent/models.json | python3 -c "import json,sys; d=j
 ### Slow first response
 
 The first message after starting the proxy may take a few extra seconds while AI models load into memory. Subsequent messages will be faster. If using a local LLM via Ollama, the first response will also include model loading time — this is normal.
+
+### Connection errors or "terminated connection" with OpenRouter/OpenAI
+
+If you see connection termination errors, retries, or non-streaming responses when using OpenRouter or OpenAI, the most likely cause is a missing `/v1` in the `baseUrl`.
+
+**Wrong:**
+```json
+"baseUrl": "http://127.0.0.1:18790/openrouter"
+```
+
+**Correct:**
+```json
+"baseUrl": "http://127.0.0.1:18790/openrouter/v1"
+```
+
+Without `/v1`, the API path becomes `/api/chat/completions` instead of `/api/v1/chat/completions`. The upstream API returns an error or a non-streaming response, and OpenClaw retries repeatedly.
+
+Check both `~/.openclaw/openclaw.json` and `~/.openclaw/agents/main/agent/models.json` — the `baseUrl` must include `/v1` in both files.
+
+### Image PII redaction not working (images bypass proxy)
+
+If images in Discord messages are not being scanned for faces or OCR text, check these in order:
+
+1. **Model in `models.json` must include `"input": ["text", "image"]`** — this tells OpenClaw that the model supports vision natively, so images are injected directly into chat requests (where the proxy can scan them). Without this, OpenClaw may use a separate vision model or skip image injection entirely.
+
+2. **Auth profiles can cause direct API calls** — if `~/.openclaw/agents/main/agent/auth-profiles.json` contains API keys for providers like `anthropic`, OpenClaw's auto-discovery (`AUTO_IMAGE_KEY_PROVIDERS`) will send vision model requests directly to those providers, bypassing the proxy. Clear the profiles file:
+   ```bash
+   echo '{"version": 1, "profiles": {}}' > ~/.openclaw/agents/main/agent/auth-profiles.json
+   ```
+
+3. **Verify images appear in proxy logs** — if the proxy shows `base64_processed=0` and `url_refs_found=0`, the images are not reaching the proxy at all. Check that `baseUrl` points to the proxy (not directly to the provider).
+
+### OpenClaw daemon keeps restarting
+
+If OpenClaw was installed as a background service via `pnpm openclaw onboard --install-daemon`, it runs under launchd and automatically restarts. To stop it permanently:
+
+```bash
+# Find and unload the launchd service
+launchctl list | grep openclaw
+launchctl unload ~/Library/LaunchAgents/com.openclaw.gateway.plist
+```
+
+To restart manually after stopping:
+
+```bash
+cd ~/Desktop/openclaw
+pnpm openclaw gateway
+```
+
+### OpenObscure plugin not loading
+
+If gateway startup logs don't show the OpenObscure plugin loading:
+
+1. **Check that `dist/` exists** — the plugin must be compiled first:
+   ```bash
+   cd ~/Desktop/openclaw/extensions/openobscure-plugin
+   pnpm run build
+   ls dist/index.js
+   ```
+
+2. **Check `openclaw.json`** — the `plugins` section must be present with `openobscure-plugin` enabled:
+   ```json
+   "plugins": {
+     "enabled": true,
+     "entries": {
+       "openobscure-plugin": {
+         "enabled": true,
+         "config": {
+           "redactToolResults": true,
+           "heartbeat": true,
+           "proxyUrl": "http://127.0.0.1:18790",
+           "heartbeatIntervalMs": 30000
+         }
+       }
+     }
+   }
+   ```
+
+3. **Restart the gateway** after any plugin changes — plugins are loaded at startup.
 
 ### Purging a stale OpenClaw setup
 

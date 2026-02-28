@@ -79,6 +79,11 @@ upstream_url = "https://api.openai.com"
 route_prefix = "/openai"
 strip_headers = ["x-openobscure-internal"]
 
+[providers.openrouter]
+upstream_url = "https://openrouter.ai/api"
+route_prefix = "/openrouter"
+strip_headers = ["x-openobscure-internal"]
+
 [providers.ollama]
 upstream_url = "http://127.0.0.1:11434"
 route_prefix = "/ollama"
