@@ -21,7 +21,7 @@ MODELS_DIR="$ROOT_DIR/openobscure-proxy/models"
 # Source: https://github.com/notAI-tech/NudeNet
 # License: GPL-3.0 — cannot be bundled in Apache/MIT repos
 NUDENET_URL="https://huggingface.co/deepghs/nudenet_onnx/resolve/main/320n.onnx"
-NUDENET_SHA256="9832f15515bdb06bcb5a77beb60bc8ea54439bd7ecbaac46dac3b760b3dd13cc"
+NUDENET_SHA256="c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f"
 NUDENET_DIR="$MODELS_DIR/nudenet"
 
 download_nudenet() {
