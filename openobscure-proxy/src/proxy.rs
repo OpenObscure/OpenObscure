@@ -325,7 +325,14 @@ pub async fn proxy_handler(
                         if !warning.is_empty() {
                             return Some((
                                 Ok::<_, std::convert::Infallible>(warning),
-                                (body, mappings, accumulator, crate::sse_accumulator::SseRiBuffer::new(), true, true),
+                                (
+                                    body,
+                                    mappings,
+                                    accumulator,
+                                    crate::sse_accumulator::SseRiBuffer::new(),
+                                    true,
+                                    true,
+                                ),
                             ));
                         }
                         return None;
@@ -347,7 +354,10 @@ pub async fn proxy_handler(
                                 ))
                             } else {
                                 // Trailers or other frame types — yield empty bytes
-                                Some((Ok(Bytes::new()), (body, mappings, accumulator, ri_buffer, false, false)))
+                                Some((
+                                    Ok(Bytes::new()),
+                                    (body, mappings, accumulator, ri_buffer, false, false),
+                                ))
                             }
                         }
                         Ok(Some(Err(_))) => {
@@ -360,7 +370,10 @@ pub async fn proxy_handler(
                             mapping_store.remove(&req_id).await;
                             if !flush.is_empty() {
                                 // Transition to done=true, ri_done=false → will emit RI warning next
-                                Some((Ok(flush), (body, mappings, accumulator, ri_buffer, true, false)))
+                                Some((
+                                    Ok(flush),
+                                    (body, mappings, accumulator, ri_buffer, true, false),
+                                ))
                             } else {
                                 // No flush data — emit RI warning directly
                                 let warning = emit_sse_ri_warning(
@@ -371,7 +384,17 @@ pub async fn proxy_handler(
                                     &health,
                                 );
                                 if !warning.is_empty() {
-                                    Some((Ok(warning), (body, mappings, accumulator, crate::sse_accumulator::SseRiBuffer::new(), true, true)))
+                                    Some((
+                                        Ok(warning),
+                                        (
+                                            body,
+                                            mappings,
+                                            accumulator,
+                                            crate::sse_accumulator::SseRiBuffer::new(),
+                                            true,
+                                            true,
+                                        ),
+                                    ))
                                 } else {
                                     None
                                 }
@@ -387,7 +410,10 @@ pub async fn proxy_handler(
                             mapping_store.remove(&req_id).await;
                             if !flush.is_empty() {
                                 // Transition to done=true, ri_done=false → will emit RI warning next
-                                Some((Ok(flush), (body, mappings, accumulator, ri_buffer, true, false)))
+                                Some((
+                                    Ok(flush),
+                                    (body, mappings, accumulator, ri_buffer, true, false),
+                                ))
                             } else {
                                 // No flush data — emit RI warning directly
                                 let warning = emit_sse_ri_warning(
@@ -398,7 +424,17 @@ pub async fn proxy_handler(
                                     &health,
                                 );
                                 if !warning.is_empty() {
-                                    Some((Ok(warning), (body, mappings, accumulator, crate::sse_accumulator::SseRiBuffer::new(), true, true)))
+                                    Some((
+                                        Ok(warning),
+                                        (
+                                            body,
+                                            mappings,
+                                            accumulator,
+                                            crate::sse_accumulator::SseRiBuffer::new(),
+                                            true,
+                                            true,
+                                        ),
+                                    ))
                                 } else {
                                     None
                                 }
@@ -411,7 +447,10 @@ pub async fn proxy_handler(
                             } else {
                                 Bytes::new()
                             };
-                            Some((Ok(flush), (body, mappings, accumulator, ri_buffer, false, false)))
+                            Some((
+                                Ok(flush),
+                                (body, mappings, accumulator, ri_buffer, false, false),
+                            ))
                         }
                     }
                 }
@@ -471,8 +510,7 @@ pub async fn proxy_handler(
             state.mapping_store.remove(&request_id).await;
             result
         } else {
-            let format =
-                crate::response_format::detect(resp_content_type.as_deref(), &resp_bytes);
+            let format = crate::response_format::detect(resp_content_type.as_deref(), &resp_bytes);
             let extracted_text = crate::response_format::extract_text(&resp_bytes, format);
             crate::body::ResponseBodyResult {
                 body: resp_bytes,
@@ -804,10 +842,7 @@ fn emit_sse_ri_warning(
     // Emit trailing SSE event
     let label = ResponseIntegrityScanner::format_warning_label(&report);
     let warning_json = serde_json::json!({"warning": label});
-    let sse_event = format!(
-        "\nevent: openobscure_warning\ndata: {}\n\n",
-        warning_json
-    );
+    let sse_event = format!("\nevent: openobscure_warning\ndata: {}\n\n", warning_json);
     Bytes::from(sse_event)
 }
 
@@ -1008,7 +1043,9 @@ mod tests {
     fn test_inject_label_invalid_json() {
         let bytes = b"not json";
         let format = crate::response_format::detect(Some("application/json"), bytes.as_slice());
-        assert!(crate::response_format::inject_warning(bytes.as_slice(), format, "WARNING: ").is_none());
+        assert!(
+            crate::response_format::inject_warning(bytes.as_slice(), format, "WARNING: ").is_none()
+        );
     }
 
     // --- resolve_provider ---
