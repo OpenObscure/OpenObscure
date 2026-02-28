@@ -588,7 +588,10 @@ pub async fn proxy_handler(
 }
 
 /// Find the provider config that matches the request URI path prefix.
-fn resolve_provider<'a>(config: &'a AppConfig, uri: &Uri) -> Option<(String, &'a ProviderConfig)> {
+pub(crate) fn resolve_provider<'a>(
+    config: &'a AppConfig,
+    uri: &Uri,
+) -> Option<(String, &'a ProviderConfig)> {
     let path = uri.path();
     // Try longest prefix first for specificity
     let mut candidates: Vec<_> = config

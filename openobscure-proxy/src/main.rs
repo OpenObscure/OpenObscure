@@ -35,6 +35,7 @@ mod ner_scanner;
 mod nsfw_detector;
 mod ocr_engine;
 mod ort_ep;
+mod passthrough;
 mod persuasion_dict;
 mod pii_scrub_layer;
 mod pii_types;
@@ -102,6 +103,10 @@ struct Cli {
     #[arg(long)]
     init_key: bool,
 
+    /// Run in foreground — disables managed service for this session
+    #[arg(long)]
+    foreground: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -112,6 +117,31 @@ enum Commands {
     Serve,
     /// Rotate the FPE encryption key (generates new key, keeps old for overlap window)
     KeyRotate,
+    /// Lightweight passthrough proxy (no PII scanning, forwards to upstream directly)
+    Passthrough,
+    /// Manage the OpenObscure system service (launchd on macOS, systemd on Linux)
+    Service {
+        #[command(subcommand)]
+        action: ServiceAction,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum ServiceAction {
+    /// Install the service (copies plist/unit file, creates directories)
+    Install,
+    /// Uninstall the service (unloads and removes plist/unit file)
+    Uninstall,
+    /// Start the managed service (enables auto-restart)
+    Start,
+    /// Stop the managed service (disables auto-restart)
+    Stop {
+        /// Start passthrough proxy after stopping (keeps agent working without PII scanning)
+        #[arg(long)]
+        passthrough: bool,
+    },
+    /// Show service status
+    Status,
 }
 
 #[tokio::main]
@@ -153,10 +183,15 @@ async fn main() -> anyhow::Result<()> {
     // Dispatch on subcommand
     match cli.command {
         None | Some(Commands::Serve) => {
-            // Default: start the PII proxy server
-            run_serve(config).await
+            if cli.foreground {
+                run_serve_foreground(config).await
+            } else {
+                run_serve(config).await
+            }
         }
         Some(Commands::KeyRotate) => run_key_rotate(config).await,
+        Some(Commands::Passthrough) => run_passthrough(config).await,
+        Some(Commands::Service { action }) => run_service(action).await,
     }
 }
 
@@ -417,6 +452,395 @@ async fn run_key_rotate(config: AppConfig) -> anyhow::Result<()> {
     );
     eprintln!("[OpenObscure] FPE key rotated. Restart the proxy to pick up the new key.");
     eprintln!("[OpenObscure] In-flight requests using the old key will continue during the overlap window.");
+
+    Ok(())
+}
+
+/// Start the PII proxy in foreground mode.
+///
+/// If the managed service is loaded, unloads it first to prevent port conflicts.
+/// On exit, re-loads the managed service if it was previously active.
+async fn run_serve_foreground(config: AppConfig) -> anyhow::Result<()> {
+    let was_loaded = service_is_loaded();
+    if was_loaded {
+        oo_warn!(
+            crate::oo_log::modules::SERVER,
+            "Foreground mode: unloading managed service to prevent port conflict"
+        );
+        let _ = service_unload();
+        // Brief pause to let launchd release the port
+        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    }
+
+    let result = run_serve(config).await;
+
+    if was_loaded {
+        oo_info!(
+            crate::oo_log::modules::SERVER,
+            "Foreground mode exiting: re-loading managed service"
+        );
+        let _ = service_load();
+    }
+
+    result
+}
+
+/// Start the lightweight passthrough proxy (no PII scanning).
+async fn run_passthrough(config: AppConfig) -> anyhow::Result<()> {
+    passthrough::run(config).await
+}
+
+/// Handle service management commands.
+async fn run_service(action: ServiceAction) -> anyhow::Result<()> {
+    match action {
+        ServiceAction::Install => service_install(),
+        ServiceAction::Uninstall => service_uninstall(),
+        ServiceAction::Start => {
+            service_load()?;
+            eprintln!("[OpenObscure] Service started (auto-restart enabled)");
+            Ok(())
+        }
+        ServiceAction::Stop { passthrough } => {
+            service_unload()?;
+            eprintln!("[OpenObscure] Service stopped (auto-restart disabled)");
+            if passthrough {
+                eprintln!("[OpenObscure] Starting passthrough proxy...");
+                // Load config for passthrough
+                let config_path = service_config_path();
+                let config = AppConfig::load(&config_path)?;
+                passthrough::run(config).await?;
+            }
+            Ok(())
+        }
+        ServiceAction::Status => service_status(),
+    }
+}
+
+// ── Service management helpers ──────────────────────────────────────────
+
+const LAUNCHD_LABEL: &str = "com.openobscure.proxy";
+
+fn plist_path() -> std::path::PathBuf {
+    let home = std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    home.join("Library/LaunchAgents/com.openobscure.proxy.plist")
+}
+
+fn service_config_path() -> std::path::PathBuf {
+    // Check if installed config exists, otherwise use default
+    let installed = std::path::PathBuf::from("/usr/local/etc/openobscure/openobscure.toml");
+    if installed.exists() {
+        installed
+    } else {
+        std::path::PathBuf::from("config/openobscure.toml")
+    }
+}
+
+fn service_is_loaded() -> bool {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("launchctl")
+            .args(["list", LAUNCHD_LABEL])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("systemctl")
+            .args(["--user", "is-active", "--quiet", "openobscure-proxy"])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false)
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        false
+    }
+}
+
+fn service_load() -> anyhow::Result<()> {
+    let path = plist_path();
+    if !path.exists() {
+        anyhow::bail!(
+            "Service not installed. Run 'openobscure-proxy service install' first.\n  \
+             Expected plist at: {}",
+            path.display()
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("launchctl")
+            .args(["load", &path.to_string_lossy()])
+            .status()?;
+        if !status.success() {
+            anyhow::bail!("launchctl load failed (exit {})", status);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let status = std::process::Command::new("systemctl")
+            .args(["--user", "start", "openobscure-proxy"])
+            .status()?;
+        if !status.success() {
+            anyhow::bail!("systemctl start failed (exit {})", status);
+        }
+    }
+
+    Ok(())
+}
+
+fn service_unload() -> anyhow::Result<()> {
+    let path = plist_path();
+
+    #[cfg(target_os = "macos")]
+    {
+        let status = std::process::Command::new("launchctl")
+            .args(["unload", &path.to_string_lossy()])
+            .status()?;
+        if !status.success() {
+            anyhow::bail!("launchctl unload failed (exit {})", status);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let status = std::process::Command::new("systemctl")
+            .args(["--user", "stop", "openobscure-proxy"])
+            .status()?;
+        if !status.success() {
+            anyhow::bail!("systemctl stop failed (exit {})", status);
+        }
+    }
+
+    Ok(())
+}
+
+fn service_install() -> anyhow::Result<()> {
+    let binary_path = std::env::current_exe()
+        .map_err(|e| anyhow::anyhow!("Cannot determine binary path: {}", e))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        let plist = plist_path();
+
+        // Create log directories
+        let log_dir = std::path::Path::new("/usr/local/var/log/openobscure");
+        let data_dir = std::path::Path::new("/usr/local/var/openobscure");
+        let _ = std::fs::create_dir_all(log_dir);
+        let _ = std::fs::create_dir_all(data_dir);
+
+        // Ensure LaunchAgents directory exists
+        if let Some(parent) = plist.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        // Determine config path
+        let config_path = service_config_path();
+
+        // Generate plist with correct binary path
+        let plist_content = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>{label}</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>{binary}</string>
+        <string>serve</string>
+    </array>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/usr/local/var/log/openobscure/stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/usr/local/var/log/openobscure/stderr.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>OPENOBSCURE_CONFIG</key>
+        <string>{config}</string>
+    </dict>
+
+    <key>WorkingDirectory</key>
+    <string>/usr/local/var/openobscure</string>
+
+    <key>ThrottleInterval</key>
+    <integer>5</integer>
+</dict>
+</plist>"#,
+            label = LAUNCHD_LABEL,
+            binary = binary_path.display(),
+            config = config_path.display()
+        );
+
+        std::fs::write(&plist, &plist_content)?;
+        eprintln!("[OpenObscure] Service installed:");
+        eprintln!("  Plist: {}", plist.display());
+        eprintln!("  Binary: {}", binary_path.display());
+        eprintln!("  Config: {}", config_path.display());
+        eprintln!("  Logs: /usr/local/var/log/openobscure/");
+        eprintln!();
+        eprintln!("Run 'openobscure-proxy service start' to enable auto-restart.");
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let unit_dir = dirs_next::config_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("~/.config"))
+            .join("systemd/user");
+        let _ = std::fs::create_dir_all(&unit_dir);
+        let unit_path = unit_dir.join("openobscure-proxy.service");
+
+        let config_path = service_config_path();
+
+        let unit_content = format!(
+            r#"[Unit]
+Description=OpenObscure PII Privacy Proxy
+After=network.target
+
+[Service]
+Type=simple
+ExecStart={binary} serve
+Restart=on-failure
+RestartSec=5
+Environment=OPENOBSCURE_CONFIG={config}
+
+[Install]
+WantedBy=default.target
+"#,
+            binary = binary_path.display(),
+            config = config_path.display()
+        );
+
+        std::fs::write(&unit_path, &unit_content)?;
+
+        let _ = std::process::Command::new("systemctl")
+            .args(["--user", "daemon-reload"])
+            .status();
+
+        eprintln!("[OpenObscure] Service installed at {}", unit_path.display());
+        eprintln!("Run 'openobscure-proxy service start' to enable.");
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        eprintln!("[OpenObscure] Service management is only supported on macOS and Linux.");
+    }
+
+    Ok(())
+}
+
+fn service_uninstall() -> anyhow::Result<()> {
+    // Unload first if loaded
+    if service_is_loaded() {
+        let _ = service_unload();
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let plist = plist_path();
+        if plist.exists() {
+            std::fs::remove_file(&plist)?;
+            eprintln!(
+                "[OpenObscure] Service uninstalled (removed {})",
+                plist.display()
+            );
+        } else {
+            eprintln!("[OpenObscure] Service not installed (no plist found)");
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let unit_path = dirs_next::config_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from("~/.config"))
+            .join("systemd/user/openobscure-proxy.service");
+        if unit_path.exists() {
+            std::fs::remove_file(&unit_path)?;
+            let _ = std::process::Command::new("systemctl")
+                .args(["--user", "daemon-reload"])
+                .status();
+            eprintln!(
+                "[OpenObscure] Service uninstalled (removed {})",
+                unit_path.display()
+            );
+        } else {
+            eprintln!("[OpenObscure] Service not installed");
+        }
+    }
+
+    Ok(())
+}
+
+fn service_status() -> anyhow::Result<()> {
+    #[cfg(target_os = "macos")]
+    {
+        let plist = plist_path();
+        if !plist.exists() {
+            eprintln!("[OpenObscure] Service not installed");
+            eprintln!("  Run 'openobscure-proxy service install' to set up.");
+            return Ok(());
+        }
+
+        let output = std::process::Command::new("launchctl")
+            .args(["list", LAUNCHD_LABEL])
+            .output()?;
+
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            eprintln!("[OpenObscure] Service is loaded (auto-restart enabled)");
+            // Parse PID from launchctl output
+            for line in stdout.lines() {
+                let line = line.trim();
+                if line.starts_with("\"PID\"") || line.contains("PID") {
+                    eprintln!("  {}", line);
+                }
+            }
+            // Also try to get the PID directly
+            let list_output = std::process::Command::new("launchctl")
+                .args(["list"])
+                .output()?;
+            let list_stdout = String::from_utf8_lossy(&list_output.stdout);
+            for line in list_stdout.lines() {
+                if line.contains(LAUNCHD_LABEL) {
+                    eprintln!("  {}", line.trim());
+                }
+            }
+        } else {
+            eprintln!("[OpenObscure] Service is installed but not loaded");
+            eprintln!("  Run 'openobscure-proxy service start' to enable.");
+        }
+        eprintln!("  Plist: {}", plist.display());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let output = std::process::Command::new("systemctl")
+            .args(["--user", "status", "openobscure-proxy"])
+            .output()?;
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        eprintln!("{}", stdout);
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
+    {
+        eprintln!("[OpenObscure] Service management is only supported on macOS and Linux.");
+    }
 
     Ok(())
 }

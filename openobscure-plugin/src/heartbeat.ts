@@ -2,16 +2,17 @@
  * L1 Heartbeat Monitor — pings L0 proxy health endpoint to detect outages.
  *
  * States:
- * - active:     L0 is responding (silent — no user notification)
- * - degraded:   L0 stopped responding (warn user)
- * - recovering: L0 just came back after being down (log recovery)
- * - disabled:   Monitor not started / explicitly stopped
+ * - active:      L0 is responding (silent — no user notification)
+ * - passthrough: L0 is in passthrough mode (no PII scanning, forwarding only)
+ * - degraded:    L0 stopped responding (warn user)
+ * - recovering:  L0 just came back after being down (log recovery)
+ * - disabled:    Monitor not started / explicitly stopped
  */
 
 import * as http from "http";
 import { ooInfo, ooWarn, OO_MODULES } from "./oo-log";
 
-export type ProxyState = "active" | "degraded" | "recovering" | "disabled";
+export type ProxyState = "active" | "passthrough" | "degraded" | "recovering" | "disabled";
 
 export interface HealthResponse {
   status: string;
@@ -43,6 +44,8 @@ const DEFAULT_HEARTBEAT_CONFIG: Required<Omit<HeartbeatConfig, "onStateChange" |
 /** User-facing messages for each state transition. */
 export const STATE_MESSAGES: Record<ProxyState, string> = {
   active: "", // Silent when working
+  passthrough:
+    "OpenObscure proxy is in passthrough mode — PII protection is regex-only",
   degraded:
     "OpenObscure proxy is not responding — PII protection is disabled",
   recovering: "OpenObscure proxy recovered",
@@ -114,7 +117,15 @@ export class HeartbeatMonitor {
       this._lastHealth = response;
       this._consecutiveFailures = 0;
 
-      if (this._state === "degraded") {
+      // Detect passthrough mode from health response status field
+      if (response.status === "passthrough") {
+        if (this._state !== "passthrough") {
+          this.transition("passthrough");
+        }
+        return response;
+      }
+
+      if (this._state === "degraded" || this._state === "passthrough") {
         this.transition("recovering");
         // Quickly transition back to active
         this.transition("active");
@@ -125,7 +136,7 @@ export class HeartbeatMonitor {
       return response;
     } catch {
       this._consecutiveFailures++;
-      if (this._state === "active" || this._state === "recovering") {
+      if (this._state === "active" || this._state === "recovering" || this._state === "passthrough") {
         this.transition("degraded");
       }
       return null;
@@ -189,6 +200,9 @@ function defaultStateChangeHandler(
   message: string
 ): void {
   switch (state) {
+    case "passthrough":
+      ooWarn(OO_MODULES.HEARTBEAT, message);
+      break;
     case "degraded":
       ooWarn(OO_MODULES.HEARTBEAT, message);
       break;
