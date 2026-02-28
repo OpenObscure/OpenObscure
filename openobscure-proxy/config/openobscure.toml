@@ -58,10 +58,12 @@ nsfw_model_dir = "models/nudenet"
 # Scans LLM responses for persuasion/manipulation techniques (EU AI Act Article 5).
 # When enabled, detects urgency, scarcity, social proof, fear, authority, commercial,
 # and flattery patterns. Can log detections and/or prepend warning labels.
+# R1 = dictionary-based regex scan; R2 = TinyBERT ONNX classifier (conditional cascade).
 # [response_integrity]
 # enabled = false
 # sensitivity = "medium"    # off, low, medium, high
 # log_only = true           # true = log only; false = prepend warning labels to responses
+# ri_model_dir = "models/ri" # R2 TinyBERT model directory
 
 # --- Provider Definitions ---
 # Each provider maps a local path prefix to an upstream API URL.
