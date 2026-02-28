@@ -110,7 +110,12 @@ pub async fn proxy_handler(
             state.kws_engine.as_ref(),
         ) {
             Ok(result) => {
-                state.health.scan_latency.record(scan_start.elapsed());
+                let encrypt_elapsed = scan_start.elapsed();
+                state.health.scan_latency.record(encrypt_elapsed);
+                oo_info!(crate::oo_log::modules::PROXY, "Encrypt (request scan+FPE)",
+                    request_id = %request_id,
+                    elapsed_ms = encrypt_elapsed.as_millis() as u64,
+                    pii_matches = result.mappings.by_ciphertext.len());
                 if !result.mappings.is_empty() {
                     let count = result.mappings.by_ciphertext.len() as u64;
                     state.health.record_pii_matches(count);
@@ -375,6 +380,7 @@ pub async fn proxy_handler(
         .to_bytes();
 
     // 8. Decrypt FPE values in response
+    let decrypt_start = std::time::Instant::now();
     let final_body = if has_mappings {
         if let Some(mappings) = state.mapping_store.get(&request_id).await {
             let decrypted = crate::body::process_response_body(&resp_bytes, &mappings);
@@ -386,6 +392,12 @@ pub async fn proxy_handler(
     } else {
         resp_bytes
     };
+    let decrypt_elapsed = decrypt_start.elapsed();
+    if has_mappings {
+        oo_info!(crate::oo_log::modules::PROXY, "Decrypt (response restore)",
+            request_id = %request_id,
+            elapsed_ms = decrypt_elapsed.as_millis() as u64);
+    }
 
     // 8b. Response integrity scan (cognitive firewall)
     // No content-type check here: extract_response_text returns None for non-JSON (fail-open).
