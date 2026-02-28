@@ -251,6 +251,46 @@ async fn process_images_in_json(
     let mut stats = Vec::new();
     let mut pending_urls: Vec<PendingUrlImage> = Vec::new();
 
+    // Diagnostic: log message content structure to debug image format detection
+    if let Some(messages) = json.get("messages").and_then(|v| v.as_array()) {
+        for (i, msg) in messages.iter().enumerate() {
+            if let Some(content) = msg.get("content") {
+                match content {
+                    Value::String(s) => {
+                        let has_url = s.contains("http://") || s.contains("https://");
+                        oo_info!(
+                            crate::oo_log::modules::IMAGE,
+                            "Message content is string",
+                            msg_index = i,
+                            len = s.len(),
+                            has_url = has_url
+                        );
+                    }
+                    Value::Array(arr) => {
+                        let types: Vec<&str> = arr
+                            .iter()
+                            .filter_map(|v| v.get("type").and_then(|t| t.as_str()))
+                            .collect();
+                        oo_info!(
+                            crate::oo_log::modules::IMAGE,
+                            "Message content is array",
+                            msg_index = i,
+                            block_count = arr.len(),
+                            block_types = format!("{:?}", types)
+                        );
+                    }
+                    _ => {
+                        oo_info!(
+                            crate::oo_log::modules::IMAGE,
+                            "Message content is unexpected type",
+                            msg_index = i
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     // Phase 1: Walk JSON — process base64 images immediately, collect URL refs
     walk_json_for_images(json, models, scanner, &mut stats, &mut pending_urls, "");
 
