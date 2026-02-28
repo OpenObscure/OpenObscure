@@ -12,8 +12,8 @@
 # Local Claude Code config
 .claude/
 
-# ONNX models (download via build/download_models.sh)
-openobscure-proxy/models/
+# ONNX models — tracked via Git LFS (except GPL-licensed NudeNet)
+openobscure-proxy/models/nudenet/
 !openobscure-ner/models/mock/
 
 # Enterprise features (not committed to repository)
@@ -27,7 +27,7 @@ test/data/output/
 
 # Data & models (downloaded/generated locally)
 data/
-models/
+/models/
 
 # Local reference (not committed)
 project-plan/

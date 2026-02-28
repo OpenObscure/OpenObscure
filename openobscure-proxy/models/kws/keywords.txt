@@ -1,0 +1,50 @@
+▁SO CI AL ▁SE C UR ITY
+▁TA X ▁I D
+▁TA X P A Y ER ▁I D
+▁NA TION AL ▁I D
+▁GO VER N MENT ▁I D
+▁SO CI AL ▁IN S UR ANCE
+▁C RE D IT ▁C ARD
+▁C ARD ▁NUMBER
+▁DE B IT ▁C ARD
+▁VI S A ▁C ARD
+▁MA S TER C ARD
+▁AMERICA N ▁EX PRESS
+▁EX P IR ATION ▁DA TE
+▁SE C UR ITY ▁CO DE
+▁C V V ▁NUMBER
+▁P IN ▁NUMBER
+▁BA N K ▁A C CO UN T
+▁A C CO UN T ▁NUMBER
+▁RO U T ING ▁NUMBER
+▁C HE CK ING ▁A C CO UN T
+▁SA V ING S ▁A C CO UN T
+▁W I RE ▁TRA N S F ER
+▁PA S S PORT ▁NUMBER
+▁DR IVE R ▁LI CE N SE
+▁DR IVE R S ▁LI CE N SE
+▁LI CE N SE ▁NUMBER
+▁B IR TH ▁C ER T IF IC ATE
+▁DA TE ▁OF ▁B IR TH
+▁MA ID EN ▁NA ME
+▁PLACE ▁OF ▁B IR TH
+▁HOME ▁A D D RE S S
+▁MA IL ING ▁A D D RE S S
+▁ST RE ET ▁A D D RE S S
+▁F U LL ▁NA ME
+▁LE G AL ▁NA ME
+▁PH ONE ▁NUMBER
+▁MY ▁A D D RE S S
+▁CALL ▁ME ▁AT
+▁RE A CH ▁ME ▁AT
+▁E MA IL ▁A D D RE S S
+▁CON T ACT ▁NUMBER
+▁MY ▁E MA IL ▁IS
+▁MY ▁PH ONE ▁IS
+▁IN S UR ANCE ▁NUMBER
+▁ME D ICAL ▁RE C OR D
+▁HEALTH ▁IN S UR ANCE
+▁PA TI ENT ▁I D
+▁ME DI CA RE ▁NUMBER
+▁MY ▁PA S S W OR D
+▁ VER IF IC ATION ▁CO DE
