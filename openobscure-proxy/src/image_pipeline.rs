@@ -390,6 +390,10 @@ impl ImageModelManager {
         let ocr_start = Instant::now();
         if self.config.ocr_enabled {
             if let Some(ref dir) = self.config.ocr_model_dir {
+                oo_info!(crate::oo_log::modules::OCR, "OCR phase starting",
+                    tier = %self.config.ocr_tier,
+                    model_dir = %dir,
+                    image_size = format!("{}x{}", orig_w, orig_h));
                 let tier = OcrTier::from_config(&self.config.ocr_tier);
                 let mut det_guard = self.ocr_detector.lock().unwrap_or_else(|e| e.into_inner());
 
@@ -407,6 +411,9 @@ impl ImageModelManager {
                     match detector.detect(&dyn_img) {
                         Ok(regions) => {
                             stats.text_regions_found = regions.len() as u32;
+                            oo_info!(crate::oo_log::modules::OCR, "OCR detection complete",
+                                text_regions = regions.len(),
+                                tier = %self.config.ocr_tier);
 
                             // Collect text region metadata for verification
                             let (img_w, img_h) = (rgb.width(), rgb.height());
@@ -555,8 +562,18 @@ impl ImageModelManager {
                             oo_warn!(crate::oo_log::modules::OCR, "OCR detection failed (fail-open)", error = %e);
                         }
                     }
+                } else {
+                    oo_warn!(
+                        crate::oo_log::modules::OCR,
+                        "OCR detector not available (model failed to load)"
+                    );
                 }
             }
+        } else {
+            oo_info!(
+                crate::oo_log::modules::OCR,
+                "OCR skipped: no model dir configured"
+            );
         }
         stats.ocr_ms = ocr_start.elapsed().as_millis() as u64;
 

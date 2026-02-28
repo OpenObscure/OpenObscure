@@ -67,11 +67,23 @@ pub async fn process_request_body(
     let img_start = std::time::Instant::now();
     let image_stats = if let Some(models) = image_models {
         if models.config().enabled {
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "Image pipeline active, scanning JSON for images"
+            );
             process_images_in_json(&mut json, models, scanner, http_client, fetch_config).await
         } else {
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "Image pipeline disabled in config"
+            );
             Vec::new()
         }
     } else {
+        oo_info!(
+            crate::oo_log::modules::IMAGE,
+            "No image models loaded, skipping image processing"
+        );
         Vec::new()
     };
     let image_us = img_start.elapsed().as_micros() as u64;
@@ -242,6 +254,13 @@ async fn process_images_in_json(
     // Phase 1: Walk JSON — process base64 images immediately, collect URL refs
     walk_json_for_images(json, models, scanner, &mut stats, &mut pending_urls, "");
 
+    oo_info!(
+        crate::oo_log::modules::IMAGE,
+        "Image walk complete",
+        base64_processed = stats.len(),
+        url_refs_found = pending_urls.len()
+    );
+
     // Phase 1b: Fetch URL images concurrently (if any)
     if !pending_urls.is_empty() {
         if let Some(client) = http_client {
@@ -280,6 +299,15 @@ fn walk_json_for_images(
 ) {
     match value {
         Value::Object(map) => {
+            // Log content block types at trace level for diagnostics
+            if let Some(type_val) = map.get("type").and_then(|v| v.as_str()) {
+                oo_trace!(
+                    crate::oo_log::modules::IMAGE,
+                    "Content block found",
+                    block_type = type_val,
+                    pointer = pointer
+                );
+            }
             // Check if this object is a base64 image content block
             if let Some(img_ref) = image_detect::is_image_content_block(map) {
                 // Extract the base64 image bytes
