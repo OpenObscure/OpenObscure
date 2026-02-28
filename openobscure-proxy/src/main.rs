@@ -160,6 +160,29 @@ async fn main() -> anyhow::Result<()> {
     // Initialize tracing subscriber from config + CLI overrides
     let _guards = init_tracing(&cli, &config.logging);
 
+    // Suppress verbose ONNX Runtime internal logs (GraphTransformer, allocator, etc.)
+    // Route only Warning+ ORT messages through tracing.
+    ort::init()
+        .with_logger(std::sync::Arc::new(
+            |level: ort::logging::LogLevel,
+             _category: &str,
+             _id: &str,
+             _code_location: &str,
+             message: &str| {
+                match level {
+                    ort::logging::LogLevel::Warning => {
+                        tracing::warn!(target: "ort", "{}", message);
+                    }
+                    ort::logging::LogLevel::Error | ort::logging::LogLevel::Fatal => {
+                        tracing::error!(target: "ort", "{}", message);
+                    }
+                    // Suppress Verbose and Info
+                    _ => {}
+                }
+            },
+        ))
+        .commit();
+
     // Handle --init-key (works regardless of subcommand)
     if cli.init_key {
         let vault = Vault::new(&config.fpe.keychain_service);
