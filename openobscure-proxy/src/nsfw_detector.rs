@@ -94,21 +94,30 @@ impl NsfwDetector {
 
     /// Detect NSFW content in an image.
     pub fn detect(&mut self, img: &DynamicImage) -> Result<NsfwDetection, ImageError> {
-        let (_orig_w, _orig_h) = img.dimensions();
+        let (orig_w, orig_h) = img.dimensions();
 
-        // Resize to 320x320
-        let resized = img.resize_exact(
+        // Letterbox: pad to square (matching NudeNet Python preprocessing),
+        // then resize to 320x320. Maintains aspect ratio to preserve body
+        // part proportions that the model was trained on.
+        let max_dim = orig_w.max(orig_h);
+        let mut padded = image::RgbImage::from_pixel(max_dim, max_dim, image::Rgb([0u8, 0u8, 0u8]));
+        let offset_x = (max_dim - orig_w) / 2;
+        let offset_y = (max_dim - orig_h) / 2;
+        let rgb_orig = img.to_rgb8();
+        image::imageops::overlay(&mut padded, &rgb_orig, offset_x as i64, offset_y as i64);
+
+        let resized = image::imageops::resize(
+            &padded,
             INPUT_SIZE,
             INPUT_SIZE,
             image::imageops::FilterType::Triangle,
         );
-        let rgb = resized.to_rgb8();
 
         // Build input tensor [1, 3, 320, 320] normalized to [0, 1]
         let input = Array4::<f32>::from_shape_fn(
             (1, 3, INPUT_SIZE as usize, INPUT_SIZE as usize),
             |(_, c, h, w)| {
-                let pixel = rgb.get_pixel(w as u32, h as u32);
+                let pixel = resized.get_pixel(w as u32, h as u32);
                 pixel[c] as f32 / 255.0
             },
         );
