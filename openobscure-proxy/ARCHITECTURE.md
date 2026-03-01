@@ -88,7 +88,9 @@ src/
 ├── key_manager.rs       FPE key rotation: versioned vault keys, RwLock, 30s overlap window
 ├── pii_types.rs         PII type definitions, alphabet mappers, format templates
 ├── mapping.rs           Per-request FPE mapping store for response decryption
+├── hash_token.rs        Hash-based token generation for non-FPE PII redaction (deterministic short tokens)
 ├── body.rs              Three-pass body processing: images → voice → text PII scanning
+├── passthrough.rs       Lightweight passthrough proxy (no scanning, for benchmarking/testing)
 │
 │   ── Multilingual PII (Phase 10C) ──
 ├── lang_detect.rs       Language detection via whatlang (9 languages, fallback to English)
@@ -105,9 +107,11 @@ src/
 │
 │   ── Visual PII (Phase 3) ──
 ├── image_detect.rs      Base64 image detection in JSON (Anthropic + OpenAI formats)
-├── image_pipeline.rs    ImageModelManager orchestrator: decode → resize → NSFW → face → OCR → encode
+├── image_fetch.rs       URL image fetch: download remote images for inline processing
+├── image_pipeline.rs    ImageModelManager orchestrator: decode → resize → NSFW → classifier → face → OCR → encode
 ├── face_detector.rs     SCRFD-2.5GF (Full/Standard, 640x640) + BlazeFace (Lite, 128x128) face detection
 ├── nsfw_detector.rs     NudeNet 320n ONNX NSFW/nudity detection (YOLOv8n, 320x320)
+├── nsfw_classifier.rs   Holistic NSFW classifier (ViT-tiny, Marqo/nsfw-image-detection-384, Phase 0b fallback)
 ├── ocr_engine.rs        PaddleOCR PP-OCRv4 det+rec ONNX (text region detection, CTC decode)
 ├── image_redact.rs      Solid-color fill for face and text regions (irreversible redaction)
 ├── screen_guard.rs      Screenshot heuristics (EXIF, resolution, status bar uniformity)
@@ -124,6 +128,7 @@ src/
 ├── persuasion_dict.rs    R1 dictionary (~250 phrases, 7 Cialdini categories, HashSet O(1) lookup)
 ├── response_integrity.rs R1→R2 cascade: sensitivity tiers, R2Role dispatch, severity computation
 ├── ri_model.rs           R2 TinyBERT FP32 ONNX multi-label classifier (4 EU AI Act Article 5 categories)
+├── response_format.rs   Multi-LLM response format detection (Anthropic/OpenAI/Gemini/Cohere/Ollama/plaintext)
 │
 │   ── Infrastructure ──
 ├── device_profile.rs    Hardware profiler: detect RAM/cores, classify tier (Full/Standard/Lite), derive FeatureBudget
@@ -157,8 +162,9 @@ src/
    │   a. Walk JSON tree for base64 image content blocks
    │      (Anthropic: type="image" + source.data, OpenAI: type="image_url" + data: URI)
    │   b. For each image: decode base64 → screen guard check → resize (960px max)
-   │   c. NSFW check: NudeNet 320n → if nudity detected, full-image solid fill, skip face/OCR
-   │   d. Face detection: SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) → NMS → solid-fill face regions
+   │   c. Phase 0: NSFW check — NudeNet 320n → if nudity detected, full-image solid fill, skip face/OCR
+   │   c2. Phase 0b: If NudeNet clean → holistic ViT-tiny classifier → if NSFW ≥ 0.75, full solid fill, skip face/OCR
+   │   d. Phase 1: Face detection — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) → NMS → solid-fill face regions
    │   e. OCR: PaddleOCR PP-OCRv4 det → text regions → solid fill (Tier 1) or recognize+scan (Tier 2)
    │   f. Encode processed image → replace base64 in JSON
    │   g. Sequential model loading: face model dropped before OCR loaded
@@ -366,7 +372,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **1,191** (501 lib + 667 bin + 14 accuracy + 9 pipeline) |
+| Test count | — | **1,426** (609 lib + 791 bin + 14 accuracy + 12 pipeline) |
 
 ## Technology Stack
 
@@ -400,6 +406,7 @@ Two-pass processing in `body.rs`: images first (entire base64 string replacement
 ```rust
 pub struct ImageModelManager {
     nsfw_detector: Mutex<Option<NsfwDetector>>,
+    nsfw_classifier: Mutex<Option<NsfwClassifier>>,
     face_detector: Mutex<Option<FaceDetector>>,
     scrfd_detector: Mutex<Option<ScrfdDetector>>,
     ocr_detector: Mutex<Option<OcrDetector>>,
@@ -409,7 +416,7 @@ pub struct ImageModelManager {
 }
 ```
 
-**Memory rule:** Models loaded sequentially via `Mutex<Option<_>>`. Face model loaded/used/dropped before OCR model loaded. Never both in RAM simultaneously. Background eviction task (60s interval) evicts models idle beyond `model_idle_timeout_secs` (default 300).
+**Memory rule:** Models loaded sequentially via `Mutex<Option<_>>`. Face model loaded/used/dropped before OCR model loaded. Never both in RAM simultaneously. The holistic NSFW classifier follows the same lazy-load/evict pattern. Background eviction task (60s interval) evicts models idle beyond `model_idle_timeout_secs` (default 300).
 
 ### Face Detection (`face_detector.rs`)
 
@@ -474,6 +481,8 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 
 ## Recently Completed
 
+- **Ensemble NSFW classifier** — ViT-tiny holistic classifier (Marqo/nsfw-image-detection-384, 21MB FP32) as Phase 0b fallback when NudeNet clean, catches semi-nude content NudeNet misses, 0.75 threshold, fail-open, lazy-loaded with eviction (Phase 15)
+- **Multi-LLM response format detection** — `response_format.rs` auto-detects response formats from 6 providers (Anthropic, OpenAI, Gemini, Cohere, Ollama, plaintext) for response integrity text extraction and warning injection
 - **SCRFD-2.5GF** — multi-scale face detection for Full/Standard tiers (640x640 input, FPN, 20px–400px faces)
 - **CoreML/NNAPI EPs** — `ort_ep.rs` consolidates all ONNX session building with hardware-accelerated inference on mobile
 - **Multilingual PII** — 9 languages with check-digit validated national IDs via `lang_detect.rs` + `multilingual/`

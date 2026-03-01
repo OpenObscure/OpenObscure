@@ -50,8 +50,10 @@ face_model_dir = "models/blazeface"
 face_model_dir_scrfd = "models/scrfd"
 ocr_model_dir = "models/paddleocr"
 nsfw_model_dir = "models/nudenet"
+nsfw_classifier_model_dir = "models/nsfw_classifier"
 # max_dimension = 960           # Resize longest edge (default: 960)
 # nsfw_threshold = 0.45         # NSFW confidence threshold (default: 0.45)
+# nsfw_classifier_threshold = 0.75  # Holistic classifier threshold (default: 0.75)
 # model_idle_timeout_secs = 300 # Evict models after N seconds idle (default: 300)
 
 # --- Response Integrity (Cognitive Firewall) ---
@@ -70,7 +72,7 @@ nsfw_model_dir = "models/nudenet"
 # Auth headers from the host agent pass through unchanged — no duplicate key management.
 
 [providers.anthropic]
-upstream_url = "https://api.anthropic.com"
+upstream_url = "http://127.0.0.1:18791"
 route_prefix = "/anthropic"
 strip_headers = ["x-openobscure-internal"]
 

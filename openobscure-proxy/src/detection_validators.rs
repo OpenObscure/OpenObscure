@@ -302,6 +302,8 @@ const EXPOSED_LABELS: &[&str] = &[
     "FEMALE_GENITALIA_EXPOSED",
     "ANUS_EXPOSED",
     "MALE_GENITALIA_EXPOSED",
+    "IMPLIED_TOPLESS",
+    "CLASSIFIER_NSFW",
 ];
 
 /// Validate NSFW detection metadata.
@@ -788,6 +790,7 @@ mod tests {
             threshold: 0.45,
             category: Some("FEMALE_BREAST_EXPOSED".to_string()),
             exposed_scores: vec![("FEMALE_BREAST_EXPOSED".to_string(), 0.85)],
+            classifier_score: None,
         };
         let issues = validate_nsfw(&meta);
         assert!(
@@ -805,6 +808,7 @@ mod tests {
             threshold: 0.45,
             category: None,
             exposed_scores: vec![],
+            classifier_score: None,
         };
         let issues = validate_nsfw(&meta);
         assert!(
@@ -823,6 +827,7 @@ mod tests {
             threshold: 0.45,
             category: Some("BUTTOCKS_EXPOSED".to_string()),
             exposed_scores: vec![],
+            classifier_score: None,
         };
         let issues = validate_nsfw(&meta);
         assert!(
@@ -839,6 +844,7 @@ mod tests {
             threshold: 0.45,
             category: None,
             exposed_scores: vec![],
+            classifier_score: None,
         };
         let issues = validate_nsfw(&meta);
         assert!(
@@ -856,6 +862,7 @@ mod tests {
             category: None,
             // 5 exposed scores is fine (≤ 18)
             exposed_scores: (0..5).map(|i| (format!("class_{}", i), 0.1)).collect(),
+            classifier_score: None,
         };
         let issues = validate_nsfw(&meta);
         assert!(
@@ -872,6 +879,7 @@ mod tests {
             threshold: 0.45,
             category: Some("FACE_FEMALE".to_string()), // Not an exposed class
             exposed_scores: vec![],
+            classifier_score: None,
         };
         let issues = validate_nsfw(&meta);
         assert!(

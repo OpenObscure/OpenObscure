@@ -28,6 +28,7 @@ pub mod image_detect;
 pub mod image_fetch;
 pub mod image_pipeline;
 pub mod image_redact;
+pub mod nsfw_classifier;
 pub mod nsfw_detector;
 pub mod ocr_engine;
 pub mod screen_guard;

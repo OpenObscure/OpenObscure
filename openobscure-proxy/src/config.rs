@@ -338,6 +338,17 @@ pub struct ImageConfig {
     /// NSFW detection confidence threshold (default: 0.45).
     #[serde(default = "default_nsfw_threshold")]
     pub nsfw_threshold: f32,
+    /// Enable holistic NSFW classifier as secondary check (default: true).
+    /// Runs a ViT-tiny classifier when NudeNet + heuristic produce no NSFW signal.
+    #[serde(default = "default_true")]
+    pub nsfw_classifier_enabled: bool,
+    /// Path to ViT-tiny NSFW classifier ONNX model directory.
+    #[serde(default)]
+    pub nsfw_classifier_model_dir: Option<String>,
+    /// NSFW classifier confidence threshold (default: 0.75).
+    /// High threshold to minimize false positives on ambiguous content.
+    #[serde(default = "default_nsfw_classifier_threshold")]
+    pub nsfw_classifier_threshold: f32,
     /// Enable fetching and processing of URL-referenced images (default: true).
     #[serde(default = "default_true")]
     pub url_fetch_enabled: bool,
@@ -377,6 +388,9 @@ impl Default for ImageConfig {
             nsfw_detection: true,
             nsfw_model_dir: None,
             nsfw_threshold: default_nsfw_threshold(),
+            nsfw_classifier_enabled: true,
+            nsfw_classifier_model_dir: None,
+            nsfw_classifier_threshold: default_nsfw_classifier_threshold(),
             url_fetch_enabled: true,
             url_max_bytes: default_url_max_bytes(),
             url_timeout_secs: default_url_timeout(),
@@ -533,6 +547,9 @@ fn default_max_dimension() -> u32 {
 }
 fn default_nsfw_threshold() -> f32 {
     0.25
+}
+fn default_nsfw_classifier_threshold() -> f32 {
+    0.75
 }
 fn default_model_idle_timeout() -> u64 {
     300

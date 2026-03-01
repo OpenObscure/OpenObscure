@@ -32,6 +32,7 @@ mod mapping;
 mod multilingual;
 mod ner_endpoint;
 mod ner_scanner;
+mod nsfw_classifier;
 mod nsfw_detector;
 mod ocr_engine;
 mod ort_ep;

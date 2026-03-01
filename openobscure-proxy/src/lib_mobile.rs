@@ -269,6 +269,9 @@ impl OpenObscureMobile {
                     None
                 },
                 nsfw_threshold: 0.45,
+                nsfw_classifier_enabled: false, // Classifier not yet bundled for mobile
+                nsfw_classifier_model_dir: None,
+                nsfw_classifier_threshold: 0.75,
                 url_fetch_enabled: false, // Mobile doesn't fetch URLs
                 url_max_bytes: 0,
                 url_timeout_secs: 0,

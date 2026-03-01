@@ -128,6 +128,7 @@ pub struct ImageStats {
 /// Models are loaded sequentially (never both at once) to stay within RAM budget.
 pub struct ImageModelManager {
     nsfw_detector: Mutex<Option<NsfwDetector>>,
+    nsfw_classifier: Mutex<Option<crate::nsfw_classifier::NsfwClassifier>>,
     face_detector: Mutex<Option<FaceDetector>>,
     scrfd_detector: Mutex<Option<ScrfdDetector>>,
     ocr_detector: Mutex<Option<OcrDetector>>,
@@ -140,6 +141,7 @@ impl ImageModelManager {
     pub fn new(config: ImageConfig) -> Self {
         Self {
             nsfw_detector: Mutex::new(None),
+            nsfw_classifier: Mutex::new(None),
             face_detector: Mutex::new(None),
             scrfd_detector: Mutex::new(None),
             ocr_detector: Mutex::new(None),
@@ -164,6 +166,19 @@ impl ImageModelManager {
             );
         }
         drop(nsfw);
+
+        let mut cls = self
+            .nsfw_classifier
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if cls.is_some() {
+            *cls = None;
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "NSFW classifier evicted (idle timeout)"
+            );
+        }
+        drop(cls);
 
         let mut face = self.face_detector.lock().unwrap_or_else(|e| e.into_inner());
         if face.is_some() {
@@ -296,6 +311,7 @@ impl ImageModelManager {
                                 threshold: self.config.nsfw_threshold,
                                 category: result.category.clone(),
                                 exposed_scores: Vec::new(), // populated at detection level
+                                classifier_score: None, // populated by Phase 0b if classifier runs
                             });
 
                             if result.is_nsfw {
@@ -336,6 +352,87 @@ impl ImageModelManager {
                     }
                 }
                 drop(guard);
+            }
+        }
+        // Phase 0b: If NudeNet says clean, run holistic classifier as second opinion
+        if !stats.nsfw_detected && self.config.nsfw_classifier_enabled {
+            if let Some(ref dir) = self.config.nsfw_classifier_model_dir {
+                let mut cls_guard = self
+                    .nsfw_classifier
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner());
+                if cls_guard.is_none() {
+                    match crate::nsfw_classifier::NsfwClassifier::load(
+                        Path::new(dir),
+                        self.config.nsfw_classifier_threshold,
+                    ) {
+                        Ok(cls) => *cls_guard = Some(cls),
+                        Err(e) => {
+                            oo_warn!(crate::oo_log::modules::IMAGE,
+                                "NSFW classifier load failed (fail-open)", error = %e);
+                        }
+                    }
+                }
+                if let Some(ref mut classifier) = *cls_guard {
+                    match classifier.classify(&dyn_img) {
+                        Ok(result) => {
+                            // Record classifier score in metadata
+                            if let Some(ref mut nsfw_meta) = meta.nsfw {
+                                nsfw_meta.classifier_score = Some(result.nsfw_score);
+                            } else {
+                                // No NudeNet metadata yet (model not available) — create it
+                                meta.nsfw = Some(NsfwMeta {
+                                    is_nsfw: false,
+                                    confidence: 0.0,
+                                    threshold: self.config.nsfw_threshold,
+                                    category: None,
+                                    exposed_scores: Vec::new(),
+                                    classifier_score: Some(result.nsfw_score),
+                                });
+                            }
+
+                            if result.is_nsfw {
+                                stats.nsfw_detected = true;
+                                oo_info!(
+                                    crate::oo_log::modules::IMAGE,
+                                    "NSFW classifier flagged image — redacting entire image",
+                                    nsfw_score = result.nsfw_score,
+                                    threshold = self.config.nsfw_classifier_threshold
+                                );
+                                // Update metadata for classifier detection path
+                                if let Some(ref mut nsfw_meta) = meta.nsfw {
+                                    nsfw_meta.is_nsfw = true;
+                                    nsfw_meta.confidence = result.nsfw_score;
+                                    nsfw_meta.category = Some("CLASSIFIER_NSFW".to_string());
+                                }
+                                // Solid fill entire image
+                                let (rw, rh) = (rgb.width(), rgb.height());
+                                image_redact::solid_fill_region(
+                                    &mut rgb,
+                                    0,
+                                    0,
+                                    rw,
+                                    rh,
+                                    image_redact::SOLID_FILL_COLOR,
+                                );
+                                // Skip face/OCR — image is already fully redacted
+                                drop(cls_guard);
+                                stats.nsfw_ms = nsfw_start.elapsed().as_millis() as u64;
+                                stats.processing_ms = start.elapsed().as_millis() as u64;
+                                return Ok((DynamicImage::ImageRgb8(rgb), stats, meta));
+                            }
+                        }
+                        Err(e) => {
+                            if matches!(&e, ImageError::OnnxRuntime(msg) if msg.contains("panicked"))
+                            {
+                                stats.onnx_panics += 1;
+                            }
+                            oo_warn!(crate::oo_log::modules::IMAGE,
+                                "NSFW classifier failed (fail-open)", error = %e);
+                        }
+                    }
+                }
+                drop(cls_guard);
             }
         }
         stats.nsfw_ms = nsfw_start.elapsed().as_millis() as u64;

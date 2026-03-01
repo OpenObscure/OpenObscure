@@ -351,11 +351,15 @@ fn candidate_iou(a: &NsfwCandidate, b: &NsfwCandidate) -> f32 {
     }
 }
 
+/// Swimwear guard multiplier: 1.25× face height below chin covers the upper
+/// torso/chest region. Scale-invariant — adapts to subject size in frame.
+const SWIMWEAR_GUARD_FACE_MULTIPLIER: f32 = 1.25;
+
 /// Spatial heuristic: detect implied toplessness from NudeNet detections.
 ///
 /// Checks for the pattern: face anchor + secondary exposed skin below the face +
-/// absence of upper-body clothing = implied topless. Includes a swimwear guard to
-/// prevent false positives on one-piece swimsuits.
+/// absence of upper-body clothing = implied topless. Includes a scale-invariant
+/// swimwear guard to prevent false positives on one-piece swimsuits.
 ///
 /// Returns `Some((confidence, reason))` if implied topless is detected.
 fn check_implied_topless(
@@ -372,8 +376,17 @@ fn check_implied_topless(
         return None;
     }
 
-    // Find the lowest face bottom edge (highest y + h value)
-    let face_bottom = faces.iter().map(|f| f.y + f.h).fold(0.0f32, f32::max);
+    // Find the lowest face bottom edge and its associated face height.
+    // We need the height to compute a scale-invariant swimwear guard.
+    let mut face_bottom = 0.0f32;
+    let mut ref_face_height = 0.0f32;
+    for face in &faces {
+        let bottom = face.y + face.h;
+        if bottom > face_bottom {
+            face_bottom = bottom;
+            ref_face_height = face.h;
+        }
+    }
 
     // Check for upper-body clothing — if present, not topless
     let has_upper_clothing = detections
@@ -384,14 +397,16 @@ fn check_implied_topless(
         return None;
     }
 
-    // Swimwear guard: if lower-body covered classes reach INTO the upper torso
-    // (top edge above face_bottom + 0.15), treat as one-piece swimsuit → don't flag.
-    // A one-piece swimsuit's top edge would be near chest height; regular pants/skirts
-    // sit at the hips, well below the midpoint between face and waist.
+    // Swimwear guard (scale-invariant): if lower-body covered classes reach into
+    // the upper torso, treat as one-piece swimsuit → don't flag. The guard line
+    // is drawn at 1.25× face height below the chin, which covers the chest region
+    // proportionally regardless of subject size in the frame.
+    let guard_threshold = face_bottom + (ref_face_height * SWIMWEAR_GUARD_FACE_MULTIPLIER);
+
     let has_swimwear = detections.iter().any(|d| {
         d.score >= threshold
             && SWIMWEAR_GUARD_INDICES.contains(&d.class_id)
-            && d.y < face_bottom + 0.15
+            && d.y < guard_threshold
     });
 
     if has_swimwear {
@@ -666,8 +681,8 @@ mod tests {
     #[test]
     fn test_implied_topless_swimwear_guard() {
         // Face + armpits exposed + buttocks_covered overlapping upper torso → NOT flagged
-        // Face bottom = 0.05 + 0.15 = 0.20, guard threshold = 0.20 + 0.15 = 0.35
-        // Buttocks_covered at y=0.30 < 0.35 → swimwear guard triggers (one-piece)
+        // Face: y=0.05, h=0.15 → face_bottom=0.20, guard = 0.20 + (0.15 * 1.25) = 0.3875
+        // Buttocks_covered at y=0.30 < 0.3875 → swimwear guard triggers (one-piece)
         let detections = vec![
             make_candidate(1, 0.73, 0.3, 0.05, 0.15, 0.15), // FACE_FEMALE
             make_candidate(11, 0.53, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED below face
@@ -680,8 +695,8 @@ mod tests {
     #[test]
     fn test_implied_topless_swimwear_guard_low_body() {
         // Face + armpits exposed + buttocks_covered far below → NOT a one-piece, should flag
-        // Face bottom = 0.05 + 0.15 = 0.20, guard threshold = 0.20 + 0.15 = 0.35
-        // Buttocks_covered at y=0.65 > 0.35 → swimwear guard does NOT trigger
+        // Face: y=0.05, h=0.15 → face_bottom=0.20, guard = 0.20 + (0.15 * 1.25) = 0.3875
+        // Buttocks_covered at y=0.65 > 0.3875 → swimwear guard does NOT trigger
         let detections = vec![
             make_candidate(1, 0.73, 0.3, 0.05, 0.15, 0.15), // FACE_FEMALE
             make_candidate(11, 0.53, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED below face
@@ -689,6 +704,40 @@ mod tests {
         ];
         let result = check_implied_topless(&detections, 0.25);
         assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_implied_topless_swimwear_guard_full_body() {
+        // Full-body shot: tiny face (h=0.05) → guard is tight (1.25 × 0.05 = 0.0625)
+        // Face: y=0.05, h=0.05 → face_bottom=0.10, guard = 0.10 + 0.0625 = 0.1625
+        // Bikini bottom at y=0.45 > 0.1625 → guard OFF → correctly flagged
+        let detections = vec![
+            make_candidate(1, 0.60, 0.1, 0.05, 0.08, 0.05), // FACE_FEMALE (small, far away)
+            make_candidate(11, 0.50, 0.10, 0.15, 0.05, 0.05), // ARMPITS_EXPOSED below face
+            make_candidate(17, 0.65, 0.15, 0.45, 0.10, 0.10), // BUTTOCKS_COVERED (bikini bottom, at hips)
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(
+            result.is_some(),
+            "Full-body topless with bikini bottom should be flagged"
+        );
+    }
+
+    #[test]
+    fn test_implied_topless_swimwear_guard_closeup() {
+        // Close-up: large face (h=0.30) → guard extends further (1.25 × 0.30 = 0.375)
+        // Face: y=0.05, h=0.30 → face_bottom=0.35, guard = 0.35 + 0.375 = 0.725
+        // One-piece swimsuit top at y=0.50 < 0.725 → guard ON → correctly NOT flagged
+        let detections = vec![
+            make_candidate(1, 0.80, 0.1, 0.05, 0.25, 0.30), // FACE_FEMALE (close-up)
+            make_candidate(11, 0.55, 0.15, 0.40, 0.10, 0.10), // ARMPITS_EXPOSED below face
+            make_candidate(17, 0.70, 0.20, 0.50, 0.25, 0.30), // BUTTOCKS_COVERED (one-piece, upper torso)
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(
+            result.is_none(),
+            "Close-up with one-piece swimsuit should NOT be flagged"
+        );
     }
 
     #[test]

@@ -421,6 +421,7 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 | **Phase R1** (complete) | **99.5%** | Response integrity cognitive firewall — persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases), severity tiers (Notice/Warning/Caution), optional warning labels (EU AI Act Article 5), Anthropic + OpenAI format support |
 | **Phase 11** (complete) | **99.5%** | SSE frame accumulation buffer (`SseAccumulator`), model pre-warming (`ReadinessState`), tier-aware body size limits, request/response FPE mapping module |
 | **Phase 12** (complete) | **99.5%** | R2 cognitive firewall — TinyBERT FP32 multi-label classifier (4 EU AI Act Article 5 categories), R1→R2 cascade (Confirm/Suppress/Upgrade/Discover), first-window early exit, ONNX FP32 export (54.9 MB), macro P=80.9% R=74.5% F1=77.3% |
+| **Phase 15** (complete) | **99.5%** | Ensemble NSFW classifier — ViT-tiny holistic model (Marqo/nsfw-image-detection-384) as Phase 0b fallback when NudeNet clean, multi-LLM response format detection (`response_format.rs`) |
 
 ## Project Layout
 
@@ -710,9 +711,11 @@ flowchart TB
         detect --> decode["Decode base64"]
         decode --> exif["EXIF strip"]
         exif --> resize["Resize"]
-        resize --> nsfw["NSFW check"]
-        nsfw -->|"safe"| face["Face redact"]
+        resize --> nsfw["NSFW check<br>(NudeNet)"]
+        nsfw -->|"safe"| classifier["Classifier<br>(ViT-tiny)"]
         nsfw -->|"nudity"| fullredact["Full redact"]
+        classifier -->|"safe"| face["Face redact"]
+        classifier -->|"NSFW"| fullredact
         face --> ocr["OCR redact"]
         ocr --> encode["Re-encode"]
         fullredact --> encode
@@ -736,6 +739,7 @@ flowchart TB
     style exif fill:#545b64,stroke:#232F3E,color:#fff
     style resize fill:#545b64,stroke:#232F3E,color:#fff
     style nsfw fill:#545b64,stroke:#232F3E,color:#fff
+    style classifier fill:#545b64,stroke:#232F3E,color:#fff
     style face fill:#545b64,stroke:#232F3E,color:#fff
     style fullredact fill:#545b64,stroke:#232F3E,color:#fff
     style ocr fill:#545b64,stroke:#232F3E,color:#fff
@@ -751,8 +755,9 @@ flowchart TB
 
 **Key properties:**
 - Images processed BEFORE text so byte offsets remain correct
-- **Three-phase pipeline:** Phase 0 (NSFW check) → Phase 1 (face detection via SCRFD or BlazeFace + solid-fill redaction) → Phase 2 (OCR text detection via PP-OCRv4 + solid-fill redaction)
-- NSFW detection: if nudity found, solid-fill entire image and skip face/OCR phases
+- **Four-phase pipeline:** Phase 0 (NudeNet body-part detection) → Phase 0b (holistic ViT-tiny classifier, if Phase 0 clean) → Phase 1 (face detection via SCRFD or BlazeFace + solid-fill redaction) → Phase 2 (OCR text detection via PP-OCRv4 + solid-fill redaction)
+- NSFW detection: if nudity found by NudeNet or classifier, solid-fill entire image and skip face/OCR phases
+- Phase 0b: ViT-tiny classifier (Marqo/nsfw-image-detection-384) runs only when NudeNet + implied-topless heuristic produce no signal; threshold 0.75 to minimize false positives; fail-open on errors
 - Face redaction: detected face regions are filled with light gray (rgb 200,200,200) — original pixel data is completely destroyed, not recoverable by AI deblurring. Elliptical fill inscribed in the bounding box with 15% padding. If face occupies >80% of image area, fill entire image.
 - OCR text redaction: detected text regions are filled with solid color — same irreversible approach as face redaction.
 - Sequential model loading: models loaded/used/dropped one at a time (never multiple in RAM)
@@ -764,7 +769,8 @@ flowchart TB
 
 | Model | Size | RAM | Purpose |
 |-------|------|-----|---------|
-| NudeNet 320n | ~12MB | ~20MB | NSFW/nudity detection (YOLOv8n, 320x320 input) |
+| NudeNet 320n | ~12MB | ~20MB | NSFW/nudity detection (YOLOv8n, 320x320 input, Phase 0) |
+| Marqo ViT-tiny | ~21MB | ~20MB | Holistic NSFW classifier — Phase 0b fallback (384x384, Apache 2.0) |
 | SCRFD-2.5GF | ~3MB | ~15MB | Face detection — Full/Standard tiers (640x640 input, multi-scale FPN) |
 | BlazeFace short-range | ~408KB | ~8MB | Face detection — Lite tier fallback (128x128 input, NMS) |
 | PaddleOCR det | ~2.4MB | ~15MB | Text region detection |
@@ -999,6 +1005,8 @@ If L0 is not running, the host agent can't reach LLM providers (traffic is confi
 ## Future Architecture Changes
 
 Recently completed:
+- **Ensemble NSFW classifier** — ViT-tiny (Marqo/nsfw-image-detection-384, 21MB FP32 ONNX) as Phase 0b fallback — catches semi-nude content NudeNet body-part detector misses, 0.75 threshold, fail-open, lazy-loaded with eviction — DONE (Phase 15)
+- **Multi-LLM response format detection** — `response_format.rs` auto-detects 6 provider formats (Anthropic, OpenAI, Gemini, Cohere, Ollama, plaintext) for response integrity text extraction — DONE
 - **ONNX Runtime mobile EPs** — CoreML (Apple) and NNAPI (Android) via `ort_ep.rs` — DONE
 - **SCRFD multi-scale face detection** — SCRFD-2.5GF for Full/Standard tiers, BlazeFace for Lite — DONE
 - **GLiNER NER evaluation** — DROPPED (82.78% recall, worse than TinyBERT 97%)

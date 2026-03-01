@@ -65,6 +65,8 @@ pub struct NsfwMeta {
     pub category: Option<String>,
     /// Top exposed class scores for diagnostics.
     pub exposed_scores: Vec<(String, f32)>,
+    /// Holistic classifier NSFW score (None if classifier not run or not available).
+    pub classifier_score: Option<f32>,
 }
 
 /// Screenshot detection metadata.
