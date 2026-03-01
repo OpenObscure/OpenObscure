@@ -133,7 +133,7 @@ impl PiiType {
 
     /// Short prefix for hash-based redaction tokens (3 chars).
     ///
-    /// Used by `TokenGenerator` to produce tokens like `OO_PER_a7f2`.
+    /// Used by `TokenGenerator` to produce tokens like `PERa7f2`.
     pub fn hash_token_prefix(&self) -> &'static str {
         match self {
             PiiType::Ipv4Address => "IP4",
