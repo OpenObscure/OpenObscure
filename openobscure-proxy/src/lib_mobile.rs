@@ -380,7 +380,7 @@ impl OpenObscureMobile {
                     }
                 }
             } else {
-                // Non-FPE types get hash-based token (e.g., PERa7f2)
+                // Non-FPE types get hash-based token (e.g., PER_a7f2)
                 let token = token_gen.generate(m.pii_type, &m.raw_value);
                 mapping_data.push((token.clone(), m.raw_value.clone()));
                 replacements.push((m.start, m.end, token));

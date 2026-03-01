@@ -164,7 +164,7 @@ pub async fn process_request_body(
                 }
             }
         } else {
-            // Non-FPE: redact with hash-based token (e.g., PERa7f2)
+            // Non-FPE: redact with hash-based token (e.g., PER_a7f2)
             let token = token_gen.generate(m.pii_type, &m.raw_value);
 
             mappings.insert(FpeMapping {

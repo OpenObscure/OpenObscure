@@ -281,33 +281,41 @@ pub async fn proxy_handler(
     let (parts, resp_body) = upstream_resp.into_parts();
     let is_sse = is_event_stream(&parts.headers);
 
-    if is_sse && has_mappings {
-        // 7a. SSE streaming path: stream through with cross-frame accumulation
-        oo_debug!(crate::oo_log::modules::PROXY, "SSE response detected, streaming with accumulation buffer",
+    if is_sse && (has_mappings || state.response_integrity.is_some()) {
+        // 7a. SSE streaming path: content-level FPE decryption + RI scanning
+        oo_debug!(crate::oo_log::modules::PROXY, "SSE response detected, streaming with content-level decryption",
             request_id = %request_id);
 
         let mappings = state.mapping_store.get(&request_id).await;
         let mapping_store = state.mapping_store.clone();
         let req_id = request_id;
-        let sse_buffer_size = state.config.proxy.sse_buffer_size;
         let sse_flush_timeout =
             std::time::Duration::from_millis(state.config.proxy.sse_flush_timeout_ms);
-        let accumulator = crate::sse_accumulator::SseAccumulator::new(sse_buffer_size);
+        let content_decryptor = crate::sse_accumulator::SseContentDecryptor::new();
         let ri_buffer = crate::sse_accumulator::SseRiBuffer::new();
         let ri_scanner = state.response_integrity.clone();
         let ri_log_only = state.config.response_integrity.log_only;
         let health = state.health.clone();
+        let empty_mappings = crate::mapping::RequestMappings::new(req_id);
 
-        // Build streaming body that decrypts each chunk with cross-frame accumulation.
+        // Build streaming body that decrypts each chunk at the content level.
         // `done` flag prevents polling after stream end (flush-then-end pattern).
         // `ri_done` flag ensures RI warning is emitted only once after flush.
         let stream = futures_util::stream::unfold(
-            (resp_body, mappings, accumulator, ri_buffer, false, false),
-            move |(mut body, mappings, mut accumulator, mut ri_buffer, done, ri_done)| {
+            (
+                resp_body,
+                mappings,
+                content_decryptor,
+                ri_buffer,
+                false,
+                false,
+            ),
+            move |(mut body, mappings, mut content_decryptor, mut ri_buffer, done, ri_done)| {
                 let mapping_store = mapping_store.clone();
                 let req_id = req_id;
                 let ri_scanner = ri_scanner.clone();
                 let health = health.clone();
+                let empty_mappings = empty_mappings.clone();
                 async move {
                     if done && ri_done {
                         return None;
@@ -315,8 +323,8 @@ pub async fn proxy_handler(
 
                     // If FPE flush is done but RI warning not yet emitted, emit it
                     if done && !ri_done {
-                        let warning = emit_sse_ri_warning(
-                            ri_buffer,
+                        let warning = emit_sse_ri_warning_inline(
+                            &mut ri_buffer,
                             ri_scanner.as_deref(),
                             ri_log_only,
                             &req_id,
@@ -324,132 +332,136 @@ pub async fn proxy_handler(
                         );
                         if !warning.is_empty() {
                             return Some((
-                                Ok::<_, std::convert::Infallible>(warning),
-                                (
-                                    body,
-                                    mappings,
-                                    accumulator,
-                                    crate::sse_accumulator::SseRiBuffer::new(),
-                                    true,
-                                    true,
-                                ),
+                                Ok::<_, std::convert::Infallible>(Bytes::from(warning)),
+                                (body, mappings, content_decryptor, ri_buffer, true, true),
                             ));
                         }
                         return None;
                     }
 
+                    let m = mappings.as_ref().unwrap_or(&empty_mappings);
+
                     match tokio::time::timeout(sse_flush_timeout, body.frame()).await {
                         Ok(Some(Ok(frame))) => {
                             if let Ok(data) = frame.into_data() {
-                                // Feed RI buffer with raw SSE data
+                                // Feed RI buffer with raw SSE data (accumulates text for RI scan)
                                 ri_buffer.feed_sse_data(&data);
-                                let chunk = if let Some(ref m) = mappings {
-                                    accumulator.feed(&data, m)
+
+                                // Check if [DONE] was detected — inject warning BEFORE [DONE]
+                                if ri_buffer.has_seen_done() && !ri_done {
+                                    // Feed content decryptor (extracts content, skips [DONE])
+                                    let chunk = content_decryptor.feed(&data, m);
+                                    // Flush remaining buffered content
+                                    let flush = content_decryptor.flush(m);
+                                    mapping_store.remove(&req_id).await;
+
+                                    // Run RI scan and format warning
+                                    let warning = emit_sse_ri_warning_inline(
+                                        &mut ri_buffer,
+                                        ri_scanner.as_deref(),
+                                        ri_log_only,
+                                        &req_id,
+                                        &health,
+                                    );
+
+                                    // Combine: chunk + flush + warning + [DONE]
+                                    let mut combined = bytes::BytesMut::new();
+                                    combined.extend_from_slice(&chunk);
+                                    combined.extend_from_slice(&flush);
+                                    combined.extend_from_slice(warning.as_bytes());
+                                    combined.extend_from_slice(b"data: [DONE]\n\n");
+
+                                    Some((
+                                        Ok::<_, std::convert::Infallible>(combined.freeze()),
+                                        (body, mappings, content_decryptor, ri_buffer, false, true),
+                                    ))
                                 } else {
-                                    data
-                                };
-                                Some((
-                                    Ok::<_, std::convert::Infallible>(chunk),
-                                    (body, mappings, accumulator, ri_buffer, false, false),
-                                ))
+                                    // Normal frame — feed through content decryptor
+                                    let chunk = content_decryptor.feed(&data, m);
+                                    Some((
+                                        Ok::<_, std::convert::Infallible>(chunk),
+                                        (
+                                            body,
+                                            mappings,
+                                            content_decryptor,
+                                            ri_buffer,
+                                            false,
+                                            false,
+                                        ),
+                                    ))
+                                }
                             } else {
                                 // Trailers or other frame types — yield empty bytes
                                 Some((
                                     Ok(Bytes::new()),
-                                    (body, mappings, accumulator, ri_buffer, false, false),
+                                    (body, mappings, content_decryptor, ri_buffer, false, false),
                                 ))
                             }
                         }
                         Ok(Some(Err(_))) => {
-                            // Stream error — flush accumulator and end
-                            let flush = if let Some(ref m) = mappings {
-                                accumulator.flush(m)
-                            } else {
-                                Bytes::new()
-                            };
+                            // Stream error — flush content decryptor and emit RI warning
+                            let flush = content_decryptor.flush(m);
                             mapping_store.remove(&req_id).await;
-                            if !flush.is_empty() {
-                                // Transition to done=true, ri_done=false → will emit RI warning next
-                                Some((
-                                    Ok(flush),
-                                    (body, mappings, accumulator, ri_buffer, true, false),
-                                ))
-                            } else {
-                                // No flush data — emit RI warning directly
-                                let warning = emit_sse_ri_warning(
-                                    ri_buffer,
+
+                            let warning = if !ri_done {
+                                emit_sse_ri_warning_inline(
+                                    &mut ri_buffer,
                                     ri_scanner.as_deref(),
                                     ri_log_only,
                                     &req_id,
                                     &health,
-                                );
-                                if !warning.is_empty() {
-                                    Some((
-                                        Ok(warning),
-                                        (
-                                            body,
-                                            mappings,
-                                            accumulator,
-                                            crate::sse_accumulator::SseRiBuffer::new(),
-                                            true,
-                                            true,
-                                        ),
-                                    ))
-                                } else {
-                                    None
-                                }
+                                )
+                            } else {
+                                String::new()
+                            };
+
+                            let mut combined = bytes::BytesMut::new();
+                            combined.extend_from_slice(&flush);
+                            combined.extend_from_slice(warning.as_bytes());
+                            if combined.is_empty() {
+                                None
+                            } else {
+                                Some((
+                                    Ok(combined.freeze()),
+                                    (body, mappings, content_decryptor, ri_buffer, true, true),
+                                ))
                             }
                         }
                         Ok(None) => {
-                            // Stream complete — flush remaining buffer
-                            let flush = if let Some(ref m) = mappings {
-                                accumulator.flush(m)
-                            } else {
-                                Bytes::new()
-                            };
+                            // Stream complete — flush remaining buffer and emit RI warning
+                            let flush = content_decryptor.flush(m);
                             mapping_store.remove(&req_id).await;
-                            if !flush.is_empty() {
-                                // Transition to done=true, ri_done=false → will emit RI warning next
-                                Some((
-                                    Ok(flush),
-                                    (body, mappings, accumulator, ri_buffer, true, false),
-                                ))
-                            } else {
-                                // No flush data — emit RI warning directly
-                                let warning = emit_sse_ri_warning(
-                                    ri_buffer,
+
+                            let warning = if !ri_done {
+                                emit_sse_ri_warning_inline(
+                                    &mut ri_buffer,
                                     ri_scanner.as_deref(),
                                     ri_log_only,
                                     &req_id,
                                     &health,
-                                );
-                                if !warning.is_empty() {
-                                    Some((
-                                        Ok(warning),
-                                        (
-                                            body,
-                                            mappings,
-                                            accumulator,
-                                            crate::sse_accumulator::SseRiBuffer::new(),
-                                            true,
-                                            true,
-                                        ),
-                                    ))
-                                } else {
-                                    None
-                                }
+                                )
+                            } else {
+                                String::new()
+                            };
+
+                            let mut combined = bytes::BytesMut::new();
+                            combined.extend_from_slice(&flush);
+                            combined.extend_from_slice(warning.as_bytes());
+                            if combined.is_empty() {
+                                None
+                            } else {
+                                Some((
+                                    Ok(combined.freeze()),
+                                    (body, mappings, content_decryptor, ri_buffer, true, true),
+                                ))
                             }
                         }
                         Err(_timeout) => {
-                            // Flush timeout — emit whatever is in the buffer
-                            let flush = if let Some(ref m) = mappings {
-                                accumulator.flush(m)
-                            } else {
-                                Bytes::new()
-                            };
+                            // Flush timeout — emit whatever is in the content buffer
+                            let flush = content_decryptor.flush(m);
                             Some((
                                 Ok(flush),
-                                (body, mappings, accumulator, ri_buffer, false, false),
+                                (body, mappings, content_decryptor, ri_buffer, false, false),
                             ))
                         }
                     }
@@ -791,32 +803,35 @@ fn scan_response_integrity(
     }
 }
 
-/// Emit an SSE trailing warning event if RI scanning finds persuasion techniques.
+/// Run RI scan on accumulated SSE text and return a warning as a standard content
+/// delta chunk (matching the detected SSE format). Returns an empty string if clean,
+/// log-only, or no scanner.
 ///
-/// Called at SSE stream end. Consumes the `SseRiBuffer`, scans accumulated text,
-/// and returns a `Bytes` containing the warning SSE event (or empty if clean).
-fn emit_sse_ri_warning(
-    ri_buffer: crate::sse_accumulator::SseRiBuffer,
+/// Takes `&mut SseRiBuffer` (instead of consuming it) so it can be called inline
+/// during stream processing — before `[DONE]` is yielded.
+fn emit_sse_ri_warning_inline(
+    ri_buffer: &mut crate::sse_accumulator::SseRiBuffer,
     ri_scanner: Option<&ResponseIntegrityScanner>,
     log_only: bool,
     request_id: &uuid::Uuid,
     health: &HealthStats,
-) -> Bytes {
+) -> String {
     let scanner = match ri_scanner {
         Some(s) => s,
-        None => return Bytes::new(),
+        None => return String::new(),
     };
 
-    let text = match ri_buffer.finish() {
+    let format = ri_buffer.detected_format();
+    let text = match ri_buffer.take_text() {
         Some(t) => t,
-        None => return Bytes::new(),
+        None => return String::new(),
     };
 
     health.record_ri_scan();
 
     let report = match scanner.scan(&text) {
         Some(r) => r,
-        None => return Bytes::new(), // Clean → no warning
+        None => return String::new(), // Clean → no warning
     };
 
     let flag_count = report.flags.len() as u64;
@@ -839,14 +854,12 @@ fn emit_sse_ri_warning(
 
     // If log_only, don't inject warning into stream
     if log_only {
-        return Bytes::new();
+        return String::new();
     }
 
-    // Emit trailing SSE event
+    // Emit warning as a standard content delta matching the detected SSE format
     let label = ResponseIntegrityScanner::format_warning_label(&report);
-    let warning_json = serde_json::json!({"warning": label});
-    let sse_event = format!("\nevent: openobscure_warning\ndata: {}\n\n", warning_json);
-    Bytes::from(sse_event)
+    crate::sse_accumulator::format_sse_warning_chunk(format, &label)
 }
 
 /// Inject `X-OO-*` per-feature timing headers into a response.

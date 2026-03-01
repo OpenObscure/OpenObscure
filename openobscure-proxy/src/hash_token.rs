@@ -1,7 +1,7 @@
 //! Hash-based token generation for non-FPE PII redaction.
 //!
 //! Replaces indexed bracket labels like `[PERSON_0]` with short, deterministic
-//! tokens like `PERa7f2` that LLMs treat as opaque identifiers and echo
+//! tokens like `PER_a7f2` that LLMs treat as opaque identifiers and echo
 //! back verbatim.  The token is derived from SHA-256(request_id || plaintext)
 //! so identical plaintext within a request always maps to the same token.
 
@@ -44,7 +44,7 @@ impl TokenGenerator {
         }
 
         let hash = Self::compute_hash(&self.request_id, plaintext);
-        let base_token = format!("{}{}", prefix, hash);
+        let base_token = format!("{}_{}", prefix, hash);
 
         let token = self.resolve_collision(base_token, plaintext);
 
@@ -133,38 +133,40 @@ mod tests {
         let mut gen = TokenGenerator::new(test_uuid());
         let token = gen.generate(PiiType::Person, "Alice");
         assert!(
-            token.starts_with("PER"),
-            "Token must start with PER: {}",
+            token.starts_with("PER_"),
+            "Token must start with PER_: {}",
             token
         );
-        // Base token: "PER" (3) + hash (4) = 7 chars
-        assert!(token.len() >= 7, "Token too short: {}", token);
-        assert!(token.len() <= 9, "Token too long: {}", token);
+        // Base token: "PER" (3) + "_" (1) + hash (4) = 8 chars
+        assert!(token.len() >= 8, "Token too short: {}", token);
+        assert!(token.len() <= 10, "Token too long: {}", token);
     }
 
     #[test]
     fn test_token_prefixes() {
         let mut gen = TokenGenerator::new(test_uuid());
-        assert!(gen.generate(PiiType::Location, "NYC").starts_with("LOC"));
+        assert!(gen.generate(PiiType::Location, "NYC").starts_with("LOC_"));
         assert!(gen
             .generate(PiiType::Organization, "ACME")
-            .starts_with("ORG"));
+            .starts_with("ORG_"));
         assert!(gen
             .generate(PiiType::HealthKeyword, "diabetes")
-            .starts_with("HLT"));
+            .starts_with("HLT_"));
         assert!(gen
             .generate(PiiType::ChildKeyword, "minor")
-            .starts_with("CHL"));
+            .starts_with("CHL_"));
         assert!(gen
             .generate(PiiType::Ipv4Address, "192.168.1.1")
-            .starts_with("IP4"));
-        assert!(gen.generate(PiiType::Ipv6Address, "::1").starts_with("IP6"));
+            .starts_with("IP4_"));
+        assert!(gen
+            .generate(PiiType::Ipv6Address, "::1")
+            .starts_with("IP6_"));
         assert!(gen
             .generate(PiiType::GpsCoordinate, "40.7,-74.0")
-            .starts_with("GPS"));
+            .starts_with("GPS_"));
         assert!(gen
             .generate(PiiType::MacAddress, "AA:BB:CC:DD:EE:FF")
-            .starts_with("MAC"));
+            .starts_with("MAC_"));
     }
 
     #[test]
@@ -191,7 +193,7 @@ mod tests {
         // Force collision by inserting a fake entry with the hash of "Bob"
         let prefix = PiiType::Person.hash_token_prefix();
         let hash_bob = TokenGenerator::compute_hash(&test_uuid(), "Bob");
-        let fake_token = format!("{}{}", prefix, hash_bob);
+        let fake_token = format!("{}_{}", prefix, hash_bob);
         gen.used_tokens
             .insert(fake_token.clone(), "NotBob".to_string());
 
@@ -233,7 +235,7 @@ mod tests {
         let t_loc = gen.generate(PiiType::Location, "test");
         // Tokens should differ because prefix differs
         assert_ne!(t_per, t_loc);
-        assert!(t_per.starts_with("PER"));
-        assert!(t_loc.starts_with("LOC"));
+        assert!(t_per.starts_with("PER_"));
+        assert!(t_loc.starts_with("LOC_"));
     }
 }

@@ -8,6 +8,21 @@ use bytes::Bytes;
 
 use crate::mapping::RequestMappings;
 
+/// Detected SSE stream format — used to emit RI warnings in the correct delta format.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SseFormat {
+    /// Not yet detected (no deltas parsed yet).
+    Unknown,
+    /// Anthropic: `content_block_delta` → `delta.text`
+    Anthropic,
+    /// OpenAI / OpenRouter: `choices[0].delta.content`
+    OpenAi,
+    /// Google Gemini: `candidates[0].content.parts[0].text`
+    Gemini,
+    /// Generic fallback: top-level `text` or `content` string
+    Generic,
+}
+
 /// Accumulation buffer for cross-SSE-frame PII token detection.
 ///
 /// When a new frame arrives:
@@ -107,6 +122,8 @@ pub struct SseRiBuffer {
     text: String,
     max_text_bytes: usize,
     truncated: bool,
+    format: SseFormat,
+    seen_done: bool,
 }
 
 impl Default for SseRiBuffer {
@@ -121,6 +138,8 @@ impl SseRiBuffer {
             text: String::new(),
             max_text_bytes: RI_BUFFER_DEFAULT_MAX,
             truncated: false,
+            format: SseFormat::Unknown,
+            seen_done: false,
         }
     }
 
@@ -129,6 +148,8 @@ impl SseRiBuffer {
             text: String::new(),
             max_text_bytes,
             truncated: false,
+            format: SseFormat::Unknown,
+            seen_done: false,
         }
     }
 
@@ -153,7 +174,11 @@ impl SseRiBuffer {
             };
 
             // Skip SSE termination and comments
-            if data == "[DONE]" || data.is_empty() {
+            if data == "[DONE]" {
+                self.seen_done = true;
+                continue;
+            }
+            if data.is_empty() {
                 continue;
             }
 
@@ -172,6 +197,9 @@ impl SseRiBuffer {
             .and_then(|d| d.get("text"))
             .and_then(|t| t.as_str())
         {
+            if self.format == SseFormat::Unknown {
+                self.format = SseFormat::Anthropic;
+            }
             self.append(text);
             return;
         }
@@ -185,6 +213,9 @@ impl SseRiBuffer {
             .and_then(|d| d.get("content"))
             .and_then(|c| c.as_str())
         {
+            if self.format == SseFormat::Unknown {
+                self.format = SseFormat::OpenAi;
+            }
             self.append(content);
             return;
         }
@@ -201,14 +232,23 @@ impl SseRiBuffer {
             .and_then(|part| part.get("text"))
             .and_then(|t| t.as_str())
         {
+            if self.format == SseFormat::Unknown {
+                self.format = SseFormat::Gemini;
+            }
             self.append(text);
             return;
         }
 
         // Generic fallback: any "text" or "content" string at top level
         if let Some(text) = json.get("text").and_then(|t| t.as_str()) {
+            if self.format == SseFormat::Unknown {
+                self.format = SseFormat::Generic;
+            }
             self.append(text);
         } else if let Some(content) = json.get("content").and_then(|c| c.as_str()) {
+            if self.format == SseFormat::Unknown {
+                self.format = SseFormat::Generic;
+            }
             self.append(content);
         }
     }
@@ -242,13 +282,341 @@ impl SseRiBuffer {
         }
     }
 
+    /// Move text out without consuming the buffer. Returns `None` if empty.
+    pub fn take_text(&mut self) -> Option<String> {
+        if self.text.is_empty() {
+            None
+        } else {
+            Some(std::mem::take(&mut self.text))
+        }
+    }
+
+    /// Whether `data: [DONE]` was seen in the SSE stream.
+    pub fn has_seen_done(&self) -> bool {
+        self.seen_done
+    }
+
+    /// The SSE format detected from parsed delta events.
+    pub fn detected_format(&self) -> SseFormat {
+        self.format
+    }
+
     /// Whether the buffer had to truncate text at the max limit.
     pub fn is_truncated(&self) -> bool {
         self.truncated
     }
 }
 
-/// Snap a byte offset backward to a valid UTF-8 character boundary.
+/// Format text content as an SSE delta event in the detected stream format.
+///
+/// Creates a synthetic SSE event containing the given text. Used by
+/// `SseContentDecryptor` to emit FPE-processed content and by
+/// `format_sse_warning_chunk` for RI warnings.
+pub fn format_sse_delta(format: SseFormat, text: &str) -> String {
+    match format {
+        SseFormat::Anthropic => {
+            let json = serde_json::json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {
+                    "type": "text_delta",
+                    "text": text,
+                }
+            });
+            format!("event: content_block_delta\ndata: {json}\n\n")
+        }
+        SseFormat::Gemini => {
+            let json = serde_json::json!({
+                "candidates": [{
+                    "content": {
+                        "parts": [{"text": text}]
+                    }
+                }]
+            });
+            format!("data: {json}\n\n")
+        }
+        // OpenAI, Generic, Unknown all use OpenAI chunk format
+        _ => {
+            let json = serde_json::json!({
+                "id": "oo-proxy",
+                "object": "chat.completion.chunk",
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content": text},
+                    "finish_reason": serde_json::Value::Null,
+                }]
+            });
+            format!("data: {json}\n\n")
+        }
+    }
+}
+
+/// Format an RI warning as a standard SSE content delta chunk.
+///
+/// Emits the warning in the same format the LLM stream is using, so clients
+/// process it as normal response text. Falls back to OpenAI format when the
+/// stream format is unknown.
+pub fn format_sse_warning_chunk(format: SseFormat, label: &str) -> String {
+    let content = format!("\n\n{label}");
+    match format {
+        SseFormat::Anthropic => {
+            let json = serde_json::json!({
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {
+                    "type": "text_delta",
+                    "text": content,
+                }
+            });
+            format!("event: content_block_delta\ndata: {json}\n\n")
+        }
+        SseFormat::Gemini => {
+            let json = serde_json::json!({
+                "candidates": [{
+                    "content": {
+                        "parts": [{"text": content}]
+                    }
+                }]
+            });
+            format!("data: {json}\n\n")
+        }
+        // OpenAI, Generic, Unknown all use OpenAI chunk format
+        _ => {
+            let json = serde_json::json!({
+                "id": "oo-ri-warning",
+                "object": "chat.completion.chunk",
+                "choices": [{
+                    "index": 0,
+                    "delta": {"content": content},
+                    "finish_reason": serde_json::Value::Null,
+                }]
+            });
+            format!("data: {json}\n\n")
+        }
+    }
+}
+
+/// Content-level SSE FPE decryptor.
+///
+/// Unlike [`SseAccumulator`] (which works on raw bytes), this decryptor
+/// extracts text content from SSE delta events and performs ciphertext
+/// replacement at the content level. This correctly handles ciphertexts
+/// that are split across multiple SSE delta events by the LLM tokenizer.
+///
+/// Content is buffered until [`flush`](SseContentDecryptor::flush) is called
+/// (at `[DONE]`, stream end, or error), at which point all ciphertexts in
+/// the accumulated text are replaced and emitted as a single synthetic SSE
+/// delta event. Non-content events (metadata, pings) are passed through
+/// immediately.
+pub struct SseContentDecryptor {
+    /// Accumulated content text not yet emitted.
+    content_buffer: String,
+    /// The SSE format detected from the stream.
+    format: SseFormat,
+}
+
+impl Default for SseContentDecryptor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SseContentDecryptor {
+    pub fn new() -> Self {
+        Self {
+            content_buffer: String::new(),
+            format: SseFormat::Unknown,
+        }
+    }
+
+    /// Feed a raw SSE frame. Extracts content text into the internal buffer
+    /// and passes through non-content events immediately.
+    ///
+    /// Content text is NOT emitted here — call [`flush`](Self::flush) at
+    /// stream end to emit the processed content with all ciphertexts replaced.
+    pub fn feed(&mut self, raw: &[u8], mappings: &RequestMappings) -> Bytes {
+        if mappings.is_empty() {
+            // No mappings — still extract content for format detection but pass through raw
+            let _ = self.parse_and_buffer(raw);
+            return Bytes::copy_from_slice(raw);
+        }
+
+        let passthrough = self.parse_and_buffer(raw);
+
+        if passthrough.is_empty() {
+            Bytes::new()
+        } else {
+            Bytes::from(passthrough)
+        }
+    }
+
+    /// Parse an SSE frame, buffer content text, and return any passthrough output.
+    fn parse_and_buffer(&mut self, raw: &[u8]) -> String {
+        let text = match std::str::from_utf8(raw) {
+            Ok(s) => s,
+            Err(_) => return String::new(),
+        };
+
+        let mut passthrough = String::new();
+        let mut pending_event_line = String::new();
+
+        for line in text.lines() {
+            if line.starts_with("event: ") {
+                // SSE event type — remember it for the next data line
+                pending_event_line = format!("{line}\n");
+                continue;
+            }
+
+            let data = if let Some(d) = line.strip_prefix("data: ") {
+                d.trim()
+            } else if let Some(d) = line.strip_prefix("data:") {
+                d.trim()
+            } else {
+                // Other SSE fields (id:, retry:) or blank lines — pass through
+                if !line.is_empty() {
+                    passthrough.push_str(line);
+                    passthrough.push('\n');
+                }
+                continue;
+            };
+
+            // Skip [DONE] — handled by proxy's [DONE] logic
+            if data == "[DONE]" {
+                pending_event_line.clear();
+                continue;
+            }
+
+            if data.is_empty() {
+                pending_event_line.clear();
+                continue;
+            }
+
+            // Try to extract content from JSON delta
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                if let Some((content, fmt)) = Self::extract_content(&json) {
+                    if self.format == SseFormat::Unknown {
+                        self.format = fmt;
+                    }
+                    self.content_buffer.push_str(&content);
+                    pending_event_line.clear();
+                    continue;
+                }
+            }
+
+            // Non-content data line — pass through with its event prefix
+            passthrough.push_str(&pending_event_line);
+            passthrough.push_str(line);
+            passthrough.push_str("\n\n");
+            pending_event_line.clear();
+        }
+
+        passthrough
+    }
+
+    /// Flush all buffered content with ciphertext replacement.
+    ///
+    /// Call this at `[DONE]`, stream end, or error to emit the accumulated
+    /// content as a single synthetic SSE delta event with all ciphertexts
+    /// replaced by their original plaintexts.
+    pub fn flush(&mut self, mappings: &RequestMappings) -> Bytes {
+        if self.content_buffer.is_empty() {
+            return Bytes::new();
+        }
+        let text = std::mem::take(&mut self.content_buffer);
+        if mappings.is_empty() {
+            return Bytes::from(format_sse_delta(self.format, &text));
+        }
+        let processed = mappings.decrypt_response(&text);
+        Bytes::from(format_sse_delta(self.format, &processed))
+    }
+
+    /// Returns true if there's pending content in the buffer.
+    pub fn has_pending(&self) -> bool {
+        !self.content_buffer.is_empty()
+    }
+
+    /// The SSE format detected from parsed delta events.
+    pub fn detected_format(&self) -> SseFormat {
+        self.format
+    }
+
+    /// Extract content text and format from a JSON delta event.
+    fn extract_content(json: &serde_json::Value) -> Option<(String, SseFormat)> {
+        // Anthropic: delta.text
+        if let Some(text) = json
+            .get("delta")
+            .and_then(|d| d.get("text"))
+            .and_then(|t| t.as_str())
+        {
+            return Some((text.to_string(), SseFormat::Anthropic));
+        }
+
+        // OpenAI: choices[0].delta.content
+        if let Some(content) = json
+            .get("choices")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|choice| choice.get("delta"))
+            .and_then(|d| d.get("content"))
+            .and_then(|c| c.as_str())
+        {
+            return Some((content.to_string(), SseFormat::OpenAi));
+        }
+
+        // Gemini: candidates[0].content.parts[0].text
+        if let Some(text) = json
+            .get("candidates")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|cand| cand.get("content"))
+            .and_then(|c| c.get("parts"))
+            .and_then(|p| p.as_array())
+            .and_then(|parts| parts.first())
+            .and_then(|part| part.get("text"))
+            .and_then(|t| t.as_str())
+        {
+            return Some((text.to_string(), SseFormat::Gemini));
+        }
+
+        // Generic fallback: top-level "text" or "content" string
+        if let Some(text) = json.get("text").and_then(|t| t.as_str()) {
+            return Some((text.to_string(), SseFormat::Generic));
+        }
+        if let Some(content) = json.get("content").and_then(|c| c.as_str()) {
+            return Some((content.to_string(), SseFormat::Generic));
+        }
+
+        None
+    }
+}
+
+/// Split raw SSE frame bytes at the `data: [DONE]` marker.
+///
+/// Returns `(bytes_before_done, found_done)`. If `[DONE]` is not found,
+/// returns the original data unchanged with `false`.
+pub fn split_at_done(data: &[u8]) -> (bytes::Bytes, bool) {
+    let text = match std::str::from_utf8(data) {
+        Ok(s) => s,
+        Err(_) => return (bytes::Bytes::copy_from_slice(data), false),
+    };
+
+    // Match both "data: [DONE]" and "data:[DONE]" (with/without space)
+    let needle = if let Some(pos) = text.find("data: [DONE]") {
+        Some(pos)
+    } else {
+        text.find("data:[DONE]")
+    };
+
+    match needle {
+        Some(pos) => {
+            let before = text[..pos].to_string();
+            (bytes::Bytes::from(before), true)
+        }
+        None => (bytes::Bytes::copy_from_slice(data), false),
+    }
+}
+
+/// Snap a byte offset backward to a valid UTF-8 character boundary (raw bytes).
 fn snap_to_char_boundary(data: &[u8], offset: usize) -> usize {
     let mut pos = offset;
     while pos > 0 && (data[pos] & 0xC0) == 0x80 {
@@ -451,5 +819,415 @@ mod tests {
         buf.feed_sse_data(b"data: {\"content\":\"fallback text\"}\n\n");
         let text = buf.finish().unwrap();
         assert_eq!(text, "fallback text");
+    }
+
+    // ── SseFormat detection tests ────────────────────────────────────────
+
+    #[test]
+    fn test_ri_buffer_detects_openai_format() {
+        let mut buf = SseRiBuffer::new();
+        assert_eq!(buf.detected_format(), SseFormat::Unknown);
+        buf.feed_sse_data(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n");
+        assert_eq!(buf.detected_format(), SseFormat::OpenAi);
+    }
+
+    #[test]
+    fn test_ri_buffer_detects_anthropic_format() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"data: {\"delta\":{\"text\":\"Hi\"}}\n\n");
+        assert_eq!(buf.detected_format(), SseFormat::Anthropic);
+    }
+
+    #[test]
+    fn test_ri_buffer_detects_gemini_format() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(
+            b"data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Hi\"}]}}]}\n\n",
+        );
+        assert_eq!(buf.detected_format(), SseFormat::Gemini);
+    }
+
+    #[test]
+    fn test_ri_buffer_detects_generic_format() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"data: {\"text\":\"Hi\"}\n\n");
+        assert_eq!(buf.detected_format(), SseFormat::Generic);
+    }
+
+    #[test]
+    fn test_ri_buffer_format_locked_on_first_match() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"data: {\"choices\":[{\"delta\":{\"content\":\"A\"}}]}\n\n");
+        assert_eq!(buf.detected_format(), SseFormat::OpenAi);
+        // Second delta with different format doesn't change detected format
+        buf.feed_sse_data(b"data: {\"delta\":{\"text\":\"B\"}}\n\n");
+        assert_eq!(buf.detected_format(), SseFormat::OpenAi);
+    }
+
+    // ── seen_done tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_ri_buffer_seen_done() {
+        let mut buf = SseRiBuffer::new();
+        assert!(!buf.has_seen_done());
+        buf.feed_sse_data(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n");
+        assert!(!buf.has_seen_done());
+        buf.feed_sse_data(b"data: [DONE]\n\n");
+        assert!(buf.has_seen_done());
+    }
+
+    #[test]
+    fn test_ri_buffer_seen_done_no_space() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"data:[DONE]\n\n");
+        assert!(buf.has_seen_done());
+    }
+
+    // ── take_text tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_ri_buffer_take_text() {
+        let mut buf = SseRiBuffer::new();
+        buf.feed_sse_data(b"data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n");
+        let text = buf.take_text().unwrap();
+        assert_eq!(text, "Hello");
+        // After take, text is empty
+        assert!(buf.take_text().is_none());
+        // But format is preserved
+        assert_eq!(buf.detected_format(), SseFormat::OpenAi);
+    }
+
+    // ── format_sse_warning_chunk tests ───────────────────────────────────
+
+    #[test]
+    fn test_format_warning_chunk_openai() {
+        let chunk = format_sse_warning_chunk(SseFormat::OpenAi, "[Warning] Test");
+        assert!(chunk.starts_with("data: "));
+        assert!(chunk.ends_with("\n\n"));
+        let json_str = chunk.strip_prefix("data: ").unwrap().trim();
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        assert_eq!(json["object"], "chat.completion.chunk");
+        let content = json["choices"][0]["delta"]["content"].as_str().unwrap();
+        assert!(content.contains("[Warning] Test"));
+    }
+
+    #[test]
+    fn test_format_warning_chunk_anthropic() {
+        let chunk = format_sse_warning_chunk(SseFormat::Anthropic, "[Warning] Test");
+        assert!(chunk.starts_with("event: content_block_delta\n"));
+        let data_line = chunk.lines().find(|l| l.starts_with("data: ")).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(data_line.strip_prefix("data: ").unwrap()).unwrap();
+        assert_eq!(json["type"], "content_block_delta");
+        let text = json["delta"]["text"].as_str().unwrap();
+        assert!(text.contains("[Warning] Test"));
+    }
+
+    #[test]
+    fn test_format_warning_chunk_gemini() {
+        let chunk = format_sse_warning_chunk(SseFormat::Gemini, "[Warning] Test");
+        assert!(chunk.starts_with("data: "));
+        let json_str = chunk.strip_prefix("data: ").unwrap().trim();
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let text = json["candidates"][0]["content"]["parts"][0]["text"]
+            .as_str()
+            .unwrap();
+        assert!(text.contains("[Warning] Test"));
+    }
+
+    #[test]
+    fn test_format_warning_chunk_unknown_uses_openai() {
+        let chunk = format_sse_warning_chunk(SseFormat::Unknown, "test");
+        assert!(chunk.starts_with("data: "));
+        let json_str = chunk.strip_prefix("data: ").unwrap().trim();
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        assert_eq!(json["object"], "chat.completion.chunk");
+    }
+
+    // ── split_at_done tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_split_at_done_found() {
+        let data = b"data: {\"choices\":[{\"delta\":{}}]}\n\ndata: [DONE]\n\n";
+        let (before, found) = split_at_done(data);
+        assert!(found);
+        let before_str = std::str::from_utf8(&before).unwrap();
+        assert!(!before_str.contains("[DONE]"));
+        assert!(before_str.contains("choices"));
+    }
+
+    #[test]
+    fn test_split_at_done_not_found() {
+        let data = b"data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n";
+        let (before, found) = split_at_done(data);
+        assert!(!found);
+        assert_eq!(before.len(), data.len());
+    }
+
+    #[test]
+    fn test_split_at_done_only_done() {
+        let data = b"data: [DONE]\n\n";
+        let (before, found) = split_at_done(data);
+        assert!(found);
+        assert!(before.is_empty());
+    }
+
+    #[test]
+    fn test_split_at_done_no_space() {
+        let data = b"data:[DONE]\n\n";
+        let (before, found) = split_at_done(data);
+        assert!(found);
+        assert!(before.is_empty());
+    }
+
+    // ── SseContentDecryptor tests ───────────────────────────────────────
+
+    #[test]
+    fn test_content_decryptor_no_mappings_passthrough() {
+        let empty = RequestMappings::new(uuid::Uuid::new_v4());
+        let mut dec = SseContentDecryptor::new();
+        let data =
+            Bytes::from("data: {\"choices\":[{\"delta\":{\"content\":\"Hello world\"}}]}\n\n");
+        let result = dec.feed(&data, &empty);
+        assert_eq!(
+            String::from_utf8_lossy(&result),
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Hello world\"}}]}\n\n"
+        );
+    }
+
+    #[test]
+    fn test_content_decryptor_single_event_replacement() {
+        let m = mappings_with(&[("131-464-5515", "415-555-0198")]);
+        let mut dec = SseContentDecryptor::new();
+
+        // Single event with complete ciphertext
+        let data = Bytes::from(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Call 131-464-5515 now\"}}]}\n\n",
+        );
+        let out = dec.feed(&data, &m);
+        let flush = dec.flush(&m);
+
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out),
+            String::from_utf8_lossy(&flush),
+        );
+        assert!(
+            combined.contains("415-555-0198"),
+            "Ciphertext should be replaced: {}",
+            combined
+        );
+        assert!(
+            !combined.contains("131-464-5515"),
+            "Ciphertext should not remain: {}",
+            combined
+        );
+    }
+
+    #[test]
+    fn test_content_decryptor_cross_delta_replacement() {
+        let m = mappings_with(&[("131-464-5515", "415-555-0198")]);
+        let mut dec = SseContentDecryptor::new();
+
+        // Phone number split across 3 delta events (mimics real LLM streaming)
+        let frame1 =
+            Bytes::from("data: {\"choices\":[{\"delta\":{\"content\":\"Call 131\"}}]}\n\n");
+        let frame2 = Bytes::from("data: {\"choices\":[{\"delta\":{\"content\":\"-464\"}}]}\n\n");
+        let frame3 =
+            Bytes::from("data: {\"choices\":[{\"delta\":{\"content\":\"-5515 now\"}}]}\n\n");
+
+        let out1 = dec.feed(&frame1, &m);
+        let out2 = dec.feed(&frame2, &m);
+        let out3 = dec.feed(&frame3, &m);
+        let flush = dec.flush(&m);
+
+        let combined = format!(
+            "{}{}{}{}",
+            String::from_utf8_lossy(&out1),
+            String::from_utf8_lossy(&out2),
+            String::from_utf8_lossy(&out3),
+            String::from_utf8_lossy(&flush),
+        );
+
+        // Extract text content from all synthetic SSE events
+        let mut extracted_text = String::new();
+        for line in combined.lines() {
+            let data = line.strip_prefix("data: ").unwrap_or("");
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                if let Some(c) = json["choices"][0]["delta"]["content"].as_str() {
+                    extracted_text.push_str(c);
+                }
+            }
+        }
+
+        assert!(
+            extracted_text.contains("415-555-0198"),
+            "Cross-delta ciphertext should be replaced: {:?}",
+            extracted_text
+        );
+        assert!(
+            !extracted_text.contains("131-464-5515"),
+            "Ciphertext should not remain: {:?}",
+            extracted_text
+        );
+    }
+
+    #[test]
+    fn test_content_decryptor_hash_token_replacement() {
+        let m = mappings_with(&[("PER_a7f2", "Chris Wise")]);
+        let mut dec = SseContentDecryptor::new();
+
+        // Hash token split across delta events
+        let frame1 =
+            Bytes::from("data: {\"choices\":[{\"delta\":{\"content\":\"Dear PER_\"}}]}\n\n");
+        let frame2 =
+            Bytes::from("data: {\"choices\":[{\"delta\":{\"content\":\"a7f2, congrats\"}}]}\n\n");
+
+        let out1 = dec.feed(&frame1, &m);
+        let out2 = dec.feed(&frame2, &m);
+        let flush = dec.flush(&m);
+
+        let combined = format!(
+            "{}{}{}",
+            String::from_utf8_lossy(&out1),
+            String::from_utf8_lossy(&out2),
+            String::from_utf8_lossy(&flush),
+        );
+
+        let mut extracted = String::new();
+        for line in combined.lines() {
+            let data = line.strip_prefix("data: ").unwrap_or("");
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                if let Some(c) = json["choices"][0]["delta"]["content"].as_str() {
+                    extracted.push_str(c);
+                }
+            }
+        }
+
+        assert!(
+            extracted.contains("Chris Wise"),
+            "Hash token should be replaced: {:?}",
+            extracted
+        );
+        assert!(
+            !extracted.contains("PER_a7f2"),
+            "Hash token should not remain: {:?}",
+            extracted
+        );
+    }
+
+    #[test]
+    fn test_content_decryptor_passes_through_non_content_events() {
+        let m = mappings_with(&[("SECRET", "plaintext")]);
+        let mut dec = SseContentDecryptor::new();
+
+        // Non-content event (e.g., message_start) should pass through
+        let frame = Bytes::from(
+            "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"id\":\"msg_1\"}}\n\n",
+        );
+        let result = dec.feed(&frame, &m);
+        let result_str = String::from_utf8_lossy(&result);
+        assert!(
+            result_str.contains("message_start"),
+            "Non-content event should pass through: {}",
+            result_str
+        );
+    }
+
+    #[test]
+    fn test_content_decryptor_skips_done() {
+        let m = mappings_with(&[("SECRET", "plaintext")]);
+        let mut dec = SseContentDecryptor::new();
+
+        let frame = Bytes::from("data: [DONE]\n\n");
+        let result = dec.feed(&frame, &m);
+        let result_str = String::from_utf8_lossy(&result);
+        assert!(
+            !result_str.contains("[DONE]"),
+            "[DONE] should be skipped by content decryptor"
+        );
+    }
+
+    #[test]
+    fn test_content_decryptor_detects_format() {
+        let empty = RequestMappings::new(uuid::Uuid::new_v4());
+        let mut dec = SseContentDecryptor::new();
+        assert_eq!(dec.detected_format(), SseFormat::Unknown);
+
+        let frame = Bytes::from("data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n");
+        let _ = dec.feed(&frame, &empty);
+        assert_eq!(dec.detected_format(), SseFormat::OpenAi);
+    }
+
+    #[test]
+    fn test_content_decryptor_anthropic_format() {
+        let m = mappings_with(&[("CIPHER", "PLAIN")]);
+        let mut dec = SseContentDecryptor::new();
+
+        let frame = Bytes::from(
+            "event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"value is CIPHER here\"}}\n\n",
+        );
+        let out = dec.feed(&frame, &m);
+        let flush = dec.flush(&m);
+
+        let combined = format!(
+            "{}{}",
+            String::from_utf8_lossy(&out),
+            String::from_utf8_lossy(&flush),
+        );
+        assert_eq!(dec.detected_format(), SseFormat::Anthropic);
+
+        // Extract text from Anthropic format
+        let mut extracted = String::new();
+        for line in combined.lines() {
+            let data = line.strip_prefix("data: ").unwrap_or("");
+            if let Ok(json) = serde_json::from_str::<serde_json::Value>(data) {
+                if let Some(t) = json["delta"]["text"].as_str() {
+                    extracted.push_str(t);
+                }
+            }
+        }
+        assert!(
+            extracted.contains("PLAIN"),
+            "Anthropic content should be decrypted: {:?}",
+            extracted
+        );
+    }
+
+    #[test]
+    fn test_content_decryptor_flush_emits_remaining() {
+        let m = mappings_with(&[("ABCDEFGHIJKL", "replaced!")]);
+        let mut dec = SseContentDecryptor::new();
+
+        // Feed content shorter than max_ct_len — should be buffered
+        let frame = Bytes::from("data: {\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}\n\n");
+        let out = dec.feed(&frame, &m);
+        assert!(out.is_empty(), "Short content should be buffered");
+        assert!(dec.has_pending());
+
+        // Flush should emit the buffered content
+        let flush = dec.flush(&m);
+        assert!(!flush.is_empty(), "Flush should emit buffered content");
+        assert!(!dec.has_pending());
+    }
+
+    #[test]
+    fn test_format_sse_delta_openai() {
+        let chunk = format_sse_delta(SseFormat::OpenAi, "Hello");
+        assert!(chunk.starts_with("data: "));
+        assert!(chunk.ends_with("\n\n"));
+        let json_str = chunk.strip_prefix("data: ").unwrap().trim();
+        let json: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        assert_eq!(json["choices"][0]["delta"]["content"], "Hello");
+    }
+
+    #[test]
+    fn test_format_sse_delta_anthropic() {
+        let chunk = format_sse_delta(SseFormat::Anthropic, "Hello");
+        assert!(chunk.starts_with("event: content_block_delta\n"));
+        let data_line = chunk.lines().find(|l| l.starts_with("data: ")).unwrap();
+        let json: serde_json::Value =
+            serde_json::from_str(data_line.strip_prefix("data: ").unwrap()).unwrap();
+        assert_eq!(json["delta"]["text"], "Hello");
     }
 }

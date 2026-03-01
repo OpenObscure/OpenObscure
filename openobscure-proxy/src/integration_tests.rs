@@ -457,14 +457,70 @@ async fn test_empty_body_forwarded() {
 // ── SSE Streaming ────────────────────────────────────────────────────────
 
 /// Wiremock responder that returns SSE-formatted events echoing back the body.
+///
+/// Wraps the echoed content in OpenAI delta format so the content-level
+/// decryptor can extract and process it.
 struct SseEchoResponder;
 
 impl Respond for SseEchoResponder {
     fn respond(&self, request: &wiremock::Request) -> ResponseTemplate {
-        // Build SSE events from the request body
+        // Extract the user's content from the request body JSON
         let body_str = String::from_utf8_lossy(&request.body);
-        let sse_response = format!("data: {}\n\ndata: [DONE]\n\n", body_str);
-        // Use set_body_bytes to avoid set_body_string overriding content-type to text/plain
+        let content = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body_str) {
+            // Pull content from messages[last].content
+            json.get("messages")
+                .and_then(|m| m.as_array())
+                .and_then(|arr| arr.last())
+                .and_then(|msg| msg.get("content"))
+                .and_then(|c| c.as_str())
+                .unwrap_or(&body_str)
+                .to_string()
+        } else {
+            body_str.to_string()
+        };
+
+        // Wrap in OpenAI delta format
+        let delta = serde_json::json!({
+            "choices": [{"delta": {"content": content}, "index": 0}]
+        });
+        let sse_response = format!("data: {delta}\n\ndata: [DONE]\n\n");
+        ResponseTemplate::new(200)
+            .insert_header("content-type", "text/event-stream")
+            .set_body_bytes(sse_response.into_bytes())
+    }
+}
+
+/// Wiremock responder that splits the echoed content across multiple SSE deltas.
+///
+/// Each character is sent as a separate delta event, simulating real LLM
+/// token-by-token streaming. This tests cross-delta ciphertext reassembly.
+struct SseTokenStreamResponder;
+
+impl Respond for SseTokenStreamResponder {
+    fn respond(&self, request: &wiremock::Request) -> ResponseTemplate {
+        let body_str = String::from_utf8_lossy(&request.body);
+        let content = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body_str) {
+            json.get("messages")
+                .and_then(|m| m.as_array())
+                .and_then(|arr| arr.last())
+                .and_then(|msg| msg.get("content"))
+                .and_then(|c| c.as_str())
+                .unwrap_or(&body_str)
+                .to_string()
+        } else {
+            body_str.to_string()
+        };
+
+        // Split content into individual characters, each as a separate delta
+        let mut sse_response = String::new();
+        for ch in content.chars() {
+            let delta = serde_json::json!({
+                "choices": [{"delta": {"content": ch.to_string()}, "index": 0}]
+            });
+            sse_response.push_str(&format!("data: {delta}\n\n"));
+        }
+        sse_response.push_str("data: [DONE]\n\n");
+
         ResponseTemplate::new(200)
             .insert_header("content-type", "text/event-stream")
             .set_body_bytes(sse_response.into_bytes())
@@ -872,15 +928,31 @@ async fn test_full_router_proxy_still_works() {
 async fn test_sse_multiple_events_all_decrypted() {
     let mock = MockServer::start().await;
 
-    // Responder that echoes request body across multiple SSE events
+    // Responder that echoes request content across multiple SSE delta events
     struct MultiEventSseResponder;
     impl Respond for MultiEventSseResponder {
         fn respond(&self, request: &wiremock::Request) -> ResponseTemplate {
             let body_str = String::from_utf8_lossy(&request.body);
-            let sse_response = format!(
-                "data: {{\"chunk\":1,\"text\":\"{body}\"}}\n\ndata: {{\"chunk\":2,\"text\":\"{body}\"}}\n\ndata: [DONE]\n\n",
-                body = body_str
-            );
+            let content = if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                json.get("messages")
+                    .and_then(|m| m.as_array())
+                    .and_then(|arr| arr.last())
+                    .and_then(|msg| msg.get("content"))
+                    .and_then(|c| c.as_str())
+                    .unwrap_or(&body_str)
+                    .to_string()
+            } else {
+                body_str.to_string()
+            };
+
+            // Send the same content in two delta events
+            let delta1 = serde_json::json!({
+                "choices": [{"delta": {"content": &content}, "index": 0}]
+            });
+            let delta2 = serde_json::json!({
+                "choices": [{"delta": {"content": &content}, "index": 0}]
+            });
+            let sse_response = format!("data: {delta1}\n\ndata: {delta2}\n\ndata: [DONE]\n\n");
             ResponseTemplate::new(200)
                 .insert_header("content-type", "text/event-stream")
                 .set_body_bytes(sse_response.into_bytes())
@@ -905,12 +977,46 @@ async fn test_sse_multiple_events_all_decrypted() {
     assert_eq!(resp.status(), StatusCode::OK);
 
     let text = resp_body(resp).await;
-    // Both SSE events should have decrypted SSN
+    // Both SSE events' content should have decrypted SSN
     let ssn_count = text.matches("123-45-6789").count();
     assert!(
         ssn_count >= 2,
         "Both SSE events should contain decrypted SSN (found {} occurrences). Got: {}",
         ssn_count,
+        text
+    );
+}
+
+/// SSE response with PII split across multiple delta events should decrypt correctly.
+///
+/// This is the key cross-delta reassembly test: the FPE ciphertext (phone number)
+/// is streamed character-by-character across many SSE deltas, which is how real LLMs
+/// stream. The content-level decryptor must reassemble the ciphertext from the
+/// extracted content text (not raw bytes) to find and replace it.
+#[tokio::test]
+async fn test_sse_cross_delta_fpe_decryption() {
+    let mock = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/v1/messages"))
+        .respond_with(SseTokenStreamResponder)
+        .mount(&mock)
+        .await;
+
+    let router = app(build_state(build_config(&mock.uri())).await);
+
+    let body = r#"{"messages":[{"role":"user","content":"Call HR at 415-555-0198 for details"}]}"#;
+    let req = Request::post("/test/v1/messages")
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let resp = router.oneshot(req).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    let text = resp_body(resp).await;
+    assert!(
+        text.contains("415-555-0198"),
+        "Cross-delta FPE ciphertext should be decrypted. Got: {}",
         text
     );
 }
@@ -1853,15 +1959,24 @@ async fn test_ri_sse_trailing_warning() {
     assert_eq!(resp.status(), StatusCode::OK);
 
     let body = resp_body(resp).await;
-    // Should contain trailing warning event
+    // Warning should appear as a standard content delta chunk BEFORE [DONE]
     assert!(
-        body.contains("openobscure_warning"),
-        "SSE should have trailing warning event. Got: {}",
+        body.contains("oo-ri-warning"),
+        "SSE should have RI warning content chunk. Got: {}",
         body
     );
     assert!(
         body.contains("OpenObscure"),
-        "Warning event should contain OpenObscure label"
+        "Warning chunk should contain OpenObscure label"
+    );
+    // Verify warning comes before [DONE]
+    let warning_pos = body.find("oo-ri-warning").unwrap();
+    let done_pos = body.find("data: [DONE]").unwrap();
+    assert!(
+        warning_pos < done_pos,
+        "Warning chunk must appear before [DONE]. warning@{} done@{}",
+        warning_pos,
+        done_pos
     );
 }
 
@@ -1900,7 +2015,7 @@ async fn test_ri_sse_clean_no_warning() {
 
     let body = resp_body(resp).await;
     assert!(
-        !body.contains("openobscure_warning"),
-        "Clean SSE should NOT have warning event"
+        !body.contains("oo-ri-warning"),
+        "Clean SSE should NOT have warning chunk"
     );
 }
