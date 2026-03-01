@@ -131,23 +131,46 @@ impl NsfwDetector {
             }
         };
 
-        // Output shape: [1, 22, 2100] — transpose to iterate candidates
-        let (_shape, data) = outputs[0]
+        // Output shape: expected [1, 22, 2100] or [1, 2100, 22]
+        let (shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        // Parse YOLOv8 output: data is [1, 22, 2100] flattened
-        // Row-major: data[row * 2100 + col] where row=0..22, col=0..2100
-        // Each column is a candidate detection
+        let dims: Vec<usize> = shape.iter().map(|&d| d as usize).collect();
+        oo_info!(crate::oo_log::modules::IMAGE, "NSFW output tensor",
+            shape = ?dims,
+            data_len = data.len());
+
+        // Detect layout: [1, 22, 2100] vs [1, 2100, 22]
+        let (num_candidates, num_values, transposed) = if dims.len() == 3 {
+            if dims[1] == CANDIDATE_SIZE {
+                // [1, 22, 2100] — rows are features, cols are candidates
+                (dims[2], dims[1], false)
+            } else if dims[2] == CANDIDATE_SIZE {
+                // [1, 2100, 22] — rows are candidates, cols are features
+                (dims[1], dims[2], true)
+            } else {
+                (NUM_CANDIDATES, CANDIDATE_SIZE, false)
+            }
+        } else {
+            (NUM_CANDIDATES, CANDIDATE_SIZE, false)
+        };
+
+        let _ = num_values;
+
         let mut best_exposed_score: f32 = 0.0;
         let mut best_exposed_class: Option<usize> = None;
 
-        for candidate in 0..NUM_CANDIDATES {
-            // Check each exposed class score for this candidate
+        for candidate in 0..num_candidates {
             for &class_idx in &EXPOSED_INDICES {
-                // Row = 4 + class_idx (first 4 rows are bbox coords)
-                let row = 4 + class_idx;
-                let score = data[row * NUM_CANDIDATES + candidate];
+                let score = if transposed {
+                    // [1, 2100, 22]: data[candidate * 22 + (4 + class_idx)]
+                    data[candidate * CANDIDATE_SIZE + 4 + class_idx]
+                } else {
+                    // [1, 22, 2100]: data[(4 + class_idx) * num_candidates + candidate]
+                    let row = 4 + class_idx;
+                    data[row * num_candidates + candidate]
+                };
                 if score > best_exposed_score {
                     best_exposed_score = score;
                     best_exposed_class = Some(class_idx);
