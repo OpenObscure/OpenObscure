@@ -532,7 +532,7 @@ fn default_max_dimension() -> u32 {
     960
 }
 fn default_nsfw_threshold() -> f32 {
-    0.45
+    0.25
 }
 fn default_model_idle_timeout() -> u64 {
     300
@@ -765,7 +765,7 @@ nsfw_detection = false
         assert!(config.image.screen_guard);
         assert!(config.image.exif_strip);
         assert!(config.image.nsfw_detection);
-        assert_eq!(config.image.nsfw_threshold, 0.45);
+        assert_eq!(config.image.nsfw_threshold, 0.25);
     }
 
     // --- Full config with overrides ---

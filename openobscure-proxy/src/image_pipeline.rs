@@ -298,12 +298,6 @@ impl ImageModelManager {
                                 exposed_scores: Vec::new(), // populated at detection level
                             });
 
-                            oo_info!(crate::oo_log::modules::IMAGE, "NSFW scan result",
-                                confidence_pct = format!("{}%", (result.confidence * 100.0) as u32),
-                                threshold_pct = format!("{}%", (self.config.nsfw_threshold * 100.0) as u32),
-                                is_nsfw = result.is_nsfw,
-                                category = ?result.category);
-
                             if result.is_nsfw {
                                 stats.nsfw_detected = true;
                                 oo_info!(crate::oo_log::modules::IMAGE, "NSFW content detected — redacting entire image",

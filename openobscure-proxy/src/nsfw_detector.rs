@@ -4,9 +4,16 @@
 //! region is found above the confidence threshold, the image is flagged
 //! as NSFW and the pipeline redacts the entire image.
 //!
-//! Model: NudeNet 320n (YOLOv8n-based, ~12MB, MIT license)
+//! Model: NudeNet 320n (YOLOv8n-based, ~12MB, AGPL-3.0)
 //! Input: [1, 3, 320, 320] NCHW, float32 [0,1]
 //! Output: [1, 22, 2100] — 4 bbox coords + 18 class scores per candidate
+//!
+//! Postprocessing matches official NudeNet Python implementation:
+//!   1. Transpose [1,22,2100] → [2100,22]
+//!   2. Pre-filter candidates with max class score < 0.2
+//!   3. Convert bbox from center (cx,cy,w,h) to corner (x,y,w,h)
+//!   4. Apply greedy NMS (iou_threshold=0.45)
+//!   5. Flag NSFW if any surviving detection is an exposed class
 
 use std::path::Path;
 
@@ -23,11 +30,17 @@ const INPUT_SIZE: u32 = 320;
 const NUM_CANDIDATES: usize = 2100;
 
 /// Number of values per candidate: 4 bbox + 18 class scores.
-#[allow(dead_code)] // Used in tests; documents model output format
+#[cfg(test)]
 const CANDIDATE_SIZE: usize = 22;
 
 /// Number of class scores per candidate.
 const NUM_CLASSES: usize = 18;
+
+/// Pre-NMS confidence filter (matches official NudeNet).
+const PRE_FILTER_THRESHOLD: f32 = 0.2;
+
+/// NMS IoU threshold (matches official NudeNet).
+const NMS_IOU_THRESHOLD: f32 = 0.45;
 
 /// NudeNet class labels in order.
 const CLASS_LABELS: [&str; NUM_CLASSES] = [
@@ -59,6 +72,23 @@ const EXPOSED_INDICES: [usize; 5] = [
     6,  // ANUS_EXPOSED
     14, // MALE_GENITALIA_EXPOSED
 ];
+
+/// A candidate detection after postprocessing.
+#[derive(Clone)]
+struct NsfwCandidate {
+    /// Top-left x (in model coordinates).
+    x: f32,
+    /// Top-left y (in model coordinates).
+    y: f32,
+    /// Width.
+    w: f32,
+    /// Height.
+    h: f32,
+    /// Best class index.
+    class_id: usize,
+    /// Best class score.
+    score: f32,
+}
 
 /// NSFW detector using NudeNet ONNX model.
 pub struct NsfwDetector {
@@ -96,15 +126,13 @@ impl NsfwDetector {
     pub fn detect(&mut self, img: &DynamicImage) -> Result<NsfwDetection, ImageError> {
         let (orig_w, orig_h) = img.dimensions();
 
-        // Letterbox: pad to square (matching NudeNet Python preprocessing),
-        // then resize to 320x320. Maintains aspect ratio to preserve body
-        // part proportions that the model was trained on.
+        // Letterbox: pad to square with bottom-right padding (matching official
+        // NudeNet cv2.copyMakeBorder(mat, 0, y_pad, 0, x_pad, BORDER_CONSTANT)).
+        // Image placed at top-left, black padding fills bottom and right edges.
         let max_dim = orig_w.max(orig_h);
         let mut padded = image::RgbImage::from_pixel(max_dim, max_dim, image::Rgb([0u8, 0u8, 0u8]));
-        let offset_x = (max_dim - orig_w) / 2;
-        let offset_y = (max_dim - orig_h) / 2;
         let rgb_orig = img.to_rgb8();
-        image::imageops::overlay(&mut padded, &rgb_orig, offset_x as i64, offset_y as i64);
+        image::imageops::overlay(&mut padded, &rgb_orig, 0, 0);
 
         let resized = image::imageops::resize(
             &padded,
@@ -125,7 +153,7 @@ impl NsfwDetector {
         let input_val = ort::value::Value::from_array(input)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        // Run inference — use dynamic input name
+        // Run inference
         let input_name = self.session.inputs()[0].name().to_string();
         let outputs = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.session
@@ -140,57 +168,76 @@ impl NsfwDetector {
             }
         };
 
-        // Output shape: [1, 22, 2100] (YOLOv8 format)
-        // NudeNet Python transposes this to [2100, 22] before reading:
-        //   each candidate = 4 bbox coords + 18 class scores
+        // Output: [1, 22, 2100] row-major
+        // Logical layout after transpose: [2100, 22] — each candidate has
+        // 4 bbox coords (cx, cy, w, h) + 18 class scores.
+        // Access: element [cand][feat] in transposed = data[feat * 2100 + cand] in original.
         let (_shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        // YOLOv8 output [1, 22, 2100]: rows=features, cols=candidates
-        // After transpose → [2100, 22]: each candidate has 4 bbox + 18 class scores
-        // Access in row-major [22, 2100]: element [feat][cand] = data[feat * 2100 + cand]
+        // Step 1: Extract candidates with max class score >= PRE_FILTER_THRESHOLD
+        let mut candidates: Vec<NsfwCandidate> = Vec::new();
+        let model_size = INPUT_SIZE as f32;
 
-        // Diagnostic: find best score per class across all candidates
-        let mut best_per_class: [(f32, usize); NUM_CLASSES] = [(0.0, 0); NUM_CLASSES];
-        for candidate in 0..NUM_CANDIDATES {
-            for (class_idx, best) in best_per_class.iter_mut().enumerate() {
+        for cand in 0..NUM_CANDIDATES {
+            // Find best class for this candidate
+            let mut max_score: f32 = 0.0;
+            let mut best_class: usize = 0;
+            for class_idx in 0..NUM_CLASSES {
                 let feat_row = 4 + class_idx;
-                let score = data[feat_row * NUM_CANDIDATES + candidate];
-                if score > best.0 {
-                    *best = (score, candidate);
+                let score = data[feat_row * NUM_CANDIDATES + cand];
+                if score > max_score {
+                    max_score = score;
+                    best_class = class_idx;
                 }
             }
+
+            if max_score < PRE_FILTER_THRESHOLD {
+                continue;
+            }
+
+            // Extract bbox (center format) and convert to corner format
+            // Transposed layout: row R for candidate C is at data[R * NUM_CANDIDATES + C]
+            let cx = data[cand]; // row 0
+            let cy = data[NUM_CANDIDATES + cand]; // row 1
+            let bw = data[2 * NUM_CANDIDATES + cand]; // row 2
+            let bh = data[3 * NUM_CANDIDATES + cand]; // row 3
+
+            // Center → top-left corner, clamp to model bounds
+            let x = ((cx - bw / 2.0) / model_size).clamp(0.0, 1.0);
+            let y = ((cy - bh / 2.0) / model_size).clamp(0.0, 1.0);
+            let w = (bw / model_size).min(1.0 - x);
+            let h = (bh / model_size).min(1.0 - y);
+
+            candidates.push(NsfwCandidate {
+                x,
+                y,
+                w,
+                h,
+                class_id: best_class,
+                score: max_score,
+            });
         }
 
-        // Log top 5 classes by score
-        let mut ranked: Vec<(usize, f32)> = best_per_class
-            .iter()
-            .enumerate()
-            .map(|(i, &(s, _))| (i, s))
-            .collect();
-        ranked.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        let top5: Vec<String> = ranked
-            .iter()
-            .take(5)
-            .map(|(i, s)| format!("{}={}%", CLASS_LABELS[*i], (*s * 100.0) as u32))
-            .collect();
-        oo_info!(
-            crate::oo_log::modules::IMAGE,
-            "NSFW class scores (top 5)",
-            scores = top5.join(" ")
-        );
+        // Step 2: Apply NMS (greedy, sorted by confidence)
+        let detections = nms(&mut candidates, NMS_IOU_THRESHOLD);
 
+        // Step 3: Find best exposed detection
         let mut best_exposed_score: f32 = 0.0;
         let mut best_exposed_class: Option<usize> = None;
-        for &class_idx in &EXPOSED_INDICES {
-            if best_per_class[class_idx].0 > best_exposed_score {
-                best_exposed_score = best_per_class[class_idx].0;
-                best_exposed_class = Some(class_idx);
+
+        for det in &detections {
+            if det.score < self.threshold {
+                continue;
+            }
+            if EXPOSED_INDICES.contains(&det.class_id) && det.score > best_exposed_score {
+                best_exposed_score = det.score;
+                best_exposed_class = Some(det.class_id);
             }
         }
 
-        let is_nsfw = best_exposed_score > self.threshold;
+        let is_nsfw = best_exposed_class.is_some();
 
         Ok(NsfwDetection {
             is_nsfw,
@@ -201,6 +248,54 @@ impl NsfwDetector {
                 None
             },
         })
+    }
+}
+
+/// Greedy NMS: sort by score descending, suppress overlapping boxes.
+fn nms(candidates: &mut [NsfwCandidate], iou_threshold: f32) -> Vec<NsfwCandidate> {
+    candidates.sort_by(|a, b| {
+        b.score
+            .partial_cmp(&a.score)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    let mut keep = Vec::new();
+    let mut suppressed = vec![false; candidates.len()];
+
+    for i in 0..candidates.len() {
+        if suppressed[i] {
+            continue;
+        }
+        keep.push(candidates[i].clone());
+
+        for j in (i + 1)..candidates.len() {
+            if suppressed[j] {
+                continue;
+            }
+            if candidate_iou(&candidates[i], &candidates[j]) > iou_threshold {
+                suppressed[j] = true;
+            }
+        }
+    }
+    keep
+}
+
+/// IoU between two candidate bounding boxes (normalized coordinates).
+fn candidate_iou(a: &NsfwCandidate, b: &NsfwCandidate) -> f32 {
+    let x1 = a.x.max(b.x);
+    let y1 = a.y.max(b.y);
+    let x2 = (a.x + a.w).min(b.x + b.w);
+    let y2 = (a.y + a.h).min(b.y + b.h);
+
+    let intersection = (x2 - x1).max(0.0) * (y2 - y1).max(0.0);
+    let area_a = a.w * a.h;
+    let area_b = b.w * b.h;
+    let union = area_a + area_b - intersection;
+
+    if union <= 0.0 {
+        0.0
+    } else {
+        intersection / union
     }
 }
 
@@ -250,5 +345,118 @@ mod tests {
     fn test_candidate_size() {
         // 4 bbox coords + 18 class scores = 22
         assert_eq!(CANDIDATE_SIZE, 4 + NUM_CLASSES);
+    }
+
+    #[test]
+    fn test_nms_empty() {
+        let mut candidates = vec![];
+        let result = nms(&mut candidates, 0.45);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_nms_single() {
+        let mut candidates = vec![NsfwCandidate {
+            x: 0.1,
+            y: 0.1,
+            w: 0.3,
+            h: 0.3,
+            class_id: 3,
+            score: 0.8,
+        }];
+        let result = nms(&mut candidates, 0.45);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].class_id, 3);
+    }
+
+    #[test]
+    fn test_nms_removes_overlapping() {
+        let mut candidates = vec![
+            NsfwCandidate {
+                x: 0.1,
+                y: 0.1,
+                w: 0.3,
+                h: 0.3,
+                class_id: 3,
+                score: 0.9,
+            },
+            NsfwCandidate {
+                x: 0.12,
+                y: 0.12,
+                w: 0.3,
+                h: 0.3,
+                class_id: 3,
+                score: 0.7,
+            },
+        ];
+        let result = nms(&mut candidates, 0.45);
+        assert_eq!(result.len(), 1);
+        assert!((result[0].score - 0.9).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_nms_keeps_non_overlapping() {
+        let mut candidates = vec![
+            NsfwCandidate {
+                x: 0.0,
+                y: 0.0,
+                w: 0.2,
+                h: 0.2,
+                class_id: 3,
+                score: 0.9,
+            },
+            NsfwCandidate {
+                x: 0.7,
+                y: 0.7,
+                w: 0.2,
+                h: 0.2,
+                class_id: 2,
+                score: 0.8,
+            },
+        ];
+        let result = nms(&mut candidates, 0.45);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_candidate_iou_identical() {
+        let a = NsfwCandidate {
+            x: 0.1,
+            y: 0.1,
+            w: 0.3,
+            h: 0.3,
+            class_id: 0,
+            score: 0.5,
+        };
+        let iou = candidate_iou(&a, &a);
+        assert!((iou - 1.0).abs() < 0.001);
+    }
+
+    #[test]
+    fn test_candidate_iou_no_overlap() {
+        let a = NsfwCandidate {
+            x: 0.0,
+            y: 0.0,
+            w: 0.1,
+            h: 0.1,
+            class_id: 0,
+            score: 0.5,
+        };
+        let b = NsfwCandidate {
+            x: 0.5,
+            y: 0.5,
+            w: 0.1,
+            h: 0.1,
+            class_id: 0,
+            score: 0.5,
+        };
+        let iou = candidate_iou(&a, &b);
+        assert!(iou < 0.001);
+    }
+
+    #[test]
+    fn test_pre_filter_threshold() {
+        assert!(PRE_FILTER_THRESHOLD < NMS_IOU_THRESHOLD);
+        assert!(PRE_FILTER_THRESHOLD > 0.0);
     }
 }

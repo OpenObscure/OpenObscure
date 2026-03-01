@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# download_models.sh — Download GPL-licensed models not included in Git LFS.
+# download_models.sh — Download AGPL-licensed models not included in Git LFS.
 #
 # Models distributed via Git LFS (Apache 2.0 / MIT):
 #   blazeface, scrfd, paddleocr, ner, kws
 #
-# Models requiring separate download (GPL-3.0):
+# Models requiring separate download (AGPL-3.0):
 #   nudenet — NudeNet 320n NSFW classifier
 #
 # Usage:
@@ -17,9 +17,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 MODELS_DIR="$ROOT_DIR/openobscure-proxy/models"
 
-# ── NudeNet 320n (GPL-3.0) ──────────────────────────────────────────────────
-# Source: https://github.com/notAI-tech/NudeNet
-# License: GPL-3.0 — cannot be bundled in Apache/MIT repos
+# ── NudeNet 320n (AGPL-3.0) ─────────────────────────────────────────────────
+# Source: https://github.com/notAI-tech/NudeNet (v3.4-weights release)
+# Mirror: https://huggingface.co/deepghs/nudenet_onnx (identical file)
+# License: AGPL-3.0 — cannot be bundled in Apache/MIT repos
 NUDENET_URL="https://huggingface.co/deepghs/nudenet_onnx/resolve/main/320n.onnx"
 NUDENET_SHA256="c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f"
 NUDENET_DIR="$MODELS_DIR/nudenet"
@@ -40,7 +41,7 @@ download_nudenet() {
         fi
     fi
 
-    echo "Downloading NudeNet 320n (12MB, GPL-3.0)..."
+    echo "Downloading NudeNet 320n (12MB, AGPL-3.0)..."
     mkdir -p "$NUDENET_DIR"
     curl -fSL --progress-bar -o "$dest.tmp" "$NUDENET_URL"
 
