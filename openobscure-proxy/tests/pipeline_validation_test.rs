@@ -12,8 +12,19 @@ use openobscure_proxy::detection_validators::{
 };
 use openobscure_proxy::image_pipeline::{decode_image, resize_if_needed, ImageModelManager};
 
+/// Check that at least one real ONNX model exists (not a Git LFS pointer).
+/// LFS pointers are ~130 bytes; real ONNX models are hundreds of KB or more.
+fn is_real_model(path: &Path) -> bool {
+    path.exists()
+        && std::fs::metadata(path)
+            .map(|m| m.len() > 1024)
+            .unwrap_or(false)
+}
+
 fn models_available() -> bool {
-    Path::new("models/blazeface").exists() || Path::new("models/paddleocr").exists()
+    is_real_model(Path::new(
+        "models/blazeface/face_detection_short_range.onnx",
+    )) || is_real_model(Path::new("models/paddleocr/det_model.onnx"))
 }
 
 fn make_pipeline_config() -> ImageConfig {
@@ -272,7 +283,7 @@ fn test_nsfw_meta_consistent_when_clean() {
 #[test]
 fn test_ocr_recognition_quality_v4() {
     let ocr_dir = Path::new("models/paddleocr");
-    if !ocr_dir.join("rec_model.onnx").exists() || !ocr_dir.join("ppocr_keys.txt").exists() {
+    if !is_real_model(&ocr_dir.join("rec_model.onnx")) || !ocr_dir.join("ppocr_keys.txt").exists() {
         eprintln!("Skipping: OCR recognition model not available");
         return;
     }
@@ -343,11 +354,13 @@ fn test_ocr_recognition_quality_v4() {
 #[test]
 fn test_tier2_pii_selective_redaction() {
     let ocr_dir = Path::new("models/paddleocr");
-    if !ocr_dir.join("rec_model.onnx").exists() {
+    if !is_real_model(&ocr_dir.join("rec_model.onnx")) {
         eprintln!("Skipping: OCR recognition model not available");
         return;
     }
-    if !Path::new("models/blazeface").exists() {
+    if !is_real_model(Path::new(
+        "models/blazeface/face_detection_short_range.onnx",
+    )) {
         eprintln!("Skipping: BlazeFace model not available");
         return;
     }
@@ -410,7 +423,7 @@ fn test_all_bbox_sanity_on_face_image() {
 #[test]
 fn test_scrfd_group_photo_detection() {
     let scrfd_dir = Path::new("models/scrfd");
-    if !scrfd_dir.exists() {
+    if !is_real_model(&scrfd_dir.join("scrfd_2.5g_bnkps.onnx")) {
         eprintln!("Skipping: SCRFD model not available");
         return;
     }
@@ -454,12 +467,12 @@ fn test_scrfd_group_photo_detection() {
 #[test]
 fn test_nsfw_implied_topless_detected() {
     let nsfw_dir = Path::new("models/nudenet");
-    if !nsfw_dir.exists() {
+    if !is_real_model(&nsfw_dir.join("320n.onnx")) {
         eprintln!("Skipping: NudeNet model not available");
         return;
     }
 
-    let test_dir = "../test/data/input/visual_pii/nsfw";
+    let test_dir = "../test/data/input/Visual_PII/NSFW";
     let mut files: Vec<_> = std::fs::read_dir(test_dir)
         .unwrap()
         .filter_map(|e| e.ok())
@@ -534,14 +547,14 @@ fn test_nsfw_implied_topless_detected() {
 #[test]
 fn test_nsfw_classifier_catches_missed_images() {
     let nsfw_cls_dir = Path::new("models/nsfw_classifier");
-    if !nsfw_cls_dir.exists() {
+    if !is_real_model(&nsfw_cls_dir.join("nsfw_classifier.onnx")) {
         eprintln!("Skipping: NSFW classifier model not available");
         return;
     }
 
     // These images are NSFW but NudeNet misses them
     let test_files = ["semi_nu_pic2.jpg", "semi_nu_pic3.jpg"];
-    let test_dir = Path::new("../test/data/input/visual_pii/nsfw");
+    let test_dir = Path::new("../test/data/input/Visual_PII/NSFW");
 
     let manager = ImageModelManager::new(make_pipeline_config());
 
@@ -603,14 +616,14 @@ fn test_nsfw_classifier_catches_missed_images() {
 #[test]
 fn test_nsfw_classifier_no_false_positive_swimwear() {
     let nsfw_cls_dir = Path::new("models/nsfw_classifier");
-    if !nsfw_cls_dir.exists() {
+    if !is_real_model(&nsfw_cls_dir.join("nsfw_classifier.onnx")) {
         eprintln!("Skipping: NSFW classifier model not available");
         return;
     }
 
     // These images are swimwear — should NOT be flagged
     let test_files = ["semi_nu_pic4_jpg.jpg", "semi_nu_pic5_jpg.jpg"];
-    let test_dir = Path::new("../test/data/input/visual_pii/nsfw");
+    let test_dir = Path::new("../test/data/input/Visual_PII/NSFW");
 
     let manager = ImageModelManager::new(make_pipeline_config());
 
