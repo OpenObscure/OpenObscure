@@ -501,6 +501,7 @@ mod tests {
     use super::*;
     use crate::detection_meta::{NsfwMeta, ScreenshotMeta};
 
+    #[allow(clippy::too_many_arguments)]
     fn make_bbox(
         x_min: f32,
         y_min: f32,

@@ -593,8 +593,10 @@ mod tests {
 
     #[test]
     fn test_pre_filter_threshold() {
-        assert!(PRE_FILTER_THRESHOLD < NMS_IOU_THRESHOLD);
-        assert!(PRE_FILTER_THRESHOLD > 0.0);
+        let pre = PRE_FILTER_THRESHOLD;
+        let nms = NMS_IOU_THRESHOLD;
+        assert!(pre < nms, "pre-filter must be less than NMS threshold");
+        assert!(pre > 0.0, "pre-filter must be positive");
     }
 
     // ── Implied-topless heuristic tests ─────────────────────────────────────

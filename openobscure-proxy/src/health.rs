@@ -549,8 +549,8 @@ mod tests {
         let marker = tmp.path().join(".crashed");
 
         // Simulate crash write
-        let content = format!("timestamp=12345\nmessage=test panic\n");
-        std::fs::write(&marker, &content).unwrap();
+        let content = "timestamp=12345\nmessage=test panic\n";
+        std::fs::write(&marker, content).unwrap();
 
         // Verify it exists and contains expected data
         assert!(marker.exists());

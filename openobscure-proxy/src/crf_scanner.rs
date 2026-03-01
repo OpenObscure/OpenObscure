@@ -743,10 +743,10 @@ mod tests {
         transitions[LABEL_I_PER][LABEL_I_PER] = 0.5;
         transitions[LABEL_I_LOC][LABEL_I_LOC] = 0.5;
         // Cross-type transitions are negative
-        for i in 1..NUM_LABELS {
-            for j in 1..NUM_LABELS {
-                if transitions[i][j] == 0.0 && i != j {
-                    transitions[i][j] = -0.5;
+        for (i, row) in transitions.iter_mut().enumerate().skip(1) {
+            for (j, cell) in row.iter_mut().enumerate().skip(1) {
+                if *cell == 0.0 && i != j {
+                    *cell = -0.5;
                 }
             }
         }

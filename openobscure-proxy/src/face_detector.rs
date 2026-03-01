@@ -606,13 +606,13 @@ mod tests {
         for (stride_idx, stride_centers) in centers.iter().enumerate() {
             for &(cx, cy) in stride_centers {
                 assert!(
-                    cx >= 0.0 && cx <= 640.0,
+                    (0.0..=640.0).contains(&cx),
                     "stride {}: cx {} out of range",
                     SCRFD_STRIDES[stride_idx],
                     cx
                 );
                 assert!(
-                    cy >= 0.0 && cy <= 640.0,
+                    (0.0..=640.0).contains(&cy),
                     "stride {}: cy {} out of range",
                     SCRFD_STRIDES[stride_idx],
                     cy

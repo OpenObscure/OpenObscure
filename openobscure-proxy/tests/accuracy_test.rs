@@ -125,7 +125,7 @@ fn test_regex_scanner_recall() {
             // Check if a match was found that overlaps with the expected value
             let found = detected.iter().any(|d| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
+                expected_type.is_some_and(|t| d.pii_type == t) && d.raw_value == exp.value
             });
 
             if found {
@@ -191,7 +191,7 @@ fn test_regex_scanner_precision() {
             // Check if this detection matches any expected annotation
             let matches_expected = entry.expected.iter().any(|exp| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
+                expected_type.is_some_and(|t| d.pii_type == t) && d.raw_value == exp.value
             });
 
             if matches_expected {
@@ -290,7 +290,7 @@ fn test_f1_score() {
         // Count true positives and false negatives
         for exp in &expected_regex {
             let found = detected.iter().any(|d| {
-                parse_pii_type(&exp.pii_type).map_or(false, |t| d.pii_type == t)
+                parse_pii_type(&exp.pii_type).is_some_and(|t| d.pii_type == t)
                     && d.raw_value == exp.value
             });
             if found {
@@ -303,7 +303,7 @@ fn test_f1_score() {
         // Count false positives
         for d in &detected {
             let matches = entry.expected.iter().any(|exp| {
-                parse_pii_type(&exp.pii_type).map_or(false, |t| d.pii_type == t)
+                parse_pii_type(&exp.pii_type).is_some_and(|t| d.pii_type == t)
                     && d.raw_value == exp.value
             });
             if !matches {
@@ -365,7 +365,7 @@ fn test_hybrid_scanner_keyword_recall() {
             total_expected += 1;
             let found = detected.iter().any(|d| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t)
+                expected_type.is_some_and(|t| d.pii_type == t)
                     && d.raw_value.to_lowercase() == exp.value.to_lowercase()
             });
             if found {
@@ -428,7 +428,7 @@ fn test_hybrid_scanner_overall_recall() {
             total_expected += 1;
             let found = detected.iter().any(|d| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
+                expected_type.is_some_and(|t| d.pii_type == t) && d.raw_value == exp.value
             });
             if found {
                 total_found += 1;
@@ -480,7 +480,7 @@ fn test_hybrid_scanner_precision() {
             total_detected += 1;
             let matches_expected = entry.expected.iter().any(|exp| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
+                expected_type.is_some_and(|t| d.pii_type == t) && d.raw_value == exp.value
             });
             if matches_expected {
                 true_positives += 1;
@@ -686,7 +686,7 @@ fn test_multilingual_recall() {
             total_expected += 1;
             let found = detected.iter().any(|d| {
                 let expected_type = parse_pii_type(&exp.pii_type);
-                expected_type.map_or(false, |t| d.pii_type == t) && d.raw_value == exp.value
+                expected_type.is_some_and(|t| d.pii_type == t) && d.raw_value == exp.value
             });
             if found {
                 total_found += 1;

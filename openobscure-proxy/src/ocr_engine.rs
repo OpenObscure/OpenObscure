@@ -750,8 +750,8 @@ mod tests {
         assert!(!regions.is_empty(), "Should detect at least one region");
         // Check that the region roughly matches the blob (scaled by 2x)
         let (x_min, y_min, x_max, y_max) = regions[0].bbox();
-        assert!(x_min >= 5.0 * 2.0 && x_min <= 15.0 * 2.0);
-        assert!(y_min >= 10.0 * 2.0 && y_min <= 25.0 * 2.0);
+        assert!((10.0..=30.0).contains(&x_min));
+        assert!((20.0..=50.0).contains(&y_min));
         assert!(x_max >= 40.0 * 2.0);
         assert!(y_max >= 20.0 * 2.0);
     }

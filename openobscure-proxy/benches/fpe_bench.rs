@@ -25,6 +25,7 @@ fn fpe_benchmark(c: &mut Criterion) {
             end: 19,
             raw_value: "4532-0151-1283-0366".to_string(),
             json_path: Some("content".to_string()),
+            confidence: 1.0,
         };
         b.iter(|| engine.encrypt_match(black_box(&pii), black_box(tweak)))
     });
@@ -36,6 +37,7 @@ fn fpe_benchmark(c: &mut Criterion) {
             end: 19,
             raw_value: "4532-0151-1283-0366".to_string(),
             json_path: Some("content".to_string()),
+            confidence: 1.0,
         };
         let encrypted = engine.encrypt_match(&pii, tweak).unwrap();
         b.iter(|| {
@@ -56,6 +58,7 @@ fn fpe_benchmark(c: &mut Criterion) {
             end: 11,
             raw_value: "123-45-6789".to_string(),
             json_path: None,
+            confidence: 1.0,
         };
         b.iter(|| engine.encrypt_match(black_box(&pii), black_box(tweak)))
     });
@@ -69,6 +72,7 @@ fn fpe_benchmark(c: &mut Criterion) {
             end: 14,
             raw_value: "(555) 123-4567".to_string(),
             json_path: None,
+            confidence: 1.0,
         };
         b.iter(|| engine.encrypt_match(black_box(&pii), black_box(tweak)))
     });
@@ -82,6 +86,7 @@ fn fpe_benchmark(c: &mut Criterion) {
             end: 19,
             raw_value: "johndoe@example.com".to_string(),
             json_path: None,
+            confidence: 1.0,
         };
         b.iter(|| engine.encrypt_match(black_box(&pii), black_box(tweak)))
     });
@@ -95,6 +100,7 @@ fn fpe_benchmark(c: &mut Criterion) {
             end: 11,
             raw_value: "123-45-6789".to_string(),
             json_path: None,
+            confidence: 1.0,
         };
         b.iter(|| {
             let res = engine

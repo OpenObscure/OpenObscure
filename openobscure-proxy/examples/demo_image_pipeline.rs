@@ -181,7 +181,7 @@ fn main() {
         std::process::exit(1);
     });
 
-    println!("");
+    println!();
     println!("=== Results ===");
     println!("NSFW detected:      {}", stats.nsfw_detected);
     println!("Faces redacted:     {}", stats.faces_redacted);
