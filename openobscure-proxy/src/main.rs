@@ -620,10 +620,9 @@ fn service_load() -> anyhow::Result<()> {
 }
 
 fn service_unload() -> anyhow::Result<()> {
-    let path = plist_path();
-
     #[cfg(target_os = "macos")]
     {
+        let path = plist_path();
         let status = std::process::Command::new("launchctl")
             .args(["unload", &path.to_string_lossy()])
             .status()?;
@@ -646,6 +645,7 @@ fn service_unload() -> anyhow::Result<()> {
 }
 
 fn service_install() -> anyhow::Result<()> {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     let binary_path = std::env::current_exe()
         .map_err(|e| anyhow::anyhow!("Cannot determine binary path: {}", e))?;
 
