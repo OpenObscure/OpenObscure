@@ -299,8 +299,8 @@ impl ImageModelManager {
                             });
 
                             oo_info!(crate::oo_log::modules::IMAGE, "NSFW scan result",
-                                confidence = result.confidence,
-                                threshold = self.config.nsfw_threshold,
+                                confidence_pct = format!("{}%", (result.confidence * 100.0) as u32),
+                                threshold_pct = format!("{}%", (self.config.nsfw_threshold * 100.0) as u32),
                                 is_nsfw = result.is_nsfw,
                                 category = ?result.category);
 
