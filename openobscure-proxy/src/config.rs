@@ -464,17 +464,17 @@ fn default_kws_score() -> f32 {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct ResponseIntegrityConfig {
-    /// Enable response integrity scanning for persuasion/manipulation techniques (default: false).
+    /// Enable response integrity scanning for persuasion/manipulation techniques (default: true).
     /// When enabled, LLM responses are scanned for known persuasion patterns (urgency, scarcity,
     /// authority appeals, etc.) and optionally labeled with warnings.
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub enabled: bool,
 
-    /// Sensitivity level: "off", "low", "medium", "high" (default: "high").
+    /// Sensitivity level: "off", "low", "medium", "high" (default: "low").
     /// - off: scanner disabled at scan level (even if enabled=true)
-    /// - low: only report WARNING/CAUTION severity (2+ categories or commercial+fear combos)
-    /// - medium: report all detections including NOTICE, R2 on sample + R1 flags
-    /// - high: report all detections including NOTICE, R2 scans all responses
+    /// - low: R1 always runs (<1ms); R2 only when R1 flags something (~30ms, rare)
+    /// - medium: R1 always; R2 on 10% sample + all R1 flags (discovery mode)
+    /// - high: R1 + R2 on every response (~30ms per response)
     #[serde(default = "default_ri_sensitivity")]
     pub sensitivity: String,
 
@@ -511,7 +511,7 @@ pub struct ResponseIntegrityConfig {
 impl Default for ResponseIntegrityConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             sensitivity: default_ri_sensitivity(),
             log_only: true,
             ri_model_dir: None,
@@ -524,7 +524,7 @@ impl Default for ResponseIntegrityConfig {
 }
 
 fn default_ri_sensitivity() -> String {
-    "high".to_string()
+    "low".to_string()
 }
 fn default_ri_threshold() -> f32 {
     0.55
@@ -1066,8 +1066,8 @@ route_prefix = "/test"
     #[test]
     fn test_response_integrity_defaults() {
         let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
-        assert!(!config.response_integrity.enabled);
-        assert_eq!(config.response_integrity.sensitivity, "high");
+        assert!(config.response_integrity.enabled);
+        assert_eq!(config.response_integrity.sensitivity, "low");
         assert!(config.response_integrity.log_only);
         assert!(config.response_integrity.ri_model_dir.is_none());
         assert_eq!(config.response_integrity.ri_threshold, 0.55);
@@ -1117,8 +1117,8 @@ port = 8080
 "#,
         )
         .unwrap();
-        assert!(!config.response_integrity.enabled);
-        assert_eq!(config.response_integrity.sensitivity, "high");
+        assert!(config.response_integrity.enabled);
+        assert_eq!(config.response_integrity.sensitivity, "low");
         assert!(config.response_integrity.log_only);
         assert!(config.response_integrity.ri_model_dir.is_none());
     }
