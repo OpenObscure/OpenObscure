@@ -88,6 +88,7 @@ fn main() {
     let scrfd_dir = args.models_dir.join("scrfd");
     let ocr_dir = args.models_dir.join("paddleocr");
     let nsfw_dir = args.models_dir.join("nudenet");
+    let nsfw_classifier_dir = args.models_dir.join("nsfw_classifier");
 
     // Use SCRFD if available, otherwise BlazeFace
     let face_model = if scrfd_dir.exists() {
@@ -137,6 +138,13 @@ fn main() {
         } else {
             None
         },
+        nsfw_classifier_enabled: nsfw_classifier_dir.exists(),
+        nsfw_classifier_model_dir: if nsfw_classifier_dir.exists() {
+            Some(nsfw_classifier_dir.to_string_lossy().into_owned())
+        } else {
+            None
+        },
+        nsfw_classifier_threshold: 0.75,
         url_fetch_enabled: false,
         url_max_bytes: 0,
         url_timeout_secs: 0,
