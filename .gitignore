@@ -12,8 +12,7 @@
 # Local Claude Code config
 .claude/
 
-# ONNX models — tracked via Git LFS (except GPL-licensed NudeNet)
-openobscure-proxy/models/nudenet/
+# ONNX models — all tracked via Git LFS (including AGPL-3.0 NudeNet)
 
 # NER training artifacts (large checkpoints, safetensors — not runtime models)
 openobscure-ner/models/

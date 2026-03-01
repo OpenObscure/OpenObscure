@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# download_models.sh — Download AGPL-licensed models not included in Git LFS.
+# download_models.sh — Backup download for models also tracked via Git LFS.
 #
-# Models distributed via Git LFS (Apache 2.0 / MIT):
-#   blazeface, scrfd, paddleocr, ner, kws
+# All models (including AGPL-3.0 NudeNet) are now tracked via Git LFS.
+# This script is a fallback for environments without Git LFS or for
+# re-downloading models with checksum verification.
 #
-# Models requiring separate download (AGPL-3.0):
-#   nudenet — NudeNet 320n NSFW classifier
+# Models in Git LFS:
+#   blazeface, scrfd, paddleocr, ner, kws (Apache 2.0 / MIT)
+#   nudenet (AGPL-3.0)
 #
 # Usage:
 #   ./scripts/download_models.sh          # Download all external models
