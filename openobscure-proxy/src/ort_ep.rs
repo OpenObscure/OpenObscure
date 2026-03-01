@@ -51,6 +51,15 @@ pub fn build_session(model_path: &Path) -> ort::Result<Session> {
     builder.commit_from_file(model_path)
 }
 
+/// Build an ONNX Runtime session with CPU-only execution (no hardware accelerators).
+///
+/// Use this for models where CoreML/NNAPI produce incorrect results.
+pub fn build_session_cpu(model_path: &Path) -> ort::Result<Session> {
+    Session::builder()?
+        .with_intra_threads(1)?
+        .commit_from_file(model_path)
+}
+
 /// Name of the active execution provider backend (for logging).
 pub fn ep_name() -> &'static str {
     if cfg!(target_vendor = "apple") {

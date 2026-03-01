@@ -24,6 +24,9 @@ enterprise/
 # Test outputs (regenerable — run test scripts to produce)
 test/data/output/
 
+# NFSW semi-nude picture
+test/data/input/Visual_PII/NSFW/semi_nu_pic1.jpg
+
 # Python
 .venv/
 

@@ -441,3 +441,47 @@ fn test_scrfd_group_photo_detection() {
         errors.iter().map(|e| &e.message).collect::<Vec<_>>()
     );
 }
+
+/// Validate that the implied-topless heuristic flags semi_nu_pic1.jpg as NSFW.
+#[test]
+fn test_nsfw_implied_topless_detected() {
+    let nsfw_dir = Path::new("models/nudenet");
+    if !nsfw_dir.exists() {
+        eprintln!("Skipping: NudeNet model not available");
+        return;
+    }
+
+    let path = "../test/data/input/visual_pii/nsfw/semi_nu_pic1.jpg";
+    if !Path::new(path).exists() {
+        eprintln!("Skipping: semi_nu_pic1.jpg not found");
+        return;
+    }
+
+    let bytes = std::fs::read(path).unwrap();
+    let img = decode_image(&bytes).unwrap();
+    let img = resize_if_needed(img, 960);
+
+    let manager = ImageModelManager::new(make_pipeline_config());
+    let (_result, stats, meta) = manager.process_image(img, None, None).unwrap();
+
+    // Must be flagged NSFW
+    assert!(
+        stats.nsfw_detected,
+        "semi_nu_pic1.jpg should be flagged NSFW (implied topless)"
+    );
+
+    // NSFW metadata should indicate implied detection
+    let nsfw_meta = meta.nsfw.as_ref().expect("NSFW meta should be present");
+    assert!(nsfw_meta.is_nsfw, "NsfwMeta.is_nsfw should be true");
+    assert!(
+        nsfw_meta.confidence > 0.0,
+        "NSFW confidence should be > 0, got {}",
+        nsfw_meta.confidence
+    );
+    assert_eq!(
+        nsfw_meta.category.as_deref(),
+        Some("IMPLIED_TOPLESS"),
+        "Category should be IMPLIED_TOPLESS, got {:?}",
+        nsfw_meta.category
+    );
+}
