@@ -300,9 +300,15 @@ impl ImageModelManager {
 
                             if result.is_nsfw {
                                 stats.nsfw_detected = true;
+                                let detection_type = if result.implied {
+                                    "implied"
+                                } else {
+                                    "explicit"
+                                };
                                 oo_info!(crate::oo_log::modules::IMAGE, "NSFW content detected — redacting entire image",
                                     confidence = result.confidence,
-                                    category = ?result.category);
+                                    category = ?result.category,
+                                    detection_type = detection_type);
                                 // Solid fill entire image
                                 let (rw, rh) = (rgb.width(), rgb.height());
                                 image_redact::solid_fill_region(

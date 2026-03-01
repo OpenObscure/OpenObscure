@@ -4,6 +4,11 @@
 //! region is found above the confidence threshold, the image is flagged
 //! as NSFW and the pipeline redacts the entire image.
 //!
+//! Also detects **implied toplessness** via spatial heuristic: if a face
+//! anchor and secondary exposed skin (armpits/belly) are present below
+//! the face, but no upper-body clothing is detected, the image is flagged
+//! as implied NSFW.
+//!
 //! Model: NudeNet 320n (YOLOv8n-based, ~12MB, AGPL-3.0)
 //! Input: [1, 3, 320, 320] NCHW, float32 [0,1]
 //! Output: [1, 22, 2100] — 4 bbox coords + 18 class scores per candidate
@@ -14,6 +19,7 @@
 //!   3. Convert bbox from center (cx,cy,w,h) to corner (x,y,w,h)
 //!   4. Apply greedy NMS (iou_threshold=0.45)
 //!   5. Flag NSFW if any surviving detection is an exposed class
+//!   6. If no explicit nudity, apply implied-topless spatial heuristic
 
 use std::path::Path;
 
@@ -73,6 +79,33 @@ const EXPOSED_INDICES: [usize; 5] = [
     14, // MALE_GENITALIA_EXPOSED
 ];
 
+// ── Implied-topless heuristic class indices ─────────────────────────────────
+
+/// Face anchor classes (establish subject presence and vertical baseline).
+const FACE_INDICES: [usize; 2] = [
+    1,  // FACE_FEMALE
+    12, // FACE_MALE
+];
+
+/// Secondary exposed skin classes (signal bare upper body).
+const SECONDARY_SKIN_INDICES: [usize; 2] = [
+    11, // ARMPITS_EXPOSED
+    13, // BELLY_EXPOSED
+];
+
+/// Upper-body clothing classes (presence negates implied topless).
+const UPPER_CLOTHING_INDICES: [usize; 2] = [
+    16, // FEMALE_BREAST_COVERED
+    8,  // BELLY_COVERED
+];
+
+/// Lower-body covered classes used for swimwear guard.
+/// If these overlap the upper torso region, treat as one-piece clothing.
+const SWIMWEAR_GUARD_INDICES: [usize; 2] = [
+    0,  // FEMALE_GENITALIA_COVERED
+    17, // BUTTOCKS_COVERED
+];
+
 /// A candidate detection after postprocessing.
 #[derive(Clone)]
 struct NsfwCandidate {
@@ -105,6 +138,8 @@ pub struct NsfwDetection {
     pub confidence: f32,
     /// Label of the highest-confidence exposed class (if NSFW).
     pub category: Option<String>,
+    /// True if flagged by implied-topless heuristic rather than explicit detection.
+    pub implied: bool,
 }
 
 impl NsfwDetector {
@@ -223,7 +258,7 @@ impl NsfwDetector {
         // Step 2: Apply NMS (greedy, sorted by confidence)
         let detections = nms(&mut candidates, NMS_IOU_THRESHOLD);
 
-        // Step 3: Find best exposed detection
+        // Step 3: Find best exposed detection (explicit nudity)
         let mut best_exposed_score: f32 = 0.0;
         let mut best_exposed_class: Option<usize> = None;
 
@@ -237,7 +272,23 @@ impl NsfwDetector {
             }
         }
 
-        let is_nsfw = best_exposed_class.is_some();
+        let mut is_nsfw = best_exposed_class.is_some();
+        let mut implied = false;
+
+        // Step 4: If no explicit nudity, check implied topless via spatial heuristic
+        if !is_nsfw {
+            if let Some((score, reason)) = check_implied_topless(&detections, self.threshold) {
+                is_nsfw = true;
+                best_exposed_score = score;
+                implied = true;
+                return Ok(NsfwDetection {
+                    is_nsfw,
+                    confidence: best_exposed_score,
+                    category: Some(reason.to_string()),
+                    implied,
+                });
+            }
+        }
 
         Ok(NsfwDetection {
             is_nsfw,
@@ -247,6 +298,7 @@ impl NsfwDetector {
             } else {
                 None
             },
+            implied,
         })
     }
 }
@@ -297,6 +349,74 @@ fn candidate_iou(a: &NsfwCandidate, b: &NsfwCandidate) -> f32 {
     } else {
         intersection / union
     }
+}
+
+/// Spatial heuristic: detect implied toplessness from NudeNet detections.
+///
+/// Checks for the pattern: face anchor + secondary exposed skin below the face +
+/// absence of upper-body clothing = implied topless. Includes a swimwear guard to
+/// prevent false positives on one-piece swimsuits.
+///
+/// Returns `Some((confidence, reason))` if implied topless is detected.
+fn check_implied_topless(
+    detections: &[NsfwCandidate],
+    threshold: f32,
+) -> Option<(f32, &'static str)> {
+    // Find face anchors above threshold
+    let faces: Vec<&NsfwCandidate> = detections
+        .iter()
+        .filter(|d| d.score >= threshold && FACE_INDICES.contains(&d.class_id))
+        .collect();
+
+    if faces.is_empty() {
+        return None;
+    }
+
+    // Find the lowest face bottom edge (highest y + h value)
+    let face_bottom = faces.iter().map(|f| f.y + f.h).fold(0.0f32, f32::max);
+
+    // Check for upper-body clothing — if present, not topless
+    let has_upper_clothing = detections
+        .iter()
+        .any(|d| d.score >= threshold && UPPER_CLOTHING_INDICES.contains(&d.class_id));
+
+    if has_upper_clothing {
+        return None;
+    }
+
+    // Swimwear guard: if lower-body covered classes overlap the upper torso region
+    // (their top edge is above face_bottom + 0.3), treat as one-piece → don't flag
+    let has_swimwear = detections.iter().any(|d| {
+        d.score >= threshold
+            && SWIMWEAR_GUARD_INDICES.contains(&d.class_id)
+            && d.y < face_bottom + 0.3
+    });
+
+    if has_swimwear {
+        return None;
+    }
+
+    // Find secondary exposed skin that is physically below the face
+    let below_face_skin: Vec<&NsfwCandidate> = detections
+        .iter()
+        .filter(|d| {
+            d.score >= threshold
+                && SECONDARY_SKIN_INDICES.contains(&d.class_id)
+                && d.y > face_bottom
+        })
+        .collect();
+
+    if below_face_skin.is_empty() {
+        return None;
+    }
+
+    // Best skin score as the confidence
+    let best_score = below_face_skin
+        .iter()
+        .map(|d| d.score)
+        .fold(0.0f32, f32::max);
+
+    Some((best_score, "IMPLIED_TOPLESS"))
 }
 
 /// Find a NudeNet model file in the given directory.
@@ -458,5 +578,174 @@ mod tests {
     fn test_pre_filter_threshold() {
         assert!(PRE_FILTER_THRESHOLD < NMS_IOU_THRESHOLD);
         assert!(PRE_FILTER_THRESHOLD > 0.0);
+    }
+
+    // ── Implied-topless heuristic tests ─────────────────────────────────────
+
+    /// Helper to create a candidate with given class, score, and bbox.
+    fn make_candidate(
+        class_id: usize,
+        score: f32,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+    ) -> NsfwCandidate {
+        NsfwCandidate {
+            x,
+            y,
+            w,
+            h,
+            class_id,
+            score,
+        }
+    }
+
+    #[test]
+    fn test_implied_topless_basic() {
+        // Face at top, armpits exposed below → implied topless
+        let detections = vec![
+            make_candidate(1, 0.73, 0.3, 0.05, 0.15, 0.15), // FACE_FEMALE at top
+            make_candidate(11, 0.53, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED below face
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_some());
+        let (score, reason) = result.unwrap();
+        assert!((score - 0.53).abs() < 0.01);
+        assert_eq!(reason, "IMPLIED_TOPLESS");
+    }
+
+    #[test]
+    fn test_implied_topless_with_clothing() {
+        // Face + armpits exposed + breast covered → NOT flagged
+        let detections = vec![
+            make_candidate(1, 0.73, 0.3, 0.05, 0.15, 0.15), // FACE_FEMALE
+            make_candidate(11, 0.53, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED
+            make_candidate(16, 0.65, 0.25, 0.22, 0.20, 0.15), // FEMALE_BREAST_COVERED
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_implied_topless_belly_covered_negates() {
+        // Face + armpits exposed + belly covered → NOT flagged
+        let detections = vec![
+            make_candidate(1, 0.73, 0.3, 0.05, 0.15, 0.15), // FACE_FEMALE
+            make_candidate(11, 0.53, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED
+            make_candidate(8, 0.60, 0.25, 0.25, 0.20, 0.20), // BELLY_COVERED
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_implied_topless_no_face() {
+        // Armpits exposed but no face → NOT flagged (no anchor)
+        let detections = vec![
+            make_candidate(11, 0.53, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED
+            make_candidate(17, 0.70, 0.30, 0.50, 0.20, 0.20), // BUTTOCKS_COVERED
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_implied_topless_skin_above_face() {
+        // Face at middle, armpits ABOVE face → NOT flagged (spatial check)
+        let detections = vec![
+            make_candidate(1, 0.73, 0.3, 0.40, 0.15, 0.15), // FACE_FEMALE at y=0.40
+            make_candidate(11, 0.53, 0.35, 0.10, 0.10, 0.10), // ARMPITS_EXPOSED at y=0.10 (above face)
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_implied_topless_swimwear_guard() {
+        // Face + armpits exposed + buttocks_covered overlapping upper torso → NOT flagged
+        // Face bottom = 0.05 + 0.15 = 0.20, guard threshold = 0.20 + 0.3 = 0.50
+        // Buttocks_covered at y=0.35 < 0.50 → swimwear guard triggers
+        let detections = vec![
+            make_candidate(1, 0.73, 0.3, 0.05, 0.15, 0.15), // FACE_FEMALE
+            make_candidate(11, 0.53, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED below face
+            make_candidate(17, 0.70, 0.25, 0.35, 0.20, 0.25), // BUTTOCKS_COVERED at y=0.35 (overlaps upper torso)
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_implied_topless_swimwear_guard_low_body() {
+        // Face + armpits exposed + buttocks_covered far below → NOT a one-piece, should flag
+        // Face bottom = 0.05 + 0.15 = 0.20, guard threshold = 0.20 + 0.3 = 0.50
+        // Buttocks_covered at y=0.65 > 0.50 → swimwear guard does NOT trigger
+        let detections = vec![
+            make_candidate(1, 0.73, 0.3, 0.05, 0.15, 0.15), // FACE_FEMALE
+            make_candidate(11, 0.53, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED below face
+            make_candidate(17, 0.70, 0.25, 0.65, 0.20, 0.25), // BUTTOCKS_COVERED far below
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_implied_topless_belly_exposed() {
+        // Face + belly exposed below → implied topless
+        let detections = vec![
+            make_candidate(12, 0.65, 0.3, 0.05, 0.15, 0.15), // FACE_MALE
+            make_candidate(13, 0.55, 0.30, 0.35, 0.15, 0.15), // BELLY_EXPOSED below face
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_some());
+        let (score, _) = result.unwrap();
+        assert!((score - 0.55).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_implied_topless_below_threshold() {
+        // Face above threshold but armpits below threshold → NOT flagged
+        let detections = vec![
+            make_candidate(1, 0.73, 0.3, 0.05, 0.15, 0.15), // FACE_FEMALE
+            make_candidate(11, 0.15, 0.35, 0.30, 0.10, 0.10), // ARMPITS_EXPOSED (low confidence)
+        ];
+        let result = check_implied_topless(&detections, 0.25);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_implied_topless_class_indices_valid() {
+        for &idx in &FACE_INDICES {
+            assert!(idx < NUM_CLASSES, "Face index {} out of range", idx);
+            assert!(
+                CLASS_LABELS[idx].starts_with("FACE_"),
+                "Index {} is not a face class",
+                idx
+            );
+        }
+        for &idx in &SECONDARY_SKIN_INDICES {
+            assert!(idx < NUM_CLASSES, "Skin index {} out of range", idx);
+            assert!(
+                CLASS_LABELS[idx].ends_with("_EXPOSED"),
+                "Index {} is not an exposed class",
+                idx
+            );
+        }
+        for &idx in &UPPER_CLOTHING_INDICES {
+            assert!(idx < NUM_CLASSES, "Clothing index {} out of range", idx);
+            assert!(
+                CLASS_LABELS[idx].ends_with("_COVERED"),
+                "Index {} is not a covered class",
+                idx
+            );
+        }
+        for &idx in &SWIMWEAR_GUARD_INDICES {
+            assert!(idx < NUM_CLASSES, "Swimwear index {} out of range", idx);
+            assert!(
+                CLASS_LABELS[idx].ends_with("_COVERED"),
+                "Index {} is not a covered class",
+                idx
+            );
+        }
     }
 }
