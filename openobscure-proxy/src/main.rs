@@ -172,7 +172,14 @@ async fn main() -> anyhow::Result<()> {
              message: &str| {
                 match level {
                     ort::logging::LogLevel::Warning => {
-                        tracing::warn!(target: "ort", "{}", message);
+                        // Suppress noisy CoreML EP capability and node-assignment warnings
+                        if message.contains("CoreMLExecutionProvider")
+                            || message.contains("not assigned to the preferred execution providers")
+                        {
+                            // silenced — these are expected on CoreML partial support
+                        } else {
+                            tracing::warn!(target: "ort", "{}", message);
+                        }
                     }
                     ort::logging::LogLevel::Error | ort::logging::LogLevel::Fatal => {
                         tracing::error!(target: "ort", "{}", message);
@@ -882,9 +889,10 @@ fn init_tracing(
 ) -> Vec<tracing_appender::non_blocking::WorkerGuard> {
     let mut guards = Vec::new();
 
-    // CLI --log-level overrides config
+    // CLI --log-level overrides config. Suppress noisy ORT/CoreML session logs.
     let log_level = cli.log_level.as_deref().unwrap_or(&log_cfg.level);
-    let filter = EnvFilter::try_new(log_level).unwrap_or_else(|_| EnvFilter::new("info"));
+    let filter_str = format!("{log_level},ort=error,session=error");
+    let filter = EnvFilter::try_new(&filter_str).unwrap_or_else(|_| EnvFilter::new("info"));
 
     use crate::pii_scrub_layer::PiiScrubMakeWriter;
 

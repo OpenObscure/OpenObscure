@@ -535,6 +535,11 @@ impl SseContentDecryptor {
         !self.content_buffer.is_empty()
     }
 
+    /// Number of chars currently buffered.
+    pub fn buffer_len(&self) -> usize {
+        self.content_buffer.len()
+    }
+
     /// The SSE format detected from parsed delta events.
     pub fn detected_format(&self) -> SseFormat {
         self.format

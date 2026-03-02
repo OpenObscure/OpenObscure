@@ -283,10 +283,13 @@ pub async fn proxy_handler(
 
     if is_sse && (has_mappings || state.response_integrity.is_some()) {
         // 7a. SSE streaming path: content-level FPE decryption + RI scanning
-        oo_debug!(crate::oo_log::modules::PROXY, "SSE response detected, streaming with content-level decryption",
-            request_id = %request_id);
-
         let mappings = state.mapping_store.get(&request_id).await;
+        let mapping_count = mappings
+            .as_ref()
+            .map(|m| m.by_ciphertext.len())
+            .unwrap_or(0);
+        oo_info!(crate::oo_log::modules::PROXY, "SSE response streaming",
+            request_id = %request_id, mappings = mapping_count);
         let mapping_store = state.mapping_store.clone();
         let req_id = request_id;
         let sse_flush_timeout =
@@ -351,8 +354,11 @@ pub async fn proxy_handler(
                                 if ri_buffer.has_seen_done() && !ri_done {
                                     // Feed content decryptor (extracts content, skips [DONE])
                                     let chunk = content_decryptor.feed(&data, m);
-                                    // Flush remaining buffered content
+                                    // Flush remaining buffered content with FPE decryption
+                                    let buf_len = content_decryptor.buffer_len();
                                     let flush = content_decryptor.flush(m);
+                                    oo_info!(crate::oo_log::modules::PROXY, "SSE [DONE] — flushing content buffer with FPE decryption",
+                                        request_id = %req_id, buffered_chars = buf_len, mappings = m.by_ciphertext.len(), flush_bytes = flush.len());
                                     mapping_store.remove(&req_id).await;
 
                                     // Run RI scan and format warning
@@ -429,7 +435,12 @@ pub async fn proxy_handler(
                         }
                         Ok(None) => {
                             // Stream complete — flush remaining buffer and emit RI warning
+                            let buf_len = content_decryptor.buffer_len();
                             let flush = content_decryptor.flush(m);
+                            if buf_len > 0 {
+                                oo_info!(crate::oo_log::modules::PROXY, "SSE stream ended — flushing content buffer",
+                                    request_id = %req_id, buffered_chars = buf_len, flush_bytes = flush.len());
+                            }
                             mapping_store.remove(&req_id).await;
 
                             let warning = if !ri_done {
@@ -457,10 +468,12 @@ pub async fn proxy_handler(
                             }
                         }
                         Err(_timeout) => {
-                            // Flush timeout — emit whatever is in the content buffer
-                            let flush = content_decryptor.flush(m);
+                            // Timeout between frames — yield empty keepalive.
+                            // Do NOT flush content buffer here: premature flush splits
+                            // ciphertexts across flush cycles, breaking FPE decryption.
+                            // Content is only flushed at [DONE], stream end, or error.
                             Some((
-                                Ok(flush),
+                                Ok(Bytes::new()),
                                 (body, mappings, content_decryptor, ri_buffer, false, false),
                             ))
                         }
