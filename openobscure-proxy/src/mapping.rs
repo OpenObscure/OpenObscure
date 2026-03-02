@@ -64,10 +64,34 @@ impl RequestMappings {
     /// to ASCII hyphens before matching, since LLMs commonly substitute these in responses.
     pub fn decrypt_response(&self, response_text: &str) -> String {
         let mut result = normalize_unicode_dashes(response_text);
+        let mut replaced_count = 0u32;
         let mut mappings: Vec<&FpeMapping> = self.by_ciphertext.values().collect();
         mappings.sort_by(|a, b| b.ciphertext.len().cmp(&a.ciphertext.len()));
-        for mapping in mappings {
-            result = result.replace(&mapping.ciphertext, &mapping.plaintext);
+        for mapping in &mappings {
+            if result.contains(&mapping.ciphertext) {
+                result = result.replace(&mapping.ciphertext, &mapping.plaintext);
+                replaced_count += 1;
+            }
+        }
+        if replaced_count == 0 && !mappings.is_empty() {
+            // Log first 3 ciphertexts and first 300 chars of response for debugging
+            let sample_cts: Vec<String> = mappings
+                .iter()
+                .take(3)
+                .map(|m| format!("{}→{} ({:?})", m.ciphertext, m.plaintext, m.pii_type))
+                .collect();
+            let preview: String = result.chars().take(300).collect();
+            oo_info!(crate::oo_log::modules::MAPPING, "decrypt_response: zero ciphertexts matched",
+                total_mappings = mappings.len(),
+                sample_mappings = ?sample_cts,
+                response_preview = %preview);
+        } else if replaced_count > 0 {
+            oo_info!(
+                crate::oo_log::modules::MAPPING,
+                "decrypt_response: ciphertexts replaced",
+                replaced = replaced_count,
+                total_mappings = mappings.len()
+            );
         }
         result
     }

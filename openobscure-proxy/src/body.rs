@@ -166,7 +166,7 @@ pub async fn process_request_body(
         } else {
             // Non-FPE: redact with hash-based token (e.g., PER_a7f2)
             let token = token_gen.generate(m.pii_type, &m.raw_value);
-            oo_info!(crate::oo_log::modules::BODY, "Hash token replacement",
+            oo_debug!(crate::oo_log::modules::BODY, "Hash token replacement",
                 pii_type = ?m.pii_type, token = %token);
 
             mappings.insert(FpeMapping {
@@ -702,20 +702,46 @@ fn apply_replacements_to_json(json: &mut Value, replacements: &[FpeResult]) {
         by_path.entry(path).or_default().push(r);
     }
 
+    oo_info!(
+        crate::oo_log::modules::BODY,
+        "Applying replacements to JSON",
+        total_replacements = replacements.len(),
+        unique_paths = by_path.len()
+    );
+
     // For each path, navigate to the string value and apply replacements
     for (path, path_replacements) in &by_path {
         if let Some(Value::String(s)) = navigate_json_mut(json, path) {
+            let before_len = s.len();
             let mut result = s.clone();
             // Apply replacements in reverse offset order to preserve positions
             let mut sorted_replacements = path_replacements.clone();
             sorted_replacements.sort_by(|a, b| b.original.start.cmp(&a.original.start));
-            for r in sorted_replacements {
+            for r in &sorted_replacements {
                 // Replace by byte offset for precision
                 if r.original.start <= result.len() && r.original.end <= result.len() {
                     result.replace_range(r.original.start..r.original.end, &r.encrypted);
+                } else {
+                    oo_warn!(crate::oo_log::modules::BODY, "Replacement offset out of bounds",
+                        path = %path,
+                        plaintext = %r.original.raw_value,
+                        start = r.original.start,
+                        end = r.original.end,
+                        string_len = result.len());
                 }
             }
+            let changed = result != *s;
+            oo_info!(crate::oo_log::modules::BODY, "JSON path replacement",
+                path = %path,
+                replacements = sorted_replacements.len(),
+                before_len = before_len,
+                after_len = result.len(),
+                changed = changed);
             *s = result;
+        } else {
+            oo_warn!(crate::oo_log::modules::BODY, "JSON path not found or not a string",
+                path = %path,
+                replacements = path_replacements.len());
         }
     }
 }

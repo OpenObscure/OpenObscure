@@ -274,10 +274,10 @@ impl NerScanner {
         // 5. Decode BIO tags into entity spans, using word_ids alignment
         let entities = self.decode_bio_tags(&token_labels, &encoded.word_ids, &encoded.words, text);
 
-        // 6. Log all NER entities with confidence, then filter by threshold
+        // 6. Log NER entities at debug level, then filter by threshold
         for e in &entities {
             if e.confidence >= self.confidence_threshold {
-                oo_info!(
+                oo_debug!(
                     crate::oo_log::modules::NER,
                     "NER entity detected",
                     text = %e.raw_value,
@@ -285,7 +285,7 @@ impl NerScanner {
                     confidence = format!("{:.3}", e.confidence)
                 );
             } else {
-                oo_info!(
+                oo_debug!(
                     crate::oo_log::modules::NER,
                     "NER entity below threshold — filtered out",
                     text = %e.raw_value,
