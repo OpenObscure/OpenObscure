@@ -124,6 +124,8 @@ pub struct SseRiBuffer {
     truncated: bool,
     format: SseFormat,
     seen_done: bool,
+    /// Incomplete line from previous HTTP chunk.
+    line_buffer: String,
 }
 
 impl Default for SseRiBuffer {
@@ -140,6 +142,7 @@ impl SseRiBuffer {
             truncated: false,
             format: SseFormat::Unknown,
             seen_done: false,
+            line_buffer: String::new(),
         }
     }
 
@@ -150,10 +153,13 @@ impl SseRiBuffer {
             truncated: false,
             format: SseFormat::Unknown,
             seen_done: false,
+            line_buffer: String::new(),
         }
     }
 
     /// Feed raw SSE frame bytes. Parses `data:` lines and extracts text deltas.
+    ///
+    /// Handles partial lines spanning HTTP chunks via an internal line buffer.
     pub fn feed_sse_data(&mut self, raw: &[u8]) {
         if self.truncated {
             return;
@@ -164,7 +170,30 @@ impl SseRiBuffer {
             Err(_) => return,
         };
 
-        for line in text.lines() {
+        // Prepend any partial line from the previous chunk
+        let combined;
+        let input = if self.line_buffer.is_empty() {
+            text
+        } else {
+            combined = format!("{}{}", std::mem::take(&mut self.line_buffer), text);
+            &combined
+        };
+
+        // If chunk doesn't end with \n, save trailing partial line
+        let (lines_text, trailing) = if input.ends_with('\n') {
+            (input, "")
+        } else {
+            match input.rfind('\n') {
+                Some(pos) => (&input[..=pos], &input[pos + 1..]),
+                None => {
+                    self.line_buffer = input.to_string();
+                    return;
+                }
+            }
+        };
+        self.line_buffer = trailing.to_string();
+
+        for line in lines_text.lines() {
             let data = if let Some(d) = line.strip_prefix("data: ") {
                 d.trim()
             } else if let Some(d) = line.strip_prefix("data:") {
@@ -413,6 +442,10 @@ pub struct SseContentDecryptor {
     content_buffer: String,
     /// The SSE format detected from the stream.
     format: SseFormat,
+    /// Incomplete line from the previous HTTP chunk.
+    /// HTTP chunks can split SSE events at arbitrary byte boundaries.
+    /// This holds the trailing partial line until the next chunk completes it.
+    line_buffer: String,
 }
 
 impl Default for SseContentDecryptor {
@@ -426,6 +459,7 @@ impl SseContentDecryptor {
         Self {
             content_buffer: String::new(),
             format: SseFormat::Unknown,
+            line_buffer: String::new(),
         }
     }
 
@@ -451,16 +485,45 @@ impl SseContentDecryptor {
     }
 
     /// Parse an SSE frame, buffer content text, and return any passthrough output.
+    ///
+    /// Handles partial lines that span HTTP chunks: if a chunk doesn't end with
+    /// `\n`, the trailing incomplete line is saved in `line_buffer` and prepended
+    /// to the next chunk.
     fn parse_and_buffer(&mut self, raw: &[u8]) -> String {
         let text = match std::str::from_utf8(raw) {
             Ok(s) => s,
             Err(_) => return String::new(),
         };
 
+        // Prepend any partial line from the previous chunk
+        let combined;
+        let input = if self.line_buffer.is_empty() {
+            text
+        } else {
+            combined = format!("{}{}", std::mem::take(&mut self.line_buffer), text);
+            &combined
+        };
+
+        // If the chunk doesn't end with \n, the last "line" is incomplete —
+        // save it for the next chunk.
+        let (lines_text, trailing) = if input.ends_with('\n') {
+            (input, "")
+        } else {
+            match input.rfind('\n') {
+                Some(pos) => (&input[..=pos], &input[pos + 1..]),
+                None => {
+                    // Entire chunk is one incomplete line — buffer it all
+                    self.line_buffer = input.to_string();
+                    return String::new();
+                }
+            }
+        };
+        self.line_buffer = trailing.to_string();
+
         let mut passthrough = String::new();
         let mut pending_event_line = String::new();
 
-        for line in text.lines() {
+        for line in lines_text.lines() {
             if line.starts_with("event: ") {
                 // SSE event type — remember it for the next data line
                 pending_event_line = format!("{line}\n");
@@ -1234,5 +1297,86 @@ mod tests {
         let json: serde_json::Value =
             serde_json::from_str(data_line.strip_prefix("data: ").unwrap()).unwrap();
         assert_eq!(json["delta"]["text"], "Hello");
+    }
+
+    // --- Partial-line (cross-chunk) tests ---
+
+    #[test]
+    fn test_content_decryptor_partial_line_across_chunks() {
+        let m = mappings_with(&[("709-103-6674", "415-555-1022")]);
+        let mut dec = SseContentDecryptor::new();
+
+        // Chunk 1: partial JSON line (split mid-JSON)
+        let chunk1 = b"data: {\"choices\":[{\"delta\":{\"conten";
+        let out1 = dec.feed(chunk1, &m);
+        assert!(
+            out1.is_empty(),
+            "Partial line should be buffered, not emitted"
+        );
+
+        // Chunk 2: rest of JSON + complete event
+        let chunk2 = b"t\":\"Call HR at 709-103-6674\"}}]}\n\ndata: [DONE]\n\n";
+        let _out2 = dec.feed(chunk2, &m);
+
+        // Flush should decrypt the phone number
+        let flush = dec.flush(&m);
+        let flush_str = String::from_utf8(flush.to_vec()).unwrap();
+        assert!(
+            flush_str.contains("415-555-1022"),
+            "Partial-line reassembly should allow FPE decryption. Got: {}",
+            flush_str
+        );
+    }
+
+    #[test]
+    fn test_content_decryptor_multiple_partial_chunks() {
+        let m = mappings_with(&[("CIPHER", "plain")]);
+        let mut dec = SseContentDecryptor::new();
+
+        // Chunk splits across three pieces
+        dec.feed(b"data: {\"choices\":", &m);
+        dec.feed(b"[{\"delta\":{\"content\":", &m);
+        dec.feed(b"\"has CIPHER in it\"}}]}\n\n", &m);
+
+        let flush = dec.flush(&m);
+        let s = String::from_utf8(flush.to_vec()).unwrap();
+        assert!(
+            s.contains("has plain in it"),
+            "Multi-chunk reassembly should work. Got: {}",
+            s
+        );
+    }
+
+    #[test]
+    fn test_ri_buffer_partial_line_done_detection() {
+        let mut buf = SseRiBuffer::new();
+
+        // [DONE] split across chunks
+        buf.feed_sse_data(b"data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\nda");
+        assert!(!buf.has_seen_done(), "Partial 'da' should not trigger done");
+
+        buf.feed_sse_data(b"ta: [DONE]\n\n");
+        assert!(
+            buf.has_seen_done(),
+            "Reassembled 'data: [DONE]' should trigger done"
+        );
+
+        let text = buf.take_text().unwrap();
+        assert_eq!(text, "hi");
+    }
+
+    #[test]
+    fn test_content_decryptor_complete_lines_no_buffer() {
+        let m = mappings_with(&[("ABC", "xyz")]);
+        let mut dec = SseContentDecryptor::new();
+
+        // Complete event ending with \n\n — no partial line
+        let chunk = b"data: {\"choices\":[{\"delta\":{\"content\":\"has ABC\"}}]}\n\n";
+        let out = dec.feed(chunk, &m);
+        assert!(out.is_empty(), "Content should be buffered for flush");
+
+        let flush = dec.flush(&m);
+        let s = String::from_utf8(flush.to_vec()).unwrap();
+        assert!(s.contains("has xyz"), "Flush should decrypt. Got: {}", s);
     }
 }
