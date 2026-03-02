@@ -795,6 +795,12 @@ fn scan_response_integrity(
         return body.clone();
     }
 
+    // R2 Discover reports (R1 clean, R2-only detection) are log-only:
+    // they lack R1 corroboration and have high false-positive rate.
+    if report.r2_role == crate::response_integrity::R2Role::Discover {
+        return body.clone();
+    }
+
     // Inject warning label using multi-format support
     let label = ResponseIntegrityScanner::format_warning_label(&report);
     match crate::response_format::inject_warning(body, format, &label) {
@@ -854,6 +860,12 @@ fn emit_sse_ri_warning_inline(
 
     // If log_only, don't inject warning into stream
     if log_only {
+        return String::new();
+    }
+
+    // R2 Discover reports (R1 clean, R2-only detection) are log-only:
+    // they lack R1 corroboration and have high false-positive rate.
+    if report.r2_role == crate::response_integrity::R2Role::Discover {
         return String::new();
     }
 

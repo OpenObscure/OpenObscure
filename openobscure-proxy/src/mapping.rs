@@ -59,8 +59,11 @@ impl RequestMappings {
 
     /// Replace all ciphertexts found in the response text with their original plaintexts.
     /// Sorts by ciphertext length descending to avoid partial matches.
+    ///
+    /// Normalizes Unicode dash variants (en-dash, em-dash, non-breaking hyphen, figure dash)
+    /// to ASCII hyphens before matching, since LLMs commonly substitute these in responses.
     pub fn decrypt_response(&self, response_text: &str) -> String {
-        let mut result = response_text.to_string();
+        let mut result = normalize_unicode_dashes(response_text);
         let mut mappings: Vec<&FpeMapping> = self.by_ciphertext.values().collect();
         mappings.sort_by(|a, b| b.ciphertext.len().cmp(&a.ciphertext.len()));
         for mapping in mappings {
@@ -123,6 +126,31 @@ impl MappingStore {
     }
 }
 
+/// Normalize Unicode dash/hyphen variants to ASCII hyphen-minus (U+002D).
+///
+/// LLMs frequently substitute ASCII hyphens with typographic alternatives
+/// (en-dash, non-breaking hyphen, figure dash, etc.) in formatted output,
+/// which breaks exact-match FPE ciphertext replacement.
+fn normalize_unicode_dashes(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\u{2010}' // HYPHEN
+            | '\u{2011}' // NON-BREAKING HYPHEN
+            | '\u{2012}' // FIGURE DASH
+            | '\u{2013}' // EN DASH
+            | '\u{2014}' // EM DASH
+            | '\u{2015}' // HORIZONTAL BAR
+            | '\u{FE58}' // SMALL EM DASH
+            | '\u{FE63}' // SMALL HYPHEN-MINUS
+            | '\u{FF0D}' // FULLWIDTH HYPHEN-MINUS
+            => result.push('-'),
+            _ => result.push(ch),
+        }
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -159,5 +187,48 @@ mod tests {
         assert!(mappings.is_empty());
         let response = "No PII here";
         assert_eq!(mappings.decrypt_response(response), response);
+    }
+
+    #[test]
+    fn test_decrypt_response_unicode_dashes() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::PhoneNumber,
+            plaintext: "415-555-0132".to_string(),
+            ciphertext: "370-133-6132".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM uses non-breaking hyphens (U+2011) instead of ASCII hyphens
+        let response = "Call HR at 370\u{2011}133\u{2011}6132 for details.";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Call HR at 415-555-0132 for details.");
+    }
+
+    #[test]
+    fn test_decrypt_response_en_dashes() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::Ssn,
+            plaintext: "123-45-6789".to_string(),
+            ciphertext: "847-29-3651".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM uses en-dashes (U+2013) instead of ASCII hyphens
+        let response = "SSN: 847\u{2013}29\u{2013}3651";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "SSN: 123-45-6789");
+    }
+
+    #[test]
+    fn test_normalize_unicode_dashes() {
+        assert_eq!(normalize_unicode_dashes("no\u{2011}break"), "no-break");
+        assert_eq!(normalize_unicode_dashes("en\u{2013}dash"), "en-dash");
+        assert_eq!(normalize_unicode_dashes("em\u{2014}dash"), "em-dash");
+        assert_eq!(normalize_unicode_dashes("plain-ascii"), "plain-ascii");
+        assert_eq!(normalize_unicode_dashes("no dashes"), "no dashes");
     }
 }
