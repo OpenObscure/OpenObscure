@@ -342,7 +342,7 @@ fn test_f1_score() {
 #[test]
 fn test_hybrid_scanner_keyword_recall() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     let mut total_expected = 0usize;
     let mut total_found = 0usize;
@@ -409,7 +409,7 @@ fn test_hybrid_scanner_keyword_recall() {
 #[test]
 fn test_hybrid_scanner_overall_recall() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     let mut total_expected = 0usize;
     let mut total_found = 0usize;
@@ -462,7 +462,7 @@ fn test_hybrid_scanner_overall_recall() {
 #[test]
 fn test_hybrid_scanner_precision() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     let mut total_detected = 0usize;
     let mut true_positives = 0usize;
@@ -524,7 +524,7 @@ fn test_hybrid_scanner_precision() {
 #[test]
 fn test_hybrid_confidence_present() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     for entry in &corpus {
         let detected = scanner.scan_text(&entry.text);
@@ -546,7 +546,7 @@ fn test_hybrid_confidence_present() {
 #[test]
 fn test_pii_match_spans_valid() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     for (idx, entry) in corpus.iter().enumerate() {
         let detected = scanner.scan_text(&entry.text);
@@ -576,7 +576,7 @@ fn test_pii_match_spans_valid() {
 #[test]
 fn test_pii_match_no_overlaps() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     for (idx, entry) in corpus.iter().enumerate() {
         let mut detected = scanner.scan_text(&entry.text);
@@ -601,7 +601,7 @@ fn test_pii_match_no_overlaps() {
 #[test]
 fn test_pii_confidence_range() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     for (idx, entry) in corpus.iter().enumerate() {
         let detected = scanner.scan_text(&entry.text);
@@ -621,7 +621,7 @@ fn test_pii_confidence_range() {
 #[test]
 fn test_pii_types_are_known() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     let known_types = [
         PiiType::CreditCard,
@@ -658,7 +658,7 @@ fn test_pii_types_are_known() {
 #[test]
 fn test_multilingual_recall() {
     let corpus = load_corpus();
-    let scanner = HybridScanner::new(true, None);
+    let scanner = HybridScanner::new(true, None, None);
 
     let mut total_expected = 0usize;
     let mut total_found = 0usize;

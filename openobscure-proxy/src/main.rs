@@ -30,6 +30,7 @@ mod kws_engine;
 mod lib_mobile;
 mod mapping;
 mod multilingual;
+mod name_gazetteer;
 mod ner_endpoint;
 mod ner_scanner;
 mod nsfw_classifier;
@@ -440,6 +441,7 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         tier: tier.to_string(),
         max_ram_mb: budget.max_ram_mb,
         ner_enabled: budget.ner_enabled,
+        ner_model: budget.ner_model.clone(),
         crf_enabled: budget.crf_enabled,
         ensemble_enabled: budget.ensemble_enabled,
         image_pipeline_enabled: budget.image_pipeline_enabled,
@@ -1128,23 +1130,41 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
     let threshold = config.scanner.ner_confidence_threshold;
     let code_fences = config.scanner.respect_code_fences;
 
+    // Load name gazetteer if enabled
+    let gazetteer = if config.scanner.gazetteer_enabled {
+        let gaz = name_gazetteer::NameGazetteer::new();
+        oo_info!(
+            crate::oo_log::modules::SCANNER,
+            "Name gazetteer loaded",
+            first_names = gaz.first_name_count(),
+            surnames = gaz.surname_count()
+        );
+        Some(gaz)
+    } else {
+        oo_info!(
+            crate::oo_log::modules::SCANNER,
+            "Name gazetteer disabled by config"
+        );
+        None
+    };
+
     let mut scanner = match config.scanner.scanner_mode.as_str() {
         "regex" => {
             oo_info!(
                 crate::oo_log::modules::SCANNER,
                 "Scanner mode: regex-only (no semantic backend)"
             );
-            HybridScanner::new(kw, None)
+            HybridScanner::new(kw, None, gazetteer)
         }
         "ner" => {
-            let ner = try_load_ner(config, threshold);
+            let ner = try_load_ner(config, budget, threshold);
             if ner.is_none() {
                 oo_warn!(
                     crate::oo_log::modules::SCANNER,
                     "Scanner mode 'ner' requested but model unavailable, using regex+keywords"
                 );
             }
-            HybridScanner::new(kw, ner)
+            HybridScanner::new(kw, ner, gazetteer)
         }
         "crf" => {
             let crf = try_load_crf(config, threshold);
@@ -1154,7 +1174,7 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
                     "Scanner mode 'crf' requested but model unavailable, using regex+keywords"
                 );
             }
-            HybridScanner::with_crf(kw, crf)
+            HybridScanner::with_crf(kw, crf, gazetteer)
         }
         _ => {
             // Auto: use device profile budget to decide NER vs CRF
@@ -1168,45 +1188,45 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
             );
 
             if budget.ner_enabled {
-                if let Some(ner) = try_load_ner(config, threshold) {
-                    HybridScanner::new(kw, Some(ner))
+                if let Some(ner) = try_load_ner(config, budget, threshold) {
+                    HybridScanner::new(kw, Some(ner), gazetteer)
                 } else if budget.crf_enabled {
                     oo_info!(
                         crate::oo_log::modules::SCANNER,
                         "NER model unavailable, falling back to CRF"
                     );
                     if let Some(crf) = try_load_crf(config, threshold) {
-                        HybridScanner::with_crf(kw, Some(crf))
+                        HybridScanner::with_crf(kw, Some(crf), gazetteer)
                     } else {
                         oo_info!(
                             crate::oo_log::modules::SCANNER,
                             "No semantic model available, using regex+keywords only"
                         );
-                        HybridScanner::new(kw, None)
+                        HybridScanner::new(kw, None, gazetteer)
                     }
                 } else {
                     oo_info!(
                         crate::oo_log::modules::SCANNER,
                         "NER unavailable, no CRF in budget, using regex+keywords only"
                     );
-                    HybridScanner::new(kw, None)
+                    HybridScanner::new(kw, None, gazetteer)
                 }
             } else if budget.crf_enabled {
                 if let Some(crf) = try_load_crf(config, threshold) {
-                    HybridScanner::with_crf(kw, Some(crf))
+                    HybridScanner::with_crf(kw, Some(crf), gazetteer)
                 } else {
                     oo_info!(
                         crate::oo_log::modules::SCANNER,
                         "CRF model unavailable, using regex+keywords only"
                     );
-                    HybridScanner::new(kw, None)
+                    HybridScanner::new(kw, None, gazetteer)
                 }
             } else {
                 oo_info!(
                     crate::oo_log::modules::SCANNER,
                     "Device budget: regex+keywords only"
                 );
-                HybridScanner::new(kw, None)
+                HybridScanner::new(kw, None, gazetteer)
             }
         }
     };
@@ -1220,16 +1240,37 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
     scanner
 }
 
-fn try_load_ner(config: &AppConfig, threshold: f32) -> Option<ner_scanner::NerScanner> {
-    let model_dir = config.scanner.ner_model_dir.as_ref()?;
+fn try_load_ner(
+    config: &AppConfig,
+    budget: &device_profile::FeatureBudget,
+    threshold: f32,
+) -> Option<ner_scanner::NerScanner> {
+    let model_dir = match budget.ner_model.as_str() {
+        "tinybert" => config
+            .scanner
+            .ner_model_dir_lite
+            .as_ref()
+            .or(config.scanner.ner_model_dir.as_ref())?,
+        _ => config.scanner.ner_model_dir.as_ref()?,
+    };
     let model_path = std::path::Path::new(model_dir);
     match ner_scanner::NerScanner::load(model_path, threshold) {
         Ok(ner) => {
-            oo_info!(crate::oo_log::modules::NER, "NER scanner loaded", model_dir = %model_dir);
+            oo_info!(
+                crate::oo_log::modules::NER,
+                "NER scanner loaded",
+                model_dir = %model_dir,
+                variant = %budget.ner_model
+            );
             Some(ner)
         }
         Err(e) => {
-            oo_warn!(crate::oo_log::modules::NER, "NER scanner failed to load", error = %e);
+            oo_warn!(
+                crate::oo_log::modules::NER,
+                "NER scanner failed to load",
+                error = %e,
+                variant = %budget.ner_model
+            );
             None
         }
     }

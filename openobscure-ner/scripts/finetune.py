@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Fine-tune TinyBERT-4L-312D for PII NER (Named Entity Recognition).
+Fine-tune a BERT-family model for PII NER (Named Entity Recognition).
 
 Produces a token-classification model with BIO tags for:
   PER    — person names
@@ -11,10 +11,13 @@ Produces a token-classification model with BIO tags for:
 
 Training data:
   - CoNLL-2003 (PER, LOC, ORG baseline via HuggingFace datasets)
+  - OntoNotes 5.0 (18 entity types remapped to our 5-type schema)
+  - WNUT-2017 (noisy text NER, 6 types remapped to our schema)
   - Custom augmented examples for HEALTH and CHILD (JSON-lines in data/)
 
 Usage:
   python scripts/finetune.py --output_dir models/tinybert-ner --epochs 5
+  python scripts/finetune.py --base_model distilbert-base-uncased --datasets conll,wnut --epochs 7
   python scripts/finetune.py --help
 """
 
@@ -72,12 +75,36 @@ CONLL_LABEL_MAP = {
     "I-MISC": "O",
 }
 
+# OntoNotes 5.0 uses 18 entity types — map to our 5-type schema
+ONTONOTES_LABEL_MAP = {
+    "PERSON": "PER",
+    "GPE": "LOC",        # Geopolitical entities (countries, cities)
+    "LOC": "LOC",        # Non-GPE locations (mountains, rivers)
+    "FAC": "LOC",        # Facilities (airports, bridges)
+    "ORG": "ORG",
+    # Everything else → O
+    "NORP": "O", "DATE": "O", "TIME": "O", "MONEY": "O",
+    "CARDINAL": "O", "ORDINAL": "O", "PERCENT": "O",
+    "QUANTITY": "O", "EVENT": "O", "WORK_OF_ART": "O",
+    "LAW": "O", "LANGUAGE": "O", "PRODUCT": "O",
+}
+
+# WNUT-2017 uses 6 entity types — map to our schema
+WNUT_LABEL_MAP = {
+    "person": "PER",
+    "location": "LOC",
+    "corporation": "ORG",
+    "group": "ORG",
+    "creative-work": "O",
+    "product": "O",
+}
+
 BASE_MODEL = "huawei-noah/TinyBERT_General_4L_312D"
 MAX_LENGTH = 512
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Fine-tune TinyBERT for PII NER")
+    parser = argparse.ArgumentParser(description="Fine-tune a BERT model for PII NER")
     parser.add_argument(
         "--output_dir",
         type=str,
@@ -100,6 +127,18 @@ def parse_args():
         type=str,
         default=BASE_MODEL,
         help="Base model name or path",
+    )
+    parser.add_argument(
+        "--datasets",
+        type=str,
+        default="conll",
+        help="Comma-separated dataset list: conll,ontonotes,wnut (default: conll)",
+    )
+    parser.add_argument(
+        "--ontonotes_weight",
+        type=float,
+        default=1.0,
+        help="Sampling weight for OntoNotes (1.0 = use all, 0.5 = half)",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--fp16", action="store_true", help="Use FP16 mixed precision")
@@ -142,6 +181,102 @@ def load_conll2003():
     return remapped
 
 
+def load_ontonotes(weight: float = 1.0):
+    """Load OntoNotes 5.0 and remap 18 entity types to our 5-type schema.
+
+    The dataset is structured as documents → sentences. We flatten to individual
+    sentences and remap NER tags using ONTONOTES_LABEL_MAP.
+
+    Args:
+        weight: Sampling fraction (1.0 = all data, 0.5 = random 50%).
+    """
+    logger.info("Loading OntoNotes 5.0 (english_v4)...")
+    raw = load_dataset("conll2012_ontonotesv5", "english_v4", trust_remote_code=True)
+
+    def flatten_and_remap(split_data):
+        all_tokens = []
+        all_tags = []
+        for doc in split_data:
+            for sentence in doc["sentences"]:
+                tokens = sentence["words"]
+                named_entities = sentence.get("named_entities", [])
+                if not named_entities or len(named_entities) != len(tokens):
+                    # Skip sentences without NER annotations or mismatched lengths
+                    continue
+                new_tags = []
+                for ne_tag in named_entities:
+                    # OntoNotes NER tags are in BIO format: "B-PERSON", "I-ORG", "O", etc.
+                    if ne_tag == "O" or ne_tag == "*":
+                        new_tags.append(LABEL2ID["O"])
+                    elif ne_tag.startswith("B-") or ne_tag.startswith("I-"):
+                        prefix = ne_tag[:2]  # "B-" or "I-"
+                        entity_type = ne_tag[2:]
+                        mapped = ONTONOTES_LABEL_MAP.get(entity_type, "O")
+                        if mapped == "O":
+                            new_tags.append(LABEL2ID["O"])
+                        else:
+                            new_tags.append(LABEL2ID[f"{prefix}{mapped}"])
+                    else:
+                        new_tags.append(LABEL2ID["O"])
+                all_tokens.append(tokens)
+                all_tags.append(new_tags)
+        return all_tokens, all_tags
+
+    result = {}
+    for split_name in ["train", "validation", "test"]:
+        if split_name not in raw:
+            continue
+        tokens, tags = flatten_and_remap(raw[split_name])
+        ds = Dataset.from_dict({"tokens": tokens, "ner_tags": tags})
+        if weight < 1.0 and len(ds) > 0:
+            ds = ds.shuffle(seed=42).select(range(int(len(ds) * weight)))
+        result[split_name] = ds
+        logger.info("OntoNotes %s: %d sentences (weight=%.1f)", split_name, len(ds), weight)
+
+    return DatasetDict(result)
+
+
+def load_wnut2017():
+    """Load WNUT-2017 noisy text NER and remap to our schema.
+
+    WNUT-2017 has 6 entity types: person, location, corporation, group,
+    creative-work, product. We remap to PER/LOC/ORG and drop the rest.
+    """
+    logger.info("Loading WNUT-2017 dataset...")
+    raw = load_dataset("wnut_17", trust_remote_code=True)
+
+    # Get original label names
+    original_labels = raw["train"].features["ner_tags"].feature.names
+
+    def remap_labels(example):
+        new_tags = []
+        for tag_id in example["ner_tags"]:
+            original_label = original_labels[tag_id]
+            if original_label == "O":
+                new_tags.append(LABEL2ID["O"])
+            elif original_label.startswith("B-") or original_label.startswith("I-"):
+                prefix = original_label[:2]
+                entity_type = original_label[2:]
+                mapped = WNUT_LABEL_MAP.get(entity_type, "O")
+                if mapped == "O":
+                    new_tags.append(LABEL2ID["O"])
+                else:
+                    new_tags.append(LABEL2ID[f"{prefix}{mapped}"])
+            else:
+                new_tags.append(LABEL2ID["O"])
+        example["ner_tags"] = new_tags
+        return example
+
+    remapped = raw.map(remap_labels)
+    logger.info(
+        "WNUT-2017 loaded: %d train, %d validation, %d test",
+        len(remapped["train"]),
+        len(remapped.get("validation", [])),
+        len(remapped["test"]),
+    )
+    return remapped
+
+
 def load_custom_data(path: str) -> Dataset:
     """
     Load custom JSONL data for HEALTH/CHILD entities.
@@ -179,47 +314,72 @@ def load_custom_data(path: str) -> Dataset:
     return dataset
 
 
-def merge_datasets(conll: DatasetDict, custom: Dataset | None) -> DatasetDict:
-    """Merge CoNLL-2003 with custom HEALTH/CHILD data."""
-    if custom is None:
-        return conll
-
-    from datasets import concatenate_datasets
-
-    # CoNLL-2003 has extra columns (id, pos_tags, chunk_tags) and uses ClassLabel
-    # for ner_tags with 9 original names. After remapping, both datasets use our
-    # LABEL_LIST IDs (0-10). Strip extra columns and cast to plain int64 so
-    # concatenation works regardless of label count mismatch.
+def _normalize_dataset(ds: DatasetDict) -> DatasetDict:
+    """Strip extra columns and cast to uniform features for concatenation."""
     keep_cols = {"tokens", "ner_tags"}
-    conll = DatasetDict(
-        {
-            split: ds.remove_columns([c for c in ds.column_names if c not in keep_cols])
-            for split, ds in conll.items()
-        }
-    )
     target_features = Features(
         {
             "tokens": Sequence(Value("string")),
             "ner_tags": Sequence(Value("int64")),
         }
     )
-    conll = DatasetDict(
-        {split: ds.cast(target_features) for split, ds in conll.items()}
-    )
-    custom = custom.cast(target_features)
+    result = {}
+    for split, data in ds.items():
+        cleaned = data.remove_columns([c for c in data.column_names if c not in keep_cols])
+        result[split] = cleaned.cast(target_features)
+    return DatasetDict(result)
 
-    # Add custom data to train split only (80/20 split for val)
-    custom_split = custom.train_test_split(test_size=0.2, seed=42)
-    merged_train = concatenate_datasets([conll["train"], custom_split["train"]])
-    merged_val = concatenate_datasets([conll["validation"], custom_split["test"]])
+
+def merge_datasets(
+    datasets_list: list[DatasetDict],
+    custom: Dataset | None,
+    seed: int = 42,
+) -> DatasetDict:
+    """Merge multiple NER datasets + optional custom HEALTH/CHILD data."""
+    from datasets import concatenate_datasets
+
+    # Normalize all datasets to uniform schema
+    normalized = [_normalize_dataset(ds) for ds in datasets_list]
+
+    # Collect per-split
+    train_parts = []
+    val_parts = []
+    test_parts = []
+
+    for ds in normalized:
+        if "train" in ds:
+            train_parts.append(ds["train"])
+        if "validation" in ds:
+            val_parts.append(ds["validation"])
+        if "test" in ds:
+            test_parts.append(ds["test"])
+
+    # Add custom data (80/20 train/val split)
+    if custom is not None:
+        target_features = Features(
+            {
+                "tokens": Sequence(Value("string")),
+                "ner_tags": Sequence(Value("int64")),
+            }
+        )
+        custom = custom.cast(target_features)
+        custom_split = custom.train_test_split(test_size=0.2, seed=seed)
+        train_parts.append(custom_split["train"])
+        val_parts.append(custom_split["test"])
+
+    merged_train = concatenate_datasets(train_parts) if train_parts else Dataset.from_dict({"tokens": [], "ner_tags": []})
+    merged_val = concatenate_datasets(val_parts) if val_parts else Dataset.from_dict({"tokens": [], "ner_tags": []})
+    merged_test = concatenate_datasets(test_parts) if test_parts else Dataset.from_dict({"tokens": [], "ner_tags": []})
 
     logger.info(
-        "Merged dataset: %d train, %d validation",
+        "Merged dataset: %d train, %d validation, %d test (%d sources)",
         len(merged_train),
         len(merged_val),
+        len(merged_test),
+        len(datasets_list),
     )
     return DatasetDict(
-        {"train": merged_train, "validation": merged_val, "test": conll["test"]}
+        {"train": merged_train, "validation": merged_val, "test": merged_test}
     )
 
 
@@ -321,13 +481,36 @@ def main():
     logger.info("Output: %s", args.output_dir)
     logger.info("Labels: %s", LABEL_LIST)
 
+    # DistilBERT-specific hyperparameter suggestions
+    if "distilbert" in args.base_model.lower():
+        if args.learning_rate == 5e-5:  # only override if user didn't explicitly set
+            args.learning_rate = 3e-5
+            logger.info("DistilBERT detected: adjusted learning_rate to %.0e", args.learning_rate)
+        if args.epochs == 5:  # only override if user didn't explicitly set
+            args.epochs = 7
+            logger.info("DistilBERT detected: adjusted epochs to %d", args.epochs)
+
     # Load tokenizer
     tokenizer = AutoTokenizer.from_pretrained(args.base_model)
 
-    # Load data
-    conll = load_conll2003()
+    # Load datasets based on --datasets flag
+    requested = [d.strip().lower() for d in args.datasets.split(",")]
+    datasets_list = []
+    for ds_name in requested:
+        if ds_name == "conll":
+            datasets_list.append(load_conll2003())
+        elif ds_name == "ontonotes":
+            datasets_list.append(load_ontonotes(weight=args.ontonotes_weight))
+        elif ds_name == "wnut":
+            datasets_list.append(load_wnut2017())
+        else:
+            logger.warning("Unknown dataset '%s', skipping", ds_name)
+    if not datasets_list:
+        logger.error("No datasets loaded! Check --datasets flag.")
+        sys.exit(1)
+
     custom = load_custom_data(args.custom_data) if args.custom_data else None
-    dataset = merge_datasets(conll, custom)
+    dataset = merge_datasets(datasets_list, custom, seed=args.seed)
 
     # Tokenize
     logger.info("Tokenizing dataset...")
@@ -407,6 +590,47 @@ def main():
     logger.info("Evaluating on test set...")
     test_results = trainer.evaluate(tokenized["test"])
     logger.info("Test results: %s", test_results)
+
+    # Per-entity type breakdown
+    logger.info("=== Per-Entity Type Breakdown ===")
+    test_predictions = trainer.predict(tokenized["test"])
+    predictions = np.argmax(test_predictions.predictions, axis=2)
+    labels = test_predictions.label_ids
+
+    # Collect per-type predictions and references
+    true_labels_all = []
+    true_preds_all = []
+    for pred_seq, label_seq in zip(predictions, labels):
+        pred_tags = []
+        true_tags = []
+        for p, l in zip(pred_seq, label_seq):
+            if l == -100:
+                continue
+            pred_tags.append(ID2LABEL[p])
+            true_tags.append(ID2LABEL[l])
+        true_preds_all.append(pred_tags)
+        true_labels_all.append(true_tags)
+
+    # Use seqeval for per-type metrics
+    per_type_results = seqeval_metric.compute(
+        predictions=true_preds_all,
+        references=true_labels_all,
+        mode="strict",
+        scheme="IOB2",
+    )
+    for entity_type in ["PER", "LOC", "ORG", "HEALTH", "CHILD"]:
+        if entity_type in per_type_results:
+            r = per_type_results[entity_type]
+            logger.info(
+                "  %s: P=%.3f R=%.3f F1=%.3f (support=%d)",
+                entity_type,
+                r["precision"],
+                r["recall"],
+                r["f1"],
+                r["number"],
+            )
+        else:
+            logger.info("  %s: no examples in test set", entity_type)
 
     # Save
     trainer.save_model(args.output_dir)

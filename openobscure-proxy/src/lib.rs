@@ -12,6 +12,7 @@ pub mod device_profile;
 pub mod fpe_engine;
 pub mod hybrid_scanner;
 pub mod keyword_dict;
+pub mod name_gazetteer;
 pub mod ner_scanner;
 pub mod pii_types;
 pub mod scanner;

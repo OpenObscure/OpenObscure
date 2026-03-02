@@ -1,33 +1,32 @@
 {
   "_meta": {
     "version": "1.0",
-    "generated": "2026-02-25T20:16:14Z",
+    "generated": "2026-03-02T22:44:51Z",
     "description": "Exact detection counts for regression testing. Regenerate with: ./test/scripts/generate_snapshot.sh",
-    "gateway_files": 45,
+    "gateway_files": 52,
     "audio_files": 13,
-    "visual_files": 47
+    "visual_files": 52
   },
   "gateway": {
     "Agent_Tool_Results/agent_anthropic_multi_text.json": {
-      "total_matches": 12,
+      "total_matches": 11,
       "type_summary": {
         "api_key": 2,
         "email": 2,
         "ipv4_address": 1,
         "mac_address": 1,
-        "person": 2,
+        "person": 1,
         "phone": 2,
         "ssn": 2
       }
     },
     "Agent_Tool_Results/agent_anthropic_text_pii.json": {
-      "total_matches": 11,
+      "total_matches": 8,
       "type_summary": {
         "credit_card": 1,
         "email": 1,
         "gps_coordinate": 1,
         "ipv4_address": 1,
-        "location": 3,
         "mac_address": 1,
         "person": 1,
         "phone": 1,
@@ -55,14 +54,13 @@
       }
     },
     "Agent_Tool_Results/agent_multimodal_mixed.json": {
-      "total_matches": 15,
+      "total_matches": 14,
       "type_summary": {
         "api_key": 4,
         "email": 1,
         "gps_coordinate": 2,
         "ipv4_address": 2,
         "ipv6_address": 1,
-        "location": 1,
         "mac_address": 1,
         "person": 1,
         "phone": 1,
@@ -91,13 +89,12 @@
       }
     },
     "Agent_Tool_Results/agent_tool_result_nested_pii.json": {
-      "total_matches": 11,
+      "total_matches": 8,
       "type_summary": {
         "credit_card": 1,
         "email": 1,
         "gps_coordinate": 1,
         "ipv4_address": 1,
-        "location": 3,
         "mac_address": 1,
         "person": 1,
         "phone": 1,
@@ -116,7 +113,7 @@
       }
     },
     "Code_Config_PII/sample_access.log": {
-      "total_matches": 49,
+      "total_matches": 37,
       "type_summary": {
         "api_key": 4,
         "credit_card": 2,
@@ -124,7 +121,6 @@
         "ipv4_address": 20,
         "ipv6_address": 2,
         "mac_address": 1,
-        "organization": 12,
         "phone": 2,
         "ssn": 2
       }
@@ -192,7 +188,7 @@
       }
     },
     "Code_Config_PII/sample_python.py": {
-      "total_matches": 30,
+      "total_matches": 26,
       "type_summary": {
         "api_key": 4,
         "credit_card": 2,
@@ -200,9 +196,7 @@
         "gps_coordinate": 1,
         "ipv4_address": 5,
         "ipv6_address": 1,
-        "location": 3,
         "mac_address": 2,
-        "organization": 1,
         "person": 2,
         "phone": 3,
         "ssn": 2
@@ -219,46 +213,64 @@
         "phone": 2
       }
     },
+    "Cognitive_Firewall/clean_responses.txt": {
+      "total_matches": 0,
+      "type_summary": {}
+    },
+    "Cognitive_Firewall/mixed_clean_and_persuasive.txt": {
+      "total_matches": 0,
+      "type_summary": {}
+    },
+    "Cognitive_Firewall/persuasion_authority_social_proof.txt": {
+      "total_matches": 0,
+      "type_summary": {}
+    },
+    "Cognitive_Firewall/persuasion_commercial_pressure.txt": {
+      "total_matches": 0,
+      "type_summary": {}
+    },
+    "Cognitive_Firewall/persuasion_fear_manipulation.txt": {
+      "total_matches": 0,
+      "type_summary": {}
+    },
+    "Cognitive_Firewall/persuasion_flattery.txt": {
+      "total_matches": 0,
+      "type_summary": {}
+    },
+    "Cognitive_Firewall/persuasion_urgency_scarcity.txt": {
+      "total_matches": 0,
+      "type_summary": {}
+    },
     "Multilingual_PII/ar_Arabic_PII.txt": {
-      "total_matches": 33,
+      "total_matches": 30,
       "type_summary": {
         "email": 1,
-        "location": 3,
         "phone": 14,
         "ssn": 15
       }
     },
     "Multilingual_PII/de_German_PII.txt": {
-      "total_matches": 40,
+      "total_matches": 22,
       "type_summary": {
         "credit_card": 4,
         "email": 1,
-        "location": 3,
-        "organization": 10,
-        "person": 5,
         "phone": 10,
         "ssn": 7
       }
     },
     "Multilingual_PII/es_Spanish_PII.txt": {
-      "total_matches": 39,
+      "total_matches": 19,
       "type_summary": {
         "credit_card": 4,
-        "location": 2,
-        "organization": 13,
-        "person": 5,
         "phone": 7,
         "ssn": 8
       }
     },
     "Multilingual_PII/fr_French_PII.txt": {
-      "total_matches": 33,
+      "total_matches": 16,
       "type_summary": {
         "credit_card": 5,
         "email": 1,
-        "location": 1,
-        "organization": 6,
-        "person": 10,
         "phone": 10
       }
     },
@@ -279,11 +291,8 @@
       }
     },
     "Multilingual_PII/pt_Portuguese_PII.txt": {
-      "total_matches": 67,
+      "total_matches": 25,
       "type_summary": {
-        "location": 5,
-        "organization": 33,
-        "person": 4,
         "phone": 12,
         "ssn": 13
       }
@@ -297,91 +306,81 @@
       }
     },
     "PII_Detection/API_Keys_Tokens.txt": {
-      "total_matches": 31,
+      "total_matches": 29,
       "type_summary": {
         "api_key": 28,
-        "email": 1,
-        "organization": 2
+        "email": 1
       }
     },
     "PII_Detection/Child_Keywords.txt": {
-      "total_matches": 146,
+      "total_matches": 143,
       "type_summary": {
         "child_keyword": 127,
         "health_keyword": 4,
-        "organization": 1,
-        "person": 12,
+        "person": 10,
         "phone": 2
       }
     },
     "PII_Detection/Credit_Card_Numbers.txt": {
-      "total_matches": 21,
+      "total_matches": 17,
       "type_summary": {
-        "credit_card": 17,
-        "organization": 4
+        "credit_card": 17
       }
     },
     "PII_Detection/Email_Addresses.txt": {
-      "total_matches": 50,
+      "total_matches": 48,
       "type_summary": {
         "email": 44,
-        "person": 3,
+        "person": 1,
         "phone": 3
       }
     },
     "PII_Detection/GPS_Coordinates.txt": {
-      "total_matches": 55,
+      "total_matches": 36,
       "type_summary": {
         "child_keyword": 1,
-        "gps_coordinate": 35,
-        "location": 19
+        "gps_coordinate": 35
       }
     },
     "PII_Detection/Health_Keywords.txt": {
-      "total_matches": 180,
+      "total_matches": 178,
       "type_summary": {
         "child_keyword": 1,
         "health_keyword": 176,
-        "organization": 2,
-        "person": 1
+        "organization": 1
       }
     },
     "PII_Detection/IPv4_Addresses.txt": {
-      "total_matches": 54,
+      "total_matches": 50,
       "type_summary": {
         "child_keyword": 3,
-        "ipv4_address": 47,
-        "organization": 4
+        "ipv4_address": 47
       }
     },
     "PII_Detection/IPv6_Addresses.txt": {
-      "total_matches": 37,
+      "total_matches": 34,
       "type_summary": {
         "ipv4_address": 3,
-        "ipv6_address": 31,
-        "organization": 3
+        "ipv6_address": 31
       }
     },
     "PII_Detection/Locations.txt": {
-      "total_matches": 179,
+      "total_matches": 4,
       "type_summary": {
         "child_keyword": 2,
-        "location": 172,
-        "organization": 5
+        "organization": 2
       }
     },
     "PII_Detection/MAC_Addresses.txt": {
-      "total_matches": 63,
+      "total_matches": 59,
       "type_summary": {
         "ipv4_address": 8,
-        "location": 1,
         "mac_address": 46,
-        "organization": 2,
-        "person": 6
+        "person": 5
       }
     },
     "PII_Detection/Mixed_Structured_PII.txt": {
-      "total_matches": 119,
+      "total_matches": 85,
       "type_summary": {
         "api_key": 8,
         "credit_card": 4,
@@ -390,184 +389,171 @@
         "health_keyword": 4,
         "ipv4_address": 11,
         "ipv6_address": 4,
-        "location": 14,
         "mac_address": 4,
-        "organization": 16,
-        "person": 12,
+        "person": 8,
         "phone": 12,
         "ssn": 9
       }
     },
     "PII_Detection/Organizations.txt": {
-      "total_matches": 167,
+      "total_matches": 20,
       "type_summary": {
         "child_keyword": 2,
         "health_keyword": 11,
-        "location": 19,
-        "organization": 134,
+        "organization": 6,
         "person": 1
       }
     },
     "PII_Detection/Person_Names.txt": {
-      "total_matches": 107,
+      "total_matches": 33,
       "type_summary": {
         "email": 2,
         "gps_coordinate": 1,
         "ipv4_address": 1,
-        "location": 11,
         "mac_address": 1,
-        "organization": 4,
-        "person": 83,
+        "person": 24,
         "phone": 3,
         "ssn": 1
       }
     },
     "PII_Detection/Phone_Numbers.txt": {
-      "total_matches": 64,
+      "total_matches": 48,
       "type_summary": {
         "email": 1,
         "health_keyword": 1,
-        "location": 12,
-        "person": 10,
+        "person": 6,
         "phone": 40
       }
     },
     "PII_Detection/Social_Security_Numbers.txt": {
-      "total_matches": 51,
+      "total_matches": 27,
       "type_summary": {
         "email": 1,
-        "location": 11,
-        "organization": 3,
-        "person": 11,
+        "person": 1,
         "phone": 1,
         "ssn": 24
       }
     },
     "Structured_Data_PII/customer_database.csv": {
-      "total_matches": 61,
+      "total_matches": 36,
       "type_summary": {
         "credit_card": 5,
         "email": 8,
         "gps_coordinate": 8,
-        "location": 24,
-        "person": 8,
+        "person": 7,
         "phone": 8
       }
     },
     "Structured_Data_PII/employee_roster.csv": {
-      "total_matches": 73,
+      "total_matches": 68,
       "type_summary": {
         "email": 10,
         "gps_coordinate": 10,
         "ipv4_address": 10,
         "mac_address": 10,
-        "organization": 3,
-        "person": 10,
+        "person": 8,
         "phone": 10,
         "ssn": 10
       }
     },
     "Structured_Data_PII/network_inventory.tsv": {
-      "total_matches": 55,
+      "total_matches": 50,
       "type_summary": {
         "email": 10,
         "gps_coordinate": 10,
         "ipv4_address": 10,
         "ipv6_address": 10,
-        "location": 2,
-        "mac_address": 10,
-        "organization": 3
+        "mac_address": 10
       }
     },
     "Structured_Data_PII/patient_records.csv": {
-      "total_matches": 81,
+      "total_matches": 76,
       "type_summary": {
         "email": 8,
         "gps_coordinate": 8,
         "health_keyword": 33,
-        "person": 16,
+        "person": 11,
         "phone": 8,
         "ssn": 8
       }
     },
     "Structured_Data_PII/transactions.csv": {
-      "total_matches": 60,
+      "total_matches": 54,
       "type_summary": {
         "credit_card": 6,
         "email": 10,
         "gps_coordinate": 10,
         "ipv4_address": 10,
-        "location": 3,
-        "person": 11,
+        "person": 8,
         "phone": 10
       }
     }
   },
   "audio": {
     "Audio_PII/audio_address_single.wav": {
-      "pii_detected": true,
-      "keywords": "MY ADDRESS",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_cc_visa.wav": {
-      "pii_detected": true,
-      "keywords": "VISA CARD",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_customer_service.mp3": {
-      "pii_detected": true,
-      "keywords": "MASTERCARD, CARD NUMBER, SOCIAL SECURITY",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_customer_service.wav": {
-      "pii_detected": true,
-      "keywords": "MASTERCARD, CARD NUMBER, SOCIAL SECURITY",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_email_single.wav": {
       "pii_detected": false,
       "keywords": "",
-      "action": "CLEAN"
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_job_screening.wav": {
-      "pii_detected": true,
-      "keywords": "SOCIAL SECURITY",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_medical_intake.ogg": {
-      "pii_detected": true,
-      "keywords": "DATE OF BIRTH, SOCIAL SECURITY, CONTACT NUMBER",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_medical_intake.wav": {
-      "pii_detected": true,
-      "keywords": "DATE OF BIRTH, SOCIAL SECURITY, CONTACT NUMBER",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_name_single.wav": {
       "pii_detected": false,
       "keywords": "",
-      "action": "CLEAN"
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_phone_us.ogg": {
-      "pii_detected": true,
-      "keywords": "REACH ME AT",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_phone_us.wav": {
-      "pii_detected": true,
-      "keywords": "REACH ME AT",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_ssn_single.mp3": {
-      "pii_detected": true,
-      "keywords": "SOCIAL SECURITY",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     },
     "Audio_PII/audio_ssn_single.wav": {
-      "pii_detected": true,
-      "keywords": "SOCIAL SECURITY",
-      "action": "PII_DETECTED"
+      "pii_detected": false,
+      "keywords": "",
+      "action": "PASS-THRU"
     }
   },
   "visual": {
@@ -897,6 +883,41 @@
       "subcategory": "Screenshots",
       "faces_redacted": 0,
       "text_regions_detected": 17,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/semi_nu_pic1.jpg": {
+      "subcategory": "NSFW",
+      "faces_redacted": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": true,
+      "screenshot_detected": false
+    },
+    "Visual_PII/semi_nu_pic2.jpg": {
+      "subcategory": "NSFW",
+      "faces_redacted": 0,
+      "text_regions_detected": 0,
+      "nsfw_blocked": true,
+      "screenshot_detected": false
+    },
+    "Visual_PII/semi_nu_pic3.jpg": {
+      "subcategory": "NSFW",
+      "faces_redacted": 1,
+      "text_regions_detected": 1,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/semi_nu_pic4_jpg.jpg": {
+      "subcategory": "NSFW",
+      "faces_redacted": 2,
+      "text_regions_detected": 0,
+      "nsfw_blocked": false,
+      "screenshot_detected": false
+    },
+    "Visual_PII/semi_nu_pic5_jpg.jpg": {
+      "subcategory": "NSFW",
+      "faces_redacted": 1,
+      "text_regions_detected": 0,
       "nsfw_blocked": false,
       "screenshot_detected": false
     }

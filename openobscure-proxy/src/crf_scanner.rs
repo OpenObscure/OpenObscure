@@ -31,6 +31,7 @@ pub struct CrfScanner {
     model: CrfModel,
     gazetteer_health: std::collections::HashSet<String>,
     gazetteer_child: std::collections::HashSet<String>,
+    gazetteer_person: std::collections::HashSet<String>,
     confidence_threshold: f32,
 }
 
@@ -69,6 +70,11 @@ impl CrfScanner {
         let gazetteer_health = dict.health_terms_clone();
         let gazetteer_child = dict.child_terms_clone();
 
+        // Build person name gazetteer for CRF features
+        let name_gaz = crate::name_gazetteer::NameGazetteer::new();
+        let mut gazetteer_person = name_gaz.first_names_clone();
+        gazetteer_person.extend(name_gaz.surnames_clone());
+
         oo_info!(
             crate::oo_log::modules::CRF,
             "CRF model loaded",
@@ -80,6 +86,7 @@ impl CrfScanner {
             model,
             gazetteer_health,
             gazetteer_child,
+            gazetteer_person,
             confidence_threshold,
         })
     }
@@ -162,6 +169,9 @@ impl CrfScanner {
         }
         if self.gazetteer_child.contains(word) {
             feats.push("gaz=child".to_string());
+        }
+        if self.gazetteer_person.contains(word) || self.gazetteer_person.contains(&token.text) {
+            feats.push("gaz=person".to_string());
         }
 
         // Context features (±1 window)
@@ -596,6 +606,7 @@ mod tests {
             model,
             gazetteer_health: std::collections::HashSet::new(),
             gazetteer_child: std::collections::HashSet::new(),
+            gazetteer_person: std::collections::HashSet::new(),
             confidence_threshold: 0.0, // Accept everything for testing
         };
 
@@ -616,6 +627,7 @@ mod tests {
             model,
             gazetteer_health: std::collections::HashSet::new(),
             gazetteer_child: std::collections::HashSet::new(),
+            gazetteer_person: std::collections::HashSet::new(),
             confidence_threshold: 0.5,
         };
         let matches = scanner.scan_text("");
@@ -634,6 +646,7 @@ mod tests {
                 s
             },
             gazetteer_child: std::collections::HashSet::new(),
+            gazetteer_person: std::collections::HashSet::new(),
             confidence_threshold: 0.5,
         };
 
@@ -725,6 +738,11 @@ mod tests {
         state_features.insert("gaz=child".to_string(), {
             let mut v = vec![0.0; NUM_LABELS];
             v[LABEL_B_CHILD] = 2.0;
+            v
+        });
+        state_features.insert("gaz=person".to_string(), {
+            let mut v = vec![0.0; NUM_LABELS];
+            v[LABEL_B_PER] = 1.8;
             v
         });
 

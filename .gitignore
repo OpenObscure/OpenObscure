@@ -14,9 +14,13 @@
 
 # ONNX models — all tracked via Git LFS (including AGPL-3.0 NudeNet)
 
-# NER training artifacts (large checkpoints, safetensors — not runtime models)
-openobscure-ner/models/
+# NER training artifacts — ignore checkpoints, allow final v2 models + ONNX exports
+openobscure-ner/models/*
 !openobscure-ner/models/mock/
+!openobscure-ner/models/tinybert4l-ner-v2/
+!openobscure-ner/models/distilbert-ner-v2/
+openobscure-ner/models/tinybert4l-ner-v2/checkpoint-*/
+openobscure-ner/models/distilbert-ner-v2/checkpoint-*/
 
 # Enterprise features (not committed to repository)
 enterprise/

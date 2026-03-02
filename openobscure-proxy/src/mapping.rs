@@ -168,7 +168,7 @@ impl RequestMappings {
                         .collect()
                 })
                 .unwrap_or_default();
-            oo_info!(crate::oo_log::modules::MAPPING, "decrypt_response: zero ciphertexts matched",
+            oo_debug!(crate::oo_log::modules::MAPPING, "decrypt_response: zero ciphertexts matched",
                 total_mappings = mappings.len(),
                 ct_diagnostics = ?ct_diag,
                 token_diagnostics = ?token_cts,

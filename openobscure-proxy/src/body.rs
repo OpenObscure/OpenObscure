@@ -731,7 +731,7 @@ fn apply_replacements_to_json(json: &mut Value, replacements: &[FpeResult]) {
                 }
             }
             let changed = result != *s;
-            oo_info!(crate::oo_log::modules::BODY, "JSON path replacement",
+            oo_debug!(crate::oo_log::modules::BODY, "JSON path replacement",
                 path = %path,
                 replacements = sorted_replacements.len(),
                 before_len = before_len,
@@ -909,7 +909,7 @@ mod tests {
     fn test_walk_json_skips_non_image_objects() {
         let config = crate::config::ImageConfig::default();
         let models = ImageModelManager::new(config);
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let mut json = serde_json::json!({
             "messages": [
                 {"role": "user", "content": "hello world"},
@@ -965,7 +965,7 @@ mod tests {
             ..crate::config::ImageConfig::default()
         };
         let models = ImageModelManager::new(config);
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
 
         let mut stats = Vec::new();
         let mut pending = Vec::new();
@@ -1026,7 +1026,7 @@ mod tests {
         };
         let models = ImageModelManager::new(config);
 
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let fetch_config = ImageFetchConfig::default();
         let stats = tokio::runtime::Runtime::new()
             .unwrap()
@@ -1062,7 +1062,7 @@ mod tests {
         let config = crate::config::ImageConfig::default();
         let models = ImageModelManager::new(config);
 
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let mut stats = Vec::new();
         let mut pending = Vec::new();
         walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
@@ -1230,7 +1230,7 @@ mod tests {
     fn test_walk_json_collects_anthropic_url_image() {
         let config = crate::config::ImageConfig::default();
         let models = ImageModelManager::new(config);
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let mut json = serde_json::json!({
             "messages": [{
                 "role": "user",
@@ -1265,7 +1265,7 @@ mod tests {
     fn test_walk_json_collects_openai_url_image() {
         let config = crate::config::ImageConfig::default();
         let models = ImageModelManager::new(config);
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let mut json = serde_json::json!({
             "messages": [{
                 "role": "user",

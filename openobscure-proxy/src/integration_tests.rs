@@ -725,6 +725,7 @@ fn build_full_router(state: AppState, auth_token: Option<String>) -> Router {
             tier: "Full".to_string(),
             max_ram_mb: 275,
             ner_enabled: true,
+            ner_model: "distilbert".to_string(),
             crf_enabled: false,
             ensemble_enabled: true,
             image_pipeline_enabled: true,

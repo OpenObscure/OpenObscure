@@ -180,8 +180,14 @@ pub struct ScannerConfig {
     #[serde(default = "default_ner_confidence")]
     pub ner_confidence_threshold: f32,
     /// Path to the NER model directory (containing model_int8.onnx + vocab.txt).
+    /// Used for Full/Standard tiers (DistilBERT).
     #[serde(default)]
     pub ner_model_dir: Option<String>,
+    /// Path to the Lite-tier NER model directory (TinyBERT INT8).
+    /// When the device budget selects "tinybert", this path is used.
+    /// Falls back to `ner_model_dir` if not set.
+    #[serde(default)]
+    pub ner_model_dir_lite: Option<String>,
     /// Scanner mode: "auto" (default), "ner", "crf", "regex".
     /// - auto: use NER if model available + RAM ≥ threshold, else CRF if available, else regex-only
     /// - ner: force NER (fail to regex-only if model unavailable)
@@ -207,6 +213,9 @@ pub struct ScannerConfig {
     /// Confidence bonus when ≥2 scanners agree on a type at an overlapping span (default 0.15).
     #[serde(default = "default_agreement_bonus")]
     pub agreement_bonus: f32,
+    /// Enable name gazetteer for person name detection (default: true).
+    #[serde(default = "default_true")]
+    pub gazetteer_enabled: bool,
 }
 
 impl Default for ScannerConfig {
@@ -219,12 +228,14 @@ impl Default for ScannerConfig {
             ner_enabled: true,
             ner_confidence_threshold: default_ner_confidence(),
             ner_model_dir: None,
+            ner_model_dir_lite: None,
             scanner_mode: default_scanner_mode(),
             crf_model_dir: None,
             ram_threshold_mb: default_ram_threshold(),
             respect_code_fences: true,
             min_confidence: default_min_confidence(),
             agreement_bonus: default_agreement_bonus(),
+            gazetteer_enabled: true,
         }
     }
 }

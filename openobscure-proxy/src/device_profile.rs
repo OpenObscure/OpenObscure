@@ -58,8 +58,10 @@ pub struct FeatureBudget {
     pub tier: CapabilityTier,
     /// Maximum RAM (MB) OpenObscure should consume.
     pub max_ram_mb: u64,
-    /// Enable TinyBERT INT8 NER scanner.
+    /// Enable NER scanner.
     pub ner_enabled: bool,
+    /// NER model variant: "distilbert" (Full/Standard) or "tinybert" (Lite).
+    pub ner_model: String,
     /// Enable CRF fallback scanner.
     pub crf_enabled: bool,
     /// Enable ensemble confidence voting (agreement bonus).
@@ -244,6 +246,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             tier,
             max_ram_mb: 275,
             ner_enabled: true,
+            ner_model: "distilbert".to_string(),
             crf_enabled: true,
             ensemble_enabled: true,
             image_pipeline_enabled: true,
@@ -259,6 +262,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             tier,
             max_ram_mb: 200,
             ner_enabled: true,
+            ner_model: "distilbert".to_string(),
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: true,
@@ -273,7 +277,8 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
         CapabilityTier::Lite => FeatureBudget {
             tier,
             max_ram_mb: 80,
-            ner_enabled: false,
+            ner_enabled: true,
+            ner_model: "tinybert".to_string(),
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: true,
@@ -299,6 +304,7 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             tier,
             max_ram_mb: max_ram,
             ner_enabled: true,
+            ner_model: "distilbert".to_string(),
             crf_enabled: true,
             ensemble_enabled: true,
             image_pipeline_enabled: true,
@@ -314,6 +320,12 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             tier,
             max_ram_mb: max_ram,
             ner_enabled: max_ram >= 80,
+            ner_model: if max_ram >= 120 {
+                "distilbert"
+            } else {
+                "tinybert"
+            }
+            .to_string(),
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: max_ram >= 100,
@@ -328,7 +340,8 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
         CapabilityTier::Lite => FeatureBudget {
             tier,
             max_ram_mb: max_ram,
-            ner_enabled: false,
+            ner_enabled: max_ram >= 25,
+            ner_model: "tinybert".to_string(),
             crf_enabled: max_ram >= 25,
             ensemble_enabled: false,
             image_pipeline_enabled: max_ram >= 40,
@@ -457,6 +470,7 @@ mod tests {
         let b = budget_for_tier(tier, &p);
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled);
+        assert_eq!(b.ner_model, "distilbert");
         assert!(b.crf_enabled);
         assert!(b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
@@ -476,6 +490,7 @@ mod tests {
         let b = budget_for_tier(tier, &p);
         assert_eq!(b.max_ram_mb, 200);
         assert!(b.ner_enabled);
+        assert_eq!(b.ner_model, "distilbert");
         assert!(!b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
         assert_eq!(b.ocr_tier, "full_recognition");
@@ -493,7 +508,8 @@ mod tests {
         let tier = tier_for_profile(&p);
         let b = budget_for_tier(tier, &p);
         assert_eq!(b.max_ram_mb, 80);
-        assert!(!b.ner_enabled);
+        assert!(b.ner_enabled);
+        assert_eq!(b.ner_model, "tinybert");
         assert!(b.crf_enabled);
         assert!(!b.ensemble_enabled);
         assert_eq!(b.ocr_tier, "detect_and_fill");
@@ -515,6 +531,7 @@ mod tests {
         // 20% of 16384 = 3276, capped at 275
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled);
+        assert_eq!(b.ner_model, "distilbert");
         assert!(b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
         assert_eq!(b.ocr_tier, "full_recognition");
@@ -533,6 +550,7 @@ mod tests {
         // 20% of 6144 = 1228, capped at 275
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled); // 275 >= 80
+        assert_eq!(b.ner_model, "distilbert"); // 275 >= 120
         assert!(b.image_pipeline_enabled); // 275 >= 100
         assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(b.nsfw_enabled); // 275 >= 150
@@ -549,7 +567,8 @@ mod tests {
         let b = budget_for_tier(tier, &p);
         // 20% of 512 = 102, capped at 275 → 102
         assert_eq!(b.max_ram_mb, 102);
-        assert!(!b.ner_enabled);
+        assert!(b.ner_enabled); // 102 >= 25
+        assert_eq!(b.ner_model, "tinybert");
         assert!(b.crf_enabled); // 102 >= 25
         assert!(b.image_pipeline_enabled); // 102 >= 40
         assert_eq!(b.ocr_tier, "detect_and_fill");
@@ -567,7 +586,8 @@ mod tests {
         let b = budget_for_tier(tier, &p);
         // 20% of 50 = 10, floor at 12
         assert_eq!(b.max_ram_mb, 12);
-        assert!(!b.ner_enabled);
+        assert!(!b.ner_enabled); // 12 < 25
+        assert_eq!(b.ner_model, "tinybert");
         assert!(!b.crf_enabled); // 12 < 25
         assert!(!b.image_pipeline_enabled); // 12 < 40
         assert_eq!(b.ocr_tier, "detect_and_fill");
@@ -611,7 +631,8 @@ mod tests {
         let tier = tier_for_profile(&profile);
         assert_eq!(tier, CapabilityTier::Lite);
         let budget = budget_for_tier(tier, &profile);
-        assert!(!budget.ner_enabled);
+        assert!(budget.ner_enabled);
+        assert_eq!(budget.ner_model, "tinybert");
         assert_eq!(budget.max_ram_mb, 80);
     }
 
@@ -734,7 +755,6 @@ mod tests {
 
         // Features that are OFF on Lite gateway tier (Full=true, Lite=false)
         const TIER_DIFFERENTIATED: &[&str] = &[
-            "ner_enabled",
             "ensemble_enabled",
             "nsfw_enabled",
             "screen_guard_enabled",
@@ -744,7 +764,11 @@ mod tests {
 
         // Features that are ON for all gateway tiers but conditional on
         // embedded (RAM-proportional). Must exist in FeatureBudget.
-        const ALWAYS_ON_GATEWAY: &[&str] = &["crf_enabled", "image_pipeline_enabled"];
+        const ALWAYS_ON_GATEWAY: &[&str] =
+            &["ner_enabled", "crf_enabled", "image_pipeline_enabled"];
+
+        // String fields that differ between Full and Lite gateway tiers.
+        const TIER_DIFFERENTIATED_STRINGS: &[&str] = &["ner_model"];
 
         // --- Gateway: Full vs Lite must differ on TIER_DIFFERENTIATED ---
         let full_profile = profile_with_ram(16384, false);
@@ -779,6 +803,27 @@ mod tests {
             assert!(
                 full_json.get(feature).is_some(),
                 "FeatureBudget missing field '{}'. See GATED_FEATURES registry in this test.",
+                feature
+            );
+        }
+
+        // --- Gateway: TIER_DIFFERENTIATED_STRINGS must differ between Full and Lite ---
+        for feature in TIER_DIFFERENTIATED_STRINGS {
+            let full_val = full_json.get(feature).unwrap_or_else(|| {
+                panic!(
+                    "FeatureBudget missing field '{}'. See GATED_FEATURES registry in this test.",
+                    feature
+                )
+            });
+            let lite_val = lite_json.get(feature).unwrap_or_else(|| {
+                panic!(
+                    "FeatureBudget missing field '{}'. See GATED_FEATURES registry in this test.",
+                    feature
+                )
+            });
+            assert_ne!(
+                full_val, lite_val,
+                "String field '{}' has same value on Full and Lite gateway — not tier-differentiated",
                 feature
             );
         }

@@ -45,9 +45,14 @@ pub struct MobileConfig {
     pub crf_model_dir: Option<String>,
 
     /// Path to NER model directory (model_int8.onnx + vocab.txt).
-    /// Required for NER to activate when the device profiler enables it.
+    /// Used for Full/Standard tiers (DistilBERT).
     #[serde(default)]
     pub ner_model_dir: Option<String>,
+
+    /// Path to Lite-tier NER model directory (TinyBERT INT8).
+    /// Falls back to `ner_model_dir` if not set.
+    #[serde(default)]
+    pub ner_model_dir_lite: Option<String>,
 
     /// Enable image processing pipeline.
     #[serde(default)]
@@ -94,6 +99,7 @@ impl Default for MobileConfig {
             auto_detect: true,
             crf_model_dir: None,
             ner_model_dir: None,
+            ner_model_dir_lite: None,
             image_enabled: false,
             face_model_dir: None,
             scrfd_model_dir: None,
@@ -190,39 +196,54 @@ impl OpenObscureMobile {
             scan.set_confidence_params(0.5, effective_bonus);
             (scan, mode, tier.to_string(), Some(budget))
         } else {
-            // Explicit mode — honor scanner_mode literally
+            // Explicit mode — honor scanner_mode literally, but still use
+            // device tier for NER model selection (TinyBERT vs DistilBERT).
+            let profile = crate::device_profile::detect(true);
+            let tier = crate::device_profile::tier_for_profile(&profile);
+            let budget = crate::device_profile::budget_for_tier(tier, &profile);
+
             let scanner = match config.scanner_mode.as_str() {
                 "crf" => {
                     if let Some(ref dir) = config.crf_model_dir {
                         match crate::crf_scanner::CrfScanner::load(std::path::Path::new(dir), 0.5) {
-                            Ok(crf) => HybridScanner::with_crf(config.keywords_enabled, Some(crf)),
-                            Err(_) => HybridScanner::new(config.keywords_enabled, None),
+                            Ok(crf) => {
+                                HybridScanner::with_crf(config.keywords_enabled, Some(crf), None)
+                            }
+                            Err(_) => HybridScanner::new(config.keywords_enabled, None, None),
                         }
                     } else {
-                        HybridScanner::new(config.keywords_enabled, None)
+                        HybridScanner::new(config.keywords_enabled, None, None)
                     }
                 }
                 "ner" => {
-                    if let Some(ref dir) = config.ner_model_dir {
+                    // Select model dir based on device tier
+                    let model_dir = match budget.ner_model.as_str() {
+                        "tinybert" => config
+                            .ner_model_dir_lite
+                            .as_ref()
+                            .or(config.ner_model_dir.as_ref()),
+                        _ => config.ner_model_dir.as_ref(),
+                    };
+                    if let Some(dir) = model_dir {
                         match crate::ner_scanner::NerScanner::load(std::path::Path::new(dir), 0.60)
                         {
-                            Ok(ner) => HybridScanner::new(config.keywords_enabled, Some(ner)),
-                            Err(_) => HybridScanner::new(config.keywords_enabled, None),
+                            Ok(ner) => HybridScanner::new(config.keywords_enabled, Some(ner), None),
+                            Err(_) => HybridScanner::new(config.keywords_enabled, None, None),
                         }
                     } else {
-                        HybridScanner::new(config.keywords_enabled, None)
+                        HybridScanner::new(config.keywords_enabled, None, None)
                     }
                 }
                 _ => {
                     // "regex" or unknown — regex+keywords only
-                    HybridScanner::new(config.keywords_enabled, None)
+                    HybridScanner::new(config.keywords_enabled, None, None)
                 }
             };
             (
                 scanner,
                 config.scanner_mode.clone(),
-                "manual".to_string(),
-                None,
+                tier.to_string(),
+                Some(budget),
             )
         };
 
@@ -301,12 +322,20 @@ impl OpenObscureMobile {
         budget: &crate::device_profile::FeatureBudget,
     ) -> (HybridScanner, String) {
         if budget.ner_enabled {
-            if let Some(ref dir) = config.ner_model_dir {
+            // Select model dir based on budget tier: tinybert uses lite path
+            let model_dir = match budget.ner_model.as_str() {
+                "tinybert" => config
+                    .ner_model_dir_lite
+                    .as_ref()
+                    .or(config.ner_model_dir.as_ref()),
+                _ => config.ner_model_dir.as_ref(),
+            };
+            if let Some(dir) = model_dir {
                 if let Ok(ner) =
                     crate::ner_scanner::NerScanner::load(std::path::Path::new(dir), 0.60)
                 {
                     return (
-                        HybridScanner::new(config.keywords_enabled, Some(ner)),
+                        HybridScanner::new(config.keywords_enabled, Some(ner), None),
                         "ner".to_string(),
                     );
                 }
@@ -318,14 +347,14 @@ impl OpenObscureMobile {
                     crate::crf_scanner::CrfScanner::load(std::path::Path::new(dir), 0.5)
                 {
                     return (
-                        HybridScanner::with_crf(config.keywords_enabled, Some(crf)),
+                        HybridScanner::with_crf(config.keywords_enabled, Some(crf), None),
                         "crf".to_string(),
                     );
                 }
             }
         }
         (
-            HybridScanner::new(config.keywords_enabled, None),
+            HybridScanner::new(config.keywords_enabled, None, None),
             "regex".to_string(),
         )
     }
@@ -628,7 +657,12 @@ mod tests {
         let stats = mobile.stats();
         // With auto_detect=false and scanner_mode="auto", falls to the `_` branch → regex
         assert_eq!(stats.scanner_mode, "auto");
-        assert_eq!(stats.device_tier, "manual");
+        // Device tier is always detected now (for model selection)
+        assert!(
+            stats.device_tier == "full"
+                || stats.device_tier == "standard"
+                || stats.device_tier == "lite"
+        );
     }
 
     #[test]
@@ -670,6 +704,11 @@ mod tests {
         let mobile = OpenObscureMobile::new(config, make_test_key()).unwrap();
         let stats = mobile.stats();
         assert_eq!(stats.scanner_mode, "ner");
-        assert_eq!(stats.device_tier, "manual");
+        // Even explicit mode now computes device tier for model selection
+        assert!(
+            stats.device_tier == "full"
+                || stats.device_tier == "standard"
+                || stats.device_tier == "lite"
+        );
     }
 }

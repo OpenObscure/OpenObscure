@@ -7,6 +7,7 @@ use crate::crf_scanner::CrfScanner;
 use crate::keyword_dict::KeywordDict;
 use crate::lang_detect;
 use crate::multilingual;
+use crate::name_gazetteer::NameGazetteer;
 use crate::ner_scanner::NerScanner;
 use crate::pii_types::PiiType;
 use crate::scanner::{PiiMatch, PiiScanner};
@@ -19,6 +20,7 @@ const MAX_NESTED_JSON_DEPTH: usize = 2;
 pub struct ScanTiming {
     pub regex_us: u64,
     pub keyword_us: u64,
+    pub gazetteer_us: u64,
     pub semantic_us: u64,
     pub multilingual_us: u64,
     pub voting_us: u64,
@@ -30,6 +32,7 @@ pub struct ScanTiming {
 enum ScannerSource {
     Regex,
     Keyword,
+    Gazetteer,
     Semantic,
 }
 
@@ -56,6 +59,7 @@ enum SemanticBackend {
 pub struct HybridScanner {
     regex_scanner: PiiScanner,
     keyword_dict: KeywordDict,
+    gazetteer: Option<NameGazetteer>,
     semantic: Option<SemanticBackend>,
     keywords_enabled: bool,
     respect_code_fences: bool,
@@ -65,10 +69,15 @@ pub struct HybridScanner {
 
 impl HybridScanner {
     /// Create a hybrid scanner with NER as the semantic backend.
-    pub fn new(keywords_enabled: bool, ner_scanner: Option<NerScanner>) -> Self {
+    pub fn new(
+        keywords_enabled: bool,
+        ner_scanner: Option<NerScanner>,
+        gazetteer: Option<NameGazetteer>,
+    ) -> Self {
         Self {
             regex_scanner: PiiScanner::new(),
             keyword_dict: KeywordDict::new(),
+            gazetteer,
             semantic: ner_scanner.map(|n| SemanticBackend::Ner(Mutex::new(n))),
             keywords_enabled,
             respect_code_fences: true,
@@ -78,10 +87,15 @@ impl HybridScanner {
     }
 
     /// Create a hybrid scanner with CRF as the semantic backend.
-    pub fn with_crf(keywords_enabled: bool, crf_scanner: Option<CrfScanner>) -> Self {
+    pub fn with_crf(
+        keywords_enabled: bool,
+        crf_scanner: Option<CrfScanner>,
+        gazetteer: Option<NameGazetteer>,
+    ) -> Self {
         Self {
             regex_scanner: PiiScanner::new(),
             keyword_dict: KeywordDict::new(),
+            gazetteer,
             semantic: crf_scanner.map(SemanticBackend::Crf),
             keywords_enabled,
             respect_code_fences: true,
@@ -95,6 +109,7 @@ impl HybridScanner {
         Self {
             regex_scanner: PiiScanner::new(),
             keyword_dict: KeywordDict::new(),
+            gazetteer: None,
             semantic: None,
             keywords_enabled: false,
             respect_code_fences: true,
@@ -164,7 +179,19 @@ impl HybridScanner {
         }
         timing.keyword_us = t.elapsed().as_micros() as u64;
 
-        // 1c. Semantic backend (NER or CRF, if loaded)
+        // 1c. Name gazetteer (if enabled)
+        let t = std::time::Instant::now();
+        if let Some(ref gaz) = self.gazetteer {
+            for m in gaz.scan_text(&effective_text) {
+                tagged.push(TaggedMatch {
+                    pii_match: m,
+                    source: ScannerSource::Gazetteer,
+                });
+            }
+        }
+        timing.gazetteer_us = t.elapsed().as_micros() as u64;
+
+        // 1d. Semantic backend (NER or CRF, if loaded)
         let t = std::time::Instant::now();
         if let Some(ref backend) = self.semantic {
             let semantic_matches = match backend {
@@ -192,7 +219,7 @@ impl HybridScanner {
         }
         timing.semantic_us = t.elapsed().as_micros() as u64;
 
-        // 1d. Multilingual patterns (language-specific national IDs, phones, IBANs)
+        // 1e. Multilingual patterns (language-specific national IDs, phones, IBANs)
         // Run detected language first; if non-English detected, also try closely
         // related languages (e.g., Portuguese ↔ Spanish) since whatlang can
         // confuse them on short texts. Validation functions prevent FPs.
@@ -580,14 +607,14 @@ mod tests {
 
     #[test]
     fn test_keywords_added() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("I have diabetes and take metformin");
         assert!(matches.iter().any(|m| m.pii_type == PiiType::HealthKeyword));
     }
 
     #[test]
     fn test_regex_takes_priority_over_keywords() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("My SSN is 123-45-6789 and I have diabetes");
         let ssn = matches.iter().find(|m| m.pii_type == PiiType::Ssn);
         let health = matches
@@ -599,7 +626,7 @@ mod tests {
 
     #[test]
     fn test_no_duplicate_spans() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("I have diabetes");
         let diabetes_matches: Vec<_> = matches
             .iter()
@@ -610,7 +637,7 @@ mod tests {
 
     #[test]
     fn test_json_scanning_hybrid() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let json: serde_json::Value = serde_json::json!({
             "messages": [{
                 "role": "user",
@@ -626,7 +653,7 @@ mod tests {
 
     #[test]
     fn test_skip_fields_hybrid() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let json: serde_json::Value = serde_json::json!({
             "model": "I have diabetes",
             "content": "I have diabetes"
@@ -639,7 +666,7 @@ mod tests {
 
     #[test]
     fn test_mixed_fpe_and_redaction_types() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("Call me at (555) 123-4567, I have asthma");
         let phone = matches.iter().find(|m| m.pii_type == PiiType::PhoneNumber);
         let health = matches
@@ -653,14 +680,14 @@ mod tests {
 
     #[test]
     fn test_clean_text_no_matches() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("The weather is nice today.");
         assert_eq!(matches.len(), 0);
     }
 
     #[test]
     fn test_child_keywords_detected() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("My daughter goes to kindergarten");
         assert!(matches.iter().any(|m| m.pii_type == PiiType::ChildKeyword));
     }
@@ -672,10 +699,10 @@ mod tests {
         assert!(!scanner.ner_enabled());
         assert!(!scanner.crf_enabled());
 
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         assert_eq!(scanner.semantic_backend_name(), "none");
 
-        let scanner = HybridScanner::with_crf(true, None);
+        let scanner = HybridScanner::with_crf(true, None, None);
         assert_eq!(scanner.semantic_backend_name(), "none");
     }
 
@@ -857,7 +884,7 @@ mod tests {
 
     #[test]
     fn test_keyword_confidence_always_one() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("I have diabetes and asthma");
         let health: Vec<_> = matches
             .iter()
@@ -874,7 +901,7 @@ mod tests {
 
     #[test]
     fn test_non_overlapping_matches_unchanged() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("SSN 123-45-6789 and I have diabetes");
         let ssn = matches.iter().find(|m| m.pii_type == PiiType::Ssn);
         let health = matches
@@ -1105,7 +1132,7 @@ mod tests {
 
     #[test]
     fn test_voting_preserves_code_fence_masking() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let text = "I have diabetes\n```\nSSN: 123-45-6789\n```\nand asthma";
         let matches = scanner.scan_text(text);
         // SSN inside fence should be masked
@@ -1122,7 +1149,7 @@ mod tests {
 
     #[test]
     fn test_confidence_in_json_scanning() {
-        let scanner = HybridScanner::new(true, None);
+        let scanner = HybridScanner::new(true, None, None);
         let json: serde_json::Value = serde_json::json!({
             "content": "My SSN is 123-45-6789"
         });

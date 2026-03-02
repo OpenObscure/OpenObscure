@@ -36,6 +36,9 @@ pub struct NerScanner {
     confidence_threshold: f32,
     num_labels: usize,
     label_map: Vec<LabelInfo>,
+    /// Whether the model accepts a `token_type_ids` input.
+    /// TinyBERT requires it; DistilBERT does not.
+    has_token_type_ids: bool,
 }
 
 /// A detected NER entity span before conversion to PiiMatch.
@@ -66,17 +69,18 @@ impl NerScanner {
             }
         };
 
-        // Guard: reject models larger than 30MB — the deployed TinyBERT 4L INT8 is
-        // ~14MB.  A 103MB file indicates the old BERT-base model was placed here by
-        // mistake.  Bump this limit only after a deliberate model-size evaluation.
-        const MAX_MODEL_BYTES: u64 = 30 * 1024 * 1024; // 30 MB
+        // Guard: reject models larger than 70MB. Supported models:
+        // - TinyBERT 4L INT8: ~14MB (compact, 85.6% F1)
+        // - DistilBERT 6L INT8: ~64MB (higher quality, ≥93% F1)
+        // A 103MB+ file indicates BERT-base was placed here by mistake.
+        const MAX_MODEL_BYTES: u64 = 70 * 1024 * 1024; // 70 MB
         let model_size = std::fs::metadata(&model_path)
             .map_err(|e| NerError::ModelNotFound(e.to_string()))?
             .len();
         if model_size > MAX_MODEL_BYTES {
             return Err(NerError::OnnxRuntime(format!(
                 "NER model is {:.1} MB — exceeds {:.0} MB limit. \
-                 Expected TinyBERT 4L INT8 (~14 MB). \
+                 Expected TinyBERT 4L INT8 (~14 MB) or DistilBERT 6L INT8 (~64 MB). \
                  Check that the correct model is deployed at {}",
                 model_size as f64 / (1024.0 * 1024.0),
                 MAX_MODEL_BYTES as f64 / (1024.0 * 1024.0),
@@ -96,6 +100,12 @@ impl NerScanner {
         let session = crate::ort_ep::build_session(&model_path)
             .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
 
+        // Check if model expects token_type_ids (BERT/TinyBERT yes, DistilBERT no)
+        let has_token_type_ids = session
+            .inputs()
+            .iter()
+            .any(|input| input.name() == "token_type_ids");
+
         oo_info!(crate::oo_log::modules::NER, "NER scanner loaded",
             model = %model_path.display(),
             model_size_mb = format!("{:.1}", model_size as f64 / (1024.0 * 1024.0)),
@@ -108,6 +118,7 @@ impl NerScanner {
             confidence_threshold,
             num_labels,
             label_map,
+            has_token_type_ids,
         })
     }
 
@@ -206,25 +217,40 @@ impl NerScanner {
         let attention_mask = Array2::from_shape_vec((1, seq_len), encoded.attention_mask.clone())
             .map_err(|e| NerError::Shape(e.to_string()))?;
 
-        let token_type_ids = Array2::from_shape_vec((1, seq_len), encoded.token_type_ids.clone())
-            .map_err(|e| NerError::Shape(e.to_string()))?;
-
         // 3. Convert ndarray to ort Values
         let input_ids_val = ort::value::Value::from_array(input_ids)
             .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
         let attention_mask_val = ort::value::Value::from_array(attention_mask)
             .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
-        let token_type_ids_val = ort::value::Value::from_array(token_type_ids)
-            .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
+
+        // token_type_ids: only for models that accept it (BERT/TinyBERT, not DistilBERT)
+        let token_type_ids_val = if self.has_token_type_ids {
+            let token_type_ids =
+                Array2::from_shape_vec((1, seq_len), encoded.token_type_ids.clone())
+                    .map_err(|e| NerError::Shape(e.to_string()))?;
+            Some(
+                ort::value::Value::from_array(token_type_ids)
+                    .map_err(|e| NerError::OnnxRuntime(e.to_string()))?,
+            )
+        } else {
+            None
+        };
 
         // 4. Run inference and extract token labels (scoped to drop outputs before self borrow)
         let token_labels = {
             let outputs = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                self.session.run(ort::inputs![
-                    "input_ids" => input_ids_val,
-                    "attention_mask" => attention_mask_val,
-                    "token_type_ids" => token_type_ids_val,
-                ])
+                if let Some(tti) = token_type_ids_val {
+                    self.session.run(ort::inputs![
+                        "input_ids" => input_ids_val,
+                        "attention_mask" => attention_mask_val,
+                        "token_type_ids" => tti,
+                    ])
+                } else {
+                    self.session.run(ort::inputs![
+                        "input_ids" => input_ids_val,
+                        "attention_mask" => attention_mask_val,
+                    ])
+                }
             })) {
                 Ok(Ok(out)) => out,
                 Ok(Err(e)) => return Err(NerError::OnnxRuntime(e.to_string())),
@@ -830,14 +856,14 @@ mod tests {
 
     #[test]
     fn test_rejects_oversized_model() {
-        // Simulate an oversized model by creating a temp dir with a >30MB file.
+        // Simulate an oversized model by creating a temp dir with a >70MB file.
         let tmp = std::env::temp_dir().join("oo_ner_size_guard_test");
         let _ = std::fs::remove_dir_all(&tmp);
         std::fs::create_dir_all(&tmp).unwrap();
 
-        // Write a 31MB dummy file
+        // Write a 71MB dummy file
         let model_path = tmp.join("model_int8.onnx");
-        let dummy = vec![0u8; 31 * 1024 * 1024];
+        let dummy = vec![0u8; 71 * 1024 * 1024];
         std::fs::write(&model_path, &dummy).unwrap();
 
         // Write a minimal vocab.txt so we reach the size check
@@ -851,12 +877,12 @@ mod tests {
                     "Error should mention size limit: {msg}"
                 );
                 assert!(
-                    msg.contains("31.0 MB"),
+                    msg.contains("71.0 MB"),
                     "Error should report actual size: {msg}"
                 );
             }
             Err(other) => panic!("Expected OnnxRuntime error, got: {other:?}"),
-            Ok(_) => panic!("Should reject model >30MB"),
+            Ok(_) => panic!("Should reject model >70MB"),
         }
 
         let _ = std::fs::remove_dir_all(&tmp);
