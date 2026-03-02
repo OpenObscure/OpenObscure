@@ -590,6 +590,31 @@ impl SseContentDecryptor {
             return Bytes::from(format_sse_delta(self.format, &text));
         }
         let processed = mappings.decrypt_response(&text);
+        let changed = processed != text;
+        oo_debug!(
+            crate::oo_log::modules::PROXY,
+            "SSE flush decrypt",
+            input_len = text.len(),
+            output_len = processed.len(),
+            changed = changed,
+            format = ?self.format
+        );
+        if !changed {
+            // Log first 200 chars of buffer and first 3 ciphertexts for debugging
+            let preview: String = text.chars().take(200).collect();
+            let cts: Vec<&str> = mappings
+                .by_ciphertext
+                .keys()
+                .take(3)
+                .map(|s| s.as_str())
+                .collect();
+            oo_info!(
+                crate::oo_log::modules::PROXY,
+                "SSE flush: no ciphertexts matched in response",
+                preview = %preview,
+                sample_ciphertexts = ?cts
+            );
+        }
         Bytes::from(format_sse_delta(self.format, &processed))
     }
 

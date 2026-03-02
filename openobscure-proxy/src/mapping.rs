@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use regex::{NoExpand, Regex};
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
@@ -62,48 +63,74 @@ impl RequestMappings {
     ///
     /// Normalizes Unicode dash variants (en-dash, em-dash, non-breaking hyphen, figure dash)
     /// to ASCII hyphens before matching, since LLMs commonly substitute these in responses.
+    ///
+    /// For numeric PII types (phone, SSN, CC), falls back to fuzzy regex matching
+    /// when exact match fails, handling LLM reformatting of separators
+    /// (e.g., `370-133-6132` → `(370) 133-6132`).
     pub fn decrypt_response(&self, response_text: &str) -> String {
         let mut result = normalize_unicode_dashes(response_text);
         let mut replaced_count = 0u32;
+        let mut fuzzy_count = 0u32;
         let mut mappings: Vec<&FpeMapping> = self.by_ciphertext.values().collect();
         mappings.sort_by(|a, b| b.ciphertext.len().cmp(&a.ciphertext.len()));
+
+        // Phase 1: Exact match (fast path)
+        let mut unmatched_numeric: Vec<&FpeMapping> = Vec::new();
         for mapping in &mappings {
             if result.contains(&mapping.ciphertext) {
                 result = result.replace(&mapping.ciphertext, &mapping.plaintext);
                 replaced_count += 1;
+            } else if matches!(
+                mapping.pii_type,
+                PiiType::PhoneNumber | PiiType::Ssn | PiiType::CreditCard
+            ) {
+                unmatched_numeric.push(mapping);
             }
         }
+
+        // Phase 2: Fuzzy match for unmatched numeric PII (handles LLM reformatting)
+        for mapping in &unmatched_numeric {
+            if let Some(re) = build_fpe_fuzzy_regex(&mapping.ciphertext, &mapping.pii_type) {
+                let before = result.clone();
+                result = re
+                    .replace_all(&result, NoExpand(&mapping.plaintext))
+                    .to_string();
+                if result != before {
+                    replaced_count += 1;
+                    fuzzy_count += 1;
+                    oo_debug!(
+                        crate::oo_log::modules::MAPPING,
+                        "decrypt_response: fuzzy match replaced ciphertext",
+                        pii_type = ?mapping.pii_type,
+                        ciphertext = %mapping.ciphertext
+                    );
+                }
+            }
+        }
+
         if replaced_count == 0 && !mappings.is_empty() {
-            // Log phone-type ciphertexts (most likely to appear in response)
             let phone_cts: Vec<String> = mappings
                 .iter()
                 .filter(|m| {
                     matches!(
                         m.pii_type,
-                        crate::pii_types::PiiType::PhoneNumber
-                            | crate::pii_types::PiiType::Ssn
-                            | crate::pii_types::PiiType::CreditCard
+                        PiiType::PhoneNumber | PiiType::Ssn | PiiType::CreditCard
                     )
                 })
                 .take(5)
                 .map(|m| format!("{}→{} ({:?})", m.ciphertext, m.plaintext, m.pii_type))
                 .collect();
-            // Log non-FPE token mappings
             let token_cts: Vec<String> = mappings
                 .iter()
                 .filter(|m| {
                     !matches!(
                         m.pii_type,
-                        crate::pii_types::PiiType::PhoneNumber
-                            | crate::pii_types::PiiType::Ssn
-                            | crate::pii_types::PiiType::CreditCard
-                            | crate::pii_types::PiiType::Email
+                        PiiType::PhoneNumber | PiiType::Ssn | PiiType::CreditCard | PiiType::Email
                     )
                 })
                 .take(3)
                 .map(|m| format!("{}→{} ({:?})", m.ciphertext, m.plaintext, m.pii_type))
                 .collect();
-            // Full response text (SSE buffers are typically <2KB)
             oo_info!(crate::oo_log::modules::MAPPING, "decrypt_response: zero ciphertexts matched",
                 total_mappings = mappings.len(),
                 phone_ciphertexts = ?phone_cts,
@@ -115,6 +142,7 @@ impl RequestMappings {
                 crate::oo_log::modules::MAPPING,
                 "decrypt_response: ciphertexts replaced",
                 replaced = replaced_count,
+                fuzzy = fuzzy_count,
                 total_mappings = mappings.len()
             );
         }
@@ -173,6 +201,68 @@ impl MappingStore {
             }
         }
     }
+}
+
+/// Build a fuzzy regex for an FPE ciphertext to handle LLM reformatting.
+///
+/// LLMs frequently change separator formatting in numeric PII:
+/// `370-133-6132` → `(370) 133-6132`, `370.133.6132`, `370 133 6132`, etc.
+///
+/// Extracts digits from the ciphertext and builds a regex that matches
+/// those exact digits with any combination of common separators between groups.
+fn build_fpe_fuzzy_regex(ciphertext: &str, pii_type: &PiiType) -> Option<Regex> {
+    let digits: String = ciphertext.chars().filter(|c| c.is_ascii_digit()).collect();
+    let sep = r"[-.\s]*";
+
+    let pattern = match pii_type {
+        PiiType::PhoneNumber => match digits.len() {
+            10 => {
+                // Two alternations: with parens `(XXX)`, or plain digits with word boundary.
+                // This prevents matching digits embedded in a longer number.
+                Some(format!(
+                    r"(?:\({}\)|\b{}){}{}{}{}(?:\b|$)",
+                    &digits[0..3],
+                    &digits[0..3],
+                    sep,
+                    &digits[3..6],
+                    sep,
+                    &digits[6..10]
+                ))
+            }
+            11 if digits.starts_with('1') => Some(format!(
+                r"(?:\+?1{sep})?(?:\({}\)|\b{}){}{}{}{}(?:\b|$)",
+                &digits[1..4],
+                &digits[1..4],
+                sep,
+                &digits[4..7],
+                sep,
+                &digits[7..11],
+                sep = sep
+            )),
+            _ => None,
+        },
+        PiiType::Ssn if digits.len() == 9 => Some(format!(
+            r"\b{}{}{}{}{}(?:\b|$)",
+            &digits[0..3],
+            sep,
+            &digits[3..5],
+            sep,
+            &digits[5..9]
+        )),
+        PiiType::CreditCard if digits.len() == 16 => Some(format!(
+            r"\b{}{}{}{}{}{}{}(?:\b|$)",
+            &digits[0..4],
+            sep,
+            &digits[4..8],
+            sep,
+            &digits[8..12],
+            sep,
+            &digits[12..16]
+        )),
+        _ => None,
+    };
+
+    pattern.and_then(|p| Regex::new(&p).ok())
 }
 
 /// Normalize Unicode dash/hyphen variants to ASCII hyphen-minus (U+002D).
@@ -279,5 +369,152 @@ mod tests {
         assert_eq!(normalize_unicode_dashes("em\u{2014}dash"), "em-dash");
         assert_eq!(normalize_unicode_dashes("plain-ascii"), "plain-ascii");
         assert_eq!(normalize_unicode_dashes("no dashes"), "no dashes");
+    }
+
+    #[test]
+    fn test_fuzzy_phone_parens_to_hyphens() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        // Ciphertext has parens: (370) 133-6132
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::PhoneNumber,
+            plaintext: "(415) 555-0132".to_string(),
+            ciphertext: "(370) 133-6132".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM outputs with plain hyphens instead of parens
+        let response = "Call HR at 370-133-6132 for details.";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Call HR at (415) 555-0132 for details.");
+    }
+
+    #[test]
+    fn test_fuzzy_phone_hyphens_to_parens() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        // Ciphertext has hyphens: 370-133-6132
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::PhoneNumber,
+            plaintext: "415-555-0132".to_string(),
+            ciphertext: "370-133-6132".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM adds parens
+        let response = "Call HR at (370) 133-6132 for details.";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Call HR at 415-555-0132 for details.");
+    }
+
+    #[test]
+    fn test_fuzzy_phone_dots() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::PhoneNumber,
+            plaintext: "415-555-0132".to_string(),
+            ciphertext: "370-133-6132".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM uses dots
+        let response = "Phone: 370.133.6132";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Phone: 415-555-0132");
+    }
+
+    #[test]
+    fn test_fuzzy_phone_spaces() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::PhoneNumber,
+            plaintext: "415-555-0132".to_string(),
+            ciphertext: "370-133-6132".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM uses spaces
+        let response = "Phone: 370 133 6132";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Phone: 415-555-0132");
+    }
+
+    #[test]
+    fn test_fuzzy_ssn_spaces() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::Ssn,
+            plaintext: "123-45-6789".to_string(),
+            ciphertext: "847-29-3651".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM uses spaces instead of hyphens
+        let response = "SSN: 847 29 3651";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "SSN: 123-45-6789");
+    }
+
+    #[test]
+    fn test_fuzzy_cc_spaces() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::CreditCard,
+            plaintext: "4532-0151-1283-0366".to_string(),
+            ciphertext: "8714-3927-6051-2483".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM uses spaces
+        let response = "Card: 8714 3927 6051 2483";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Card: 4532-0151-1283-0366");
+    }
+
+    #[test]
+    fn test_exact_match_preferred_over_fuzzy() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::PhoneNumber,
+            plaintext: "415-555-0132".to_string(),
+            ciphertext: "370-133-6132".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // Exact match — should use fast path, not fuzzy
+        let response = "Phone: 370-133-6132";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Phone: 415-555-0132");
+    }
+
+    #[test]
+    fn test_fuzzy_regex_phone() {
+        let re = build_fpe_fuzzy_regex("370-133-6132", &PiiType::PhoneNumber).unwrap();
+        assert!(re.is_match("370-133-6132"));
+        assert!(re.is_match("(370) 133-6132"));
+        assert!(re.is_match("370.133.6132"));
+        assert!(re.is_match("370 133 6132"));
+        // Should not match digits embedded in longer number
+        assert!(!re.is_match("13701336132"));
+    }
+
+    #[test]
+    fn test_fuzzy_regex_ssn() {
+        let re = build_fpe_fuzzy_regex("847-29-3651", &PiiType::Ssn).unwrap();
+        assert!(re.is_match("847-29-3651"));
+        assert!(re.is_match("847 29 3651"));
+        assert!(re.is_match("847.29.3651"));
+    }
+
+    #[test]
+    fn test_fuzzy_regex_cc() {
+        let re = build_fpe_fuzzy_regex("8714-3927-6051-2483", &PiiType::CreditCard).unwrap();
+        assert!(re.is_match("8714-3927-6051-2483"));
+        assert!(re.is_match("8714 3927 6051 2483"));
     }
 }
