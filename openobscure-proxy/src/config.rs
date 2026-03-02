@@ -440,7 +440,7 @@ pub struct VoiceConfig {
 impl Default for VoiceConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
+            enabled: true,
             kws_model_dir: default_kws_model_dir(),
             kws_keywords_file: default_kws_keywords_file(),
             kws_threshold: default_kws_threshold(),

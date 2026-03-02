@@ -285,6 +285,8 @@ pub struct FeatureBudgetSummary {
     pub nsfw_enabled: bool,
     pub screen_guard_enabled: bool,
     pub face_model: String,
+    pub voice_enabled: bool,
+    pub ri_enabled: bool,
 }
 
 /// Combined health state: stats + optional auth token for the health endpoint.
@@ -644,6 +646,8 @@ mod tests {
                 nsfw_enabled: true,
                 screen_guard_enabled: true,
                 face_model: "scrfd".to_string(),
+                voice_enabled: true,
+                ri_enabled: true,
             },
             readiness: Arc::new(AtomicU8::new(readiness as u8)),
         };

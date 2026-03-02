@@ -329,8 +329,8 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         None
     };
 
-    // Voice pipeline: KWS-based PII detection
-    let kws_engine = if config.voice.enabled {
+    // Voice pipeline: KWS-based PII detection (config AND budget gated)
+    let kws_engine = if config.voice.enabled && budget.voice_enabled {
         match kws_engine::KwsEngine::new(&config.voice) {
             Ok(engine) => {
                 oo_info!(
@@ -346,13 +346,17 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
                 None
             }
         }
+    } else if config.voice.enabled && !budget.voice_enabled {
+        oo_info!(crate::oo_log::modules::VOICE, "Voice pipeline disabled by device budget",
+            tier = %tier, max_ram_mb = budget.max_ram_mb);
+        None
     } else {
         oo_info!(crate::oo_log::modules::VOICE, "Voice pipeline disabled");
         None
     };
 
-    // Response integrity scanner (cognitive firewall)
-    let ri_scanner = if config.response_integrity.enabled {
+    // Response integrity scanner (cognitive firewall, config AND budget gated)
+    let ri_scanner = if config.response_integrity.enabled && budget.ri_enabled {
         let sensitivity: response_integrity::Sensitivity =
             config.response_integrity.sensitivity.parse().unwrap();
         if sensitivity == response_integrity::Sensitivity::Off {
@@ -404,6 +408,11 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
                 phrases = scanner.dict_count());
             Some(Arc::new(scanner))
         }
+    } else if config.response_integrity.enabled && !budget.ri_enabled {
+        oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY,
+            "Response integrity disabled by device budget",
+            tier = %tier, max_ram_mb = budget.max_ram_mb);
+        None
     } else {
         None
     };
@@ -438,6 +447,8 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         nsfw_enabled: budget.nsfw_enabled,
         screen_guard_enabled: budget.screen_guard_enabled,
         face_model: budget.face_model.clone(),
+        voice_enabled: budget.voice_enabled,
+        ri_enabled: budget.ri_enabled,
     };
 
     // Start server

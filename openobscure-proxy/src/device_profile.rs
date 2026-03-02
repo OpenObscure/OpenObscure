@@ -76,6 +76,10 @@ pub struct FeatureBudget {
     pub face_model: String,
     /// Model idle timeout before eviction (seconds).
     pub model_idle_timeout_secs: u64,
+    /// Enable voice KWS pipeline for audio PII detection.
+    pub voice_enabled: bool,
+    /// Enable response integrity scanning (R2 model gating).
+    pub ri_enabled: bool,
 }
 
 // ── Hardware Detection ───────────────────────────────────────────────────
@@ -248,6 +252,8 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             screen_guard_enabled: true,
             face_model: "scrfd".to_string(),
             model_idle_timeout_secs: 300,
+            voice_enabled: true,
+            ri_enabled: true,
         },
         CapabilityTier::Standard => FeatureBudget {
             tier,
@@ -261,6 +267,8 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             screen_guard_enabled: true,
             face_model: "scrfd".to_string(),
             model_idle_timeout_secs: 120,
+            voice_enabled: true,
+            ri_enabled: true,
         },
         CapabilityTier::Lite => FeatureBudget {
             tier,
@@ -274,6 +282,8 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             screen_guard_enabled: false,
             face_model: "blazeface".to_string(),
             model_idle_timeout_secs: 60,
+            voice_enabled: false,
+            ri_enabled: false,
         },
     }
 }
@@ -297,6 +307,8 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             screen_guard_enabled: true,
             face_model: "scrfd".to_string(),
             model_idle_timeout_secs: 300,
+            voice_enabled: true,
+            ri_enabled: true,
         },
         CapabilityTier::Standard => FeatureBudget {
             tier,
@@ -310,6 +322,8 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             screen_guard_enabled: true,
             face_model: "scrfd".to_string(),
             model_idle_timeout_secs: 120,
+            voice_enabled: max_ram >= 50,
+            ri_enabled: max_ram >= 80,
         },
         CapabilityTier::Lite => FeatureBudget {
             tier,
@@ -323,6 +337,8 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             screen_guard_enabled: false,
             face_model: "blazeface".to_string(),
             model_idle_timeout_secs: 60,
+            voice_enabled: false,
+            ri_enabled: false,
         },
     }
 }
@@ -449,6 +465,8 @@ mod tests {
         assert!(b.screen_guard_enabled);
         assert_eq!(b.face_model, "scrfd");
         assert_eq!(b.model_idle_timeout_secs, 300);
+        assert!(b.voice_enabled);
+        assert!(b.ri_enabled);
     }
 
     #[test]
@@ -465,6 +483,8 @@ mod tests {
         assert!(b.screen_guard_enabled);
         assert_eq!(b.face_model, "scrfd");
         assert_eq!(b.model_idle_timeout_secs, 120);
+        assert!(b.voice_enabled);
+        assert!(b.ri_enabled);
     }
 
     #[test]
@@ -481,6 +501,8 @@ mod tests {
         assert!(!b.screen_guard_enabled);
         assert_eq!(b.face_model, "blazeface");
         assert_eq!(b.model_idle_timeout_secs, 60);
+        assert!(!b.voice_enabled);
+        assert!(!b.ri_enabled);
     }
 
     // ── Embedded budgets ─────────────────────────────────────────────
@@ -499,6 +521,8 @@ mod tests {
         assert!(b.nsfw_enabled);
         assert!(b.screen_guard_enabled);
         assert_eq!(b.face_model, "scrfd");
+        assert!(b.voice_enabled);
+        assert!(b.ri_enabled);
     }
 
     #[test]
@@ -514,6 +538,8 @@ mod tests {
         assert!(b.nsfw_enabled); // 275 >= 150
         assert!(b.screen_guard_enabled);
         assert_eq!(b.face_model, "scrfd");
+        assert!(b.voice_enabled); // 275 >= 50
+        assert!(b.ri_enabled); // 275 >= 80
     }
 
     #[test]
@@ -530,6 +556,8 @@ mod tests {
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
         assert_eq!(b.face_model, "blazeface");
+        assert!(!b.voice_enabled);
+        assert!(!b.ri_enabled);
     }
 
     #[test]
@@ -546,6 +574,8 @@ mod tests {
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
         assert_eq!(b.face_model, "blazeface");
+        assert!(!b.voice_enabled);
+        assert!(!b.ri_enabled);
     }
 
     // ── Display ──────────────────────────────────────────────────────
@@ -684,5 +714,90 @@ mod tests {
         let budget = budget_for_tier(tier, &profile);
         assert_eq!(tier, CapabilityTier::Full);
         assert!(budget.ner_enabled);
+    }
+
+    // ── Feature Gate Registry ────────────────────────────────────────
+
+    #[test]
+    fn test_feature_gate_registry_parity() {
+        // ═══════════════════════════════════════════════════════════════
+        // FEATURE GATE REGISTRY — Every tier-gated feature MUST appear here.
+        //
+        // When adding a new feature:
+        //   1. Add `<feature>_enabled: bool` to FeatureBudget struct
+        //   2. Set it in all 6 budget arms (3 gateway + 3 embedded)
+        //   3. Gate initialization in main.rs: `config.X.enabled && budget.X_enabled`
+        //   4. Add the field name to this list
+        //   5. Update FeatureBudgetSummary in health.rs
+        //   6. Add assertions to test_budget_gateway_full/standard/lite
+        // ═══════════════════════════════════════════════════════════════
+
+        // Features that are OFF on Lite gateway tier (Full=true, Lite=false)
+        const TIER_DIFFERENTIATED: &[&str] = &[
+            "ner_enabled",
+            "ensemble_enabled",
+            "nsfw_enabled",
+            "screen_guard_enabled",
+            "voice_enabled",
+            "ri_enabled",
+        ];
+
+        // Features that are ON for all gateway tiers but conditional on
+        // embedded (RAM-proportional). Must exist in FeatureBudget.
+        const ALWAYS_ON_GATEWAY: &[&str] = &["crf_enabled", "image_pipeline_enabled"];
+
+        // --- Gateway: Full vs Lite must differ on TIER_DIFFERENTIATED ---
+        let full_profile = profile_with_ram(16384, false);
+        let lite_profile = profile_with_ram(2048, false);
+        let full_budget = budget_for_tier(tier_for_profile(&full_profile), &full_profile);
+        let lite_budget = budget_for_tier(tier_for_profile(&lite_profile), &lite_profile);
+        let full_json = serde_json::to_value(&full_budget).unwrap();
+        let lite_json = serde_json::to_value(&lite_budget).unwrap();
+
+        for feature in TIER_DIFFERENTIATED {
+            let full_val = full_json.get(feature).unwrap_or_else(|| {
+                panic!(
+                    "FeatureBudget missing field '{}'. See GATED_FEATURES registry in this test.",
+                    feature
+                )
+            });
+            let lite_val = lite_json.get(feature).unwrap_or_else(|| {
+                panic!(
+                    "FeatureBudget missing field '{}'. See GATED_FEATURES registry in this test.",
+                    feature
+                )
+            });
+            assert_ne!(
+                full_val, lite_val,
+                "Feature '{}' has same value on Full and Lite gateway — not tier-differentiated",
+                feature
+            );
+        }
+
+        // --- ALWAYS_ON_GATEWAY: must exist in budget (verified on Full) ---
+        for feature in ALWAYS_ON_GATEWAY {
+            assert!(
+                full_json.get(feature).is_some(),
+                "FeatureBudget missing field '{}'. See GATED_FEATURES registry in this test.",
+                feature
+            );
+        }
+
+        // --- Embedded: ALWAYS_ON_GATEWAY features must be OFF on tiny devices ---
+        let tiny_profile = profile_with_ram(50, true); // 20% of 50 = 10, floor 12MB
+        let tiny_budget = budget_for_tier(tier_for_profile(&tiny_profile), &tiny_profile);
+        let tiny_json = serde_json::to_value(&tiny_budget).unwrap();
+
+        for feature in ALWAYS_ON_GATEWAY {
+            let val = tiny_json
+                .get(feature)
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+            assert!(
+                !val,
+                "Feature '{}' should be OFF on tiny embedded device (12MB budget)",
+                feature
+            );
+        }
     }
 }

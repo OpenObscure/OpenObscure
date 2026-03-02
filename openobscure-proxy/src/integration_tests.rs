@@ -732,6 +732,8 @@ fn build_full_router(state: AppState, auth_token: Option<String>) -> Router {
             nsfw_enabled: true,
             screen_guard_enabled: true,
             face_model: "scrfd".to_string(),
+            voice_enabled: true,
+            ri_enabled: true,
         },
         readiness: Arc::new(AtomicU8::new(ReadinessState::Ready as u8)),
     };
