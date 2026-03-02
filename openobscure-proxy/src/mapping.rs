@@ -74,17 +74,42 @@ impl RequestMappings {
             }
         }
         if replaced_count == 0 && !mappings.is_empty() {
-            // Log first 3 ciphertexts and first 300 chars of response for debugging
-            let sample_cts: Vec<String> = mappings
+            // Log phone-type ciphertexts (most likely to appear in response)
+            let phone_cts: Vec<String> = mappings
                 .iter()
+                .filter(|m| {
+                    matches!(
+                        m.pii_type,
+                        crate::pii_types::PiiType::PhoneNumber
+                            | crate::pii_types::PiiType::Ssn
+                            | crate::pii_types::PiiType::CreditCard
+                    )
+                })
+                .take(5)
+                .map(|m| format!("{}→{} ({:?})", m.ciphertext, m.plaintext, m.pii_type))
+                .collect();
+            // Log non-FPE token mappings
+            let token_cts: Vec<String> = mappings
+                .iter()
+                .filter(|m| {
+                    !matches!(
+                        m.pii_type,
+                        crate::pii_types::PiiType::PhoneNumber
+                            | crate::pii_types::PiiType::Ssn
+                            | crate::pii_types::PiiType::CreditCard
+                            | crate::pii_types::PiiType::Email
+                    )
+                })
                 .take(3)
                 .map(|m| format!("{}→{} ({:?})", m.ciphertext, m.plaintext, m.pii_type))
                 .collect();
-            let preview: String = result.chars().take(300).collect();
+            // Full response text (SSE buffers are typically <2KB)
             oo_info!(crate::oo_log::modules::MAPPING, "decrypt_response: zero ciphertexts matched",
                 total_mappings = mappings.len(),
-                sample_mappings = ?sample_cts,
-                response_preview = %preview);
+                phone_ciphertexts = ?phone_cts,
+                token_mappings = ?token_cts,
+                response_len = result.len(),
+                response_text = %result);
         } else if replaced_count > 0 {
             oo_info!(
                 crate::oo_log::modules::MAPPING,
