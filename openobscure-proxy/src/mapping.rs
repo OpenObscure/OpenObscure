@@ -109,7 +109,10 @@ impl RequestMappings {
         }
 
         if replaced_count == 0 && !mappings.is_empty() {
-            let phone_cts: Vec<String> = mappings
+            // Hex-encode ciphertexts to bypass pii_scrub_layer log redaction.
+            // Also check if each ciphertext's digit sequence exists anywhere in the response.
+            let resp_digits: String = result.chars().filter(|c| c.is_ascii_digit()).collect();
+            let ct_diag: Vec<String> = mappings
                 .iter()
                 .filter(|m| {
                     matches!(
@@ -118,7 +121,22 @@ impl RequestMappings {
                     )
                 })
                 .take(5)
-                .map(|m| format!("{}→{} ({:?})", m.ciphertext, m.plaintext, m.pii_type))
+                .map(|m| {
+                    let ct_digits: String = m
+                        .ciphertext
+                        .chars()
+                        .filter(|c| c.is_ascii_digit())
+                        .collect();
+                    let digits_found = resp_digits.contains(&ct_digits);
+                    let ct_hex: String =
+                        m.ciphertext.bytes().map(|b| format!("{:02x}", b)).collect();
+                    let pt_hex: String =
+                        m.plaintext.bytes().map(|b| format!("{:02x}", b)).collect();
+                    format!(
+                        "ct_hex={} pt_hex={} digits_in_resp={} type={:?}",
+                        ct_hex, pt_hex, digits_found, m.pii_type
+                    )
+                })
                 .collect();
             let token_cts: Vec<String> = mappings
                 .iter()
@@ -129,12 +147,32 @@ impl RequestMappings {
                     )
                 })
                 .take(3)
-                .map(|m| format!("{}→{} ({:?})", m.ciphertext, m.plaintext, m.pii_type))
+                .map(|m| {
+                    let ct_hex: String =
+                        m.ciphertext.bytes().map(|b| format!("{:02x}", b)).collect();
+                    format!("ct_hex={} type={:?}", ct_hex, m.pii_type)
+                })
                 .collect();
+            // Hex-encode any 7+ digit sequences found in the response (to see what's there)
+            let resp_phone_hex: Vec<String> = Regex::new(r"\d[\d\s.()-]{8,}\d")
+                .ok()
+                .map(|re| {
+                    re.find_iter(&result)
+                        .take(3)
+                        .map(|m| {
+                            m.as_str()
+                                .bytes()
+                                .map(|b| format!("{:02x}", b))
+                                .collect::<String>()
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
             oo_info!(crate::oo_log::modules::MAPPING, "decrypt_response: zero ciphertexts matched",
                 total_mappings = mappings.len(),
-                phone_ciphertexts = ?phone_cts,
-                token_mappings = ?token_cts,
+                ct_diagnostics = ?ct_diag,
+                token_diagnostics = ?token_cts,
+                resp_phone_patterns_hex = ?resp_phone_hex,
                 response_len = result.len(),
                 response_text = %result);
         } else if replaced_count > 0 {
