@@ -166,6 +166,8 @@ pub async fn process_request_body(
         } else {
             // Non-FPE: redact with hash-based token (e.g., PER_a7f2)
             let token = token_gen.generate(m.pii_type, &m.raw_value);
+            oo_info!(crate::oo_log::modules::BODY, "Hash token replacement",
+                pii_type = ?m.pii_type, token = %token);
 
             mappings.insert(FpeMapping {
                 pii_type: m.pii_type,
