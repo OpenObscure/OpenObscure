@@ -274,10 +274,24 @@ impl NerScanner {
         // 5. Decode BIO tags into entity spans, using word_ids alignment
         let entities = self.decode_bio_tags(&token_labels, &encoded.word_ids, &encoded.words, text);
 
-        // 6. Convert to PiiMatch
+        // 6. Convert to PiiMatch (log filtered entities for threshold tuning)
         let matches = entities
             .into_iter()
-            .filter(|e| e.confidence >= self.confidence_threshold)
+            .filter(|e| {
+                if e.confidence < self.confidence_threshold {
+                    oo_debug!(
+                        crate::oo_log::modules::NER,
+                        "NER entity below threshold — filtered out",
+                        text = %e.raw_value,
+                        pii_type = ?e.pii_type,
+                        confidence = format!("{:.3}", e.confidence),
+                        threshold = format!("{:.3}", self.confidence_threshold)
+                    );
+                    false
+                } else {
+                    true
+                }
+            })
             .map(|e| PiiMatch {
                 pii_type: e.pii_type,
                 start: e.byte_start,

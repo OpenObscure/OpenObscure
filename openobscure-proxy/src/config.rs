@@ -595,7 +595,7 @@ fn default_true() -> bool {
     true
 }
 fn default_ner_confidence() -> f32 {
-    0.85
+    0.60
 }
 fn default_scanner_mode() -> String {
     "auto".to_string()
@@ -746,7 +746,7 @@ nsfw_detection = false
         assert!(config.scanner.keywords_enabled);
         assert!(config.scanner.ner_enabled);
         assert_eq!(config.scanner.scanner_mode, "auto");
-        assert_eq!(config.scanner.ner_confidence_threshold, 0.85);
+        assert_eq!(config.scanner.ner_confidence_threshold, 0.60);
         assert_eq!(config.scanner.ram_threshold_mb, 200);
         assert!(config.scanner.respect_code_fences);
         assert_eq!(config.scanner.min_confidence, 0.5);
