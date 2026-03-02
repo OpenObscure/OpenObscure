@@ -25,7 +25,7 @@ keychain_user = "fpe-master-key"
 
 [scanner]
 enabled = true
-skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
+skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k", "tools", "functions", "tool_choice"]
 ner_model_dir = "models/ner"
 
 # Custom regex patterns (in addition to built-in CC, SSN, phone, email, API key)
