@@ -18,6 +18,19 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-14, ubuntu-latest, windows-latest]
+        include:
+          - os: macos-14
+            native-cache-path: |
+              ~/Library/Caches/ort.pyke.io
+              ~/Library/Caches/sherpa-rs
+          - os: ubuntu-latest
+            native-cache-path: |
+              ~/.cache/ort.pyke.io
+              ~/.cache/sherpa-rs
+          - os: windows-latest
+            native-cache-path: |
+              ~/AppData/Local/ort.pyke.io
+              ~/AppData/Local/sherpa-rs
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -25,10 +38,22 @@ jobs:
         with:
           workspaces: openobscure-proxy
 
+      # Cache native library downloads (onnxruntime, sherpa-onnx).
+      # Swatinem/rust-cache caches target/ but not these external download dirs.
+      # Without this, cached build scripts emit link-search paths to missing libs.
+      - name: Cache native libraries
+        uses: actions/cache@v4
+        with:
+          path: ${{ matrix.native-cache-path }}
+          key: native-libs-${{ runner.os }}-${{ hashFiles('openobscure-proxy/Cargo.lock') }}
+
+      # Force build scripts to re-run so they re-emit cargo:rustc-link-search
+      # pointing to the (now cached) native library directories.
+      - name: Invalidate build script cache
+        shell: bash
+        run: rm -rf openobscure-proxy/target/debug/build/ort-sys-* openobscure-proxy/target/debug/build/sherpa-rs-sys-*
+
       - name: Test (default features)
-        # --lib --bin --tests: run all test targets but skip building the cdylib,
-        # which requires native libs (onnxruntime, sherpa-onnx) not in rust-cache.
-        # cdylib is only needed for mobile/UniFFI (covered by their own CI jobs).
         run: cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --bin openobscure-proxy --tests
 
   proxy-cross-arm64:
