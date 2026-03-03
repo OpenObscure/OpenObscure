@@ -64,6 +64,7 @@ export class HeartbeatMonitor {
   private _state: ProxyState = "disabled";
   private _lastHealth: HealthResponse | null = null;
   private _consecutiveFailures: number = 0;
+  private activeReq: http.ClientRequest | null = null;
 
   constructor(config?: HeartbeatConfig) {
     this.proxyUrl = config?.proxyUrl ?? DEFAULT_HEARTBEAT_CONFIG.proxyUrl;
@@ -102,11 +103,15 @@ export class HeartbeatMonitor {
     this.timer = setInterval(() => this.tick(), this.intervalMs);
   }
 
-  /** Stop the heartbeat monitor. */
+  /** Stop the heartbeat monitor and abort any in-flight health check. */
   stop(): void {
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;
+    }
+    if (this.activeReq) {
+      this.activeReq.destroy();
+      this.activeReq = null;
     }
     this.transition("disabled");
   }
@@ -178,6 +183,7 @@ export class HeartbeatMonitor {
           data += chunk.toString();
         });
         res.on("end", () => {
+          this.activeReq = null;
           try {
             const parsed = JSON.parse(data) as HealthResponse;
             resolve(parsed);
@@ -187,7 +193,11 @@ export class HeartbeatMonitor {
         });
       });
 
-      req.on("error", (e: Error) => reject(e));
+      this.activeReq = req;
+      req.on("error", (e: Error) => {
+        this.activeReq = null;
+        reject(e);
+      });
       req.on("timeout", () => {
         req.destroy();
         reject(new Error("Health check timed out"));
