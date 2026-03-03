@@ -663,10 +663,64 @@ impl AppConfig {
     pub fn load(path: &Path) -> anyhow::Result<Self> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| anyhow::anyhow!("Failed to read config file {}: {}", path.display(), e))?;
-        let config: Self = toml::from_str(&content)
+        let mut config: Self = toml::from_str(&content)
             .map_err(|e| anyhow::anyhow!("Failed to parse config file: {}", e))?;
         config.validate()?;
+
+        // Resolve relative model paths against the config file's parent directory
+        // so the proxy works regardless of CWD.
+        if let Some(base) = path
+            .canonicalize()
+            .ok()
+            .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+        {
+            config.resolve_paths(&base);
+        }
+
         Ok(config)
+    }
+
+    /// Resolve relative model/file paths against `base` directory.
+    fn resolve_paths(&mut self, base: &Path) {
+        let resolve = |p: &mut Option<String>| {
+            if let Some(ref val) = p {
+                let path = Path::new(val);
+                if path.is_relative() {
+                    let abs = base.join(path);
+                    if abs.exists() {
+                        *p = Some(abs.to_string_lossy().into_owned());
+                    }
+                }
+            }
+        };
+        let resolve_str = |s: &mut String| {
+            let path = Path::new(s.as_str());
+            if path.is_relative() {
+                let abs = base.join(path);
+                if abs.exists() {
+                    *s = abs.to_string_lossy().into_owned();
+                }
+            }
+        };
+
+        // Scanner model dirs
+        resolve(&mut self.scanner.ner_model_dir);
+        resolve(&mut self.scanner.ner_model_dir_lite);
+        resolve(&mut self.scanner.crf_model_dir);
+
+        // Image model dirs
+        resolve(&mut self.image.face_model_dir);
+        resolve(&mut self.image.face_model_dir_scrfd);
+        resolve(&mut self.image.ocr_model_dir);
+        resolve(&mut self.image.nsfw_model_dir);
+        resolve(&mut self.image.nsfw_classifier_model_dir);
+
+        // Voice model dirs
+        resolve_str(&mut self.voice.kws_model_dir);
+        resolve_str(&mut self.voice.kws_keywords_file);
+
+        // Response integrity model dir
+        resolve(&mut self.response_integrity.ri_model_dir);
     }
 
     pub fn validate(&self) -> anyhow::Result<()> {

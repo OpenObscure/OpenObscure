@@ -288,7 +288,7 @@ pub async fn proxy_handler(
             .as_ref()
             .map(|m| m.by_ciphertext.len())
             .unwrap_or(0);
-        oo_info!(crate::oo_log::modules::PROXY, "SSE response streaming",
+        oo_debug!(crate::oo_log::modules::PROXY, "SSE response streaming",
             request_id = %request_id, mappings = mapping_count);
         let mapping_store = state.mapping_store.clone();
         let req_id = request_id;
@@ -357,7 +357,7 @@ pub async fn proxy_handler(
                                     // Flush remaining buffered content with FPE decryption
                                     let buf_len = content_decryptor.buffer_len();
                                     let flush = content_decryptor.flush(m);
-                                    oo_info!(crate::oo_log::modules::PROXY, "SSE [DONE] — flushing content buffer with FPE decryption",
+                                    oo_debug!(crate::oo_log::modules::PROXY, "SSE flush",
                                         request_id = %req_id, buffered_chars = buf_len, mappings = m.by_ciphertext.len(), flush_bytes = flush.len());
                                     mapping_store.remove(&req_id).await;
 
@@ -501,7 +501,7 @@ pub async fn proxy_handler(
             .record(std::time::Duration::from_micros(total_us));
         inject_timing_headers(response.headers_mut(), body_timing, 0, total_us);
 
-        oo_info!(crate::oo_log::modules::PROXY, "SSE response streaming",
+        oo_debug!(crate::oo_log::modules::PROXY, "SSE response streaming",
             request_id = %request_id,
             status = %response.status());
 
