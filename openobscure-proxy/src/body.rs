@@ -126,6 +126,14 @@ pub async fn process_request_body(
     if matches.is_empty() {
         // Images/audio were modified but no text PII found — re-serialize the modified JSON
         let modified = serde_json::to_vec(&json).map_err(BodyError::Json)?;
+        oo_info!(
+            crate::oo_log::modules::BODY,
+            "Body modified (images/audio only, no PII)",
+            original_size = body.len(),
+            modified_size = modified.len(),
+            images = image_stats.len(),
+            voice_modified = voice_modified
+        );
         return Ok(make_result(
             Bytes::from(modified),
             RequestMappings::new(*request_id),
@@ -296,13 +304,35 @@ fn walk_json_for_images(
                             scanner,
                         ) {
                             Ok((new_bytes, img_stats)) => {
+                                // Diagnostic: dump processed image to /tmp for verification
+                                if img_stats.faces_redacted > 0 || img_stats.text_regions_found > 0
+                                {
+                                    let dump_path = format!(
+                                        "/tmp/oo_processed_{}.jpg",
+                                        std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_millis()
+                                    );
+                                    if let Err(e) = std::fs::write(&dump_path, &new_bytes) {
+                                        oo_warn!(crate::oo_log::modules::IMAGE, "Failed to dump processed image", error = %e);
+                                    } else {
+                                        oo_info!(crate::oo_log::modules::IMAGE, "Processed image dumped for verification",
+                                            path = %dump_path, size = new_bytes.len(),
+                                            faces = img_stats.faces_redacted, ocr = img_stats.text_regions_found);
+                                    }
+                                }
                                 // Replace the base64 data in the JSON object
                                 let encoded = image_detect::encode_to_base64(
                                     &new_bytes,
                                     &detected.media_type,
                                     img_ref.format,
                                 );
+                                let encoded_len = encoded.len();
                                 replace_image_data(map, &img_ref, &encoded);
+                                oo_info!(crate::oo_log::modules::IMAGE, "Base64 image replaced in JSON",
+                                    format = ?img_ref.format, encoded_len = encoded_len,
+                                    original_size = detected.raw_bytes.len(), processed_size = new_bytes.len());
                                 stats.push(img_stats);
                             }
                             Err(e) => {
@@ -381,6 +411,22 @@ async fn fetch_and_process_url_images(
                     Ok((new_bytes, mut img_stats)) => {
                         img_stats.from_url = true;
                         img_stats.fetch_ms = fetched.fetch_ms;
+
+                        // Diagnostic: dump processed URL image to /tmp for verification
+                        if img_stats.faces_redacted > 0 || img_stats.text_regions_found > 0 {
+                            let dump_path = format!(
+                                "/tmp/oo_url_processed_{}.jpg",
+                                std::time::SystemTime::now()
+                                    .duration_since(std::time::UNIX_EPOCH)
+                                    .unwrap_or_default()
+                                    .as_millis()
+                            );
+                            if let Ok(()) = std::fs::write(&dump_path, &new_bytes) {
+                                oo_info!(crate::oo_log::modules::IMAGE, "URL processed image dumped",
+                                    path = %dump_path, size = new_bytes.len(),
+                                    faces = img_stats.faces_redacted, ocr = img_stats.text_regions_found);
+                            }
+                        }
 
                         // Replace URL with base64 in JSON at the recorded pointer
                         replace_url_with_base64(
@@ -462,7 +508,17 @@ fn replace_url_with_base64(
                     media_type,
                     image_detect::ImageFormat::AnthropicBase64,
                 );
+                let b64_len = b64.len();
                 source.insert("data".to_string(), Value::String(b64));
+                oo_info!(
+                    crate::oo_log::modules::IMAGE,
+                    "Anthropic URL→base64 replacement succeeded",
+                    pointer = json_pointer,
+                    b64_len = b64_len
+                );
+            } else {
+                oo_warn!(crate::oo_log::modules::IMAGE, "Anthropic URL→base64 replacement FAILED — source object not found",
+                    pointer = json_pointer, keys = ?obj.keys().collect::<Vec<_>>());
             }
         }
         image_detect::ImageFormat::OpenAiExternalUrl => {
@@ -473,7 +529,17 @@ fn replace_url_with_base64(
                     media_type,
                     image_detect::ImageFormat::OpenAiDataUri,
                 );
+                let uri_len = data_uri.len();
                 img_url.insert("url".to_string(), Value::String(data_uri));
+                oo_info!(
+                    crate::oo_log::modules::IMAGE,
+                    "OpenAI URL→data URI replacement succeeded",
+                    pointer = json_pointer,
+                    data_uri_len = uri_len
+                );
+            } else {
+                oo_warn!(crate::oo_log::modules::IMAGE, "OpenAI URL→data URI replacement FAILED — image_url object not found",
+                    pointer = json_pointer, keys = ?obj.keys().collect::<Vec<_>>());
             }
         }
         // Base64 formats don't need URL replacement
@@ -532,12 +598,28 @@ fn replace_image_data(
             // Navigate to source.data
             if let Some(Value::Object(source)) = obj.get_mut("source") {
                 source.insert("data".to_string(), Value::String(new_data.to_string()));
+                oo_info!(
+                    crate::oo_log::modules::IMAGE,
+                    "Anthropic base64 data replaced",
+                    new_data_len = new_data.len()
+                );
+            } else {
+                oo_warn!(crate::oo_log::modules::IMAGE, "Anthropic base64 replacement FAILED — source object not found",
+                    keys = ?obj.keys().collect::<Vec<_>>());
             }
         }
         image_detect::ImageFormat::OpenAiDataUri => {
             // Navigate to image_url.url
             if let Some(Value::Object(img_url)) = obj.get_mut("image_url") {
                 img_url.insert("url".to_string(), Value::String(new_data.to_string()));
+                oo_info!(
+                    crate::oo_log::modules::IMAGE,
+                    "OpenAI data URI replaced",
+                    new_data_len = new_data.len()
+                );
+            } else {
+                oo_warn!(crate::oo_log::modules::IMAGE, "OpenAI data URI replacement FAILED — image_url object not found",
+                    keys = ?obj.keys().collect::<Vec<_>>());
             }
         }
         // URL formats are handled by replace_url_with_base64(), not this function
