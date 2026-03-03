@@ -64,6 +64,7 @@ pub async fn process_request_body(
     http_client: Option<&Client<HttpsConnector, Body>>,
     fetch_config: &ImageFetchConfig,
     fail_mode: FailMode,
+    inspect: bool,
 ) -> Result<BodyProcessingResult, BodyError> {
     let mut json: Value = serde_json::from_slice(body).map_err(BodyError::Json)?;
 
@@ -71,7 +72,16 @@ pub async fn process_request_body(
     let img_start = std::time::Instant::now();
     let image_stats = if let Some(models) = image_models {
         if models.config().enabled {
-            process_images_in_json(&mut json, models, scanner, http_client, fetch_config).await
+            process_images_in_json(
+                &mut json,
+                models,
+                scanner,
+                http_client,
+                fetch_config,
+                inspect,
+                request_id,
+            )
+            .await
         } else {
             Vec::new()
         }
@@ -83,7 +93,8 @@ pub async fn process_request_body(
     // Pass 1.5: Scan audio blocks for PII keywords (KWS-gated)
     let (voice_modified, voice_us, voice_decode_us, voice_kws_us) = if let Some(engine) = kws_engine
     {
-        let result = voice_pipeline::scan_and_strip_audio_blocks(&mut json, engine);
+        let result =
+            voice_pipeline::scan_and_strip_audio_blocks(&mut json, engine, inspect, request_id);
         let modified = result.blocks_stripped > 0;
         (
             modified,
@@ -278,12 +289,25 @@ async fn process_images_in_json(
     scanner: &HybridScanner,
     http_client: Option<&Client<HttpsConnector, Body>>,
     fetch_config: &ImageFetchConfig,
+    inspect: bool,
+    request_id: &Uuid,
 ) -> Vec<ImageStats> {
     let mut stats = Vec::new();
     let mut pending_urls: Vec<PendingUrlImage> = Vec::new();
+    let mut inspect_idx: usize = 0;
 
     // Phase 1: Walk JSON — process base64 images immediately, collect URL refs
-    walk_json_for_images(json, models, scanner, &mut stats, &mut pending_urls, "");
+    walk_json_for_images(
+        json,
+        models,
+        scanner,
+        &mut stats,
+        &mut pending_urls,
+        "",
+        inspect,
+        request_id,
+        &mut inspect_idx,
+    );
 
     // Phase 1b: Fetch URL images concurrently (if any)
     if !pending_urls.is_empty() {
@@ -296,6 +320,9 @@ async fn process_images_in_json(
                 models,
                 scanner,
                 &mut stats,
+                inspect,
+                request_id,
+                &mut inspect_idx,
             )
             .await;
         } else {
@@ -313,6 +340,7 @@ async fn process_images_in_json(
 /// Recursively walk JSON looking for image content blocks.
 ///
 /// Base64 images are processed in-place; URL images are collected into `pending_urls`.
+#[allow(clippy::too_many_arguments)]
 fn walk_json_for_images(
     value: &mut Value,
     models: &ImageModelManager,
@@ -320,6 +348,9 @@ fn walk_json_for_images(
     stats: &mut Vec<ImageStats>,
     pending_urls: &mut Vec<PendingUrlImage>,
     pointer: &str,
+    inspect: bool,
+    request_id: &Uuid,
+    inspect_idx: &mut usize,
 ) {
     match value {
         Value::Object(map) => {
@@ -337,23 +368,16 @@ fn walk_json_for_images(
                             scanner,
                         ) {
                             Ok((new_bytes, img_stats)) => {
-                                // Diagnostic: dump processed image to /tmp for verification
-                                if img_stats.faces_redacted > 0 || img_stats.text_regions_found > 0
-                                {
-                                    let dump_path = format!(
-                                        "/tmp/oo_processed_{}.jpg",
-                                        std::time::SystemTime::now()
-                                            .duration_since(std::time::UNIX_EPOCH)
-                                            .unwrap_or_default()
-                                            .as_millis()
+                                // Inspect mode: save original + processed image
+                                if inspect {
+                                    crate::inspect::save_image(
+                                        request_id,
+                                        *inspect_idx,
+                                        &detected.raw_bytes,
+                                        &new_bytes,
+                                        &detected.media_type,
                                     );
-                                    if let Err(e) = std::fs::write(&dump_path, &new_bytes) {
-                                        oo_warn!(crate::oo_log::modules::IMAGE, "Failed to dump processed image", error = %e);
-                                    } else {
-                                        oo_info!(crate::oo_log::modules::IMAGE, "Processed image dumped for verification",
-                                            path = %dump_path, size = new_bytes.len(),
-                                            faces = img_stats.faces_redacted, ocr = img_stats.text_regions_found);
-                                    }
+                                    *inspect_idx += 1;
                                 }
                                 // Replace the base64 data in the JSON object
                                 let encoded = image_detect::encode_to_base64(
@@ -389,14 +413,34 @@ fn walk_json_for_images(
             for key in keys {
                 let child_pointer = format!("{}/{}", pointer, key);
                 if let Some(v) = map.get_mut(&key) {
-                    walk_json_for_images(v, models, scanner, stats, pending_urls, &child_pointer);
+                    walk_json_for_images(
+                        v,
+                        models,
+                        scanner,
+                        stats,
+                        pending_urls,
+                        &child_pointer,
+                        inspect,
+                        request_id,
+                        inspect_idx,
+                    );
                 }
             }
         }
         Value::Array(arr) => {
             for (i, item) in arr.iter_mut().enumerate() {
                 let child_pointer = format!("{}/{}", pointer, i);
-                walk_json_for_images(item, models, scanner, stats, pending_urls, &child_pointer);
+                walk_json_for_images(
+                    item,
+                    models,
+                    scanner,
+                    stats,
+                    pending_urls,
+                    &child_pointer,
+                    inspect,
+                    request_id,
+                    inspect_idx,
+                );
             }
         }
         _ => {}
@@ -404,6 +448,7 @@ fn walk_json_for_images(
 }
 
 /// Fetch URL images concurrently, process through pipeline, replace URL→base64 in JSON.
+#[allow(clippy::too_many_arguments)]
 async fn fetch_and_process_url_images(
     json: &mut Value,
     pending: &[PendingUrlImage],
@@ -412,6 +457,9 @@ async fn fetch_and_process_url_images(
     models: &ImageModelManager,
     scanner: &HybridScanner,
     stats: &mut Vec<ImageStats>,
+    inspect: bool,
+    request_id: &Uuid,
+    inspect_idx: &mut usize,
 ) {
     // Fetch all URL images concurrently
     let fetch_futures: Vec<_> = pending
@@ -445,20 +493,16 @@ async fn fetch_and_process_url_images(
                         img_stats.from_url = true;
                         img_stats.fetch_ms = fetched.fetch_ms;
 
-                        // Diagnostic: dump processed URL image to /tmp for verification
-                        if img_stats.faces_redacted > 0 || img_stats.text_regions_found > 0 {
-                            let dump_path = format!(
-                                "/tmp/oo_url_processed_{}.jpg",
-                                std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap_or_default()
-                                    .as_millis()
+                        // Inspect mode: save original + processed image
+                        if inspect {
+                            crate::inspect::save_image(
+                                request_id,
+                                *inspect_idx,
+                                &fetched.bytes,
+                                &new_bytes,
+                                &media_type,
                             );
-                            if let Ok(()) = std::fs::write(&dump_path, &new_bytes) {
-                                oo_info!(crate::oo_log::modules::IMAGE, "URL processed image dumped",
-                                    path = %dump_path, size = new_bytes.len(),
-                                    faces = img_stats.faces_redacted, ocr = img_stats.text_regions_found);
-                            }
+                            *inspect_idx += 1;
                         }
 
                         // Replace URL with base64 in JSON at the recorded pointer
@@ -1034,7 +1078,17 @@ mod tests {
 
         let mut stats = Vec::new();
         let mut pending = Vec::new();
-        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
+        walk_json_for_images(
+            &mut json,
+            &models,
+            &scanner,
+            &mut stats,
+            &mut pending,
+            "",
+            false,
+            &Uuid::new_v4(),
+            &mut 0,
+        );
         assert!(
             stats.is_empty(),
             "Non-image JSON should produce no image stats"
@@ -1084,7 +1138,17 @@ mod tests {
 
         let mut stats = Vec::new();
         let mut pending = Vec::new();
-        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
+        walk_json_for_images(
+            &mut json,
+            &models,
+            &scanner,
+            &mut stats,
+            &mut pending,
+            "",
+            false,
+            &Uuid::new_v4(),
+            &mut 0,
+        );
 
         // Should have processed 1 image (decode → resize → encode, no face/OCR)
         assert_eq!(stats.len(), 1);
@@ -1151,6 +1215,8 @@ mod tests {
                 &scanner,
                 None,
                 &fetch_config,
+                false,
+                &Uuid::new_v4(),
             ));
         // Image is processed (decode/encode) but no face/OCR work done
         assert_eq!(stats.len(), 1);
@@ -1180,7 +1246,17 @@ mod tests {
         let scanner = HybridScanner::new(true, None, None);
         let mut stats = Vec::new();
         let mut pending = Vec::new();
-        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
+        walk_json_for_images(
+            &mut json,
+            &models,
+            &scanner,
+            &mut stats,
+            &mut pending,
+            "",
+            false,
+            &Uuid::new_v4(),
+            &mut 0,
+        );
 
         // Should not have processed anything (bad base64 → extraction returns None or bad magic)
         assert!(
@@ -1362,7 +1438,17 @@ mod tests {
 
         let mut stats = Vec::new();
         let mut pending = Vec::new();
-        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
+        walk_json_for_images(
+            &mut json,
+            &models,
+            &scanner,
+            &mut stats,
+            &mut pending,
+            "",
+            false,
+            &Uuid::new_v4(),
+            &mut 0,
+        );
 
         assert!(stats.is_empty(), "URL images are not processed immediately");
         assert_eq!(pending.len(), 1, "Should have collected 1 URL image ref");
@@ -1395,7 +1481,17 @@ mod tests {
 
         let mut stats = Vec::new();
         let mut pending = Vec::new();
-        walk_json_for_images(&mut json, &models, &scanner, &mut stats, &mut pending, "");
+        walk_json_for_images(
+            &mut json,
+            &models,
+            &scanner,
+            &mut stats,
+            &mut pending,
+            "",
+            false,
+            &Uuid::new_v4(),
+            &mut 0,
+        );
 
         assert_eq!(pending.len(), 1);
         assert_eq!(

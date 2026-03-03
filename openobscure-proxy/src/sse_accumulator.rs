@@ -311,6 +311,11 @@ impl SseRiBuffer {
         }
     }
 
+    /// Borrow the accumulated text (non-consuming).
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
     /// Move text out without consuming the buffer. Returns `None` if empty.
     pub fn take_text(&mut self) -> Option<String> {
         if self.text.is_empty() {

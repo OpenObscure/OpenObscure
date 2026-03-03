@@ -55,6 +55,9 @@ pub mod detection_validators;
 // Hash-based redaction tokens for non-FPE PII
 pub mod hash_token;
 
+// Inspect mode (--inspect CLI flag)
+pub mod inspect;
+
 // Request/response mapping + SSE frame accumulation
 pub mod mapping;
 pub mod response_format;

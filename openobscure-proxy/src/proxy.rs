@@ -51,6 +51,7 @@ pub struct AppState {
     pub kws_engine: Option<Arc<KwsEngine>>,
     pub response_integrity: Option<Arc<ResponseIntegrityScanner>>,
     pub device_tier: crate::device_profile::CapabilityTier,
+    pub inspect: bool,
 }
 
 /// The main proxy handler. All requests flow through here.
@@ -83,6 +84,11 @@ pub async fn proxy_handler(
     let effective_limit = state.config.proxy.body_limit_for_tier(state.device_tier);
     let body_bytes = buffer_body(req, effective_limit).await?;
 
+    // Inspect: print incoming text from agent
+    if state.inspect && !body_bytes.is_empty() {
+        crate::inspect::print_incoming_text(&request_id, &body_bytes);
+    }
+
     // 3. Check if body is scannable (JSON content type or missing content type with body)
     let should_scan = !body_bytes.is_empty()
         && state.config.scanner.enabled
@@ -112,6 +118,7 @@ pub async fn proxy_handler(
             Some(&state.http_client),
             &fetch_config,
             state.config.proxy.fail_mode,
+            state.inspect,
         )
         .await
         {
@@ -203,6 +210,14 @@ pub async fn proxy_handler(
                         text_regions = total_ocr,
                         nsfw_detected = any_nsfw,
                         elapsed_us = result.image_us);
+                }
+                // Inspect: print redacted text and PII matches
+                if state.inspect {
+                    crate::inspect::print_redacted_text(
+                        &request_id,
+                        &result.body,
+                        &result.mappings,
+                    );
                 }
                 // Stash timing for response headers
                 let body_timing = (
@@ -308,6 +323,7 @@ pub async fn proxy_handler(
         let ri_min_flags = state.config.response_integrity.ri_min_flags;
         let health = state.health.clone();
         let empty_mappings = crate::mapping::RequestMappings::new(req_id);
+        let inspect_mode = state.inspect;
 
         // Build streaming body that decrypts each chunk at the content level.
         // `done` flag prevents polling after stream end (flush-then-end pattern).
@@ -369,6 +385,14 @@ pub async fn proxy_handler(
                                     oo_debug!(crate::oo_log::modules::PROXY, "SSE flush",
                                         request_id = %req_id, buffered_chars = buf_len, mappings = m.by_ciphertext.len(), flush_bytes = flush.len());
                                     mapping_store.remove(&req_id).await;
+
+                                    // Inspect: print accumulated SSE response text
+                                    if inspect_mode {
+                                        crate::inspect::print_sse_response_text(
+                                            &req_id,
+                                            ri_buffer.text(),
+                                        );
+                                    }
 
                                     // Run RI scan and format warning
                                     let warning = emit_sse_ri_warning_inline(
@@ -453,6 +477,11 @@ pub async fn proxy_handler(
                                     request_id = %req_id, buffered_chars = buf_len, flush_bytes = flush.len());
                             }
                             mapping_store.remove(&req_id).await;
+
+                            // Inspect: print accumulated SSE response text
+                            if inspect_mode && !ri_done {
+                                crate::inspect::print_sse_response_text(&req_id, ri_buffer.text());
+                            }
 
                             let warning = if !ri_done {
                                 emit_sse_ri_warning_inline(
@@ -598,6 +627,11 @@ pub async fn proxy_handler(
             .health
             .ri_latency
             .record(std::time::Duration::from_micros(ri_us));
+    }
+
+    // Inspect: print decrypted response text
+    if state.inspect {
+        crate::inspect::print_response_text(&request_id, &final_body);
     }
 
     // 9. Rebuild response with correct content-length

@@ -21,6 +21,7 @@ mod image_detect;
 mod image_fetch;
 mod image_pipeline;
 mod image_redact;
+mod inspect;
 mod key_manager;
 mod keyword_dict;
 mod lang_detect;
@@ -108,6 +109,10 @@ struct Cli {
     /// Run in foreground — disables managed service for this session
     #[arg(long)]
     foreground: bool,
+
+    /// Inspect mode: log incoming/outgoing data to console, save image/audio files
+    #[arg(long)]
+    inspect: bool,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -212,9 +217,9 @@ async fn main() -> anyhow::Result<()> {
     match cli.command {
         None | Some(Commands::Serve) => {
             if cli.foreground {
-                run_serve_foreground(config).await
+                run_serve_foreground(config, cli.inspect).await
             } else {
-                run_serve(config).await
+                run_serve(config, cli.inspect).await
             }
         }
         Some(Commands::KeyRotate) => run_key_rotate(config).await,
@@ -224,7 +229,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// Start the PII proxy server (default behavior).
-async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
+async fn run_serve(config: AppConfig, inspect: bool) -> anyhow::Result<()> {
     // Check for crash marker from previous run
     health::check_crash_marker();
 
@@ -446,7 +451,21 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         kws_engine,
         response_integrity: ri_scanner,
         device_tier: tier,
+        inspect,
     };
+
+    if inspect {
+        eprintln!();
+        eprintln!("  ┌────────────────────────────────────────┐");
+        eprintln!("  │         INSPECT MODE ACTIVE             │");
+        eprintln!("  │  Console: incoming + redacted text      │");
+        eprintln!("  │  Files:   ~/.openobscure/inspect/       │");
+        eprintln!("  └────────────────────────────────────────┘");
+        eprintln!();
+        if let Some(dir) = crate::inspect::inspect_dir() {
+            let _ = std::fs::create_dir_all(&dir);
+        }
+    }
 
     // Spawn periodic stats flush (every 60s)
     let flush_health = state.health.clone();
@@ -536,7 +555,7 @@ async fn run_key_rotate(config: AppConfig) -> anyhow::Result<()> {
 ///
 /// If the managed service is loaded, unloads it first to prevent port conflicts.
 /// On exit, re-loads the managed service if it was previously active.
-async fn run_serve_foreground(config: AppConfig) -> anyhow::Result<()> {
+async fn run_serve_foreground(config: AppConfig, inspect: bool) -> anyhow::Result<()> {
     let was_loaded = service_is_loaded();
     if was_loaded {
         oo_warn!(
@@ -548,7 +567,7 @@ async fn run_serve_foreground(config: AppConfig) -> anyhow::Result<()> {
         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
     }
 
-    let result = run_serve(config).await;
+    let result = run_serve(config, inspect).await;
 
     if was_loaded {
         oo_info!(

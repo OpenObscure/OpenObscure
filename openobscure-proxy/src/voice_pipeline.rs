@@ -7,6 +7,7 @@
 //! When KWS engine is not available, audio passes through unchanged.
 
 use serde_json::Value;
+use uuid::Uuid;
 
 use crate::kws_engine::KwsEngine;
 use crate::voice_detect::{detect_audio_blocks, AudioBlock, AudioFormat};
@@ -35,7 +36,12 @@ pub struct VoiceScanResult {
 /// 2. Run keyword spotter for PII trigger phrases
 /// 3. If PII found: replace audio with text notice including detected keywords
 /// 4. If no PII: leave audio block unchanged (pass through)
-pub fn scan_and_strip_audio_blocks(json: &mut Value, kws_engine: &KwsEngine) -> VoiceScanResult {
+pub fn scan_and_strip_audio_blocks(
+    json: &mut Value,
+    kws_engine: &KwsEngine,
+    inspect: bool,
+    request_id: &Uuid,
+) -> VoiceScanResult {
     let blocks = detect_audio_blocks(json);
     if blocks.is_empty() {
         return VoiceScanResult {
@@ -73,6 +79,15 @@ pub fn scan_and_strip_audio_blocks(json: &mut Value, kws_engine: &KwsEngine) -> 
                     "[AUDIO_PII_DETECTED: keywords={{{}}} — audio stripped]",
                     keywords.join(", ")
                 );
+                if inspect {
+                    crate::inspect::save_audio(
+                        request_id,
+                        scanned - 1,
+                        &block.data,
+                        Some(&notice),
+                        &block.media_type,
+                    );
+                }
                 if replace_audio_with_notice(json, &block.json_path, &notice) {
                     stripped += 1;
                     all_keywords.extend(keywords);
@@ -81,6 +96,15 @@ pub fn scan_and_strip_audio_blocks(json: &mut Value, kws_engine: &KwsEngine) -> 
             Ok((None, decode_ms, kws_ms)) => {
                 total_decode_ms += decode_ms;
                 total_kws_ms += kws_ms;
+                if inspect {
+                    crate::inspect::save_audio(
+                        request_id,
+                        scanned - 1,
+                        &block.data,
+                        None,
+                        &block.media_type,
+                    );
+                }
                 // No PII — leave audio block unchanged
                 oo_debug!(
                     crate::oo_log::modules::VOICE,
