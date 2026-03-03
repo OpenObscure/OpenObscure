@@ -681,7 +681,11 @@ impl AppConfig {
     }
 
     /// Resolve relative model/file paths against `base` directory.
+    /// Tries `base` first (config file's parent), then `base.parent()` (grandparent)
+    /// to handle configs in subdirectories (e.g., `config/openobscure.toml` with
+    /// `models/` at the crate root).
     fn resolve_paths(&mut self, base: &Path) {
+        let grandparent = base.parent().map(|p| p.to_path_buf());
         let resolve = |p: &mut Option<String>| {
             if let Some(ref val) = p {
                 let path = Path::new(val);
@@ -689,6 +693,11 @@ impl AppConfig {
                     let abs = base.join(path);
                     if abs.exists() {
                         *p = Some(abs.to_string_lossy().into_owned());
+                    } else if let Some(ref gp) = grandparent {
+                        let abs2 = gp.join(path);
+                        if abs2.exists() {
+                            *p = Some(abs2.to_string_lossy().into_owned());
+                        }
                     }
                 }
             }
@@ -699,6 +708,11 @@ impl AppConfig {
                 let abs = base.join(path);
                 if abs.exists() {
                     *s = abs.to_string_lossy().into_owned();
+                } else if let Some(ref gp) = grandparent {
+                    let abs2 = gp.join(path);
+                    if abs2.exists() {
+                        *s = abs2.to_string_lossy().into_owned();
+                    }
                 }
             }
         };
