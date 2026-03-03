@@ -2,6 +2,11 @@
 # Download ONNX models for OpenObscure image pipeline.
 # Idempotent — skips files that already exist.
 #
+# Usage: ./download_models.sh [lite|standard|full]
+#   lite     — BlazeFace + PaddleOCR (~11MB) — face blur + text detection only
+#   standard — lite + SCRFD + NudeNet (~26MB) — adds better face detection + NSFW
+#   full     — standard + all models (~26MB from this script; NER/KWS/RI via Git LFS)
+#
 # Models:
 #   BlazeFace short-range  — face detection, Lite tier (128x128 input)
 #   SCRFD-2.5GF            — face detection, Full/Standard tier (640x640 input)
@@ -17,6 +22,20 @@
 #   NudeNet:   https://huggingface.co/vladmandic/nudenet
 
 set -euo pipefail
+
+TIER="${1:-full}"
+
+case "$TIER" in
+    lite|standard|full) ;;
+    *) echo "Usage: $0 [lite|standard|full]"
+       echo ""
+       echo "Tiers:"
+       echo "  lite     — BlazeFace + PaddleOCR (~11MB)"
+       echo "  standard — lite + SCRFD + NudeNet (~26MB)"
+       echo "  full     — standard (NER/KWS/RI models are tracked via Git LFS)"
+       exit 1
+       ;;
+esac
 
 PROXY_DIR="$(cd "$(dirname "$0")/../openobscure-proxy" && pwd)"
 MODELS_DIR="$PROXY_DIR/models"
@@ -47,22 +66,15 @@ download() {
     echo "           → $size bytes"
 }
 
-echo "=== OpenObscure ONNX Model Download ==="
+echo "=== OpenObscure ONNX Model Download (tier: $TIER) ==="
 echo ""
 
-# ── BlazeFace ──
+# ── BlazeFace (all tiers) ──
 echo "BlazeFace (face detection):"
 mkdir -p "$BLAZEFACE_DIR"
-# The code looks for blazeface_short.onnx, blazeface.onnx, or model.onnx
 download "$BLAZEFACE_URL" "$BLAZEFACE_DIR/blazeface.onnx" "blazeface.onnx (~408KB)"
 
-# ── SCRFD ──
-echo ""
-echo "SCRFD-2.5GF (face detection — Full/Standard tier):"
-mkdir -p "$SCRFD_DIR"
-download "$SCRFD_URL" "$SCRFD_DIR/scrfd_2.5g.onnx" "scrfd_2.5g.onnx (~3.1MB)"
-
-# ── PaddleOCR ──
+# ── PaddleOCR (all tiers) ──
 echo ""
 echo "PaddleOCR (text detection + recognition):"
 mkdir -p "$PADDLEOCR_DIR"
@@ -70,11 +82,21 @@ download "$PADDLEOCR_DET_URL" "$PADDLEOCR_DIR/det_model.onnx" "det_model.onnx (~
 download "$PADDLEOCR_REC_URL" "$PADDLEOCR_DIR/rec_model.onnx" "rec_model.onnx (~7.7MB, PP-OCRv4 English)"
 download "$PADDLEOCR_DICT_URL" "$PADDLEOCR_DIR/ppocr_keys.txt" "ppocr_keys.txt (95-char English dictionary)"
 
-# ── NudeNet ──
-echo ""
-echo "NudeNet (NSFW/nudity detection):"
-mkdir -p "$NUDENET_DIR"
-download "$NUDENET_URL" "$NUDENET_DIR/nudenet.onnx" "nudenet.onnx (~12MB)"
+# ── SCRFD (standard + full) ──
+if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
+    echo ""
+    echo "SCRFD-2.5GF (face detection — Standard/Full tier):"
+    mkdir -p "$SCRFD_DIR"
+    download "$SCRFD_URL" "$SCRFD_DIR/scrfd_2.5g.onnx" "scrfd_2.5g.onnx (~3.1MB)"
+fi
+
+# ── NudeNet (standard + full) ──
+if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
+    echo ""
+    echo "NudeNet (NSFW/nudity detection):"
+    mkdir -p "$NUDENET_DIR"
+    download "$NUDENET_URL" "$NUDENET_DIR/nudenet.onnx" "nudenet.onnx (~12MB)"
+fi
 
 echo ""
 echo "=== Done ==="
@@ -82,16 +104,29 @@ echo ""
 echo "Model layout:"
 echo "  $BLAZEFACE_DIR/"
 ls -lh "$BLAZEFACE_DIR/" 2>/dev/null | grep -v total || true
-echo "  $SCRFD_DIR/"
-ls -lh "$SCRFD_DIR/" 2>/dev/null | grep -v total || true
+if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
+    echo "  $SCRFD_DIR/"
+    ls -lh "$SCRFD_DIR/" 2>/dev/null | grep -v total || true
+fi
 echo "  $PADDLEOCR_DIR/"
 ls -lh "$PADDLEOCR_DIR/" 2>/dev/null | grep -v total || true
-echo "  $NUDENET_DIR/"
-ls -lh "$NUDENET_DIR/" 2>/dev/null | grep -v total || true
+if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
+    echo "  $NUDENET_DIR/"
+    ls -lh "$NUDENET_DIR/" 2>/dev/null | grep -v total || true
+fi
+if [ "$TIER" = "full" ]; then
+    echo ""
+    echo "Note: NER, KWS, and RI models are tracked via Git LFS."
+    echo "Run 'git lfs pull' to fetch them if needed."
+fi
 echo ""
 echo "Configure in openobscure.toml:"
 echo '  [image]'
-echo '  face_model = "scrfd"        # or "blazeface" for Lite tier'
+if [ "$TIER" = "lite" ]; then
+    echo '  face_model = "blazeface"'
+else
+    echo '  face_model = "scrfd"        # or "blazeface" for Lite tier'
+fi
 echo '  face_model_dir = "models/blazeface"'
 echo '  face_model_dir_scrfd = "models/scrfd"'
 echo '  ocr_model_dir = "models/paddleocr"'

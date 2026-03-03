@@ -509,6 +509,17 @@ impl OpenObscureMobile {
             device_tier: s.device_tier.clone(),
         }
     }
+
+    /// Release all loaded image models immediately.
+    ///
+    /// Call this from iOS `applicationDidReceiveMemoryWarning` or
+    /// Android `ComponentCallbacks2.onTrimMemory(TRIM_MEMORY_RUNNING_LOW)`.
+    /// Models will be reloaded on-demand when the next image is processed.
+    pub fn release_models(&self) {
+        if let Some(ref manager) = self.image_manager {
+            manager.force_evict();
+        }
+    }
 }
 
 #[cfg(test)]

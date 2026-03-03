@@ -5,7 +5,7 @@
 
 **The Endpoint Privacy Firewall for AI Agents.**
 
-OpenObscure is an open-source privacy firewall that intercepts, sanitizes, and encrypts PII (Personally Identifiable Information) *before* it leaves your device — and scans LLM responses for persuasion and manipulation techniques *before* they reach you. It works with any AI agent, on any platform. Includes first-class [OpenClaw](https://github.com/openclaw/openclaw) integration.
+OpenObscure is an open-source privacy firewall that intercepts, sanitizes, and encrypts PII (Personally Identifiable Information) *before* it leaves your device — and scans LLM responses for persuasion and manipulation techniques *before* they reach you. It works with any AI agent, on any platform.
 
 > **Verify, Don't Trust.** OpenObscure runs entirely on your device. No remote servers, no telemetry, no cloud dependencies.
 
@@ -347,22 +347,21 @@ curl -H "X-OpenObscure-Token: $(cat ~/.openobscure/.auth-token)" \
 
 You should see a JSON response with `"status": "ok"`.
 
-### OpenClaw Integration
-
-Point OpenClaw's LLM traffic through the proxy:
-
-```
-LLM_API_BASE=http://127.0.0.1:18790
-```
-
-Optionally, copy `openobscure-plugin/` into OpenClaw's `extensions/` directory and enable it in OpenClaw's plugin config for L1 in-process redaction.
-
-### Generic Integration (Any AI Agent)
+### Integration (Any AI Agent)
 
 Any AI agent that sends HTTP requests to an LLM provider can route traffic through the L0 proxy. Set your agent's LLM base URL to the proxy address:
 
 ```
-http://127.0.0.1:18790
+http://127.0.0.1:18790/<provider>
+```
+
+Supported route prefixes: `/openai`, `/anthropic`, `/openrouter`, `/ollama` (configurable in `openobscure.toml`).
+
+For example, with the OpenAI Python SDK:
+
+```python
+import openai
+client = openai.OpenAI(base_url="http://127.0.0.1:18790/openai")
 ```
 
 The proxy transparently intercepts JSON payloads, scans for PII, applies FF1 Format-Preserving Encryption, and forwards the sanitized request to the upstream LLM provider. Responses are decrypted before being returned to your agent.
@@ -378,7 +377,15 @@ const result = redactPii(toolOutput);
 if (result.count > 0) toolOutput = result.text;
 ```
 
-This allows any agent — not just OpenClaw — to leverage OpenObscure's PII redaction as a library.
+### OpenClaw Integration
+
+Point OpenClaw's LLM traffic through the proxy:
+
+```
+LLM_API_BASE=http://127.0.0.1:18790
+```
+
+Optionally, copy `openobscure-plugin/` into OpenClaw's `extensions/` directory and enable it in OpenClaw's plugin config for L1 in-process redaction.
 
 ---
 

@@ -7,6 +7,7 @@ use hyper_util::client::legacy::Client;
 use serde_json::Value;
 use uuid::Uuid;
 
+use crate::config::FailMode;
 use crate::fpe_engine::{FpeEngine, FpeResult, TweakGenerator};
 use crate::hash_token::TokenGenerator;
 use crate::hybrid_scanner::HybridScanner;
@@ -38,6 +39,8 @@ pub struct BodyProcessingResult {
     pub text_scan_us: u64,
     /// FPE encryption time (microseconds).
     pub fpe_us: u64,
+    /// Number of PII matches where FPE encryption failed and plaintext was not protected.
+    pub fpe_unprotected_count: u64,
 }
 
 /// Process a request body: scan for PII, FPE-encrypt or redact matches, return modified body + mappings.
@@ -60,6 +63,7 @@ pub async fn process_request_body(
     kws_engine: Option<&Arc<KwsEngine>>,
     http_client: Option<&Client<HttpsConnector, Body>>,
     fetch_config: &ImageFetchConfig,
+    fail_mode: FailMode,
 ) -> Result<BodyProcessingResult, BodyError> {
     let mut json: Value = serde_json::from_slice(body).map_err(BodyError::Json)?;
 
@@ -95,7 +99,8 @@ pub async fn process_request_body(
                        mappings: RequestMappings,
                        image_stats: Vec<ImageStats>,
                        text_scan_us: u64,
-                       fpe_us: u64|
+                       fpe_us: u64,
+                       fpe_unprotected_count: u64|
      -> BodyProcessingResult {
         BodyProcessingResult {
             body,
@@ -107,6 +112,7 @@ pub async fn process_request_body(
             voice_kws_us,
             text_scan_us,
             fpe_us,
+            fpe_unprotected_count,
         }
     };
 
@@ -120,6 +126,7 @@ pub async fn process_request_body(
             RequestMappings::new(*request_id),
             image_stats,
             text_scan_us,
+            0,
             0,
         ));
     }
@@ -140,6 +147,7 @@ pub async fn process_request_body(
             image_stats,
             text_scan_us,
             0,
+            0,
         ));
     }
 
@@ -147,6 +155,7 @@ pub async fn process_request_body(
     let mut mappings = RequestMappings::new(*request_id);
     let mut replacements: Vec<FpeResult> = Vec::new();
     let mut token_gen = TokenGenerator::new(*request_id);
+    let mut fpe_unprotected: u64 = 0;
 
     for m in &matches {
         if m.pii_type.is_fpe_eligible() {
@@ -165,10 +174,31 @@ pub async fn process_request_body(
                     replacements.push(result);
                 }
                 Err(e) => {
-                    oo_debug!(crate::oo_log::modules::BODY, "FPE encryption failed for PII match, skipping",
-                        pii_type = ?m.pii_type,
-                        json_path = ?m.json_path,
-                        error = %e);
+                    fpe_unprotected += 1;
+                    match fail_mode {
+                        FailMode::Closed => {
+                            // Strict privacy: destructive redaction rather than plaintext leakage
+                            let redacted = format!("[REDACTED:{}]", m.pii_type);
+                            oo_warn!(crate::oo_log::modules::BODY,
+                                "FPE encryption failed, applying destructive redaction (fail-closed)",
+                                pii_type = ?m.pii_type,
+                                json_path = ?m.json_path,
+                                error = %e);
+                            replacements.push(FpeResult {
+                                original: m.clone(),
+                                encrypted: redacted,
+                                tweak: vec![],
+                            });
+                        }
+                        FailMode::Open => {
+                            // Availability: skip match, original plaintext remains
+                            oo_warn!(crate::oo_log::modules::BODY,
+                                "FPE encryption failed, plaintext PII forwarded (fail-open)",
+                                pii_type = ?m.pii_type,
+                                json_path = ?m.json_path,
+                                error = %e);
+                        }
+                    }
                 }
             }
         } else {
@@ -202,6 +232,7 @@ pub async fn process_request_body(
                 image_stats,
                 text_scan_us,
                 fpe_us,
+                fpe_unprotected,
             ));
         }
         return Ok(make_result(
@@ -210,6 +241,7 @@ pub async fn process_request_body(
             image_stats,
             text_scan_us,
             fpe_us,
+            fpe_unprotected,
         ));
     }
 
@@ -223,6 +255,7 @@ pub async fn process_request_body(
         image_stats,
         text_scan_us,
         fpe_us,
+        fpe_unprotected,
     ))
 }
 

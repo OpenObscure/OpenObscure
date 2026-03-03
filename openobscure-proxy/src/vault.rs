@@ -78,17 +78,38 @@ impl Vault {
         rand::rngs::OsRng.fill_bytes(&mut key);
 
         // In headless mode, print the key so the user can capture it
-        if std::env::var("OPENOBSCURE_HEADLESS").is_ok() {
+        let is_headless = std::env::var("OPENOBSCURE_HEADLESS").is_ok();
+        if is_headless {
             println!("OPENOBSCURE_MASTER_KEY={}", hex::encode(key));
+            eprintln!();
+            eprintln!("  Save this key securely. It cannot be recovered if lost.");
+            eprintln!("  All FPE-encrypted data depends on this key.");
         }
 
         let entry = Entry::new(&self.service, "fpe-master-key").map_err(VaultError::Keyring)?;
         entry.set_secret(&key).map_err(VaultError::Keyring)?;
         key.fill(0);
-        oo_info!(
+        oo_debug!(
             crate::oo_log::modules::VAULT,
             "FPE master key initialized in OS keychain"
         );
+
+        if !is_headless {
+            println!();
+            println!("  ╔══════════════════════════════════════════════════════════════╗");
+            println!("  ║  FPE master key generated and stored in OS keychain.        ║");
+            println!("  ║                                                             ║");
+            println!("  ║  WARNING: If you lose access to this keychain (OS           ║");
+            println!("  ║  reinstall, machine change), all FPE-encrypted              ║");
+            println!("  ║  conversation history becomes permanently unreadable.       ║");
+            println!("  ║                                                             ║");
+            println!("  ║  To back up your key for recovery:                          ║");
+            println!("  ║    OPENOBSCURE_HEADLESS=1 openobscure-proxy --init-key      ║");
+            println!("  ║  (prints key as hex — store it securely)                    ║");
+            println!("  ╚══════════════════════════════════════════════════════════════╝");
+            println!();
+        }
+
         Ok(())
     }
 

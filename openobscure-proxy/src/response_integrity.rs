@@ -349,22 +349,25 @@ impl ResponseIntegrityScanner {
         match report.severity {
             SeverityTier::Notice => {
                 format!(
-                    "[OpenObscure] Influence Alert\n\
-                     Detected: {tactics}\n\n",
+                    "--- OpenObscure WARNING ---\n\
+                     Detected: {tactics}\n\
+                     ---\n\n",
                 )
             }
             SeverityTier::Warning => {
                 format!(
-                    "[OpenObscure] Influence Alert\n\
+                    "--- OpenObscure WARNING ---\n\
                      Detected: {tactics}\n\
-                     This response contains language patterns associated with influence tactics.\n\n",
+                     This response contains language patterns associated with influence tactics.\n\
+                     ---\n\n",
                 )
             }
             SeverityTier::Caution => {
                 format!(
-                    "[OpenObscure] Influence Alert\n\
+                    "--- OpenObscure WARNING ---\n\
                      Detected: {tactics}\n\
-                     Recommendation: Pause and verify with objective evidence before acting.\n\n",
+                     Recommendation: Pause and verify with objective evidence before acting.\n\
+                     ---\n\n",
                 )
             }
         }
@@ -557,12 +560,16 @@ mod tests {
             r2_categories: vec![],
         };
         let label = ResponseIntegrityScanner::format_warning_label(&report);
-        assert!(label.contains("[OpenObscure] Influence Alert"));
+        assert!(label.contains("--- OpenObscure WARNING ---"));
         assert!(label.contains("Detected:"));
         assert!(label.contains("Urgency"));
         assert!(label.contains("Commercial"));
         assert!(label.contains("\u{2022}"), "Should use bullet separator");
         assert!(label.contains("language patterns associated with influence tactics"));
+        assert!(
+            label.ends_with("---\n\n"),
+            "Should end with closing separator"
+        );
     }
 
     #[test]
@@ -582,8 +589,12 @@ mod tests {
             r2_categories: vec![],
         };
         let label = ResponseIntegrityScanner::format_warning_label(&report);
-        assert!(label.contains("[OpenObscure] Influence Alert"));
+        assert!(label.contains("--- OpenObscure WARNING ---"));
         assert!(label.contains("Pause and verify with objective evidence"));
+        assert!(
+            label.ends_with("---\n\n"),
+            "Should end with closing separator"
+        );
     }
 
     #[test]
@@ -710,7 +721,7 @@ mod tests {
             r2_categories: vec!["Art_5_1_a_Deceptive".to_string()],
         };
         let label = ResponseIntegrityScanner::format_warning_label(&report);
-        assert!(label.contains("[OpenObscure] Influence Alert"));
+        assert!(label.contains("--- OpenObscure WARNING ---"));
         assert!(label.contains("Urgency"));
         assert!(label.contains("Deceptive Practices")); // Art_5_1_a in plain English
         assert!(!label.contains("[R2:")); // R2 role not in user-facing label

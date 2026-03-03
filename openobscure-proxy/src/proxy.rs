@@ -97,7 +97,7 @@ pub async fn proxy_handler(
 
     // 4. Scan and encrypt PII (only for JSON bodies)
     let versioned_engine = state.key_manager.current().await;
-    let (modified_body, mappings, body_timing) = if should_scan {
+    let (modified_body, mappings, body_timing, fpe_unprotected_count) = if should_scan {
         let scan_start = std::time::Instant::now();
         let fetch_config = state.config.image.to_fetch_config();
         match crate::body::process_request_body(
@@ -111,6 +111,7 @@ pub async fn proxy_handler(
             state.kws_engine.as_ref(),
             Some(&state.http_client),
             &fetch_config,
+            state.config.proxy.fail_mode,
         )
         .await
         {
@@ -214,7 +215,11 @@ pub async fn proxy_handler(
                     result.image_stats.iter().map(|s| s.face_ms).sum::<u64>(),
                     result.image_stats.iter().map(|s| s.ocr_ms).sum::<u64>(),
                 );
-                (result.body, result.mappings, body_timing)
+                let fpe_unprotected = result.fpe_unprotected_count;
+                if fpe_unprotected > 0 {
+                    state.health.record_fpe_unprotected(fpe_unprotected);
+                }
+                (result.body, result.mappings, body_timing, fpe_unprotected)
             }
             Err(e) => {
                 state.health.scan_latency.record(scan_start.elapsed());
@@ -227,6 +232,7 @@ pub async fn proxy_handler(
                             body_bytes.clone(),
                             crate::mapping::RequestMappings::new(request_id),
                             (0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64),
+                            0u64,
                         )
                     }
                     FailMode::Closed => {
@@ -243,6 +249,7 @@ pub async fn proxy_handler(
             body_bytes,
             crate::mapping::RequestMappings::new(request_id),
             (0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64, 0u64),
+            0u64,
         )
     };
 
@@ -505,6 +512,13 @@ pub async fn proxy_handler(
             .request_latency
             .record(std::time::Duration::from_micros(total_us));
         inject_timing_headers(response.headers_mut(), body_timing, 0, total_us);
+        if fpe_unprotected_count > 0 {
+            if let Ok(hv) = HeaderValue::from_str(&fpe_unprotected_count.to_string()) {
+                response
+                    .headers_mut()
+                    .insert("x-openobscure-pii-unprotected", hv);
+            }
+        }
 
         oo_debug!(crate::oo_log::modules::PROXY, "SSE response streaming",
             request_id = %request_id,
@@ -609,6 +623,13 @@ pub async fn proxy_handler(
         .request_latency
         .record(std::time::Duration::from_micros(total_us));
     inject_timing_headers(response.headers_mut(), body_timing, ri_us, total_us);
+    if fpe_unprotected_count > 0 {
+        if let Ok(hv) = HeaderValue::from_str(&fpe_unprotected_count.to_string()) {
+            response
+                .headers_mut()
+                .insert("x-openobscure-pii-unprotected", hv);
+        }
+    }
 
     oo_info!(crate::oo_log::modules::PROXY, "Response sent",
         request_id = %request_id,
@@ -1076,14 +1097,16 @@ mod tests {
             "content": [{"type": "text", "text": "Buy now!"}]
         });
         let bytes = serde_json::to_vec(&body).unwrap();
-        let label = "[OpenObscure] Influence tactics detected: Commercial\n\
-                     This content may be designed to manipulate your decision-making.\n\n";
+        let label = "--- OpenObscure WARNING ---\n\
+                     Detected: Commercial\n\
+                     This content may be designed to manipulate your decision-making.\n\
+                     ---\n\n";
         let format = crate::response_format::detect(Some("application/json"), &bytes);
         let result = crate::response_format::inject_warning(&bytes, format, label);
         assert!(result.is_some());
         let modified: serde_json::Value = serde_json::from_slice(&result.unwrap()).unwrap();
         let text = modified["content"][0]["text"].as_str().unwrap();
-        assert!(text.starts_with("[OpenObscure]"));
+        assert!(text.starts_with("--- OpenObscure WARNING ---"));
         assert!(text.contains("Buy now!"));
     }
 
@@ -1093,9 +1116,10 @@ mod tests {
             "choices": [{"message": {"content": "Act now!"}, "index": 0}]
         });
         let bytes = serde_json::to_vec(&body).unwrap();
-        let label = "[OpenObscure] Multiple influence tactics detected: Fear, Urgency\n\
-                     This content may be designed to manipulate your decision-making. \
-                     Review carefully before acting on it.\n\n";
+        let label = "--- OpenObscure WARNING ---\n\
+                     Detected: Fear \u{2022} Urgency\n\
+                     Review carefully before acting on it.\n\
+                     ---\n\n";
         let format = crate::response_format::detect(Some("application/json"), &bytes);
         let result = crate::response_format::inject_warning(&bytes, format, label);
         assert!(result.is_some());
@@ -1103,7 +1127,7 @@ mod tests {
         let text = modified["choices"][0]["message"]["content"]
             .as_str()
             .unwrap();
-        assert!(text.starts_with("[OpenObscure]"));
+        assert!(text.starts_with("--- OpenObscure WARNING ---"));
         assert!(text.contains("Act now!"));
     }
 

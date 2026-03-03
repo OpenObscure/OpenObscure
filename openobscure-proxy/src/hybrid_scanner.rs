@@ -195,16 +195,16 @@ impl HybridScanner {
         let t = std::time::Instant::now();
         if let Some(ref backend) = self.semantic {
             let semantic_matches = match backend {
-                SemanticBackend::Ner(pool) => {
-                    let mut guard = pool.acquire();
-                    match guard.scan_text(&effective_text) {
+                SemanticBackend::Ner(pool) => match pool.acquire() {
+                    Some(mut guard) => match guard.scan_text(&effective_text) {
                         Ok(matches) => matches,
                         Err(e) => {
                             oo_warn!(crate::oo_log::modules::HYBRID, "NER inference failed, skipping", error = %e);
                             Vec::new()
                         }
-                    }
-                }
+                    },
+                    None => Vec::new(), // Pool exhausted, regex handles it
+                },
                 SemanticBackend::Crf(crf) => crf.scan_text(&effective_text),
             };
             for m in semantic_matches {

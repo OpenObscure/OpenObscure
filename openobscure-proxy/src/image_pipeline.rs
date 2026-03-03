@@ -226,6 +226,63 @@ impl ImageModelManager {
         }
     }
 
+    /// Immediately release all loaded models, regardless of idle timeout.
+    /// Called in response to OS memory pressure warnings (iOS/Android).
+    pub fn force_evict(&self) {
+        let mut count = 0u32;
+        let mut nsfw = self.nsfw_detector.lock().unwrap_or_else(|e| e.into_inner());
+        if nsfw.take().is_some() {
+            count += 1;
+        }
+        drop(nsfw);
+
+        let mut cls = self
+            .nsfw_classifier
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if cls.take().is_some() {
+            count += 1;
+        }
+        drop(cls);
+
+        let mut face = self.face_detector.lock().unwrap_or_else(|e| e.into_inner());
+        if face.take().is_some() {
+            count += 1;
+        }
+        drop(face);
+
+        let mut scrfd = self
+            .scrfd_detector
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if scrfd.take().is_some() {
+            count += 1;
+        }
+        drop(scrfd);
+
+        let mut det = self.ocr_detector.lock().unwrap_or_else(|e| e.into_inner());
+        if det.take().is_some() {
+            count += 1;
+        }
+        drop(det);
+
+        let mut rec = self
+            .ocr_recognizer
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        if rec.take().is_some() {
+            count += 1;
+        }
+
+        if count > 0 {
+            oo_info!(
+                crate::oo_log::modules::IMAGE,
+                "Force-evicted models (memory pressure)",
+                models_released = count
+            );
+        }
+    }
+
     /// Process a single image through the full pipeline.
     ///
     /// Steps: NSFW check → face detection → fill faces → OCR detection → fill text.

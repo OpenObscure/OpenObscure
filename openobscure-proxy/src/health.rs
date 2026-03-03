@@ -133,6 +133,7 @@ pub struct HealthStats {
     screenshots_detected_total: Arc<AtomicU64>,
     ri_flags_total: Arc<AtomicU64>,
     ri_scans_total: Arc<AtomicU64>,
+    fpe_unprotected_total: Arc<AtomicU64>,
     onnx_panics_total: Arc<AtomicU64>,
     pub scan_latency: LatencyHistogram,
     pub request_latency: LatencyHistogram,
@@ -160,6 +161,7 @@ impl HealthStats {
             screenshots_detected_total: Arc::new(AtomicU64::new(0)),
             ri_flags_total: Arc::new(AtomicU64::new(0)),
             ri_scans_total: Arc::new(AtomicU64::new(0)),
+            fpe_unprotected_total: Arc::new(AtomicU64::new(0)),
             onnx_panics_total: Arc::new(AtomicU64::new(0)),
             scan_latency: LatencyHistogram::new(),
             request_latency: LatencyHistogram::new(),
@@ -222,6 +224,12 @@ impl HealthStats {
         self.ri_scans_total.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Record PII matches where FPE encryption failed and plaintext was not protected.
+    pub fn record_fpe_unprotected(&self, count: u64) {
+        self.fpe_unprotected_total
+            .fetch_add(count, Ordering::Relaxed);
+    }
+
     pub fn uptime_secs(&self) -> u64 {
         self.start_time.elapsed().as_secs()
     }
@@ -262,6 +270,10 @@ impl HealthStats {
         self.ri_scans_total.load(Ordering::Relaxed)
     }
 
+    pub fn fpe_unprotected_total(&self) -> u64 {
+        self.fpe_unprotected_total.load(Ordering::Relaxed)
+    }
+
     /// Record an ONNX Runtime panic recovered via catch_unwind.
     pub fn record_onnx_panic(&self) {
         self.onnx_panics_total.fetch_add(1, Ordering::Relaxed);
@@ -269,6 +281,54 @@ impl HealthStats {
 
     pub fn onnx_panics_total(&self) -> u64 {
         self.onnx_panics_total.load(Ordering::Relaxed)
+    }
+
+    /// Save aggregate counters to a JSON file for persistence across restarts.
+    pub fn save_to_file(&self, path: &std::path::Path) -> std::io::Result<()> {
+        let data = serde_json::json!({
+            "pii_matches_total": self.pii_matches_total(),
+            "requests_total": self.requests_total(),
+            "images_processed_total": self.images_processed_total(),
+            "faces_redacted_total": self.faces_redacted_total(),
+            "text_regions_total": self.text_regions_total(),
+            "nsfw_blocked_total": self.nsfw_blocked_total(),
+            "screenshots_detected_total": self.screenshots_detected_total(),
+            "ri_flags_total": self.ri_flags_total(),
+            "ri_scans_total": self.ri_scans_total(),
+            "fpe_unprotected_total": self.fpe_unprotected_total(),
+            "onnx_panics_total": self.onnx_panics_total(),
+        });
+        let json_str = serde_json::to_string_pretty(&data).map_err(std::io::Error::other)?;
+        std::fs::write(path, json_str)
+    }
+
+    /// Restore counters from a previously saved file. Missing fields default to 0.
+    pub fn load_from_file(&self, path: &std::path::Path) -> std::io::Result<()> {
+        let content = std::fs::read_to_string(path)?;
+        let data: serde_json::Value = serde_json::from_str(&content)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+        let load = |field: &str, counter: &AtomicU64| {
+            if let Some(v) = data.get(field).and_then(|v| v.as_u64()) {
+                counter.fetch_add(v, Ordering::Relaxed);
+            }
+        };
+
+        load("pii_matches_total", &self.pii_matches_total);
+        load("requests_total", &self.requests_total);
+        load("images_processed_total", &self.images_processed_total);
+        load("faces_redacted_total", &self.faces_redacted_total);
+        load("text_regions_total", &self.text_regions_total);
+        load("nsfw_blocked_total", &self.nsfw_blocked_total);
+        load(
+            "screenshots_detected_total",
+            &self.screenshots_detected_total,
+        );
+        load("ri_flags_total", &self.ri_flags_total);
+        load("ri_scans_total", &self.ri_scans_total);
+        load("fpe_unprotected_total", &self.fpe_unprotected_total);
+        load("onnx_panics_total", &self.onnx_panics_total);
+        Ok(())
     }
 }
 
@@ -318,6 +378,7 @@ pub struct HealthResponse {
     pub screenshots_detected_total: u64,
     pub ri_flags_total: u64,
     pub ri_scans_total: u64,
+    pub fpe_unprotected_total: u64,
     pub onnx_panics_total: u64,
     pub fpe_key_version: u32,
     pub scan_latency_p50_us: u64,
@@ -390,6 +451,7 @@ pub async fn health_handler(
         screenshots_detected_total: stats.screenshots_detected_total(),
         ri_flags_total: stats.ri_flags_total(),
         ri_scans_total: stats.ri_scans_total(),
+        fpe_unprotected_total: stats.fpe_unprotected_total(),
         onnx_panics_total: stats.onnx_panics_total(),
         fpe_key_version: health_state
             .key_version
@@ -513,6 +575,68 @@ mod tests {
 
         assert_eq!(stats.pii_matches_total(), 8);
         assert_eq!(stats.requests_total(), 3);
+    }
+
+    #[test]
+    fn test_health_stats_fpe_unprotected() {
+        let stats = HealthStats::new();
+        assert_eq!(stats.fpe_unprotected_total(), 0);
+        stats.record_fpe_unprotected(2);
+        stats.record_fpe_unprotected(1);
+        assert_eq!(stats.fpe_unprotected_total(), 3);
+    }
+
+    #[test]
+    fn test_stats_save_and_load() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("stats.json");
+
+        // Save
+        let stats = HealthStats::new();
+        stats.record_pii_matches(42);
+        stats.record_request();
+        stats.record_request();
+        stats.record_fpe_unprotected(3);
+        stats.save_to_file(&path).unwrap();
+
+        // Load into fresh instance
+        let stats2 = HealthStats::new();
+        stats2.load_from_file(&path).unwrap();
+        assert_eq!(stats2.pii_matches_total(), 42);
+        assert_eq!(stats2.requests_total(), 2);
+        assert_eq!(stats2.fpe_unprotected_total(), 3);
+    }
+
+    #[test]
+    fn test_stats_load_missing_fields_defaults_to_zero() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("stats.json");
+        // Write minimal JSON (older format without fpe_unprotected_total)
+        std::fs::write(&path, r#"{"pii_matches_total": 10}"#).unwrap();
+
+        let stats = HealthStats::new();
+        stats.load_from_file(&path).unwrap();
+        assert_eq!(stats.pii_matches_total(), 10);
+        assert_eq!(stats.fpe_unprotected_total(), 0); // Missing field → 0
+    }
+
+    #[test]
+    fn test_stats_load_nonexistent_file_errors() {
+        let stats = HealthStats::new();
+        let result = stats.load_from_file(std::path::Path::new("/nonexistent/stats.json"));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_stats_load_adds_to_existing() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("stats.json");
+        std::fs::write(&path, r#"{"pii_matches_total": 100}"#).unwrap();
+
+        let stats = HealthStats::new();
+        stats.record_pii_matches(5); // Pre-existing count
+        stats.load_from_file(&path).unwrap();
+        assert_eq!(stats.pii_matches_total(), 105); // 5 + 100
     }
 
     #[test]
@@ -727,6 +851,18 @@ mod tests {
         assert_eq!(json["device_tier"], "full");
         assert!(json["feature_budget"]["ner_enabled"].as_bool().unwrap());
         assert_eq!(json["feature_budget"]["max_ram_mb"], 275);
+    }
+
+    #[tokio::test]
+    async fn test_health_includes_fpe_unprotected_field() {
+        let app = health_app(None);
+        let req = Request::get("/_openobscure/health")
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.oneshot(req).await.unwrap();
+        let body = resp.into_body().collect().await.unwrap().to_bytes();
+        let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(json["fpe_unprotected_total"], 0);
     }
 
     // ── Readiness Tests ─────────────────────────────────────────────────

@@ -754,6 +754,12 @@ impl AppConfig {
         if self.proxy.max_body_bytes == 0 {
             anyhow::bail!("Max body bytes must be non-zero");
         }
+        if self.scanner.ner_enabled && self.scanner.ner_pool_size < 1 {
+            anyhow::bail!("scanner.ner_pool_size must be >= 1 when NER is enabled");
+        }
+        if self.scanner.ner_pool_size > 32 {
+            anyhow::bail!("scanner.ner_pool_size must be <= 32 (each session uses ~14-64MB RAM)");
+        }
         for (name, provider) in &self.providers {
             if provider.upstream_url.is_empty() {
                 anyhow::bail!("Provider '{}' has empty upstream_url", name);
@@ -1088,6 +1094,58 @@ route_prefix = "no-slash"
             .unwrap_err()
             .to_string()
             .contains("must start with '/'"));
+    }
+
+    // --- NER Pool Size Validation ---
+
+    #[test]
+    fn test_validate_ner_pool_size_zero_rejected() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[scanner]
+ner_enabled = true
+ner_pool_size = 0
+"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("ner_pool_size must be >= 1"));
+    }
+
+    #[test]
+    fn test_validate_ner_pool_size_above_cap_rejected() {
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[scanner]
+ner_pool_size = 33
+"#,
+        );
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("ner_pool_size must be <= 32"));
+    }
+
+    #[test]
+    fn test_validate_ner_pool_size_zero_allowed_when_ner_disabled() {
+        // ner_pool_size = 0 is ok when NER is disabled
+        let result = AppConfig::from_toml(
+            r#"
+[proxy]
+
+[scanner]
+ner_enabled = false
+ner_pool_size = 0
+"#,
+        );
+        assert!(result.is_ok());
     }
 
     // --- Invalid TOML ---

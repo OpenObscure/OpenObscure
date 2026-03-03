@@ -6,8 +6,11 @@ listen_addr = "127.0.0.1"
 port = 18790
 request_timeout_secs = 300
 max_body_bytes = 16777216   # 16MB
-# "open" (default): forward original body on processing errors (never block AI)
-# "closed": reject request with 502 if body processing fails (strict privacy)
+# "open" (default): forward original body on processing errors (never block AI).
+#   Per-match FPE failures: plaintext PII forwarded, WARN logged,
+#   X-OpenObscure-PII-Unprotected header set on response.
+# "closed": reject request with 502 if body processing fails (strict privacy).
+#   Per-match FPE failures: destructive redaction [REDACTED:type] replaces plaintext.
 fail_mode = "open"
 
 [fpe]

@@ -703,17 +703,41 @@ impl NerPool {
         }
     }
 
-    /// Acquire a scanner from the pool. Blocks if all sessions are busy.
-    pub fn acquire(&self) -> NerPoolGuard<'_> {
+    /// Acquire a scanner from the pool.
+    /// Blocks up to 2 seconds. Returns None on timeout (caller should fall back to regex).
+    /// Logs WARN if blocking exceeds 100ms (indicates pool contention).
+    pub fn acquire(&self) -> Option<NerPoolGuard<'_>> {
+        let start = std::time::Instant::now();
         let mut pool = self.scanners.lock().unwrap();
         loop {
             if let Some(scanner) = pool.pop() {
-                return NerPoolGuard {
+                let wait = start.elapsed();
+                if wait.as_millis() > 100 {
+                    oo_warn!(
+                        crate::oo_log::modules::NER,
+                        "NER pool contention",
+                        wait_ms = wait.as_millis() as u64,
+                        pool_size = self.pool_size
+                    );
+                }
+                return Some(NerPoolGuard {
                     pool: self,
                     scanner: Some(scanner),
-                };
+                });
             }
-            pool = self.available.wait(pool).unwrap();
+            let (guard, timeout) = self
+                .available
+                .wait_timeout(pool, std::time::Duration::from_secs(2))
+                .unwrap();
+            pool = guard;
+            if timeout.timed_out() {
+                oo_warn!(
+                    crate::oo_log::modules::NER,
+                    "NER pool exhausted after 2s, falling back to regex-only",
+                    pool_size = self.pool_size
+                );
+                return None;
+            }
         }
     }
 

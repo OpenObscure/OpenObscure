@@ -205,10 +205,6 @@ async fn main() -> anyhow::Result<()> {
         vault
             .init_fpe_key()
             .map_err(|e| anyhow::anyhow!("Failed to initialize FPE key: {}", e))?;
-        oo_info!(
-            crate::oo_log::modules::VAULT,
-            "FPE master key generated and stored in OS keychain"
-        );
         return Ok(());
     }
 
@@ -426,12 +422,48 @@ async fn run_serve(config: AppConfig) -> anyhow::Result<()> {
         mapping_store: MappingStore::new(300), // 5 minute TTL
         http_client,
         vault,
-        health: HealthStats::new(),
+        health: {
+            let stats = HealthStats::new();
+            // Load persisted stats from previous runs
+            let stats_path = stats_file_path();
+            if stats_path.exists() {
+                match stats.load_from_file(&stats_path) {
+                    Ok(()) => oo_info!(
+                        crate::oo_log::modules::HEALTH,
+                        "Restored stats from previous session",
+                        path = %stats_path.display()
+                    ),
+                    Err(e) => oo_warn!(
+                        crate::oo_log::modules::HEALTH,
+                        "Failed to restore stats, starting fresh",
+                        error = %e
+                    ),
+                }
+            }
+            stats
+        },
         image_models,
         kws_engine,
         response_integrity: ri_scanner,
         device_tier: tier,
     };
+
+    // Spawn periodic stats flush (every 60s)
+    let flush_health = state.health.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(60));
+        let path = stats_file_path();
+        loop {
+            interval.tick().await;
+            if let Err(e) = flush_health.save_to_file(&path) {
+                oo_warn!(
+                    crate::oo_log::modules::HEALTH,
+                    "Failed to persist stats",
+                    error = %e
+                );
+            }
+        }
+    });
 
     // Resolve auth token for health endpoint
     let auth_token = resolve_auth_token();
@@ -1312,6 +1344,17 @@ fn try_load_crf(config: &AppConfig, threshold: f32) -> Option<crf_scanner::CrfSc
             None
         }
     }
+}
+
+/// Path to the persisted health stats file (~/.openobscure/stats.json).
+fn stats_file_path() -> std::path::PathBuf {
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| std::path::PathBuf::from("."));
+    let dir = home.join(".openobscure");
+    let _ = std::fs::create_dir_all(&dir);
+    dir.join("stats.json")
 }
 
 /// Resolve the auth token for the health endpoint.
