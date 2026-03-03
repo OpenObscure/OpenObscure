@@ -109,10 +109,8 @@ This compiles OpenObscure from source. It will take a few minutes on the first b
 
 ```bash
 cd openobscure-proxy
-cargo build --release --features voice
+cargo build --release
 ```
-
-The `--features voice` flag enables audio PII detection (keyword spotting for SSNs, credit cards, phone numbers spoken in voice messages). Without it, voice messages pass through unprotected.
 
 When it finishes without errors, the proxy is ready. The compiled program is at `target/release/openobscure-proxy`.
 
@@ -121,7 +119,7 @@ When it finishes without errors, the proxy is ready. The compiled program is at 
 This creates a unique encryption key and stores it securely in your Mac's Keychain (the same place your saved passwords go):
 
 ```bash
-cargo run --release --features voice -- --init-key
+cargo run --release -- --init-key
 ```
 
 You should see a message confirming the key was generated. This only needs to be done once.
@@ -215,7 +213,7 @@ Discord ──► OpenClaw ──► OpenObscure (:18790) ──► Ollama (:114
 
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-proxy
-cargo run --release --features voice -- -c config/openobscure.toml
+cargo run --release -- -c config/openobscure.toml
 ```
 
 You should see output like:
@@ -893,7 +891,7 @@ If all ship criteria pass, the R2 model is functioning correctly.
 For maximum detail, stop the proxy (Ctrl+C in the proxy Terminal) and restart it with debug logging:
 
 ```bash
-OPENOBSCURE_LOG=debug cargo run --release --features voice -- -c config/openobscure.toml
+OPENOBSCURE_LOG=debug cargo run --release -- -c config/openobscure.toml
 ```
 
 Now every PII scan, FPE encryption, image processing step, and model inference will be logged. This is useful for verifying that specific PII types are being caught.
@@ -1002,7 +1000,7 @@ Run the key generation again:
 
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-proxy
-cargo run --release --features voice -- --init-key
+cargo run --release -- --init-key
 ```
 
 If you see a keychain access dialog, click **Allow** or **Always Allow**.
@@ -1271,7 +1269,7 @@ ollama serve
 **Terminal 2 — Start the proxy:**
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-proxy
-cargo run --release --features voice -- -c config/openobscure.toml
+cargo run --release -- -c config/openobscure.toml
 ```
 
 **Terminal 3 — Start OpenClaw:**
@@ -1285,7 +1283,7 @@ pnpm openclaw gateway
 **Terminal 1 — Start the proxy:**
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-proxy
-cargo run --release --features voice -- -c config/openobscure.toml
+cargo run --release -- -c config/openobscure.toml
 ```
 
 **Terminal 2 — Start OpenClaw:**
@@ -1307,9 +1305,9 @@ Then open Discord on your MacBook or iPhone and start chatting.
 | Command | What It Does |
 |---------|-------------|
 | `curl -s http://127.0.0.1:18790/_openobscure/health \| python3 -m json.tool` | Check proxy status |
-| `OPENOBSCURE_LOG=debug cargo run --release --features voice -- -c config/openobscure.toml` | Start proxy with verbose logs |
+| `OPENOBSCURE_LOG=debug cargo run --release -- -c config/openobscure.toml` | Start proxy with verbose logs |
 | `lsof -i :18790` | Check if proxy port is in use |
-| `cargo run --release --features voice -- --init-key` | Regenerate encryption key |
+| `cargo run --release -- --init-key` | Regenerate encryption key |
 | `ollama list` | Show downloaded local LLM models |
 | `ollama pull qwen3:8b` | Download Qwen3 8B model |
 | `ollama pull llama3.2:3b` | Download Llama 3.2 3B model |

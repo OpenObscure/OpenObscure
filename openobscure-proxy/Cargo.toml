@@ -22,7 +22,7 @@ path = "uniffi-bindgen.rs"
 required-features = ["bindgen"]
 
 [features]
-default = []
+default = ["voice"]
 mobile = ["uniffi"]
 # Voice PII detection (KWS keyword spotting + audio decoding)
 voice = ["sherpa-rs", "sherpa-rs-sys", "symphonia", "symphonia-format-ogg", "symphonia-codec-vorbis"]
