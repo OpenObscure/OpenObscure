@@ -5,7 +5,7 @@ use fpe::ff1::{FlexibleNumeralString, FF1};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-use crate::pii_types::{find_api_key_prefix, AlphabetMapper, FormatTemplate, PiiType};
+use crate::pii_types::{AlphabetMapper, FormatTemplate, PiiType};
 use crate::scanner::PiiMatch;
 
 /// The core FPE engine. Holds pre-built FF1 instances per radix.
@@ -147,7 +147,7 @@ impl FpeEngine {
 
 /// Extract the encryptable portion of a PII value, returning (encryptable, prefix, suffix).
 /// - Email: encrypt local part only, preserve @domain
-/// - ApiKey: encrypt post-prefix, preserve known prefix
+/// - ApiKey: encrypt entire key (no prefix preservation — prevents leaking key provider)
 /// - Others: encrypt the whole value
 fn extract_encryptable(raw: &str, pii_type: &PiiType) -> (String, String, String) {
     match pii_type {
@@ -156,14 +156,6 @@ fn extract_encryptable(raw: &str, pii_type: &PiiType) -> (String, String, String
                 let local = &raw[..at_pos];
                 let domain = &raw[at_pos..]; // includes @
                 (local.to_string(), String::new(), domain.to_string())
-            } else {
-                (raw.to_string(), String::new(), String::new())
-            }
-        }
-        PiiType::ApiKey => {
-            if let Some(prefix) = find_api_key_prefix(raw) {
-                let remainder = &raw[prefix.len()..];
-                (remainder.to_string(), prefix.to_string(), String::new())
             } else {
                 (raw.to_string(), String::new(), String::new())
             }
