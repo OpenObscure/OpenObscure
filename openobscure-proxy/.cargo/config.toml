@@ -1,0 +1,7 @@
+# Set rpath so the binary finds libonnxruntime.dylib next to itself at runtime.
+# Without this, macOS requires DYLD_LIBRARY_PATH or manual install_name_tool.
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "link-arg=-Wl,-rpath,@executable_path"]
+
+[target.'cfg(target_os = "linux")']
+rustflags = ["-C", "link-arg=-Wl,-rpath,$ORIGIN"]
