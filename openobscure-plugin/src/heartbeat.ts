@@ -10,7 +10,7 @@
  */
 
 import * as http from "http";
-import { ooInfo, ooWarn, OO_MODULES } from "./oo-log";
+import { ooError, ooInfo, ooWarn, OO_MODULES } from "./oo-log";
 
 export type ProxyState = "active" | "passthrough" | "degraded" | "recovering" | "disabled";
 
@@ -47,8 +47,8 @@ export const STATE_MESSAGES: Record<ProxyState, string> = {
   passthrough:
     "OpenObscure proxy is in passthrough mode — PII protection is regex-only",
   degraded:
-    "OpenObscure proxy is not responding — PII protection is disabled",
-  recovering: "OpenObscure proxy recovered",
+    "OpenObscure proxy is not responding — LLM requests will fail. Start the proxy: cd openobscure-proxy && cargo run --release -- -c config/openobscure.toml",
+  recovering: "OpenObscure proxy recovered — PII protection is active",
   disabled:
     "OpenObscure is not enabled. PII will be sent in plaintext.",
 };
@@ -96,8 +96,9 @@ export class HeartbeatMonitor {
     if (this.timer) return; // Already running
 
     this._state = "active"; // Assume active until proven otherwise
-    // First check runs after one interval; callers who want an immediate
-    // check can await monitor.check() explicitly.
+    // Immediate first check — detects proxy-down at startup before any
+    // LLM requests fail with cryptic "Connection error" messages.
+    this.tick();
     this.timer = setInterval(() => this.tick(), this.intervalMs);
   }
 
@@ -204,7 +205,7 @@ function defaultStateChangeHandler(
       ooWarn(OO_MODULES.HEARTBEAT, message);
       break;
     case "degraded":
-      ooWarn(OO_MODULES.HEARTBEAT, message);
+      ooError(OO_MODULES.HEARTBEAT, message);
       break;
     case "recovering":
       ooInfo(OO_MODULES.HEARTBEAT, message);

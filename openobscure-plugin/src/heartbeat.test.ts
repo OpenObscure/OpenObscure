@@ -126,7 +126,8 @@ describe("HeartbeatMonitor", () => {
     await monitor.check();
 
     assert.equal(monitor.state, "degraded");
-    assert.equal(monitor.consecutiveFailures, 1);
+    // >= 1 because start() fires an immediate tick that also fails
+    assert.ok(monitor.consecutiveFailures >= 1);
     assert.ok(stateChanges.includes("degraded"));
 
     monitor.stop();
@@ -140,11 +141,15 @@ describe("HeartbeatMonitor", () => {
     });
     monitor.start();
 
+    // Wait for the immediate startup tick to settle
+    await new Promise((r) => setTimeout(r, 100));
+    const baseline = monitor.consecutiveFailures;
+
     await monitor.check();
     await monitor.check();
     await monitor.check();
 
-    assert.equal(monitor.consecutiveFailures, 3);
+    assert.equal(monitor.consecutiveFailures, baseline + 3);
 
     monitor.stop();
   });
@@ -296,6 +301,7 @@ describe("HeartbeatMonitor", () => {
 describe("STATE_MESSAGES", () => {
   it("has messages for degraded, recovering, disabled", () => {
     assert.ok(STATE_MESSAGES.degraded.includes("not responding"));
+    assert.ok(STATE_MESSAGES.degraded.includes("cargo run"));
     assert.ok(STATE_MESSAGES.recovering.includes("recovered"));
     assert.ok(STATE_MESSAGES.disabled.includes("not enabled"));
   });
