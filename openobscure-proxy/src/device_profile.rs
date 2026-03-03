@@ -60,7 +60,7 @@ pub struct FeatureBudget {
     pub max_ram_mb: u64,
     /// Enable NER scanner.
     pub ner_enabled: bool,
-    /// NER model variant: "distilbert" (Full/Standard) or "tinybert" (Lite).
+    /// NER model variant: "tinybert" (default, fast) or "distilbert" (opt-in, higher accuracy).
     pub ner_model: String,
     /// Enable CRF fallback scanner.
     pub crf_enabled: bool,
@@ -246,7 +246,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             tier,
             max_ram_mb: 275,
             ner_enabled: true,
-            ner_model: "distilbert".to_string(),
+            ner_model: "tinybert".to_string(),
             crf_enabled: true,
             ensemble_enabled: true,
             image_pipeline_enabled: true,
@@ -262,7 +262,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             tier,
             max_ram_mb: 200,
             ner_enabled: true,
-            ner_model: "distilbert".to_string(),
+            ner_model: "tinybert".to_string(),
             crf_enabled: true,
             ensemble_enabled: false,
             image_pipeline_enabled: true,
@@ -470,7 +470,7 @@ mod tests {
         let b = budget_for_tier(tier, &p);
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled);
-        assert_eq!(b.ner_model, "distilbert");
+        assert_eq!(b.ner_model, "tinybert");
         assert!(b.crf_enabled);
         assert!(b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
@@ -490,7 +490,7 @@ mod tests {
         let b = budget_for_tier(tier, &p);
         assert_eq!(b.max_ram_mb, 200);
         assert!(b.ner_enabled);
-        assert_eq!(b.ner_model, "distilbert");
+        assert_eq!(b.ner_model, "tinybert");
         assert!(!b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
         assert_eq!(b.ocr_tier, "full_recognition");
@@ -768,7 +768,9 @@ mod tests {
             &["ner_enabled", "crf_enabled", "image_pipeline_enabled"];
 
         // String fields that differ between Full and Lite gateway tiers.
-        const TIER_DIFFERENTIATED_STRINGS: &[&str] = &["ner_model"];
+        // Note: ner_model is now "tinybert" on all gateway tiers (speed-first default).
+        // DistilBERT is available via config override for higher accuracy.
+        const TIER_DIFFERENTIATED_STRINGS: &[&str] = &[];
 
         // --- Gateway: Full vs Lite must differ on TIER_DIFFERENTIATED ---
         let full_profile = profile_with_ram(16384, false);

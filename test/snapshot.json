@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": "1.0",
-    "generated": "2026-03-02T22:44:51Z",
+    "generated": "2026-03-03T00:36:41Z",
     "description": "Exact detection counts for regression testing. Regenerate with: ./test/scripts/generate_snapshot.sh",
     "gateway_files": 52,
     "audio_files": 13,
@@ -343,11 +343,10 @@
       }
     },
     "PII_Detection/Health_Keywords.txt": {
-      "total_matches": 178,
+      "total_matches": 177,
       "type_summary": {
         "child_keyword": 1,
-        "health_keyword": 176,
-        "organization": 1
+        "health_keyword": 176
       }
     },
     "PII_Detection/IPv4_Addresses.txt": {
@@ -365,18 +364,17 @@
       }
     },
     "PII_Detection/Locations.txt": {
-      "total_matches": 4,
+      "total_matches": 2,
       "type_summary": {
-        "child_keyword": 2,
-        "organization": 2
+        "child_keyword": 2
       }
     },
     "PII_Detection/MAC_Addresses.txt": {
-      "total_matches": 59,
+      "total_matches": 58,
       "type_summary": {
         "ipv4_address": 8,
         "mac_address": 46,
-        "person": 5
+        "person": 4
       }
     },
     "PII_Detection/Mixed_Structured_PII.txt": {
@@ -396,22 +394,21 @@
       }
     },
     "PII_Detection/Organizations.txt": {
-      "total_matches": 20,
+      "total_matches": 14,
       "type_summary": {
         "child_keyword": 2,
         "health_keyword": 11,
-        "organization": 6,
         "person": 1
       }
     },
     "PII_Detection/Person_Names.txt": {
-      "total_matches": 33,
+      "total_matches": 31,
       "type_summary": {
         "email": 2,
         "gps_coordinate": 1,
         "ipv4_address": 1,
         "mac_address": 1,
-        "person": 24,
+        "person": 22,
         "phone": 3,
         "ssn": 1
       }
@@ -491,69 +488,69 @@
   },
   "audio": {
     "Audio_PII/audio_address_single.wav": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "MY ADDRESS",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_cc_visa.wav": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "VISA CARD",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_customer_service.mp3": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "MASTERCARD, CARD NUMBER, SOCIAL SECURITY",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_customer_service.wav": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "MASTERCARD, CARD NUMBER, SOCIAL SECURITY",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_email_single.wav": {
       "pii_detected": false,
       "keywords": "",
-      "action": "PASS-THRU"
+      "action": "CLEAN"
     },
     "Audio_PII/audio_job_screening.wav": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "SOCIAL SECURITY",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_medical_intake.ogg": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "DATE OF BIRTH, SOCIAL SECURITY, CONTACT NUMBER",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_medical_intake.wav": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "DATE OF BIRTH, SOCIAL SECURITY, CONTACT NUMBER",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_name_single.wav": {
       "pii_detected": false,
       "keywords": "",
-      "action": "PASS-THRU"
+      "action": "CLEAN"
     },
     "Audio_PII/audio_phone_us.ogg": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "REACH ME AT",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_phone_us.wav": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "REACH ME AT",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_ssn_single.mp3": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "SOCIAL SECURITY",
+      "action": "PII_DETECTED"
     },
     "Audio_PII/audio_ssn_single.wav": {
-      "pii_detected": false,
-      "keywords": "",
-      "action": "PASS-THRU"
+      "pii_detected": true,
+      "keywords": "SOCIAL SECURITY",
+      "action": "PII_DETECTED"
     }
   },
   "visual": {

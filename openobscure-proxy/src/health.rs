@@ -640,7 +640,7 @@ mod tests {
                 tier: "full".to_string(),
                 max_ram_mb: 275,
                 ner_enabled: true,
-                ner_model: "distilbert".to_string(),
+                ner_model: "tinybert".to_string(),
                 crf_enabled: true,
                 ensemble_enabled: true,
                 image_pipeline_enabled: true,

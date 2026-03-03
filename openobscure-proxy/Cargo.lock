@@ -1907,6 +1907,7 @@ dependencies = [
  "ndarray",
  "ort",
  "rand",
+ "rayon",
  "regex",
  "rustls",
  "serde",

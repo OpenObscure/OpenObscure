@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
-use std::sync::Mutex;
 
+use rayon::prelude::*;
 use serde_json::Value;
 
 use crate::crf_scanner::CrfScanner;
@@ -8,7 +8,7 @@ use crate::keyword_dict::KeywordDict;
 use crate::lang_detect;
 use crate::multilingual;
 use crate::name_gazetteer::NameGazetteer;
-use crate::ner_scanner::NerScanner;
+use crate::ner_scanner::NerPool;
 use crate::pii_types::PiiType;
 use crate::scanner::{PiiMatch, PiiScanner};
 
@@ -42,9 +42,9 @@ struct TaggedMatch {
     source: ScannerSource,
 }
 
-/// The semantic scanner backend: NER (TinyBERT) or CRF (lightweight fallback).
+/// The semantic scanner backend: NER (pooled sessions) or CRF (lightweight fallback).
 enum SemanticBackend {
-    Ner(Mutex<NerScanner>),
+    Ner(NerPool),
     Crf(CrfScanner),
 }
 
@@ -71,14 +71,14 @@ impl HybridScanner {
     /// Create a hybrid scanner with NER as the semantic backend.
     pub fn new(
         keywords_enabled: bool,
-        ner_scanner: Option<NerScanner>,
+        ner_pool: Option<NerPool>,
         gazetteer: Option<NameGazetteer>,
     ) -> Self {
         Self {
             regex_scanner: PiiScanner::new(),
             keyword_dict: KeywordDict::new(),
             gazetteer,
-            semantic: ner_scanner.map(|n| SemanticBackend::Ner(Mutex::new(n))),
+            semantic: ner_pool.map(SemanticBackend::Ner),
             keywords_enabled,
             respect_code_fences: true,
             min_confidence: 0.5,
@@ -191,21 +191,18 @@ impl HybridScanner {
         }
         timing.gazetteer_us = t.elapsed().as_micros() as u64;
 
-        // 1d. Semantic backend (NER or CRF, if loaded)
+        // 1d. Semantic backend (NER pool or CRF, if loaded)
         let t = std::time::Instant::now();
         if let Some(ref backend) = self.semantic {
             let semantic_matches = match backend {
-                SemanticBackend::Ner(ner_mutex) => {
-                    if let Ok(mut ner) = ner_mutex.lock() {
-                        match ner.scan_text(&effective_text) {
-                            Ok(matches) => matches,
-                            Err(e) => {
-                                oo_warn!(crate::oo_log::modules::HYBRID, "NER inference failed, skipping", error = %e);
-                                Vec::new()
-                            }
+                SemanticBackend::Ner(pool) => {
+                    let mut guard = pool.acquire();
+                    match guard.scan_text(&effective_text) {
+                        Ok(matches) => matches,
+                        Err(e) => {
+                            oo_warn!(crate::oo_log::modules::HYBRID, "NER inference failed, skipping", error = %e);
+                            Vec::new()
                         }
-                    } else {
-                        Vec::new()
                     }
                 }
                 SemanticBackend::Crf(crf) => crf.scan_text(&effective_text),
@@ -270,9 +267,25 @@ impl HybridScanner {
 
     /// Scan a JSON body, traversing string values and tracking JSON paths.
     pub fn scan_json(&self, json: &Value, skip_fields: &[String]) -> Vec<PiiMatch> {
-        let mut matches = Vec::new();
-        self.scan_json_inner(json, "", skip_fields, &mut matches, 0);
-        matches
+        // Collect top-level scannable entries for parallel dispatch
+        let entries = collect_scannable_entries(json, "", skip_fields);
+
+        // Fast path: single entry or fewer — skip rayon overhead
+        if entries.len() <= 1 {
+            let mut matches = Vec::new();
+            self.scan_json_inner(json, "", skip_fields, &mut matches, 0);
+            return matches;
+        }
+
+        // Parallel scan: each top-level entry on its own rayon thread
+        entries
+            .par_iter()
+            .flat_map(|(path, val)| {
+                let mut matches = Vec::new();
+                self.scan_json_inner(val, path, skip_fields, &mut matches, 0);
+                matches
+            })
+            .collect()
     }
 
     fn scan_json_inner(
@@ -387,6 +400,47 @@ impl HybridScanner {
             Some(SemanticBackend::Crf(_)) => "crf",
             None => "none",
         }
+    }
+}
+
+/// Collect top-level scannable entries from a JSON value for parallel dispatch.
+///
+/// For objects: returns each (key, value) pair as a separate entry (skip_fields and
+/// base64 source blocks are filtered out). For arrays: returns each element.
+/// For other values: returns the value itself.
+fn collect_scannable_entries<'a>(
+    value: &'a Value,
+    path: &str,
+    skip_fields: &[String],
+) -> Vec<(String, &'a Value)> {
+    match value {
+        Value::Object(map) => {
+            let is_base64_source = map
+                .get("type")
+                .and_then(|v| v.as_str())
+                .map(|s| s == "base64")
+                .unwrap_or(false);
+
+            map.iter()
+                .filter(|(key, _)| {
+                    !(skip_fields.contains(key) || is_base64_source && *key == "data")
+                })
+                .map(|(key, val)| {
+                    let child_path = if path.is_empty() {
+                        key.clone()
+                    } else {
+                        format!("{}.{}", path, key)
+                    };
+                    (child_path, val)
+                })
+                .collect()
+        }
+        Value::Array(arr) => arr
+            .iter()
+            .enumerate()
+            .map(|(i, val)| (format!("{}[{}]", path, i), val))
+            .collect(),
+        _ => vec![(path.to_string(), value)],
     }
 }
 

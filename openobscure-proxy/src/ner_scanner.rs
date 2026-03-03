@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::{Condvar, Mutex};
 
 use ndarray::Array2;
 use ort::session::Session;
@@ -670,6 +671,76 @@ pub enum NerError {
     Shape(String),
     #[error("IO error: {0}")]
     Io(String),
+}
+
+// ─── NER Session Pool ──────────────────────────────────────────────────────
+//
+// Maintains N independent NerScanner sessions for concurrent inference.
+// Each `acquire()` call returns an RAII guard that auto-returns the session
+// to the pool on drop. Uses Condvar to block when all sessions are busy.
+
+/// Pool of NER scanner sessions for parallel inference across JSON fields.
+pub struct NerPool {
+    scanners: Mutex<Vec<NerScanner>>,
+    available: Condvar,
+    pool_size: usize,
+}
+
+/// RAII guard that returns the scanner to the pool on drop.
+pub struct NerPoolGuard<'a> {
+    pool: &'a NerPool,
+    scanner: Option<NerScanner>,
+}
+
+impl NerPool {
+    /// Create a pool from pre-loaded scanner instances.
+    pub fn new(scanners: Vec<NerScanner>) -> Self {
+        let pool_size = scanners.len();
+        Self {
+            scanners: Mutex::new(scanners),
+            available: Condvar::new(),
+            pool_size,
+        }
+    }
+
+    /// Acquire a scanner from the pool. Blocks if all sessions are busy.
+    pub fn acquire(&self) -> NerPoolGuard<'_> {
+        let mut pool = self.scanners.lock().unwrap();
+        loop {
+            if let Some(scanner) = pool.pop() {
+                return NerPoolGuard {
+                    pool: self,
+                    scanner: Some(scanner),
+                };
+            }
+            pool = self.available.wait(pool).unwrap();
+        }
+    }
+
+    /// Number of sessions in this pool.
+    pub fn pool_size(&self) -> usize {
+        self.pool_size
+    }
+}
+
+impl<'a> NerPoolGuard<'a> {
+    /// Run NER inference on text using the pooled session.
+    pub fn scan_text(&mut self, text: &str) -> Result<Vec<PiiMatch>, NerError> {
+        self.scanner
+            .as_mut()
+            .expect("NerPoolGuard used after drop")
+            .scan_text(text)
+    }
+}
+
+impl<'a> Drop for NerPoolGuard<'a> {
+    fn drop(&mut self) {
+        if let Some(scanner) = self.scanner.take() {
+            let mut pool = self.pool.scanners.lock().unwrap();
+            pool.push(scanner);
+            self.pool.available.notify_one();
+        }
+    }
 }
 
 #[cfg(test)]

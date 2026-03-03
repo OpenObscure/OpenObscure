@@ -227,7 +227,10 @@ impl OpenObscureMobile {
                     if let Some(dir) = model_dir {
                         match crate::ner_scanner::NerScanner::load(std::path::Path::new(dir), 0.60)
                         {
-                            Ok(ner) => HybridScanner::new(config.keywords_enabled, Some(ner), None),
+                            Ok(ner) => {
+                                let pool = crate::ner_scanner::NerPool::new(vec![ner]);
+                                HybridScanner::new(config.keywords_enabled, Some(pool), None)
+                            }
                             Err(_) => HybridScanner::new(config.keywords_enabled, None, None),
                         }
                     } else {
@@ -334,8 +337,9 @@ impl OpenObscureMobile {
                 if let Ok(ner) =
                     crate::ner_scanner::NerScanner::load(std::path::Path::new(dir), 0.60)
                 {
+                    let pool = crate::ner_scanner::NerPool::new(vec![ner]);
                     return (
-                        HybridScanner::new(config.keywords_enabled, Some(ner), None),
+                        HybridScanner::new(config.keywords_enabled, Some(pool), None),
                         "ner".to_string(),
                     );
                 }

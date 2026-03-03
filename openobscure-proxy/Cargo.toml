@@ -50,6 +50,7 @@ aes = "0.8"
 # PII scanning
 regex = "1"
 whatlang = "0.16"
+rayon = "1"
 
 # NER (ONNX Runtime for TinyBERT inference)
 ort = { version = "=2.0.0-rc.11", features = ["download-binaries"] }

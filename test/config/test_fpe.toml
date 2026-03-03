@@ -31,6 +31,7 @@ keychain_user = "fpe-master-key"
 enabled = true
 ner_model_dir = "openobscure-proxy/models/ner"
 ner_model_dir_lite = "openobscure-proxy/models/ner-lite"
+ner_pool_size = 4
 skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
 
 [image]

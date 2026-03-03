@@ -1157,7 +1157,7 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
             HybridScanner::new(kw, None, gazetteer)
         }
         "ner" => {
-            let ner = try_load_ner(config, budget, threshold);
+            let ner = try_load_ner_pool(config, budget, threshold);
             if ner.is_none() {
                 oo_warn!(
                     crate::oo_log::modules::SCANNER,
@@ -1188,7 +1188,7 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
             );
 
             if budget.ner_enabled {
-                if let Some(ner) = try_load_ner(config, budget, threshold) {
+                if let Some(ner) = try_load_ner_pool(config, budget, threshold) {
                     HybridScanner::new(kw, Some(ner), gazetteer)
                 } else if budget.crf_enabled {
                     oo_info!(
@@ -1240,12 +1240,19 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
     scanner
 }
 
-fn try_load_ner(
+fn try_load_ner_pool(
     config: &AppConfig,
     budget: &device_profile::FeatureBudget,
     threshold: f32,
-) -> Option<ner_scanner::NerScanner> {
-    let model_dir = match budget.ner_model.as_str() {
+) -> Option<ner_scanner::NerPool> {
+    // Config override takes precedence over budget
+    let model_name = config
+        .scanner
+        .ner_model
+        .as_deref()
+        .unwrap_or(budget.ner_model.as_str());
+
+    let model_dir = match model_name {
         "tinybert" => config
             .scanner
             .ner_model_dir_lite
@@ -1253,27 +1260,43 @@ fn try_load_ner(
             .or(config.scanner.ner_model_dir.as_ref())?,
         _ => config.scanner.ner_model_dir.as_ref()?,
     };
+
+    let pool_size = config.scanner.ner_pool_size;
     let model_path = std::path::Path::new(model_dir);
-    match ner_scanner::NerScanner::load(model_path, threshold) {
-        Ok(ner) => {
-            oo_info!(
-                crate::oo_log::modules::NER,
-                "NER scanner loaded",
-                model_dir = %model_dir,
-                variant = %budget.ner_model
-            );
-            Some(ner)
-        }
-        Err(e) => {
-            oo_warn!(
-                crate::oo_log::modules::NER,
-                "NER scanner failed to load",
-                error = %e,
-                variant = %budget.ner_model
-            );
-            None
+    let mut scanners = Vec::with_capacity(pool_size);
+
+    for i in 0..pool_size {
+        match ner_scanner::NerScanner::load(model_path, threshold) {
+            Ok(s) => scanners.push(s),
+            Err(e) => {
+                if i == 0 {
+                    oo_warn!(
+                        crate::oo_log::modules::NER,
+                        "NER scanner failed to load",
+                        error = %e,
+                        variant = %model_name
+                    );
+                    return None;
+                }
+                oo_warn!(
+                    crate::oo_log::modules::NER,
+                    "NER pool: partial load",
+                    loaded = i,
+                    requested = pool_size
+                );
+                break;
+            }
         }
     }
+
+    oo_info!(
+        crate::oo_log::modules::NER,
+        "NER pool ready",
+        variant = %model_name,
+        sessions = scanners.len(),
+        model_dir = %model_dir
+    );
+    Some(ner_scanner::NerPool::new(scanners))
 }
 
 fn try_load_crf(config: &AppConfig, threshold: f32) -> Option<crf_scanner::CrfScanner> {

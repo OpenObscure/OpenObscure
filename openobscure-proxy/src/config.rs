@@ -188,6 +188,14 @@ pub struct ScannerConfig {
     /// Falls back to `ner_model_dir` if not set.
     #[serde(default)]
     pub ner_model_dir_lite: Option<String>,
+    /// Override NER model selection: "tinybert" (fast, default) or "distilbert" (accurate).
+    /// When set, overrides the device budget's model selection.
+    #[serde(default)]
+    pub ner_model: Option<String>,
+    /// Number of NER model sessions to load for parallel scanning.
+    /// Default: 4. Each TinyBERT session uses ~14MB; DistilBERT ~64MB.
+    #[serde(default = "default_ner_pool_size")]
+    pub ner_pool_size: usize,
     /// Scanner mode: "auto" (default), "ner", "crf", "regex".
     /// - auto: use NER if model available + RAM ≥ threshold, else CRF if available, else regex-only
     /// - ner: force NER (fail to regex-only if model unavailable)
@@ -229,6 +237,8 @@ impl Default for ScannerConfig {
             ner_confidence_threshold: default_ner_confidence(),
             ner_model_dir: None,
             ner_model_dir_lite: None,
+            ner_model: None,
+            ner_pool_size: default_ner_pool_size(),
             scanner_mode: default_scanner_mode(),
             crf_model_dir: None,
             ram_threshold_mb: default_ram_threshold(),
@@ -238,6 +248,10 @@ impl Default for ScannerConfig {
             gazetteer_enabled: true,
         }
     }
+}
+
+fn default_ner_pool_size() -> usize {
+    4
 }
 
 fn default_min_confidence() -> f32 {
