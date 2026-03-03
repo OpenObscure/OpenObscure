@@ -31,10 +31,12 @@ done
 
 echo "=== OpenObscure UniFFI Binding Generation ==="
 
-# Build the library with bindgen features (includes mobile + cli)
+# Build the library with bindgen features (includes mobile + cli).
+# --no-default-features excludes voice (sherpa-rs) which requires native libs
+# that are unavailable during cross-compilation and CI.
 echo ""
 echo "--- Building library with bindgen features ---"
-cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --features bindgen --lib
+cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --no-default-features --features bindgen --lib
 
 # Find the built library
 LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_proxy.dylib"
@@ -54,7 +56,7 @@ echo "Using library: $LIB_PATH"
 BINDGEN_BIN="$PROXY_DIR/target/debug/uniffi-bindgen"
 
 # Build the uniffi-bindgen binary
-cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --features bindgen --bin uniffi-bindgen
+cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --no-default-features --features bindgen --bin uniffi-bindgen
 
 # Generate Swift bindings
 if [ "$GENERATE_SWIFT" = true ]; then

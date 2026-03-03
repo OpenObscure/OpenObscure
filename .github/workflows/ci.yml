@@ -61,10 +61,10 @@ jobs:
           workspaces: openobscure-proxy
 
       - name: Build iOS device (aarch64-apple-ios)
-        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --target aarch64-apple-ios --lib --features mobile
+        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --target aarch64-apple-ios --lib --no-default-features --features mobile
 
       - name: Build iOS simulator (aarch64-apple-ios-sim)
-        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --target aarch64-apple-ios-sim --lib --features mobile
+        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --target aarch64-apple-ios-sim --lib --no-default-features --features mobile
 
   plugin-test:
     name: Plugin Tests (TypeScript)
@@ -94,6 +94,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: openobscure-proxy
+      - uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/ort.pyke.io
+          key: ort-native-macos-${{ hashFiles('openobscure-proxy/Cargo.lock') }}
 
       - name: Regenerate bindings
         run: ./build/generate_bindings.sh
