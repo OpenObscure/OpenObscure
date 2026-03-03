@@ -1300,6 +1300,8 @@ Then open Discord on your MacBook or iPhone and start chatting.
 - **Proxy:** Press `Ctrl+C` in its Terminal
 - **OpenClaw:** Press `Ctrl+C` in its Terminal
 
+> **Fail mode:** The proxy defaults to `fail_mode = "open"` — if PII scanning errors occur, the original request is forwarded unchanged (AI functionality is never blocked). Set `fail_mode = "closed"` in `openobscure.toml` for strict privacy mode where any processing failure returns a 502 error. Vault unavailable always blocks regardless of this setting.
+
 ### Useful Commands
 
 | Command | What It Does |
@@ -1308,6 +1310,13 @@ Then open Discord on your MacBook or iPhone and start chatting.
 | `OPENOBSCURE_LOG=debug cargo run --release -- -c config/openobscure.toml` | Start proxy with verbose logs |
 | `lsof -i :18790` | Check if proxy port is in use |
 | `cargo run --release -- --init-key` | Regenerate encryption key |
+| `cargo run --release -- key-rotate` | Rotate FPE key (zero-downtime, 30s overlap window) |
+| `cargo run --release -- passthrough` | Run in passthrough mode (no scanning/encryption) |
+| `cargo run --release -- service install` | Install as background service (launchd/systemd) |
+| `cargo run --release -- service start` | Start the installed background service |
+| `cargo run --release -- service stop` | Stop the background service |
+| `cargo run --release -- service status` | Check background service status |
+| `cargo run --release -- service uninstall` | Remove the background service |
 | `ollama list` | Show downloaded local LLM models |
 | `ollama pull qwen3:8b` | Download Qwen3 8B model |
 | `ollama pull llama3.2:3b` | Download Llama 3.2 3B model |

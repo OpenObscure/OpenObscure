@@ -325,6 +325,19 @@ cargo run --release -- -c config/openobscure.toml
 
 The proxy listens on `127.0.0.1:18790` by default.
 
+#### CLI Subcommands
+
+| Command | Description |
+|---------|-------------|
+| `openobscure-proxy serve` | Start the proxy (default if no subcommand given) |
+| `openobscure-proxy key-rotate` | Rotate the FPE encryption key (zero-downtime, 30s overlap window) |
+| `openobscure-proxy passthrough` | Run in passthrough mode (no PII scanning or encryption) |
+| `openobscure-proxy service install` | Install as a background service (launchd on macOS, systemd on Linux) |
+| `openobscure-proxy service start` | Start the installed background service |
+| `openobscure-proxy service stop` | Stop the background service |
+| `openobscure-proxy service status` | Check background service status |
+| `openobscure-proxy service uninstall` | Remove the background service |
+
 ### 4. Verify
 
 ```bash
@@ -405,10 +418,10 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
-**~1,257 tests** across all components (1,191 Rust proxy + 50 TypeScript plugin + 16 crypto).
+**~1,625 tests** across all components (1,559 Rust proxy + 50 TypeScript plugin + 16 crypto).
 
 ```bash
-# L0 Proxy (1,191 tests: 501 lib + 667 bin + 14 accuracy + 9 pipeline)
+# L0 Proxy (1,559 tests: 675 lib + 858 bin + 14 accuracy + 12 pipeline)
 cd openobscure-proxy && cargo test
 
 # L1 Plugin (50 tests)

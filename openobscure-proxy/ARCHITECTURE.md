@@ -372,7 +372,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **1,426** (609 lib + 791 bin + 14 accuracy + 12 pipeline) |
+| Test count | — | **1,559** (675 lib + 858 bin + 14 accuracy + 12 pipeline) |
 
 ## Technology Stack
 

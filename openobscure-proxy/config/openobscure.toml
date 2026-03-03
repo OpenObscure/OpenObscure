@@ -31,6 +31,10 @@ ner_model_dir_lite = "models/ner-lite"
 # NER model: "tinybert" (fast, default) or "distilbert" (higher accuracy)
 # ner_model = "tinybert"
 ner_pool_size = 4
+# respect_code_fences = true    # Skip PII scanning inside code fences (default: true)
+# min_confidence = 0.5          # Ensemble voting minimum confidence (default: 0.5)
+# agreement_bonus = 0.15        # Confidence bonus when 2+ scanners agree (default: 0.15)
+# gazetteer_enabled = true      # Enable name gazetteer for person detection (default: true)
 
 # Custom regex patterns (in addition to built-in CC, SSN, phone, email, API key)
 # [scanner.custom_patterns.my_pattern]
@@ -57,7 +61,7 @@ ocr_model_dir = "models/paddleocr"
 nsfw_model_dir = "models/nudenet"
 nsfw_classifier_model_dir = "models/nsfw_classifier"
 # max_dimension = 960           # Resize longest edge (default: 960)
-# nsfw_threshold = 0.45         # NSFW confidence threshold (default: 0.45)
+# nsfw_threshold = 0.25         # NSFW confidence threshold (default: 0.25)
 # nsfw_classifier_threshold = 0.75  # Holistic classifier threshold (default: 0.75)
 # model_idle_timeout_secs = 300 # Evict models after N seconds idle (default: 300)
 
@@ -72,10 +76,21 @@ nsfw_classifier_model_dir = "models/nsfw_classifier"
 # Override sensitivity or disable entirely:
 [response_integrity]
 # enabled = true             # default: true (set false to disable)
-sensitivity = "medium"       # off, low, medium, high (default: low)
-log_only = false             # true = log only; false = prepend warning labels
+# sensitivity = "low"         # off, low, medium, high (default: low)
+# log_only = true             # true = log only (default); false = prepend warning labels
 ri_model_dir = "models/ri"   # R2 TinyBERT model directory (optional)
 # ri_min_flags = 3            # Min R1 phrase matches before injecting warning (default: 3)
+
+# --- Voice PII Detection ---
+# Scans audio blocks (base64-encoded WAV/MP3/OGG) for PII keywords using
+# sherpa-onnx Zipformer keyword spotting. Blocks with PII are stripped;
+# clean audio passes through. Requires the `voice` Cargo feature (enabled by default).
+[voice]
+# enabled = true               # default: true (when voice feature compiled in)
+# kws_model_dir = "models/kws" # KWS Zipformer ONNX model directory
+# kws_keywords_file = "models/kws/keywords.txt"  # Tokenized PII keywords
+# kws_threshold = 0.1          # Detection threshold, lower = more sensitive (default: 0.1)
+# kws_score = 3.0              # Keyword boosting score, higher = easier to trigger (default: 3.0)
 
 # --- Provider Definitions ---
 # Each provider maps a local path prefix to an upstream API URL.
