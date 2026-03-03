@@ -298,6 +298,7 @@ pub async fn proxy_handler(
         let ri_buffer = crate::sse_accumulator::SseRiBuffer::new();
         let ri_scanner = state.response_integrity.clone();
         let ri_log_only = state.config.response_integrity.log_only;
+        let ri_min_flags = state.config.response_integrity.ri_min_flags;
         let health = state.health.clone();
         let empty_mappings = crate::mapping::RequestMappings::new(req_id);
 
@@ -330,6 +331,7 @@ pub async fn proxy_handler(
                             &mut ri_buffer,
                             ri_scanner.as_deref(),
                             ri_log_only,
+                            ri_min_flags,
                             &req_id,
                             &health,
                         );
@@ -366,6 +368,7 @@ pub async fn proxy_handler(
                                         &mut ri_buffer,
                                         ri_scanner.as_deref(),
                                         ri_log_only,
+                                        ri_min_flags,
                                         &req_id,
                                         &health,
                                     );
@@ -414,6 +417,7 @@ pub async fn proxy_handler(
                                     &mut ri_buffer,
                                     ri_scanner.as_deref(),
                                     ri_log_only,
+                                    ri_min_flags,
                                     &req_id,
                                     &health,
                                 )
@@ -448,6 +452,7 @@ pub async fn proxy_handler(
                                     &mut ri_buffer,
                                     ri_scanner.as_deref(),
                                     ri_log_only,
+                                    ri_min_flags,
                                     &req_id,
                                     &health,
                                 )
@@ -803,6 +808,17 @@ fn scan_response_integrity(
         r2_categories = %report.r2_categories.join(", "),
         scan_time_us = report.scan_time_us);
 
+    // Below min_flags threshold — log but don't inject warning
+    let min_flags = state.config.response_integrity.ri_min_flags;
+    if (flag_count as usize) < min_flags {
+        oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY,
+            "Below min_flags threshold, skipping warning injection",
+            request_id = %request_id,
+            flags = flag_count,
+            min_flags = min_flags);
+        return body.clone();
+    }
+
     // If log_only mode, don't modify the response
     if state.config.response_integrity.log_only {
         return body.clone();
@@ -832,6 +848,7 @@ fn emit_sse_ri_warning_inline(
     ri_buffer: &mut crate::sse_accumulator::SseRiBuffer,
     ri_scanner: Option<&ResponseIntegrityScanner>,
     log_only: bool,
+    min_flags: usize,
     request_id: &uuid::Uuid,
     health: &HealthStats,
 ) -> String {
@@ -870,6 +887,16 @@ fn emit_sse_ri_warning_inline(
         r2_role = %report.r2_role,
         r2_categories = %report.r2_categories.join(", "),
         scan_time_us = report.scan_time_us);
+
+    // Below min_flags threshold — log but don't inject warning
+    if (flag_count as usize) < min_flags {
+        oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY,
+            "SSE: Below min_flags threshold, skipping warning injection",
+            request_id = %request_id,
+            flags = flag_count,
+            min_flags = min_flags);
+        return String::new();
+    }
 
     // If log_only, don't inject warning into stream
     if log_only {

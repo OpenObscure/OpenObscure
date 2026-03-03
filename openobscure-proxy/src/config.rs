@@ -531,6 +531,12 @@ pub struct ResponseIntegrityConfig {
     /// Only applies at sensitivity=medium. At high, all responses are scanned.
     #[serde(default = "default_ri_sample_rate")]
     pub ri_sample_rate: f32,
+
+    /// Minimum number of R1 dictionary phrase matches required before injecting a warning.
+    /// Below this threshold, detections are logged but warnings are not injected.
+    /// Default: 3 (reduces false positives from incidental phrase matches).
+    #[serde(default = "default_ri_min_flags")]
+    pub ri_min_flags: usize,
 }
 
 impl Default for ResponseIntegrityConfig {
@@ -544,6 +550,7 @@ impl Default for ResponseIntegrityConfig {
             ri_early_exit_threshold: default_ri_early_exit_threshold(),
             ri_idle_evict_secs: default_model_idle_timeout(),
             ri_sample_rate: default_ri_sample_rate(),
+            ri_min_flags: default_ri_min_flags(),
         }
     }
 }
@@ -559,6 +566,9 @@ fn default_ri_early_exit_threshold() -> f32 {
 }
 fn default_ri_sample_rate() -> f32 {
     0.10
+}
+fn default_ri_min_flags() -> usize {
+    3
 }
 
 fn default_face_model() -> String {

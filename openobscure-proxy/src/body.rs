@@ -165,7 +165,7 @@ pub async fn process_request_body(
                     replacements.push(result);
                 }
                 Err(e) => {
-                    oo_warn!(crate::oo_log::modules::BODY, "FPE encryption failed for PII match, skipping",
+                    oo_debug!(crate::oo_log::modules::BODY, "FPE encryption failed for PII match, skipping",
                         pii_type = ?m.pii_type,
                         json_path = ?m.json_path,
                         error = %e);

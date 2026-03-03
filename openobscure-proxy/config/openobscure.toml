@@ -75,6 +75,7 @@ nsfw_classifier_model_dir = "models/nsfw_classifier"
 sensitivity = "medium"       # off, low, medium, high (default: low)
 log_only = false             # true = log only; false = prepend warning labels
 ri_model_dir = "models/ri"   # R2 TinyBERT model directory (optional)
+# ri_min_flags = 3            # Min R1 phrase matches before injecting warning (default: 3)
 
 # --- Provider Definitions ---
 # Each provider maps a local path prefix to an upstream API URL.
