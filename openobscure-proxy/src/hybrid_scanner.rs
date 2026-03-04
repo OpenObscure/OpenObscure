@@ -1261,4 +1261,133 @@ mod tests {
         );
         assert_eq!(clusters[0].len(), 3);
     }
+
+    /// Integration test: patient_records.csv across all 6 tier configurations.
+    ///
+    /// Tier matrix:
+    ///   Gateway  Full     → DistilBERT + ensemble
+    ///   Embedded Full     → DistilBERT + ensemble
+    ///   Gateway  Standard → TinyBERT, no ensemble
+    ///   Embedded Standard → TinyBERT, no ensemble
+    ///   Gateway  Lite     → TinyBERT, no ensemble
+    ///   Embedded Lite     → TinyBERT, no ensemble
+    ///
+    /// All tiers must detect: Person (NER), HealthKeyword, GpsCoordinate.
+    #[test]
+    fn test_patient_records_all_tiers() {
+        use crate::ner_scanner::{NerPool, NerScanner};
+        use std::path::Path;
+
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let distilbert_dir = manifest.join("models/ner");
+        let tinybert_dir = manifest.join("models/ner-lite");
+
+        // Check both models exist and are real (not LFS pointers)
+        for (name, dir) in [("DistilBERT", &distilbert_dir), ("TinyBERT", &tinybert_dir)] {
+            let model_path = dir.join("model_int8.onnx");
+            if !model_path.exists() {
+                eprintln!("Skipping: {} model not found at {}", name, dir.display());
+                return;
+            }
+            if let Ok(meta) = std::fs::metadata(&model_path) {
+                if meta.len() < 1024 {
+                    eprintln!("Skipping: {} is a LFS pointer", name);
+                    return;
+                }
+            }
+        }
+
+        // Read CSV once
+        let csv_path = manifest
+            .parent()
+            .unwrap()
+            .join("test/data/input/Structured_Data_PII/patient_records.csv");
+        let csv_content = std::fs::read_to_string(&csv_path).expect("Failed to read CSV");
+        let data_lines: Vec<&str> = csv_content
+            .lines()
+            .skip(1) // skip header
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+
+        // Tier configurations: (label, model_dir, ensemble, confidence_threshold)
+        let tiers: Vec<(&str, &Path, bool, f32)> = vec![
+            ("Gateway Full", &distilbert_dir, true, 0.60),
+            ("Embedded Full", &distilbert_dir, true, 0.60),
+            ("Gateway Standard", &tinybert_dir, false, 0.60),
+            ("Embedded Standard", &tinybert_dir, false, 0.60),
+            ("Gateway Lite", &tinybert_dir, false, 0.60),
+            ("Embedded Lite", &tinybert_dir, false, 0.60),
+        ];
+
+        eprintln!("\n============================================================");
+        eprintln!("  patient_records.csv — All 6 Tiers");
+        eprintln!("  {} data rows", data_lines.len());
+        eprintln!("============================================================");
+
+        for (label, model_dir, ensemble, threshold) in &tiers {
+            // Load NER model
+            let ner = NerScanner::load(model_dir, *threshold)
+                .unwrap_or_else(|e| panic!("{}: failed to load NER: {:?}", label, e));
+            let pool = NerPool::new(vec![ner]);
+            let mut hybrid = HybridScanner::new(true, Some(pool), None);
+            if !ensemble {
+                hybrid.set_confidence_params(0.5, 0.0); // no agreement bonus
+            }
+
+            let mut type_counts: std::collections::HashMap<PiiType, usize> =
+                std::collections::HashMap::new();
+            let mut total = 0;
+
+            for line in &data_lines {
+                let matches = hybrid.scan_text(line);
+                total += matches.len();
+                for m in &matches {
+                    *type_counts.entry(m.pii_type).or_insert(0) += 1;
+                }
+            }
+
+            // Sort types for consistent output
+            let mut type_list: Vec<_> = type_counts.iter().collect();
+            type_list.sort_by_key(|(t, _)| format!("{:?}", t));
+
+            let model_name = if model_dir.ends_with("ner") {
+                "DistilBERT"
+            } else {
+                "TinyBERT"
+            };
+
+            eprintln!(
+                "\n  {:<22} [{}{}]",
+                label,
+                model_name,
+                if *ensemble { " +ensemble" } else { "" }
+            );
+            eprintln!("  {:>4} total matches", total);
+            for (pii_type, count) in &type_list {
+                eprintln!("    {:?}: {}", pii_type, count);
+            }
+
+            // Assertions: all tiers must detect Name, Health, GPS
+            assert!(
+                type_counts.contains_key(&PiiType::Person),
+                "{}: must detect Person (names) — found: {:?}",
+                label,
+                type_counts.keys().collect::<Vec<_>>()
+            );
+            assert!(
+                type_counts.contains_key(&PiiType::HealthKeyword),
+                "{}: must detect HealthKeyword (diagnosis) — found: {:?}",
+                label,
+                type_counts.keys().collect::<Vec<_>>()
+            );
+            assert!(
+                type_counts.contains_key(&PiiType::GpsCoordinate),
+                "{}: must detect GpsCoordinate — found: {:?}",
+                label,
+                type_counts.keys().collect::<Vec<_>>()
+            );
+        }
+
+        eprintln!("\n  ALL 6 TIERS PASS: Person + HealthKeyword + GpsCoordinate detected");
+    }
 }
