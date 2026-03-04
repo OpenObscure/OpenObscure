@@ -405,7 +405,6 @@ async fn run_serve(config: AppConfig, inspect: bool) -> anyhow::Result<()> {
             oo_info!(crate::oo_log::modules::RESPONSE_INTEGRITY,
                 "Response integrity scanner enabled",
                 sensitivity = %config.response_integrity.sensitivity,
-                log_only = config.response_integrity.log_only,
                 r2_available = scanner.has_r2(),
                 phrases = scanner.dict_count());
             Some(Arc::new(scanner))

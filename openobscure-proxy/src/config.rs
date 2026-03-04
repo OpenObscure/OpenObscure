@@ -503,12 +503,6 @@ pub struct ResponseIntegrityConfig {
     #[serde(default = "default_ri_sensitivity")]
     pub sensitivity: String,
 
-    /// Log-only mode (default: true).
-    /// When true, detected persuasion techniques are logged but responses are not modified.
-    /// When false, a warning label is prepended to the response content.
-    #[serde(default = "default_true")]
-    pub log_only: bool,
-
     /// Path to R2 TinyBERT ONNX model directory (containing model_int8.onnx + vocab.txt).
     /// When None, R2 is disabled and only R1 dictionary scanning is used.
     #[serde(default)]
@@ -544,7 +538,6 @@ impl Default for ResponseIntegrityConfig {
         Self {
             enabled: true,
             sensitivity: default_ri_sensitivity(),
-            log_only: true,
             ri_model_dir: None,
             ri_threshold: default_ri_threshold(),
             ri_early_exit_threshold: default_ri_early_exit_threshold(),
@@ -1229,7 +1222,7 @@ route_prefix = "/test"
         let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
         assert!(config.response_integrity.enabled);
         assert_eq!(config.response_integrity.sensitivity, "low");
-        assert!(config.response_integrity.log_only);
+
         assert!(config.response_integrity.ri_model_dir.is_none());
         assert_eq!(config.response_integrity.ri_threshold, 0.55);
         assert_eq!(config.response_integrity.ri_early_exit_threshold, 0.30);
@@ -1246,7 +1239,6 @@ route_prefix = "/test"
 [response_integrity]
 enabled = true
 sensitivity = "high"
-log_only = false
 ri_model_dir = "models/r2"
 ri_threshold = 0.80
 ri_early_exit_threshold = 0.25
@@ -1257,7 +1249,6 @@ ri_sample_rate = 0.50
         .unwrap();
         assert!(config.response_integrity.enabled);
         assert_eq!(config.response_integrity.sensitivity, "high");
-        assert!(!config.response_integrity.log_only);
         assert_eq!(
             config.response_integrity.ri_model_dir.as_deref(),
             Some("models/r2")
@@ -1280,7 +1271,7 @@ port = 8080
         .unwrap();
         assert!(config.response_integrity.enabled);
         assert_eq!(config.response_integrity.sensitivity, "low");
-        assert!(config.response_integrity.log_only);
+
         assert!(config.response_integrity.ri_model_dir.is_none());
     }
 

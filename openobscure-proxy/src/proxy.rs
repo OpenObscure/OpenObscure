@@ -319,7 +319,6 @@ pub async fn proxy_handler(
         let content_decryptor = crate::sse_accumulator::SseContentDecryptor::new();
         let ri_buffer = crate::sse_accumulator::SseRiBuffer::new();
         let ri_scanner = state.response_integrity.clone();
-        let ri_log_only = state.config.response_integrity.log_only;
         let ri_min_flags = state.config.response_integrity.ri_min_flags;
         let health = state.health.clone();
         let empty_mappings = crate::mapping::RequestMappings::new(req_id);
@@ -353,7 +352,6 @@ pub async fn proxy_handler(
                         let warning = emit_sse_ri_warning_inline(
                             &mut ri_buffer,
                             ri_scanner.as_deref(),
-                            ri_log_only,
                             ri_min_flags,
                             &req_id,
                             &health,
@@ -398,7 +396,6 @@ pub async fn proxy_handler(
                                     let warning = emit_sse_ri_warning_inline(
                                         &mut ri_buffer,
                                         ri_scanner.as_deref(),
-                                        ri_log_only,
                                         ri_min_flags,
                                         &req_id,
                                         &health,
@@ -447,7 +444,6 @@ pub async fn proxy_handler(
                                 emit_sse_ri_warning_inline(
                                     &mut ri_buffer,
                                     ri_scanner.as_deref(),
-                                    ri_log_only,
                                     ri_min_flags,
                                     &req_id,
                                     &health,
@@ -487,7 +483,6 @@ pub async fn proxy_handler(
                                 emit_sse_ri_warning_inline(
                                     &mut ri_buffer,
                                     ri_scanner.as_deref(),
-                                    ri_log_only,
                                     ri_min_flags,
                                     &req_id,
                                     &health,
@@ -874,11 +869,6 @@ fn scan_response_integrity(
         return body.clone();
     }
 
-    // If log_only mode, don't modify the response
-    if state.config.response_integrity.log_only {
-        return body.clone();
-    }
-
     // R2 Discover reports (R1 clean, R2-only detection) are log-only:
     // they lack R1 corroboration and have high false-positive rate.
     if report.r2_role == crate::response_integrity::R2Role::Discover {
@@ -894,15 +884,14 @@ fn scan_response_integrity(
 }
 
 /// Run RI scan on accumulated SSE text and return a warning as a standard content
-/// delta chunk (matching the detected SSE format). Returns an empty string if clean,
-/// log-only, or no scanner.
+/// delta chunk (matching the detected SSE format). Returns an empty string if clean
+/// or no scanner.
 ///
 /// Takes `&mut SseRiBuffer` (instead of consuming it) so it can be called inline
 /// during stream processing — before `[DONE]` is yielded.
 fn emit_sse_ri_warning_inline(
     ri_buffer: &mut crate::sse_accumulator::SseRiBuffer,
     ri_scanner: Option<&ResponseIntegrityScanner>,
-    log_only: bool,
     min_flags: usize,
     request_id: &uuid::Uuid,
     health: &HealthStats,
@@ -950,11 +939,6 @@ fn emit_sse_ri_warning_inline(
             request_id = %request_id,
             flags = flag_count,
             min_flags = min_flags);
-        return String::new();
-    }
-
-    // If log_only, don't inject warning into stream
-    if log_only {
         return String::new();
     }
 

@@ -1466,12 +1466,11 @@ async fn test_mixed_pii_and_clean_concurrent() {
 
 // ── Response Integrity (Cognitive Firewall) ─────────────────────────────
 
-fn build_ri_config(upstream_url: &str, enabled: bool, log_only: bool) -> AppConfig {
+fn build_ri_config(upstream_url: &str, enabled: bool) -> AppConfig {
     let mut config = build_config(upstream_url);
     config.response_integrity = ResponseIntegrityConfig {
         enabled,
         sensitivity: "medium".to_string(),
-        log_only,
         ..ResponseIntegrityConfig::default()
     };
     // Increase max body to accommodate response JSON
@@ -1545,7 +1544,7 @@ async fn test_ri_disabled_passthrough() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), false, true);
+    let config = build_ri_config(&mock.uri(), false);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")
@@ -1570,46 +1569,7 @@ async fn test_ri_disabled_passthrough() {
     );
 }
 
-/// RI enabled + log_only: response is scanned and logged but NOT modified.
-#[tokio::test]
-async fn test_ri_log_only_no_modification() {
-    let mock = MockServer::start().await;
-    Mock::given(method("POST"))
-        .and(path("/v1/messages"))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .insert_header("content-type", "application/json")
-                .set_body_bytes(PERSUASIVE_ANTHROPIC_RESPONSE.as_bytes()),
-        )
-        .mount(&mock)
-        .await;
-
-    let config = build_ri_config(&mock.uri(), true, true);
-    let router = app(build_ri_state(config).await);
-
-    let req = Request::post("/test/v1/messages")
-        .header("content-type", "application/json")
-        .body(Body::from(
-            r#"{"messages":[{"role":"user","content":"hello"}]}"#,
-        ))
-        .unwrap();
-
-    let resp = router.oneshot(req).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-
-    let body = resp_body(resp).await;
-    // log_only=true: body should NOT contain warning label
-    assert!(
-        !body.contains("OpenObscure"),
-        "log_only should not inject labels"
-    );
-    assert!(
-        body.contains("Act now!"),
-        "Original content should be preserved"
-    );
-}
-
-/// RI enabled + log_only=false + Anthropic format: warning label prepended.
+/// RI enabled + Anthropic format: warning label prepended.
 #[tokio::test]
 async fn test_ri_label_anthropic_format() {
     let mock = MockServer::start().await;
@@ -1623,7 +1583,7 @@ async fn test_ri_label_anthropic_format() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")
@@ -1653,7 +1613,7 @@ async fn test_ri_label_anthropic_format() {
     );
 }
 
-/// RI enabled + log_only=false + OpenAI format: warning label prepended.
+/// RI enabled + OpenAI format: warning label prepended.
 #[tokio::test]
 async fn test_ri_label_openai_format() {
     let mock = MockServer::start().await;
@@ -1667,7 +1627,7 @@ async fn test_ri_label_openai_format() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/chat/completions")
@@ -1709,7 +1669,7 @@ async fn test_ri_clean_response_no_label() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")
@@ -1761,7 +1721,7 @@ async fn test_ri_label_gemini_format() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")
@@ -1799,7 +1759,7 @@ async fn test_ri_label_cohere_format() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")
@@ -1835,7 +1795,7 @@ async fn test_ri_label_ollama_format() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")
@@ -1871,7 +1831,7 @@ async fn test_ri_label_plain_text_format() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")
@@ -1906,7 +1866,7 @@ async fn test_ri_unknown_format_passthrough() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")
@@ -1948,7 +1908,7 @@ async fn test_ri_sse_trailing_warning() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     // Need PII in request so SSE path activates (is_sse && has_mappings)
@@ -2005,7 +1965,7 @@ async fn test_ri_sse_clean_no_warning() {
         .mount(&mock)
         .await;
 
-    let config = build_ri_config(&mock.uri(), true, false);
+    let config = build_ri_config(&mock.uri(), true);
     let router = app(build_ri_state(config).await);
 
     let req = Request::post("/test/v1/messages")

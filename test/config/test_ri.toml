@@ -40,7 +40,6 @@ enabled = false
 [response_integrity]
 enabled = true
 sensitivity = "medium"
-log_only = false
 
 [logging]
 level = "info"

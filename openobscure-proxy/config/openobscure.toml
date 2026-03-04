@@ -71,16 +71,15 @@ nsfw_classifier_model_dir = "models/nsfw_classifier"
 # --- Response Integrity (Cognitive Firewall) ---
 # Scans LLM responses for persuasion/manipulation techniques (EU AI Act Article 5).
 # When enabled, detects urgency, scarcity, social proof, fear, authority, commercial,
-# and flattery patterns. Can log detections and/or prepend warning labels.
+# and flattery patterns. Detections prepend warning labels to the response.
 # R1 = dictionary-based regex scan; R2 = TinyBERT ONNX classifier (conditional cascade).
-# Response integrity is enabled by default (sensitivity=low, log_only=true).
+# Response integrity is enabled by default (sensitivity=low).
 # At "low" sensitivity, R1 dictionary scan runs on every response (<1ms).
 # R2 TinyBERT classifier only fires when R1 flags something (~30ms, rare).
 # Override sensitivity or disable entirely:
 [response_integrity]
 # enabled = true             # default: true (set false to disable)
 # sensitivity = "low"         # off, low, medium, high (default: low)
-# log_only = true             # true = log only (default); false = prepend warning labels
 ri_model_dir = "models/ri"   # R2 TinyBERT model directory (optional)
 # ri_min_flags = 3            # Min R1 phrase matches before injecting warning (default: 3)
 
