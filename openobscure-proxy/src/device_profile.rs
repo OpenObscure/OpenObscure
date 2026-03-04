@@ -491,6 +491,7 @@ mod tests {
         assert_eq!(b.max_ram_mb, 200);
         assert!(b.ner_enabled);
         assert_eq!(b.ner_model, "tinybert");
+        assert!(b.crf_enabled);
         assert!(!b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
         assert_eq!(b.ocr_tier, "full_recognition");
@@ -532,12 +533,14 @@ mod tests {
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled);
         assert_eq!(b.ner_model, "distilbert");
+        assert!(b.crf_enabled);
         assert!(b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
         assert_eq!(b.ocr_tier, "full_recognition");
         assert!(b.nsfw_enabled);
         assert!(b.screen_guard_enabled);
         assert_eq!(b.face_model, "scrfd");
+        assert_eq!(b.model_idle_timeout_secs, 300);
         assert!(b.voice_enabled);
         assert!(b.ri_enabled);
     }
@@ -551,11 +554,14 @@ mod tests {
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled); // 275 >= 80
         assert_eq!(b.ner_model, "distilbert"); // 275 >= 120
+        assert!(b.crf_enabled);
+        assert!(!b.ensemble_enabled);
         assert!(b.image_pipeline_enabled); // 275 >= 100
         assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(b.nsfw_enabled); // 275 >= 150
         assert!(b.screen_guard_enabled);
         assert_eq!(b.face_model, "scrfd");
+        assert_eq!(b.model_idle_timeout_secs, 120);
         assert!(b.voice_enabled); // 275 >= 50
         assert!(b.ri_enabled); // 275 >= 80
     }
@@ -570,11 +576,13 @@ mod tests {
         assert!(b.ner_enabled); // 102 >= 25
         assert_eq!(b.ner_model, "tinybert");
         assert!(b.crf_enabled); // 102 >= 25
+        assert!(!b.ensemble_enabled);
         assert!(b.image_pipeline_enabled); // 102 >= 40
         assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
         assert_eq!(b.face_model, "blazeface");
+        assert_eq!(b.model_idle_timeout_secs, 60);
         assert!(!b.voice_enabled);
         assert!(!b.ri_enabled);
     }
@@ -589,11 +597,13 @@ mod tests {
         assert!(!b.ner_enabled); // 12 < 25
         assert_eq!(b.ner_model, "tinybert");
         assert!(!b.crf_enabled); // 12 < 25
+        assert!(!b.ensemble_enabled);
         assert!(!b.image_pipeline_enabled); // 12 < 40
         assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
         assert_eq!(b.face_model, "blazeface");
+        assert_eq!(b.model_idle_timeout_secs, 60);
         assert!(!b.voice_enabled);
         assert!(!b.ri_enabled);
     }
