@@ -82,7 +82,7 @@ impl RequestMappings {
                 replaced_count += 1;
             } else if matches!(
                 mapping.pii_type,
-                PiiType::PhoneNumber | PiiType::Ssn | PiiType::CreditCard
+                PiiType::PhoneNumber | PiiType::Ssn | PiiType::CreditCard | PiiType::Iban
             ) {
                 unmatched_numeric.push(mapping);
             }
@@ -140,12 +140,7 @@ impl RequestMappings {
                 .collect();
             let token_cts: Vec<String> = mappings
                 .iter()
-                .filter(|m| {
-                    !matches!(
-                        m.pii_type,
-                        PiiType::PhoneNumber | PiiType::Ssn | PiiType::CreditCard | PiiType::Email
-                    )
-                })
+                .filter(|m| !m.pii_type.is_fpe_eligible())
                 .take(3)
                 .map(|m| {
                     let ct_hex: String =
@@ -297,6 +292,33 @@ fn build_fpe_fuzzy_regex(ciphertext: &str, pii_type: &PiiType) -> Option<Regex> 
             sep,
             &digits[12..16]
         )),
+        PiiType::Iban => {
+            // IBANs: LLMs commonly add spaces in 4-char groups (ES91 2100 0418 ...)
+            let alnum: String = ciphertext.chars().filter(|c| c.is_alphanumeric()).collect();
+            if alnum.len() >= 15 {
+                let sep_iban = r"[\s-]?";
+                let mut pattern = String::from(r"\b");
+                for (i, ch) in alnum.chars().enumerate() {
+                    if i > 0 && i % 4 == 0 {
+                        pattern.push_str(sep_iban);
+                    }
+                    // Case-insensitive match for the alphabetic characters
+                    if ch.is_ascii_alphabetic() {
+                        pattern.push_str(&format!(
+                            "[{}{}]",
+                            ch.to_ascii_lowercase(),
+                            ch.to_ascii_uppercase()
+                        ));
+                    } else {
+                        pattern.push(ch);
+                    }
+                }
+                pattern.push_str(r"\b");
+                Some(pattern)
+            } else {
+                None
+            }
+        }
         _ => None,
     };
 
@@ -554,5 +576,97 @@ mod tests {
         let re = build_fpe_fuzzy_regex("8714-3927-6051-2483", &PiiType::CreditCard).unwrap();
         assert!(re.is_match("8714-3927-6051-2483"));
         assert!(re.is_match("8714 3927 6051 2483"));
+    }
+
+    #[test]
+    fn test_decrypt_response_ipv4() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::Ipv4Address,
+            plaintext: "192.168.1.42".to_string(),
+            ciphertext: "847.293.6.51".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        let response = "Server at 847.293.6.51 is down";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Server at 192.168.1.42 is down");
+    }
+
+    #[test]
+    fn test_decrypt_response_gps() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::GpsCoordinate,
+            plaintext: "45.5231, -122.6765".to_string(),
+            ciphertext: "83.7294, -651.0428".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        let response = "Location: 83.7294, -651.0428";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "Location: 45.5231, -122.6765");
+    }
+
+    #[test]
+    fn test_decrypt_response_mac() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::MacAddress,
+            plaintext: "00:1a:2b:3c:4d:5e".to_string(),
+            ciphertext: "a3:f7:c2:9d:e1:b5".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        let response = "MAC address: a3:f7:c2:9d:e1:b5";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "MAC address: 00:1a:2b:3c:4d:5e");
+    }
+
+    #[test]
+    fn test_decrypt_response_iban_exact() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::Iban,
+            plaintext: "ES9121000418450200051332".to_string(),
+            ciphertext: "ESa7f3c29de1b504827391".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        let response = "IBAN: ESa7f3c29de1b504827391";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "IBAN: ES9121000418450200051332");
+    }
+
+    #[test]
+    fn test_fuzzy_regex_iban() {
+        let re = build_fpe_fuzzy_regex("ESa7f3c29de1b504827391", &PiiType::Iban).unwrap();
+        // Exact match
+        assert!(re.is_match("ESa7f3c29de1b504827391"));
+        // Spaces in 4-char groups (common IBAN formatting)
+        assert!(re.is_match("ESa7 f3c2 9de1 b504 8273 91"));
+        // Hyphens
+        assert!(re.is_match("ESa7-f3c2-9de1-b504-8273-91"));
+    }
+
+    #[test]
+    fn test_decrypt_response_iban_fuzzy_spaces() {
+        let mut mappings = RequestMappings::new(Uuid::new_v4());
+        mappings.insert(FpeMapping {
+            pii_type: PiiType::Iban,
+            plaintext: "DE89370400440532013000".to_string(),
+            ciphertext: "DEa7f3c29de1b5048200".to_string(),
+            tweak: vec![],
+            key_version: 1,
+        });
+
+        // LLM adds spaces in 4-char groups
+        let response = "IBAN: DEa7 f3c2 9de1 b504 8200";
+        let decrypted = mappings.decrypt_response(response);
+        assert_eq!(decrypted, "IBAN: DE89370400440532013000");
     }
 }

@@ -109,7 +109,7 @@ pub fn patterns() -> Vec<LangPattern> {
             label: "Spanish phone (+34)",
         },
         LangPattern {
-            pii_type: PiiType::CreditCard, // Reuse for IBAN
+            pii_type: PiiType::Iban,
             regex: Regex::new(
                 r"\bES\d{2}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b",
             )

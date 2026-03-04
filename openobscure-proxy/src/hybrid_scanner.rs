@@ -1390,4 +1390,187 @@ mod tests {
 
         eprintln!("\n  ALL 6 TIERS PASS: Person + HealthKeyword + GpsCoordinate detected");
     }
+
+    /// Validate network_inventory.tsv: must detect IPv4, IPv6, MAC, GPS, Email.
+    /// All these types are now FPE-eligible after the FPE extension.
+    #[test]
+    fn test_network_inventory_fpe_types() {
+        use std::path::Path;
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let tsv_path = manifest
+            .parent()
+            .unwrap()
+            .join("test/data/input/Structured_Data_PII/network_inventory.tsv");
+        let content = std::fs::read_to_string(&tsv_path).expect("Failed to read TSV");
+        let data_lines: Vec<&str> = content
+            .lines()
+            .skip(1)
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+
+        let scanner = HybridScanner::new(true, None, None);
+
+        let mut type_counts: std::collections::HashMap<PiiType, usize> =
+            std::collections::HashMap::new();
+        let mut total = 0;
+
+        for line in &data_lines {
+            let matches = scanner.scan_text(line);
+            total += matches.len();
+            for m in &matches {
+                *type_counts.entry(m.pii_type).or_insert(0) += 1;
+            }
+        }
+
+        let mut type_list: Vec<_> = type_counts.iter().collect();
+        type_list.sort_by_key(|(t, _)| format!("{:?}", t));
+
+        eprintln!("\n============================================================");
+        eprintln!("  network_inventory.tsv — FPE Type Validation");
+        eprintln!("  {} data rows, {} total matches", data_lines.len(), total);
+        eprintln!("============================================================");
+        for (pii_type, count) in &type_list {
+            let fpe = if pii_type.is_fpe_eligible() {
+                " [FPE]"
+            } else {
+                ""
+            };
+            eprintln!("    {:?}: {}{}", pii_type, count, fpe);
+        }
+
+        // Must detect all FPE-eligible network types
+        assert!(
+            type_counts.contains_key(&PiiType::Ipv4Address),
+            "Must detect IPv4 addresses — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            type_counts.contains_key(&PiiType::Ipv6Address),
+            "Must detect IPv6 addresses — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            type_counts.contains_key(&PiiType::MacAddress),
+            "Must detect MAC addresses — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            type_counts.contains_key(&PiiType::GpsCoordinate),
+            "Must detect GPS coordinates — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            type_counts.contains_key(&PiiType::Email),
+            "Must detect emails — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+
+        // All detected types should be FPE-eligible (no non-FPE types in this file except
+        // NER-detected Location/Person which may or may not appear)
+        let fpe_count: usize = type_counts
+            .iter()
+            .filter(|(t, _)| t.is_fpe_eligible())
+            .map(|(_, c)| c)
+            .sum();
+        eprintln!("  {} / {} matches are FPE-eligible", fpe_count, total);
+        assert!(fpe_count > 0, "Must have FPE-eligible matches");
+    }
+
+    /// Validate patient_records.csv: must detect SSN, Phone, Email, GPS, HealthKeyword.
+    /// SSN/Phone/Email were already FPE-eligible; GPS is newly FPE-eligible.
+    #[test]
+    fn test_patient_records_fpe_types() {
+        use std::path::Path;
+        let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let csv_path = manifest
+            .parent()
+            .unwrap()
+            .join("test/data/input/Structured_Data_PII/patient_records.csv");
+        let content = std::fs::read_to_string(&csv_path).expect("Failed to read CSV");
+        let data_lines: Vec<&str> = content
+            .lines()
+            .skip(1)
+            .filter(|l| !l.trim().is_empty())
+            .collect();
+
+        let scanner = HybridScanner::new(true, None, None);
+
+        let mut type_counts: std::collections::HashMap<PiiType, usize> =
+            std::collections::HashMap::new();
+        let mut total = 0;
+
+        for line in &data_lines {
+            let matches = scanner.scan_text(line);
+            total += matches.len();
+            for m in &matches {
+                *type_counts.entry(m.pii_type).or_insert(0) += 1;
+            }
+        }
+
+        let mut type_list: Vec<_> = type_counts.iter().collect();
+        type_list.sort_by_key(|(t, _)| format!("{:?}", t));
+
+        eprintln!("\n============================================================");
+        eprintln!("  patient_records.csv — FPE Type Validation");
+        eprintln!("  {} data rows, {} total matches", data_lines.len(), total);
+        eprintln!("============================================================");
+        for (pii_type, count) in &type_list {
+            let fpe = if pii_type.is_fpe_eligible() {
+                " [FPE]"
+            } else {
+                ""
+            };
+            eprintln!("    {:?}: {}{}", pii_type, count, fpe);
+        }
+
+        // Must detect these FPE-eligible types
+        assert!(
+            type_counts.contains_key(&PiiType::Ssn),
+            "Must detect SSN — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            type_counts.contains_key(&PiiType::PhoneNumber),
+            "Must detect Phone — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            type_counts.contains_key(&PiiType::Email),
+            "Must detect Email — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+        assert!(
+            type_counts.contains_key(&PiiType::GpsCoordinate),
+            "Must detect GPS (now FPE-eligible) — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+        // HealthKeyword is non-FPE (uses hash-token)
+        assert!(
+            type_counts.contains_key(&PiiType::HealthKeyword),
+            "Must detect HealthKeyword — found: {:?}",
+            type_counts.keys().collect::<Vec<_>>()
+        );
+
+        // GPS must be FPE-eligible
+        assert!(
+            PiiType::GpsCoordinate.is_fpe_eligible(),
+            "GPS must now be FPE-eligible"
+        );
+
+        // Count FPE vs non-FPE matches
+        let fpe_count: usize = type_counts
+            .iter()
+            .filter(|(t, _)| t.is_fpe_eligible())
+            .map(|(_, c)| c)
+            .sum();
+        let non_fpe_count: usize = type_counts
+            .iter()
+            .filter(|(t, _)| !t.is_fpe_eligible())
+            .map(|(_, c)| c)
+            .sum();
+        eprintln!(
+            "  {} FPE-eligible + {} hash-token = {} total",
+            fpe_count, non_fpe_count, total
+        );
+    }
 }

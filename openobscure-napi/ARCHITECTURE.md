@@ -11,7 +11,7 @@ The NAPI addon is an **optional accelerator** for the L1 TypeScript plugin. When
 ```
 L1 Plugin (redactPii)
     │
-    ├── @openobscure/scanner-napi installed ──► Rust HybridScanner (14 PII types)
+    ├── @openobscure/scanner-napi installed ──► Rust HybridScanner (15 PII types)
     │                                            ├── Regex + post-validation (CC Luhn, SSN ranges)
     │                                            ├── Keyword dictionary (~700 health/child terms)
     │                                            └── NER TinyBERT INT8 (if model dir provided)
@@ -22,7 +22,7 @@ L1 Plugin (redactPii)
 
 | Without NAPI (JS regex) | With NAPI (Rust HybridScanner) |
 |--------------------------|-------------------------------|
-| CC, SSN, phone, email, API key (5 types) | + IPv4/6, GPS, MAC, person, location, org, health, child (14 types) |
+| CC, SSN, phone, email, API key (5 types) | + IPv4/6, GPS, MAC, IBAN, person, location, org, health, child (15 types) |
 | ~0ms (pure regex) | <5ms (regex + keywords), <15ms (+ NER) |
 | No model files needed | Optional NER model for semantic detection |
 

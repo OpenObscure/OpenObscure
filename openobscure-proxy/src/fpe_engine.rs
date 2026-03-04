@@ -11,6 +11,7 @@ use crate::scanner::PiiMatch;
 /// The core FPE engine. Holds pre-built FF1 instances per radix.
 pub struct FpeEngine {
     ff1_radix10: FF1<Aes256>,
+    ff1_radix16: FF1<Aes256>,
     ff1_radix36: FF1<Aes256>,
     ff1_radix62: FF1<Aes256>,
     mappers: HashMap<PiiType, AlphabetMapper>,
@@ -29,6 +30,7 @@ impl FpeEngine {
     pub fn new(key: &[u8; 32]) -> Result<Self, FpeError> {
         Ok(Self {
             ff1_radix10: FF1::<Aes256>::new(key, 10).map_err(FpeError::InvalidRadix)?,
+            ff1_radix16: FF1::<Aes256>::new(key, 16).map_err(FpeError::InvalidRadix)?,
             ff1_radix36: FF1::<Aes256>::new(key, 36).map_err(FpeError::InvalidRadix)?,
             ff1_radix62: FF1::<Aes256>::new(key, 62).map_err(FpeError::InvalidRadix)?,
             mappers: crate::pii_types::build_mappers(),
@@ -47,15 +49,21 @@ impl FpeEngine {
         let (encryptable, prefix, suffix) =
             extract_encryptable(&pii_match.raw_value, &pii_match.pii_type);
 
+        // Lowercase before FormatTemplate for case-insensitive types so that
+        // uppercase hex chars (e.g., 'A' in MAC "00-1A-2B-...") are recognized
+        // as alphabet characters rather than treated as separators.
+        let encryptable = if matches!(
+            pii_match.pii_type,
+            PiiType::Email | PiiType::Ipv6Address | PiiType::MacAddress | PiiType::Iban
+        ) {
+            encryptable.to_lowercase()
+        } else {
+            encryptable
+        };
+
         // Strip formatting separators, keeping track of their positions
         let template = FormatTemplate::from_raw(&encryptable, mapper);
-
-        // For email local parts, lowercase before encryption
-        let naked = if pii_match.pii_type == PiiType::Email {
-            template.naked.to_lowercase()
-        } else {
-            template.naked.clone()
-        };
+        let naked = template.naked.clone();
 
         // Convert to numerals
         let numerals = mapper
@@ -110,13 +118,17 @@ impl FpeEngine {
 
         let (encryptable, prefix, suffix) = extract_encryptable(encrypted, &pii_type);
 
-        let template = FormatTemplate::from_raw(&encryptable, mapper);
-
-        let naked = if pii_type == PiiType::Email {
-            template.naked.to_lowercase()
+        let encryptable = if matches!(
+            pii_type,
+            PiiType::Email | PiiType::Ipv6Address | PiiType::MacAddress | PiiType::Iban
+        ) {
+            encryptable.to_lowercase()
         } else {
-            template.naked.clone()
+            encryptable
         };
+
+        let template = FormatTemplate::from_raw(&encryptable, mapper);
+        let naked = template.naked.clone();
 
         let numerals = mapper
             .string_to_numerals(&naked)
@@ -138,6 +150,7 @@ impl FpeEngine {
     fn get_ff1(&self, radix: u32) -> Result<&FF1<Aes256>, FpeError> {
         match radix {
             10 => Ok(&self.ff1_radix10),
+            16 => Ok(&self.ff1_radix16),
             36 => Ok(&self.ff1_radix36),
             62 => Ok(&self.ff1_radix62),
             _ => Err(FpeError::UnsupportedRadix(radix)),
@@ -156,6 +169,16 @@ fn extract_encryptable(raw: &str, pii_type: &PiiType) -> (String, String, String
                 let local = &raw[..at_pos];
                 let domain = &raw[at_pos..]; // includes @
                 (local.to_string(), String::new(), domain.to_string())
+            } else {
+                (raw.to_string(), String::new(), String::new())
+            }
+        }
+        PiiType::Iban => {
+            // Preserve 2-letter country code prefix, encrypt the rest
+            if raw.len() >= 2 && raw[..2].chars().all(|c| c.is_ascii_alphabetic()) {
+                let prefix = raw[..2].to_uppercase();
+                let rest = &raw[2..];
+                (rest.to_string(), prefix, String::new())
             } else {
                 (raw.to_string(), String::new(), String::new())
             }
@@ -365,5 +388,228 @@ mod tests {
         assert_eq!(tweak2.len(), 32);
         // Same request ID but different paths should produce different tweaks
         assert_ne!(tweak1, tweak2);
+    }
+
+    #[test]
+    fn test_fpe_roundtrip_ipv4() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"ipv4-tweak";
+
+        let pii_match = PiiMatch {
+            pii_type: PiiType::Ipv4Address,
+            start: 0,
+            end: 12,
+            raw_value: "192.168.1.42".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine.encrypt_match(&pii_match, tweak).unwrap();
+        assert_ne!(result.encrypted, "192.168.1.42");
+        // Dots preserved at same positions
+        let dots: Vec<usize> = result
+            .encrypted
+            .match_indices('.')
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(dots, vec![3, 7, 9]);
+
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::Ipv4Address, tweak)
+            .unwrap();
+        assert_eq!(decrypted, "192.168.1.42");
+    }
+
+    #[test]
+    fn test_fpe_roundtrip_ipv6_full() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"ipv6-tweak";
+
+        let pii_match = PiiMatch {
+            pii_type: PiiType::Ipv6Address,
+            start: 0,
+            end: 39,
+            raw_value: "2001:0db8:85a3:0000:0000:8a2e:0370:7334".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine.encrypt_match(&pii_match, tweak).unwrap();
+        assert_ne!(result.encrypted, pii_match.raw_value);
+        // 7 colons preserved
+        assert_eq!(result.encrypted.matches(':').count(), 7);
+
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::Ipv6Address, tweak)
+            .unwrap();
+        assert_eq!(decrypted, pii_match.raw_value);
+    }
+
+    #[test]
+    fn test_fpe_roundtrip_ipv6_compressed() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"ipv6c-tweak";
+
+        let pii_match = PiiMatch {
+            pii_type: PiiType::Ipv6Address,
+            start: 0,
+            end: 15,
+            raw_value: "fe80::1234:5678".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine.encrypt_match(&pii_match, tweak).unwrap();
+        assert_ne!(result.encrypted, pii_match.raw_value);
+        // :: and : positions preserved
+        assert!(result.encrypted.contains("::"));
+
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::Ipv6Address, tweak)
+            .unwrap();
+        assert_eq!(decrypted, pii_match.raw_value);
+    }
+
+    #[test]
+    fn test_fpe_roundtrip_gps() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"gps-tweak";
+
+        let pii_match = PiiMatch {
+            pii_type: PiiType::GpsCoordinate,
+            start: 0,
+            end: 18,
+            raw_value: "45.5231, -122.6765".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine.encrypt_match(&pii_match, tweak).unwrap();
+        assert_ne!(result.encrypted, pii_match.raw_value);
+        // Signs, dots, comma, space preserved
+        assert!(result.encrypted.contains(", -"));
+        assert_eq!(result.encrypted.matches('.').count(), 2);
+
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::GpsCoordinate, tweak)
+            .unwrap();
+        assert_eq!(decrypted, pii_match.raw_value);
+    }
+
+    #[test]
+    fn test_fpe_roundtrip_mac_colon() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"mac-tweak";
+
+        let pii_match = PiiMatch {
+            pii_type: PiiType::MacAddress,
+            start: 0,
+            end: 17,
+            raw_value: "00:1a:2b:3c:4d:5e".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine.encrypt_match(&pii_match, tweak).unwrap();
+        assert_ne!(result.encrypted, pii_match.raw_value);
+        // 5 colons preserved
+        assert_eq!(result.encrypted.matches(':').count(), 5);
+
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::MacAddress, tweak)
+            .unwrap();
+        assert_eq!(decrypted, pii_match.raw_value);
+    }
+
+    #[test]
+    fn test_fpe_roundtrip_mac_dash() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"macd-tweak";
+
+        // Mixed case input — should be lowercased for encryption
+        let pii_match = PiiMatch {
+            pii_type: PiiType::MacAddress,
+            start: 0,
+            end: 17,
+            raw_value: "00-1A-2B-3C-4D-5E".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine.encrypt_match(&pii_match, tweak).unwrap();
+        assert_ne!(result.encrypted, pii_match.raw_value);
+        // 5 dashes preserved
+        assert_eq!(result.encrypted.matches('-').count(), 5);
+
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::MacAddress, tweak)
+            .unwrap();
+        // Decryption returns lowercase since we lowercase-normalize before encryption.
+        // Dashes preserved at original positions; hex chars lowercase.
+        assert_eq!(decrypted, "00-1a-2b-3c-4d-5e");
+    }
+
+    #[test]
+    fn test_fpe_roundtrip_iban() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"iban-tweak";
+
+        let pii_match = PiiMatch {
+            pii_type: PiiType::Iban,
+            start: 0,
+            end: 24,
+            raw_value: "ES9121000418450200051332".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine.encrypt_match(&pii_match, tweak).unwrap();
+        assert_ne!(result.encrypted, pii_match.raw_value);
+        // Country code "ES" preserved
+        assert!(result.encrypted.starts_with("ES"));
+        // Same total length
+        assert_eq!(result.encrypted.len(), pii_match.raw_value.len());
+
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::Iban, tweak)
+            .unwrap();
+        // Decrypted BBAN is lowercase (we lowercase-normalize), country code is uppercase
+        assert!(decrypted.starts_with("ES"));
+        // The numeric portion should match (digits are same in upper/lower)
+        let orig_digits: String = pii_match.raw_value[2..]
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .collect();
+        let dec_digits: String = decrypted[2..]
+            .chars()
+            .filter(|c| c.is_ascii_digit())
+            .collect();
+        assert_eq!(dec_digits, orig_digits);
+    }
+
+    #[test]
+    fn test_fpe_roundtrip_iban_with_spaces() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"ibans-tweak";
+
+        // IBAN with space separators
+        let pii_match = PiiMatch {
+            pii_type: PiiType::Iban,
+            start: 0,
+            end: 29,
+            raw_value: "DE89 3704 0044 0532 0130 00".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine.encrypt_match(&pii_match, tweak).unwrap();
+        assert!(result.encrypted.starts_with("DE"));
+        // Spaces preserved at same positions
+        assert_eq!(result.encrypted.matches(' ').count(), 5);
+
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::Iban, tweak)
+            .unwrap();
+        assert!(decrypted.starts_with("DE"));
     }
 }

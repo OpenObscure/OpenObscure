@@ -56,7 +56,7 @@ pub fn patterns() -> Vec<LangPattern> {
             label: "German phone (+49)",
         },
         LangPattern {
-            pii_type: PiiType::CreditCard,
+            pii_type: PiiType::Iban,
             regex: Regex::new(
                 r"\bDE\d{2}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{2}\b",
             )

@@ -60,7 +60,7 @@ flowchart LR
 
 - **Platforms:** macOS, Linux (x64 + ARM64), Windows
 - **Layers:** L0 (Rust proxy) + L1 (TypeScript plugin) + optional NAPI native addon
-- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers), FPE encryption, image pipeline (face/OCR/NSFW solid-fill redaction, EXIF strip), voice PII detection (KWS keyword spotting), response integrity (R1 dictionary + R2 TinyBERT classifier — cognitive firewall), SSE streaming, NAPI native addon (14-type in-process scanning for Node.js agents)
+- **Features:** Full PII scanning (regex + NER/CRF + keywords + network/device identifiers + multilingual IBANs), FPE encryption (10 types), image pipeline (face/OCR/NSFW solid-fill redaction, EXIF strip), voice PII detection (KWS keyword spotting), response integrity (R1 dictionary + R2 TinyBERT classifier — cognitive firewall), SSE streaming, NAPI native addon (15-type in-process scanning for Node.js agents)
 - **Use case:** Desktop apps, servers, VPS, Raspberry Pi — anywhere the agent's Gateway runs
 
 ### Embedded Model (Mobile / Library)
@@ -277,8 +277,8 @@ flowchart LR
 
 | Layer | Language | What it does |
 |-------|----------|-------------|
-| **L0** — PII Proxy | Rust | **Request path:** scans JSON for PII (structured, network/device, semantic, keywords), encrypts with FF1 FPE or redacts. Processes images (face/OCR/NSFW solid-fill redaction, EXIF strip). **Response path:** decrypts FPE ciphertexts, scans for persuasion/manipulation techniques (cognitive firewall). |
-| **L1** — Gateway Plugin | TypeScript | Hooks tool results, redacts PII. Auto-upgrades to 14-type native scanning when NAPI addon installed. Heartbeat monitor for L0 health. |
+| **L0** — PII Proxy | Rust | **Request path:** scans JSON for PII (structured, network/device, semantic, keywords, multilingual IBANs), encrypts with FF1 FPE (10 types) or hash-token redacts (5 types). Processes images (face/OCR/NSFW solid-fill redaction, EXIF strip). **Response path:** decrypts FPE ciphertexts, scans for persuasion/manipulation techniques (cognitive firewall). |
+| **L1** — Gateway Plugin | TypeScript | Hooks tool results, redacts PII. Auto-upgrades to 15-type native scanning when NAPI addon installed. Heartbeat monitor for L0 health. |
 
 For the full architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -465,7 +465,7 @@ sequenceDiagram
 
 PII detection uses a hybrid approach:
 - **Regex** with post-validation (Luhn for credit cards, range checks for SSNs, IPv4 validation)
-- **Network/device identifiers** — IPv4, IPv6, GPS coordinates, MAC addresses (redacted to `[IPv4]`, `[IPv6]`, `[GPS]`, `[MAC]`)
+- **Network/device identifiers** — IPv4, IPv6, GPS coordinates, MAC addresses, IBANs (FPE-encrypted with format preservation)
 - **NER/CRF** (TinyBERT INT8) for semantic detection (names, addresses, orgs)
 - **Keyword dictionary** (~700 terms) for health and child-related terms
 - **Image pipeline** (SCRFD/BlazeFace + PaddleOCR ONNX) for visual PII in photos — faces redacted with solid fill (irreversible)

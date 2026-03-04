@@ -86,7 +86,7 @@ src/
 ├── wordpiece.rs         WordPiece tokenizer for NER input
 ├── fpe_engine.rs        FF1 FPE encrypt/decrypt engine
 ├── key_manager.rs       FPE key rotation: versioned vault keys, RwLock, 30s overlap window
-├── pii_types.rs         PII type definitions, alphabet mappers, format templates
+├── pii_types.rs         PII type definitions (15 types incl. Iban), alphabet mappers, format templates
 ├── mapping.rs           Per-request FPE mapping store for response decryption
 ├── hash_token.rs        Hash-based token generation for non-FPE PII redaction (deterministic short tokens)
 ├── body.rs              Three-pass body processing: images → voice → text PII scanning
@@ -177,7 +177,7 @@ src/
    │
 6. Pass 2: Text PII scanning
    │   hybrid_scanner.scan_json() — multi-layer scan
-   │   a. Regex scanner (CC, SSN, phone, email, API keys) + post-validation
+   │   a. Regex scanner (CC, SSN, phone, email, API keys, IPv4/6, GPS, MAC) + post-validation
    │   b. Keyword dictionary (health/child terms, ~700 entries)
    │   c. NER/CRF semantic scanner (names, addresses, orgs) if model loaded
    │   d. Deduplicate overlapping spans (regex wins on overlap)
@@ -230,19 +230,25 @@ src/
 | Phone | 10 | 10+ digits | `+`, parens, spaces, dashes | `+1 (555) 123-4567` → `+1 (847) 293-6510` |
 | Email | 36 | Local part (lowercase) | `@` + domain | `john.doe@gmail.com` → `q7k2m91@gmail.com` |
 | API Key | 62 | Post-prefix body | Known prefix (`sk-`, `AKIA`...) | `sk-abc123def456` → `sk-x9q2w7m4k8p1` |
+| IPv4 Address | 10 | Digit octets | Dot positions | `192.168.1.42` → `847.293.6.51` |
+| IPv6 Address | 16 | Hex groups (lowercase) | Colon positions, `::` structure | `2001:db8:85a3::7334` → `a4f1:c92:3e7b::d810` |
+| GPS Coordinate | 10 | Lat+lon digits together | Signs, dots, comma, space | `45.5231, -122.6765` → `82.9371, -405.6128` |
+| MAC Address | 16 | 12 hex chars (lowercase) | Colon/dash/dot positions | `00:1a:2b:3c:4d:5e` → `a4:f1:c9:2e:3b:78` |
+| IBAN | 36 | BBAN (post-country digits+letters) | 2-letter country prefix | `ES9121000418450200051332` → `ESa4f1c92e3b78d810k2m9` |
 
-**Redaction-only types** (not FPE-encrypted — formats too varied for format-preserving encryption):
+**Hash-token types** (not FPE-encrypted — formats too varied or semantically opaque for format-preserving encryption):
 
-| PII Type | Regex | Validation | Redaction Label |
-|----------|-------|-----------|-----------------|
-| IPv4 Address | Dotted-quad (0-255 octets) | Rejects loopback, broadcast, link-local, 0.x.x.x | `[IPv4]` |
-| IPv6 Address | Full 8-group, mid-compressed, `::` prefix | — | `[IPv6]` |
-| GPS Coordinate | Signed decimal lat/long (4+ decimal places) | — | `[GPS]` |
-| MAC Address | Colon, dash, or Cisco dot notation | — | `[MAC]` |
+| PII Type | Redaction Style | Example |
+|----------|----------------|---------|
+| Person | `PER_a7f2` | Names detected by NER |
+| Location | `LOC_b3e1` | Addresses detected by NER |
+| Organization | `ORG_c8d4` | Org names detected by NER |
+| Health Keyword | `HLT_d9f6` | Health terms from keyword dictionary |
+| Child Keyword | `CHD_e2a5` | Child-related terms from keyword dictionary |
 
 **Tweak strategy:** Per-record tweak = `request_uuid (16B) || SHA-256(json_path)[0..16]`. Same PII value in different requests produces different ciphertexts (prevents frequency analysis).
 
-**Domain size safety:** FF1 requires radix^len ≥ 1,000,000. Values shorter than the minimum length for their radix are rejected (logged, forwarded unencrypted).
+**Domain size safety:** FF1 requires radix^len ≥ 1,000,000. Values shorter than the minimum length for their radix fall back to hash-token redaction (logged, forwarded with token replacement).
 
 ## Authentication & Key Management
 
@@ -481,6 +487,7 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 
 ## Recently Completed
 
+- **FPE extended to 10 types** — IPv4 (radix 10), IPv6 (radix 16), GPS (radix 10), MAC (radix 16), and IBAN (radix 36) now use FF1 FPE instead of hash-token redaction. New `ff1_radix16` cipher for hex types (IPv6, MAC). IBAN gets dedicated `PiiType::Iban` with country code preservation. Lowercase normalization applied before FormatTemplate for case-insensitive types (Email, IPv6, MAC, IBAN)
 - **Ensemble NSFW classifier** — ViT-tiny holistic classifier (Marqo/nsfw-image-detection-384, 21MB FP32) as Phase 0b fallback when NudeNet clean, catches semi-nude content NudeNet misses, 0.75 threshold, fail-open, lazy-loaded with eviction (Phase 15)
 - **Multi-LLM response format detection** — `response_format.rs` auto-detects response formats from 6 providers (Anthropic, OpenAI, Gemini, Cohere, Ollama, plaintext) for response integrity text extraction and warning injection
 - **SCRFD-2.5GF** — multi-scale face detection for Full/Standard tiers (640x640 input, FPN, 20px–400px faces)

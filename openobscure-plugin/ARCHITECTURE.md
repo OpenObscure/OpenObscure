@@ -53,13 +53,13 @@ Scans tool result text for PII and replaces matches with `[REDACTED-*]` labels. 
 
 | Engine | When Used | PII Types | Latency |
 |--------|-----------|-----------|---------|
-| **Native addon** (`@openobscure/scanner-napi`) | Addon installed | 14 (regex + keywords + NER) | <5ms |
-| **L0 NER endpoint** (`POST /_openobscure/ner`) | L0 proxy running, no addon | 14 (semantic NER + regex merge) | ~15ms (HTTP) |
+| **Native addon** (`@openobscure/scanner-napi`) | Addon installed | 15 (regex + keywords + NER) | <5ms |
+| **L0 NER endpoint** (`POST /_openobscure/ner`) | L0 proxy running, no addon | 15 (semantic NER + regex merge) | ~15ms (HTTP) |
 | **JS regex** fallback | Neither available | 5 (CC, SSN, phone, email, API key) | ~0ms |
 
 The native addon wraps the same Rust HybridScanner that powers L0. Auto-detection happens once at module load via `require("@openobscure/scanner-napi")`. If the require fails, falls back silently.
 
-**NER model auto-discovery:** When the native addon is loaded, the redactor looks for NER model files at `../openobscure-proxy/models/ner/` relative to the addon's install location. If found, enables NER (person, location, org detection) for 14-type coverage.
+**NER model auto-discovery:** When the native addon is loaded, the redactor looks for NER model files at `../openobscure-proxy/models/ner/` relative to the addon's install location. If found, enables NER (person, location, org detection) for 15-type coverage.
 
 **JS Regex Fallback (5 types):**
 
@@ -168,7 +168,7 @@ Tool executes → tool_result_persist fires → PII Redactor scans → redacted 
 |-----------|--------|-----|
 | Language | TypeScript 5.4 | Compatible with host agent runtime |
 | Module system | CommonJS | Compatible with OpenClaw plugin loader |
-| Native scanner | `@openobscure/scanner-napi` (optional) | 14-type Rust HybridScanner via napi-rs |
+| Native scanner | `@openobscure/scanner-napi` (optional) | 15-type Rust HybridScanner via napi-rs |
 | Testing | node:test + node:assert | Zero-dependency, built into Node.js |
 | Test runner | tsx | TypeScript execution without pre-compilation |
 
@@ -198,7 +198,7 @@ via the default entry point (`openobscure-plugin`).
 
 ## Recently Completed
 
-- **Native scanner auto-detection:** `redactPii()` auto-upgrades to NAPI addon (14-type Rust HybridScanner) when `@openobscure/scanner-napi` is installed — DONE
+- **Native scanner auto-detection:** `redactPii()` auto-upgrades to NAPI addon (15-type Rust HybridScanner) when `@openobscure/scanner-napi` is installed — DONE
 - **NER-enhanced redaction:** When L0 is healthy, redactor calls `POST /_openobscure/ner` for semantic PII spans (names, addresses, orgs) merged with regex results — DONE
 - **`before_tool_call` handler:** Prepared handler that auto-activates when OpenClaw wires the hook, upgrading from soft to hard enforcement — DONE (Phase 10F)
 - **Agent-agnostic API (`core.ts`):** Exports core functions without framework wiring for non-OpenClaw integrations — DONE

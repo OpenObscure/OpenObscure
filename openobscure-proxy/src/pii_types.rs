@@ -18,6 +18,7 @@ pub enum PiiType {
     Person,
     Location,
     Organization,
+    Iban,
 }
 
 impl fmt::Display for PiiType {
@@ -37,6 +38,7 @@ impl fmt::Display for PiiType {
             PiiType::Person => write!(f, "person"),
             PiiType::Location => write!(f, "location"),
             PiiType::Organization => write!(f, "organization"),
+            PiiType::Iban => write!(f, "iban"),
         }
     }
 }
@@ -76,13 +78,39 @@ impl PiiType {
                 alphabet: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
                 min_length: 6, // 62^6 >> 1,000,000
             },
-            // Network/device identifiers and keyword types are redacted, not FPE-encrypted.
+            PiiType::Ipv4Address => PiiTypeConfig {
+                pii_type: *self,
+                radix: 10,
+                alphabet: "0123456789",
+                min_length: 4, // 10^4 = 10,000 ≥ FF1 min 100
+            },
+            PiiType::Ipv6Address => PiiTypeConfig {
+                pii_type: *self,
+                radix: 16,
+                alphabet: "0123456789abcdef",
+                min_length: 2, // 16^2 = 256 ≥ FF1 min 100
+            },
+            PiiType::GpsCoordinate => PiiTypeConfig {
+                pii_type: *self,
+                radix: 10,
+                alphabet: "0123456789",
+                min_length: 6, // 10^6 = 1,000,000
+            },
+            PiiType::MacAddress => PiiTypeConfig {
+                pii_type: *self,
+                radix: 16,
+                alphabet: "0123456789abcdef",
+                min_length: 6, // 16^6 >> 1,000,000
+            },
+            PiiType::Iban => PiiTypeConfig {
+                pii_type: *self,
+                radix: 36,
+                alphabet: "0123456789abcdefghijklmnopqrstuvwxyz",
+                min_length: 6, // 36^6 >> 1,000,000
+            },
+            // Keyword and NER types are redacted, not FPE-encrypted.
             // Returning a dummy config — callers should check is_fpe_eligible() first.
-            PiiType::Ipv4Address
-            | PiiType::Ipv6Address
-            | PiiType::GpsCoordinate
-            | PiiType::MacAddress
-            | PiiType::HealthKeyword
+            PiiType::HealthKeyword
             | PiiType::ChildKeyword
             | PiiType::Person
             | PiiType::Location
@@ -102,12 +130,13 @@ impl PiiType {
             | PiiType::Ssn
             | PiiType::PhoneNumber
             | PiiType::Email
-            | PiiType::ApiKey => true,
-            PiiType::Ipv4Address
+            | PiiType::ApiKey
+            | PiiType::Ipv4Address
             | PiiType::Ipv6Address
             | PiiType::GpsCoordinate
             | PiiType::MacAddress
-            | PiiType::HealthKeyword
+            | PiiType::Iban => true,
+            PiiType::HealthKeyword
             | PiiType::ChildKeyword
             | PiiType::Person
             | PiiType::Location
@@ -127,6 +156,7 @@ impl PiiType {
             PiiType::Person => "[PERSON]",
             PiiType::Location => "[LOCATION]",
             PiiType::Organization => "[ORG]",
+            PiiType::Iban => "[IBAN]",
             _ => "[REDACTED]",
         }
     }
@@ -145,6 +175,7 @@ impl PiiType {
             PiiType::Person => "PER",
             PiiType::Location => "LOC",
             PiiType::Organization => "ORG",
+            PiiType::Iban => "IBN",
             // FPE types shouldn't call this, but provide a fallback
             _ => "RED",
         }
@@ -167,6 +198,7 @@ impl PiiType {
             PiiType::Person => "person",
             PiiType::Location => "location",
             PiiType::Organization => "organization",
+            PiiType::Iban => "iban",
         }
     }
 }
@@ -271,6 +303,11 @@ pub fn build_mappers() -> HashMap<PiiType, AlphabetMapper> {
         PiiType::PhoneNumber,
         PiiType::Email,
         PiiType::ApiKey,
+        PiiType::Ipv4Address,
+        PiiType::Ipv6Address,
+        PiiType::GpsCoordinate,
+        PiiType::MacAddress,
+        PiiType::Iban,
     ];
     for pii_type in types {
         let config = pii_type.config();
@@ -342,5 +379,68 @@ mod tests {
             Some("ghp_")
         );
         assert_eq!(find_api_key_prefix("unknown-key"), None);
+    }
+
+    #[test]
+    fn test_iban_config() {
+        let config = PiiType::Iban.config();
+        assert_eq!(config.radix, 36);
+        assert_eq!(config.min_length, 6);
+        assert!(PiiType::Iban.is_fpe_eligible());
+        assert_eq!(PiiType::Iban.config_key(), "iban");
+        assert_eq!(PiiType::Iban.hash_token_prefix(), "IBN");
+        assert_eq!(PiiType::Iban.redaction_label(), "[IBAN]");
+        assert_eq!(format!("{}", PiiType::Iban), "iban");
+    }
+
+    #[test]
+    fn test_new_fpe_types_eligible() {
+        assert!(PiiType::Ipv4Address.is_fpe_eligible());
+        assert!(PiiType::Ipv6Address.is_fpe_eligible());
+        assert!(PiiType::GpsCoordinate.is_fpe_eligible());
+        assert!(PiiType::MacAddress.is_fpe_eligible());
+        assert!(PiiType::Iban.is_fpe_eligible());
+        // These should remain non-FPE
+        assert!(!PiiType::HealthKeyword.is_fpe_eligible());
+        assert!(!PiiType::ChildKeyword.is_fpe_eligible());
+        assert!(!PiiType::Person.is_fpe_eligible());
+        assert!(!PiiType::Location.is_fpe_eligible());
+        assert!(!PiiType::Organization.is_fpe_eligible());
+    }
+
+    #[test]
+    fn test_format_template_ipv4() {
+        let mapper = AlphabetMapper::new("0123456789");
+        let tmpl = FormatTemplate::from_raw("192.168.1.42", &mapper);
+        assert_eq!(tmpl.naked, "192168142");
+        assert_eq!(tmpl.separators, vec![(3, '.'), (7, '.'), (9, '.')]);
+    }
+
+    #[test]
+    fn test_format_template_gps() {
+        let mapper = AlphabetMapper::new("0123456789");
+        let tmpl = FormatTemplate::from_raw("45.5231, -122.6765", &mapper);
+        assert_eq!(tmpl.naked, "4552311226765");
+        // Separators: '.', ',', ' ', '-', '.'
+        assert!(tmpl.separators.contains(&(2, '.')));
+        assert!(tmpl.separators.contains(&(9, '-')));
+    }
+
+    #[test]
+    fn test_format_template_mac_lowercase() {
+        let mapper = AlphabetMapper::new("0123456789abcdef");
+        let tmpl = FormatTemplate::from_raw("00:1a:2b:3c:4d:5e", &mapper);
+        assert_eq!(tmpl.naked, "001a2b3c4d5e");
+        assert_eq!(tmpl.separators.len(), 5); // 5 colons
+    }
+
+    #[test]
+    fn test_build_mappers_includes_new_types() {
+        let mappers = build_mappers();
+        assert!(mappers.contains_key(&PiiType::Ipv4Address));
+        assert!(mappers.contains_key(&PiiType::Ipv6Address));
+        assert!(mappers.contains_key(&PiiType::GpsCoordinate));
+        assert!(mappers.contains_key(&PiiType::MacAddress));
+        assert!(mappers.contains_key(&PiiType::Iban));
     }
 }
