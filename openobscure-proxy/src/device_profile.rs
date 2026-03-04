@@ -246,7 +246,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             tier,
             max_ram_mb: 275,
             ner_enabled: true,
-            ner_model: "tinybert".to_string(),
+            ner_model: "distilbert".to_string(),
             crf_enabled: true,
             ensemble_enabled: true,
             image_pipeline_enabled: true,
@@ -470,7 +470,7 @@ mod tests {
         let b = budget_for_tier(tier, &p);
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled);
-        assert_eq!(b.ner_model, "tinybert");
+        assert_eq!(b.ner_model, "distilbert");
         assert!(b.crf_enabled);
         assert!(b.ensemble_enabled);
         assert!(b.image_pipeline_enabled);
@@ -768,9 +768,8 @@ mod tests {
             &["ner_enabled", "crf_enabled", "image_pipeline_enabled"];
 
         // String fields that differ between Full and Lite gateway tiers.
-        // Note: ner_model is now "tinybert" on all gateway tiers (speed-first default).
-        // DistilBERT is available via config override for higher accuracy.
-        const TIER_DIFFERENTIATED_STRINGS: &[&str] = &[];
+        // Full uses "distilbert" (higher accuracy, 63.7MB); Standard/Lite use "tinybert" (faster, 13.7MB).
+        const TIER_DIFFERENTIATED_STRINGS: &[&str] = &["ner_model"];
 
         // --- Gateway: Full vs Lite must differ on TIER_DIFFERENTIATED ---
         let full_profile = profile_with_ram(16384, false);
