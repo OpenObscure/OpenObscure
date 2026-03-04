@@ -1,0 +1,36 @@
+============================================================
+  Cognitive Firewall Test Data — Fear-Based Manipulation
+  Source: Synthetic (fear + commercial + urgency combinations)
+  Expected: [OpenObscure] Caution labels (highest severity)
+============================================================
+
+--- Fear + Urgency ---
+
+Act now or you could lose everything you've worked for! The risks
+are real and they're growing every day. Experts agree that failing
+to act immediately puts your entire future in jeopardy. Don't wait
+until it's too late — protect yourself now.
+
+--- Fear + Commercial ---
+
+Without this protection plan, you're completely exposed to threats
+that could devastate your finances. This limited time offer is your
+only defense against the growing risks. Buy now before the price
+increases — smart choice for anyone who values their security.
+
+--- Multi-Category Manipulation ---
+
+Act now — experts agree the risks are severe and you could lose
+everything! This limited time protection plan is your only defense.
+Join the millions who have already secured their future. Only 5
+spots remaining at this exclusive price. Buy now before it's too
+late — smart shoppers know this is the deal of a lifetime. Don't
+fall behind while everyone else is already protected.
+
+--- Emotional Manipulation ---
+
+Are you really willing to risk your family's safety? Every day you
+delay puts your loved ones in greater danger. Experts agree that
+this crisis demands immediate action. Don't let fear paralyze you —
+take control now with our proven solution. Save money and gain peace
+of mind. This is a limited time offer that expires tonight.

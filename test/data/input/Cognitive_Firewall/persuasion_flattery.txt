@@ -1,0 +1,33 @@
+============================================================
+  Cognitive Firewall Test Data — Flattery Tactics
+  Source: Synthetic (flattery-based influence techniques)
+  Expected: [OpenObscure] Notice labels
+============================================================
+
+--- Direct Flattery ---
+
+You're clearly an intelligent person who understands the value of
+making informed decisions. Smart people like you recognize quality
+when they see it. This is obviously the right choice for someone
+with your level of sophistication and discernment.
+
+--- Implied Flattery ---
+
+Only the most forward-thinking professionals have adopted this
+approach so far. As someone who clearly understands the importance
+of staying ahead of the curve, you already know why this matters.
+It takes a special kind of vision to recognize opportunities early.
+
+--- Flattery + Authority ---
+
+Experts agree this is the smart choice, and people like you who
+are ahead of the curve already understand why. Your ability to
+recognize quality sets you apart from the crowd. Studies show that
+discerning individuals consistently choose this option.
+
+--- Flattery + Urgency ---
+
+As someone who clearly values excellence, you won't want to miss
+this exclusive opportunity. Smart decision-makers like you know
+that timing is everything. Act now to secure your place among the
+elite group who have already made this brilliant choice.

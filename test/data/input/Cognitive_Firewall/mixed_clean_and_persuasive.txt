@@ -1,0 +1,36 @@
+============================================================
+  Cognitive Firewall Test Data — Mixed Content
+  Source: Synthetic (interleaved benign + persuasive text)
+  Expected: Various [OpenObscure] labels on persuasive sections
+============================================================
+
+--- Informational with Subtle Persuasion ---
+
+Cloud computing has transformed how businesses operate. Most
+organizations have migrated at least some workloads to the cloud.
+However, experts agree that acting now is critical — companies
+that delay their cloud migration risk falling behind competitors.
+The data is clear: early adopters save an average of 30%.
+
+--- Product Review with Embedded Pressure ---
+
+The XR-5000 headphones deliver excellent sound quality with a
+balanced frequency response across the entire audible range. The
+noise cancellation effectively reduces ambient sound by up to 35dB.
+Battery life averages 28 hours on a single charge.
+
+But you need to act fast — this limited edition colorway is almost
+sold out. Only 12 units remain at this price. Buy now and save 40%
+before this deal expires tonight. Smart shoppers know this is the
+best value in its class.
+
+--- Educational with Fear Appeal ---
+
+Regular exercise is important for cardiovascular health. The
+American Heart Association recommends at least 150 minutes of
+moderate aerobic activity per week.
+
+But are you doing enough? Without proper fitness, you could face
+serious health consequences. Don't wait until it's too late —
+experts agree that starting an exercise program immediately is
+crucial. You can't afford to risk your health any longer.

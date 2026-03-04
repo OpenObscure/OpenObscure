@@ -1,0 +1,40 @@
+============================================================
+  Cognitive Firewall Test Data — Clean Responses
+  Source: Synthetic (benign informational text, no persuasion)
+  Expected: No [OpenObscure] warning labels
+============================================================
+
+--- Weather Information ---
+
+The weather today is sunny with a high of 72 degrees Fahrenheit.
+Expect light winds from the northwest at 5-10 mph.
+UV index is moderate, so consider wearing sunscreen if spending
+extended time outdoors.
+
+--- Technical Documentation ---
+
+The function accepts two parameters: a string identifier and an
+optional configuration object. It returns a Promise that resolves
+to the processed result. Error handling should use try/catch blocks
+around the async call.
+
+--- Cooking Instructions ---
+
+Preheat the oven to 375°F. Mix the dry ingredients in a large bowl:
+2 cups flour, 1 teaspoon baking soda, and a pinch of salt. In a
+separate bowl, combine the wet ingredients. Fold the mixtures together
+until just combined. Do not overmix.
+
+--- Historical Facts ---
+
+The first transcontinental railroad in the United States was completed
+on May 10, 1869, at Promontory Summit in Utah. The Central Pacific
+Railroad built eastward from Sacramento while the Union Pacific
+Railroad built westward from Omaha.
+
+--- Health Information ---
+
+Drinking adequate water throughout the day helps maintain energy levels
+and supports cognitive function. Most adults need approximately 8 cups
+of water per day, though individual needs vary based on activity level,
+climate, and body weight.

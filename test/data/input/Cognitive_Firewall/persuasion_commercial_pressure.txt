@@ -1,0 +1,34 @@
+============================================================
+  Cognitive Firewall Test Data — Commercial Pressure Tactics
+  Source: Synthetic (sales pressure + urgency combinations)
+  Expected: [OpenObscure] Warning labels (commercial + urgency)
+============================================================
+
+--- Sales Pressure ---
+
+Buy now and save 50% on your entire order! This exclusive discount
+is only available for the next 2 hours. Smart shoppers know that
+acting quickly is the key to getting the best deals. You deserve
+this premium product at an unbeatable price.
+
+--- Free Trial Pressure ---
+
+Start your free trial today and see the results for yourself. No
+credit card required — but this offer is only available for a limited
+time. Join thousands of satisfied users who upgraded to premium after
+experiencing the difference firsthand. Save money while getting more.
+
+--- Discount Stacking ---
+
+Use code SAVE50 for an additional 50% off the already reduced price!
+This is our biggest sale of the year and it won't be repeated. Plus,
+get free shipping on orders over $25. That's a total savings of over
+$200 — but only if you act now before this deal expires.
+
+--- Subscription Pressure ---
+
+Upgrade to our premium plan and unlock all features at a fraction of
+the regular cost. This introductory rate is exclusively for new
+members and saves you over 60% compared to monthly billing. Lock in
+this price now — it increases next month. Smart choice for anyone
+serious about results.

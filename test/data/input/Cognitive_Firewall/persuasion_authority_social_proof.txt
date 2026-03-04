@@ -1,0 +1,34 @@
+============================================================
+  Cognitive Firewall Test Data — Authority & Social Proof Tactics
+  Source: Synthetic (persuasion techniques from Cialdini framework)
+  Expected: [OpenObscure] Notice or Warning labels
+============================================================
+
+--- Authority Appeal ---
+
+Experts agree that this approach is the most effective solution
+available today. Leading researchers at top universities have
+confirmed these findings in peer-reviewed studies. According to
+industry leaders, this is the gold standard methodology.
+
+Studies show that 9 out of 10 professionals recommend this product.
+Board-certified specialists have endorsed this as the premier choice.
+The data is clear and the science backs it up completely.
+
+--- Social Proof ---
+
+Join the millions of satisfied customers who have already made the
+switch. Our community of over 500,000 users can't be wrong. This is
+the most popular choice among discerning professionals in the field.
+
+Everyone is talking about this breakthrough. Thousands of five-star
+reviews speak for themselves. The most trusted brands in the industry
+rely on this solution exclusively.
+
+--- Combined Authority + Social Proof ---
+
+Experts agree and millions of users confirm — this is simply the best
+option available. Leading industry analysts have rated it number one,
+and with over 2 million satisfied customers, the verdict is clear.
+Top professionals in every field trust this solution, and studies show
+it outperforms every alternative by a significant margin.

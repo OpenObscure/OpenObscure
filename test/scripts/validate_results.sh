@@ -716,6 +716,76 @@ elif [[ "$STRICT" == "true" ]]; then
     done
   fi
 
+  # ─── Strict: Embedded validation ────────────────────────────────
+
+  if [[ "$GATEWAY_ONLY" == "false" ]]; then
+    STRICT_EM_KEYS=$(jq -r '.embedded // {} | keys[]' "$SNAPSHOT" 2>/dev/null)
+
+    if [[ -n "$STRICT_EM_KEYS" ]]; then
+      CURRENT_CAT=""
+      for key in $STRICT_EM_KEYS; do
+        TOTAL=$((TOTAL + 1))
+        category="${key%%/*}"
+        filename="${key#*/}"
+        name_no_ext="${filename%.*}"
+
+        if [[ "$category" != "$CURRENT_CAT" ]]; then
+          CURRENT_CAT="$category"
+          if [[ "$SUMMARY_ONLY" == "false" && "$JSON_OUTPUT" == "false" ]]; then
+            echo "--- $category (embedded) ---"
+          fi
+        fi
+
+        em_json="$OUTPUT_DIR/$category/json/${name_no_ext}_embedded.json"
+
+        if [[ ! -f "$em_json" ]]; then
+          skip "$key (embedded)" "no embedded JSON"
+          continue
+        fi
+
+        expected_total=$(jq -r ".embedded[\"$key\"].total_matches" "$SNAPSHOT")
+        actual_total=$(jq '.total_matches // 0' "$em_json")
+
+        if [[ "$actual_total" -ne "$expected_total" ]]; then
+          fail "$key (embedded)" "total_matches: got $actual_total, expected $expected_total"
+          continue
+        fi
+
+        # Compare per-type counts exactly
+        type_mismatch=false
+        type_msg=""
+        expected_types_keys=$(jq -r ".embedded[\"$key\"].type_summary | keys[]" "$SNAPSHOT" 2>/dev/null)
+        for etype in $expected_types_keys; do
+          exp_count=$(jq -r ".embedded[\"$key\"].type_summary[\"$etype\"]" "$SNAPSHOT")
+          act_count=$(jq -r ".type_summary[\"$etype\"] // 0" "$em_json")
+          if [[ "$act_count" -ne "$exp_count" ]]; then
+            type_mismatch=true
+            type_msg="$etype: got $act_count, expected $exp_count"
+            break
+          fi
+        done
+
+        # Check for unexpected new types
+        if [[ "$type_mismatch" == "false" ]]; then
+          actual_types_keys=$(jq -r '.type_summary | keys[]' "$em_json" 2>/dev/null)
+          for atype in $actual_types_keys; do
+            has_expected=$(jq -r ".embedded[\"$key\"].type_summary[\"$atype\"] // \"missing\"" "$SNAPSHOT")
+            if [[ "$has_expected" == "missing" ]]; then
+              warn "$key (embedded)" "unexpected new type '$atype' not in snapshot"
+            fi
+          done
+        fi
+
+        if [[ "$type_mismatch" == "true" ]]; then
+          fail "$key (embedded)" "type mismatch: $type_msg"
+          continue
+        fi
+
+        pass "$key (embedded)" "$actual_total matches (exact)"
+      done
+    fi
+  fi
+
   # ─── Strict: Audio validation ──────────────────────────────────
 
   if [[ "$GATEWAY_ONLY" == "false" ]]; then
@@ -1017,12 +1087,17 @@ print(idx)
       [[ -f "$em_json" ]] || continue
 
       em_matches=$(jq '.total_matches // 0' "$em_json")
-      # Embedded regex-only: expect at least 1 match for files with regex-detectable types
-      # (NER types like person/location/org won't be found without USE_NER=1)
       min_matches=$(jq -r ".files[\"$key\"].min_matches" "$MANIFEST")
 
-      # Embedded detects fewer types, so use 30% of gateway threshold
-      em_min=$(( min_matches * 3 / 10 ))
+      # Check if embedded results include NER types (person/location/organization)
+      has_ner=$(jq '[.type_summary.person // 0, .type_summary.location // 0, .type_summary.organization // 0] | add' "$em_json")
+      if [[ "$has_ner" -gt 0 ]]; then
+        # NER-capable embedded: use same thresholds as gateway
+        em_min=$min_matches
+      else
+        # Regex-only embedded: use 30% of gateway threshold
+        em_min=$(( min_matches * 3 / 10 ))
+      fi
       [[ $em_min -lt 1 ]] && em_min=1
 
       if [[ "$em_matches" -ge "$em_min" ]]; then

@@ -1,0 +1,36 @@
+============================================================
+  Cognitive Firewall Test Data — Urgency & Scarcity Tactics
+  Source: Synthetic (persuasion techniques from Cialdini framework)
+  Expected: [OpenObscure] Notice or Warning labels
+============================================================
+
+--- Urgency Phrases ---
+
+Act now before this incredible opportunity disappears forever!
+This is a limited time offer that expires at midnight tonight.
+Don't wait — every second counts when deals like this come along.
+You need to decide immediately or risk missing out entirely.
+Time is running out and you must act now to secure your spot.
+
+--- Scarcity Phrases ---
+
+Only 3 spots remaining for this exclusive program.
+This limited edition product is almost sold out.
+We can only accept 10 more participants before closing enrollment.
+Supplies are extremely limited and we cannot guarantee availability.
+Once they're gone, they're gone — we won't be restocking.
+
+--- Combined Urgency + Scarcity ---
+
+Act now — only 5 seats left at this special price! This limited time
+offer expires tonight and we cannot extend it. Thousands have already
+signed up, and with only a handful of spots remaining, you need to
+make your decision right now. Don't let this once-in-a-lifetime
+opportunity slip through your fingers.
+
+--- Urgency with Deadline Pressure ---
+
+Your exclusive access expires in 24 hours. After that, the price
+increases by 50% and this special bonus package will no longer be
+available. This is your final chance to lock in the lowest price
+we've ever offered. Time is of the essence.
