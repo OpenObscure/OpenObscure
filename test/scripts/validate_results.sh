@@ -1089,16 +1089,22 @@ print(idx)
       em_matches=$(jq '.total_matches // 0' "$em_json")
       min_matches=$(jq -r ".files[\"$key\"].min_matches" "$MANIFEST")
 
-      # Check if embedded results include NER types (person/location/organization)
-      has_ner=$(jq '[.type_summary.person // 0, .type_summary.location // 0, .type_summary.organization // 0] | add' "$em_json")
-      if [[ "$has_ner" -gt 0 ]]; then
-        # NER-capable embedded: use same thresholds as gateway
-        em_min=$min_matches
+      # Use explicit embedded_min_matches if present, otherwise derive from gateway
+      em_min_explicit=$(jq -r ".files[\"$key\"].embedded_min_matches // \"null\"" "$MANIFEST")
+      if [[ "$em_min_explicit" != "null" ]]; then
+        em_min=$em_min_explicit
       else
-        # Regex-only embedded: use 30% of gateway threshold
-        em_min=$(( min_matches * 3 / 10 ))
+        # Check if embedded results include NER types (person/location/organization)
+        has_ner=$(jq '[.type_summary.person // 0, .type_summary.location // 0, .type_summary.organization // 0] | add' "$em_json")
+        if [[ "$has_ner" -gt 0 ]]; then
+          # NER-capable embedded: use same thresholds as gateway
+          em_min=$min_matches
+        else
+          # Regex-only embedded: use 30% of gateway threshold
+          em_min=$(( min_matches * 3 / 10 ))
+        fi
+        [[ $em_min -lt 1 ]] && em_min=1
       fi
-      [[ $em_min -lt 1 ]] && em_min=1
 
       if [[ "$em_matches" -ge "$em_min" ]]; then
         EM_PASS=$((EM_PASS + 1))

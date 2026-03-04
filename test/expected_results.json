@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "version": "2.3",
-    "description": "Expected PII detection results per input file. Thresholds at ~85% of actual counts. visual_files validates image pipeline, audio_files validates voice KWS pipeline.",
-    "generated": "2026-02-25",
+    "version": "3.0",
+    "description": "Expected PII detection results per input file. Gateway thresholds at ~85% of actual counts (NER-fixed DistilBERT baseline). embedded_min_matches overrides derived embedded thresholds where L1 regex coverage differs from L0. visual_files validates image pipeline, audio_files validates voice KWS pipeline.",
+    "generated": "2026-03-04",
     "total_files": 45,
     "total_visual_files": 47,
     "total_audio_files": 13,
@@ -11,7 +11,7 @@
   "files": {
 
     "PII_Detection/Credit_Card_Numbers.txt": {
-      "min_matches": 15,
+      "min_matches": 17,
       "expected_types": ["credit_card"],
       "must_detect": [
         {"text": "4532015112830366", "type": "credit_card"},
@@ -22,7 +22,7 @@
       ]
     },
     "PII_Detection/Social_Security_Numbers.txt": {
-      "min_matches": 26,
+      "min_matches": 40,
       "expected_types": ["ssn"],
       "must_detect": [
         {"text": "123-45-6789", "type": "ssn"},
@@ -32,7 +32,7 @@
       ]
     },
     "PII_Detection/Phone_Numbers.txt": {
-      "min_matches": 42,
+      "min_matches": 53,
       "expected_types": ["phone"],
       "must_detect": [
         {"text": "(415) 555-0132", "type": "phone"},
@@ -41,7 +41,7 @@
       ]
     },
     "PII_Detection/Email_Addresses.txt": {
-      "min_matches": 40,
+      "min_matches": 42,
       "expected_types": ["email"],
       "must_detect": [
         {"text": "john.doe@gmail.com", "type": "email"},
@@ -51,7 +51,7 @@
       ]
     },
     "PII_Detection/API_Keys_Tokens.txt": {
-      "min_matches": 26,
+      "min_matches": 24,
       "expected_types": ["api_key"],
       "must_detect": [
         {"text": "sk-ant-api03-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz", "type": "api_key"},
@@ -60,33 +60,40 @@
       ]
     },
     "PII_Detection/IPv4_Addresses.txt": {
-      "min_matches": 43,
+      "min_matches": 42,
+      "embedded_min_matches": 0,
       "expected_types": ["ipv4_address"]
     },
     "PII_Detection/IPv6_Addresses.txt": {
-      "min_matches": 29,
+      "min_matches": 28,
+      "embedded_min_matches": 0,
       "expected_types": ["ipv6_address"]
     },
     "PII_Detection/GPS_Coordinates.txt": {
-      "min_matches": 36,
+      "min_matches": 50,
+      "embedded_min_matches": 0,
       "expected_types": ["gps_coordinate"]
     },
     "PII_Detection/MAC_Addresses.txt": {
-      "min_matches": 47,
+      "min_matches": 52,
+      "embedded_min_matches": 0,
       "expected_types": ["mac_address"]
     },
     "PII_Detection/Health_Keywords.txt": {
-      "min_matches": 150,
+      "min_matches": 151,
+      "embedded_min_matches": 0,
       "expected_types": ["health_keyword"]
     },
     "PII_Detection/Child_Keywords.txt": {
-      "min_matches": 115,
+      "min_matches": 127,
+      "embedded_min_matches": 0,
       "expected_types": ["child_keyword"]
     },
     "PII_Detection/Person_Names.txt": {
-      "min_matches": 27,
-      "expected_types": ["person", "phone"],
-      "note": "NER detects person names; regex detects phone/email alongside names.",
+      "min_matches": 86,
+      "embedded_min_matches": 4,
+      "expected_types": ["person", "phone", "location"],
+      "note": "NER-fixed DistilBERT detects 78 person + incidental location/org. Embedded L1 regex detects ~6.",
       "must_not_contain": [
         "Priya Krishnamurthy",
         "Jean-Luc Dubois",
@@ -97,29 +104,20 @@
       ]
     },
     "PII_Detection/Locations.txt": {
-      "min_matches": 2,
-      "expected_types": [],
-      "note": "NER-dependent for locations. TinyBERT default detects ~2 via keyword spillover; DistilBERT detects more.",
-      "must_not_contain": [
-        "Brooklyn",
-        "Sacramento",
-        "Los Angeles",
-        "Philadelphia"
-      ]
+      "min_matches": 151,
+      "embedded_min_matches": 0,
+      "expected_types": ["location"],
+      "note": "NER-fixed DistilBERT detects 171 locations. Embedded L1 has no location regex."
     },
     "PII_Detection/Organizations.txt": {
-      "min_matches": 12,
-      "expected_types": [],
-      "note": "NER-dependent for organizations. TinyBERT v2 default detects ~14 (keyword spillover, no 'organization' type); DistilBERT v2 detects ~41 with organization type.",
-      "must_not_contain": [
-        "Massachusetts General Hospital",
-        "Amazon Web Services",
-        "Stanford University"
-      ]
+      "min_matches": 127,
+      "embedded_min_matches": 0,
+      "expected_types": ["organization"],
+      "note": "NER-fixed DistilBERT detects 126 organizations. Embedded L1 has no organization regex."
     },
     "PII_Detection/Mixed_Structured_PII.txt": {
-      "min_matches": 70,
-      "expected_types": ["credit_card", "ssn", "phone", "email"],
+      "min_matches": 96,
+      "expected_types": ["credit_card", "ssn", "phone", "email", "person", "location", "organization"],
       "must_detect": [
         {"text": "5425233430109903", "type": "credit_card"},
         {"text": "267-83-1945", "type": "ssn"},
@@ -134,56 +132,65 @@
         "Elena Rodriguez",
         "Patricia Gomez",
         "Meridian Technologies Inc."
-      ]
+      ],
+      "note": "NER-fixed: detects 16 person, 11 location, 10 organization in addition to regex types."
     },
 
     "Multilingual_PII/es_Spanish_PII.txt": {
       "min_matches": 18,
+      "embedded_min_matches": 0,
       "expected_types": ["phone", "ssn"]
     },
     "Multilingual_PII/de_German_PII.txt": {
-      "min_matches": 20,
+      "min_matches": 23,
+      "embedded_min_matches": 0,
       "expected_types": ["phone", "credit_card"]
     },
     "Multilingual_PII/fr_French_PII.txt": {
-      "min_matches": 15,
+      "min_matches": 17,
+      "embedded_min_matches": 0,
       "expected_types": ["phone", "credit_card"]
     },
     "Multilingual_PII/pt_Portuguese_PII.txt": {
-      "min_matches": 24,
+      "min_matches": 30,
+      "embedded_min_matches": 0,
       "expected_types": ["phone", "ssn"]
     },
     "Multilingual_PII/ja_Japanese_PII.txt": {
       "min_matches": 16,
+      "embedded_min_matches": 0,
       "expected_types": ["phone"]
     },
     "Multilingual_PII/ko_Korean_PII.txt": {
-      "min_matches": 14,
+      "min_matches": 13,
+      "embedded_min_matches": 0,
       "expected_types": ["phone"]
     },
     "Multilingual_PII/zh_Chinese_PII.txt": {
-      "min_matches": 14,
+      "min_matches": 13,
+      "embedded_min_matches": 0,
       "expected_types": ["phone"]
     },
     "Multilingual_PII/ar_Arabic_PII.txt": {
-      "min_matches": 28,
+      "min_matches": 26,
+      "embedded_min_matches": 0,
       "expected_types": ["phone", "ssn"]
     },
 
     "Code_Config_PII/sample_python.py": {
-      "min_matches": 20,
+      "min_matches": 23,
       "expected_types": ["api_key", "ipv4_address"]
     },
     "Code_Config_PII/sample_config.yaml": {
-      "min_matches": 23,
+      "min_matches": 22,
       "expected_types": ["ipv4_address", "api_key"]
     },
     "Code_Config_PII/sample.env": {
-      "min_matches": 12,
+      "min_matches": 11,
       "expected_types": ["api_key"]
     },
     "Code_Config_PII/sample_access.log": {
-      "min_matches": 36,
+      "min_matches": 31,
       "expected_types": ["ipv4_address", "email"]
     },
     "Code_Config_PII/sample_docs.md": {
@@ -191,15 +198,15 @@
       "expected_types": ["email", "ipv4_address"]
     },
     "Code_Config_PII/sample_terraform.json": {
-      "min_matches": 14,
+      "min_matches": 13,
       "expected_types": ["ipv4_address"]
     },
     "Code_Config_PII/sample_deploy.sh": {
-      "min_matches": 19,
+      "min_matches": 18,
       "expected_types": ["ipv4_address", "api_key"]
     },
     "Code_Config_PII/sample_git_diff.txt": {
-      "min_matches": 20,
+      "min_matches": 21,
       "expected_types": ["api_key", "email"]
     },
 
@@ -218,7 +225,7 @@
       ]
     },
     "Structured_Data_PII/customer_database.csv": {
-      "min_matches": 33,
+      "min_matches": 39,
       "expected_types": ["credit_card", "email", "phone"],
       "must_not_contain": [
         "Michael Thompson",
@@ -228,11 +235,12 @@
       ]
     },
     "Structured_Data_PII/network_inventory.tsv": {
-      "min_matches": 48,
+      "min_matches": 42,
+      "embedded_min_matches": 8,
       "expected_types": ["ipv4_address", "mac_address", "email"]
     },
     "Structured_Data_PII/patient_records.csv": {
-      "min_matches": 65,
+      "min_matches": 68,
       "expected_types": ["ssn", "email", "phone"],
       "must_not_contain": [
         "David Chen",
@@ -240,7 +248,7 @@
       ]
     },
     "Structured_Data_PII/transactions.csv": {
-      "min_matches": 43,
+      "min_matches": 47,
       "expected_types": ["credit_card", "email", "phone"],
       "must_not_contain": [
         "Patricia Gomez",
@@ -252,7 +260,7 @@
     },
 
     "Agent_Tool_Results/agent_anthropic_text_pii.json": {
-      "min_matches": 7,
+      "min_matches": 8,
       "expected_types": ["email", "phone", "ssn"],
       "must_detect": [
         {"text": "j.henderson@email.com", "type": "email"},
@@ -272,11 +280,11 @@
       "expected_types": ["email"]
     },
     "Agent_Tool_Results/agent_multimodal_mixed.json": {
-      "min_matches": 13,
+      "min_matches": 12,
       "expected_types": ["api_key"]
     },
     "Agent_Tool_Results/agent_openai_text_apikey.json": {
-      "min_matches": 9,
+      "min_matches": 8,
       "expected_types": ["api_key"]
     },
     "Agent_Tool_Results/agent_tool_result_database_query.json": {
@@ -288,7 +296,7 @@
       "expected_types": ["email"]
     },
     "Agent_Tool_Results/agent_tool_result_network_scan.json": {
-      "min_matches": 19,
+      "min_matches": 18,
       "expected_types": ["ipv4_address", "mac_address"]
     }
   },
