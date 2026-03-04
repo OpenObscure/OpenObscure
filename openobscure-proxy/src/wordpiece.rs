@@ -69,13 +69,17 @@ impl WordPieceTokenizer {
             .get("[PAD]")
             .ok_or(WordPieceError::MissingToken("[PAD]"))?;
 
-        // Auto-detect: if vocab contains multi-char tokens starting with uppercase
+        // Auto-detect: if vocab contains multi-char tokens starting with ASCII uppercase
         // (e.g. "The", "Robert"), it's a cased vocab → don't lowercase.
+        // Uses is_ascii_uppercase() to avoid false positives from Unicode math symbols
+        // like ℝ (U+211D, DOUBLE-STRUCK CAPITAL R) present in standard uncased vocabs.
         let is_cased = vocab.keys().any(|k| {
             k.len() > 1
                 && !k.starts_with('[')
                 && !k.starts_with('#')
-                && k.chars().next().is_some_and(|c| c.is_uppercase())
+                && k.as_bytes()
+                    .first()
+                    .is_some_and(|&b| b.is_ascii_uppercase())
         });
 
         Ok(Self {
@@ -329,5 +333,22 @@ mod tests {
                                              // Both sub-tokens map to word 0
         assert_eq!(result.word_ids[1], Some(0));
         assert_eq!(result.word_ids[2], Some(0));
+    }
+
+    /// Regression: Unicode math symbol ℝ (U+211D, DOUBLE-STRUCK CAPITAL R) is
+    /// present in standard BERT uncased vocabs. Rust's char::is_uppercase()
+    /// returns true for it (Unicode category Lu), which previously caused
+    /// the auto-detect to misclassify the vocab as cased — disabling
+    /// lowercasing and producing [UNK] for all capitalized words.
+    #[test]
+    fn test_unicode_math_symbol_does_not_trigger_cased_detection() {
+        let mut v = test_vocab();
+        // Add ℝ as a multi-char token (like real BERT uncased vocab)
+        v.insert("\u{211D}".to_string(), 50); // single char ℝ, but len() > 1 in bytes
+        let tok = WordPieceTokenizer::from_vocab(v).unwrap();
+        // Should still lowercase — ℝ is a math symbol, not a cased-vocab indicator
+        let result = tok.tokenize("Hello world");
+        assert_eq!(result.words[0].text, "hello");
+        assert_eq!(result.words[1].text, "world");
     }
 }
