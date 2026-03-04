@@ -11,12 +11,14 @@
 // Environment:
 //   USE_NER=1   — Enable NER bridge mode (requires proxy running)
 //   PROXY_URL   — Proxy URL for NER bridge (default: http://127.0.0.1:18790)
+//   AUTH_TOKEN   — Proxy auth token (default: read from ~/.openobscure/.auth-token)
 //
 // Note: If @openobscure/scanner-napi is installed, redactPii() automatically
 // uses the native Rust HybridScanner (14 PII types) instead of JS regex (5 types).
 
 import { readdirSync, statSync, readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from "fs";
 import { join, dirname, basename, extname } from "path";
+import { homedir } from "os";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -40,12 +42,27 @@ try {
 
 const useNer = process.env.USE_NER === "1";
 const proxyUrl = process.env.PROXY_URL || "http://127.0.0.1:18790";
+
+// Read auth token (required for NER endpoint)
+let authToken = process.env.AUTH_TOKEN || "";
+if (!authToken) {
+  const tokenFile = join(homedir(), ".openobscure", ".auth-token");
+  try {
+    authToken = readFileSync(tokenFile, "utf-8").trim();
+  } catch {
+    // No token file — NER calls will fail with 401 if proxy requires auth
+  }
+}
+
 const mode = useNer ? "embedded+ner" : "embedded";
 
 console.log("============================================");
 console.log("  OpenObscure Embedded Test Suite");
 console.log(`  Mode: ${mode}`);
-if (useNer) console.log(`  Proxy: ${proxyUrl}`);
+if (useNer) {
+  console.log(`  Proxy: ${proxyUrl}`);
+  console.log(`  Auth:  ${authToken ? "token loaded" : "NO TOKEN (NER will fail with 401)"}`);
+}
 console.log("  Output: test/data/output/<cat>/json/ + redacted/");
 console.log("============================================");
 console.log("");
@@ -125,7 +142,7 @@ for (const category of CATEGORIES) {
       let result;
       if (useNer && redactPiiWithNer) {
         try {
-          result = redactPiiWithNer(text, proxyUrl);
+          result = redactPiiWithNer(text, proxyUrl, authToken);
         } catch {
           result = redactPii(text);
         }
