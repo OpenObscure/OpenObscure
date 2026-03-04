@@ -343,6 +343,68 @@ mod tests {
     }
 
     #[test]
+    fn test_fpe_roundtrip_email_short_local() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let tweak = b"short-email-tweak";
+
+        // 5-char local part: "admin" — should encrypt (>= min_length 4)
+        let pii_admin = PiiMatch {
+            pii_type: PiiType::Email,
+            start: 0,
+            end: 22,
+            raw_value: "admin@meridian-tech.com".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+        let result = engine.encrypt_match(&pii_admin, tweak).unwrap();
+        assert!(result.encrypted.ends_with("@meridian-tech.com"));
+        assert_ne!(result.encrypted, "admin@meridian-tech.com");
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::Email, tweak)
+            .unwrap();
+        assert_eq!(decrypted, "admin@meridian-tech.com");
+
+        // 4-char local part: "info" — should encrypt (== min_length 4)
+        let pii_info = PiiMatch {
+            pii_type: PiiType::Email,
+            start: 0,
+            end: 22,
+            raw_value: "info@meridian-tech.com".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+        let result = engine.encrypt_match(&pii_info, tweak).unwrap();
+        assert!(result.encrypted.ends_with("@meridian-tech.com"));
+        assert_ne!(result.encrypted, "info@meridian-tech.com");
+        let decrypted = engine
+            .decrypt_value(&result.encrypted, PiiType::Email, tweak)
+            .unwrap();
+        assert_eq!(decrypted, "info@meridian-tech.com");
+
+        // 3-char local part: "dba" — DomainTooSmall (FF1 requires >= 4 numerals)
+        let pii_dba = PiiMatch {
+            pii_type: PiiType::Email,
+            start: 0,
+            end: 21,
+            raw_value: "dba@meridian-tech.com".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+        assert!(engine.encrypt_match(&pii_dba, tweak).is_err());
+
+        // 3-char local part: "ops" — DomainTooSmall
+        let pii_ops = PiiMatch {
+            pii_type: PiiType::Email,
+            start: 0,
+            end: 21,
+            raw_value: "ops@meridian-tech.com".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+        assert!(engine.encrypt_match(&pii_ops, tweak).is_err());
+    }
+
+    #[test]
     fn test_different_tweaks_produce_different_ciphertexts() {
         let engine = FpeEngine::new(&test_key()).unwrap();
 

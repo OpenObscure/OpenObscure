@@ -70,7 +70,7 @@ impl PiiType {
                 pii_type: *self,
                 radix: 36,
                 alphabet: "0123456789abcdefghijklmnopqrstuvwxyz",
-                min_length: 6, // 36^6 >> 1,000,000
+                min_length: 4, // FF1 requires ≥4 numerals; 36^4 = 1.7M; catches admin, info, etc.
             },
             PiiType::ApiKey => PiiTypeConfig {
                 pii_type: *self,

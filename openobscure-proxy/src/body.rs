@@ -202,12 +202,35 @@ pub async fn process_request_body(
                             });
                         }
                         FailMode::Open => {
-                            // Availability: skip match, original plaintext remains
-                            oo_warn!(crate::oo_log::modules::BODY,
-                                "FPE encryption failed, plaintext PII forwarded (fail-open)",
-                                pii_type = ?m.pii_type,
-                                json_path = ?m.json_path,
-                                error = %e);
+                            // DomainTooSmall: value is too short for FF1 (e.g., 3-char email local part).
+                            // Fall back to hash-token redaction so PII is still protected.
+                            if matches!(e, crate::fpe_engine::FpeError::DomainTooSmall { .. }) {
+                                let token = token_gen.generate(m.pii_type, &m.raw_value);
+                                oo_info!(crate::oo_log::modules::BODY,
+                                    "FPE domain too small, hash-token fallback",
+                                    pii_type = ?m.pii_type,
+                                    token = %token);
+                                mappings.insert(FpeMapping {
+                                    pii_type: m.pii_type,
+                                    plaintext: m.raw_value.clone(),
+                                    ciphertext: token.clone(),
+                                    tweak: vec![],
+                                    key_version,
+                                });
+                                replacements.push(FpeResult {
+                                    original: m.clone(),
+                                    encrypted: token,
+                                    tweak: vec![],
+                                });
+                                fpe_unprotected -= 1; // Not actually unprotected
+                            } else {
+                                // Other FPE errors: skip match, original plaintext remains
+                                oo_warn!(crate::oo_log::modules::BODY,
+                                    "FPE encryption failed, plaintext PII forwarded (fail-open)",
+                                    pii_type = ?m.pii_type,
+                                    json_path = ?m.json_path,
+                                    error = %e);
+                            }
                         }
                     }
                 }
