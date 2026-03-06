@@ -660,6 +660,7 @@ fn test_pii_types_are_known() {
         PiiType::Ipv6Address,
         PiiType::GpsCoordinate,
         PiiType::MacAddress,
+        PiiType::Iban,
         PiiType::HealthKeyword,
         PiiType::ChildKeyword,
         PiiType::Person,
