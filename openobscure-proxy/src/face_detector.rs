@@ -606,6 +606,15 @@ fn find_scrfd_model(model_dir: &Path) -> Result<std::path::PathBuf, ImageError> 
 mod tests {
     use super::*;
 
+    /// Returns true if the model file exists and is a real ONNX binary (not a Git LFS pointer).
+    /// LFS pointer files are ~130 bytes; real models are always > 1KB.
+    fn is_real_model(path: &Path) -> bool {
+        path.exists()
+            && std::fs::metadata(path)
+                .map(|m| m.len() > 1024)
+                .unwrap_or(false)
+    }
+
     fn make_detection(
         x_min: f32,
         y_min: f32,
@@ -877,7 +886,7 @@ mod tests {
 
         let runs = 50;
 
-        if blazeface_dir.join("blazeface.onnx").exists() {
+        if is_real_model(&blazeface_dir.join("blazeface.onnx")) {
             let mut det = FaceDetector::load(&blazeface_dir, 0.75).unwrap();
             for _ in 0..5 {
                 let _ = det.detect(&img);
@@ -898,9 +907,11 @@ mod tests {
                     .map(|m| m.len() / 1024)
                     .unwrap_or(0)
             );
+        } else {
+            eprintln!("Skipping BlazeFace: model not found or LFS pointer");
         }
 
-        if ultralight_dir.join("version-RFB-320.onnx").exists() {
+        if is_real_model(&ultralight_dir.join("version-RFB-320.onnx")) {
             let mut det = UltraLightDetector::load(&ultralight_dir, 0.7).unwrap();
             for _ in 0..5 {
                 let _ = det.detect(&img);
@@ -921,9 +932,11 @@ mod tests {
                     .map(|m| m.len() / 1024)
                     .unwrap_or(0)
             );
+        } else {
+            eprintln!("Skipping Ultra-Light: model not found or LFS pointer");
         }
 
-        if scrfd_dir.join("scrfd_2.5g.onnx").exists() {
+        if is_real_model(&scrfd_dir.join("scrfd_2.5g.onnx")) {
             let mut det = ScrfdDetector::load(&scrfd_dir, 0.5).unwrap();
             for _ in 0..5 {
                 let _ = det.detect(&img);
@@ -945,7 +958,7 @@ mod tests {
                     .unwrap_or(0)
             );
         } else {
-            eprintln!("SCRFD: model not found at {:?}", scrfd_dir);
+            eprintln!("Skipping SCRFD: model not found or LFS pointer");
         }
     }
 
@@ -965,8 +978,8 @@ mod tests {
     fn test_ultralight_output_format() {
         // Verify model output tensor shapes match expectations
         let model_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/ultralight");
-        if !model_dir.join("version-RFB-320.onnx").exists() {
-            eprintln!("Skipping: Ultra-Light model not found at {:?}", model_dir);
+        if !is_real_model(&model_dir.join("version-RFB-320.onnx")) {
+            eprintln!("Skipping: Ultra-Light model not found or LFS pointer");
             return;
         }
         let mut detector = UltraLightDetector::load(&model_dir, 0.7).unwrap();
@@ -1026,7 +1039,7 @@ mod tests {
 
         let runs = 50;
 
-        if blazeface_dir.join("blazeface.onnx").exists() {
+        if is_real_model(&blazeface_dir.join("blazeface.onnx")) {
             let mut det = FaceDetector::load(&blazeface_dir, 0.75).unwrap();
             for _ in 0..5 {
                 let _ = det.detect(&img);
@@ -1046,7 +1059,7 @@ mod tests {
             );
         }
 
-        if ultralight_dir.join("version-RFB-320.onnx").exists() {
+        if is_real_model(&ultralight_dir.join("version-RFB-320.onnx")) {
             let mut det = UltraLightDetector::load(&ultralight_dir, 0.7).unwrap();
             for _ in 0..5 {
                 let _ = det.detect(&img);
@@ -1081,8 +1094,8 @@ mod tests {
     fn test_ultralight_confidence_threshold() {
         // Detections below threshold should be filtered
         let model_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/ultralight");
-        if !model_dir.join("version-RFB-320.onnx").exists() {
-            eprintln!("Skipping: Ultra-Light model not found");
+        if !is_real_model(&model_dir.join("version-RFB-320.onnx")) {
+            eprintln!("Skipping: Ultra-Light model not found or LFS pointer");
             return;
         }
         // Load with very high threshold — should detect nothing
