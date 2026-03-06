@@ -90,6 +90,7 @@ async fn build_state(config: AppConfig) -> AppState {
         response_integrity: None,
         device_tier: crate::device_profile::CapabilityTier::Full,
         inspect: false,
+        request_journal: None,
     }
 }
 
@@ -1518,6 +1519,7 @@ async fn build_ri_state(config: AppConfig) -> AppState {
         response_integrity: ri_scanner,
         device_tier: crate::device_profile::CapabilityTier::Full,
         inspect: false,
+        request_journal: None,
     }
 }
 

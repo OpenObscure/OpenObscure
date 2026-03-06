@@ -52,6 +52,7 @@ pub struct AppState {
     pub response_integrity: Option<Arc<ResponseIntegrityScanner>>,
     pub device_tier: crate::device_profile::CapabilityTier,
     pub inspect: bool,
+    pub request_journal: Option<Arc<crate::crash_buffer::RequestJournal>>,
 }
 
 /// The main proxy handler. All requests flow through here.
@@ -274,6 +275,21 @@ pub async fn proxy_handler(
         state.mapping_store.insert(mappings.clone()).await;
     }
 
+    // 4b. Journal: record in-flight request before forwarding upstream
+    if has_mappings {
+        if let Some(ref journal) = state.request_journal {
+            journal.write_entry(&crate::crash_buffer::JournalEntry {
+                request_id,
+                timestamp: std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs() as i64,
+                mapping_count: mappings.by_ciphertext.len() as u32,
+                completed: false,
+            });
+        }
+    }
+
     // 5. Build upstream request (passthrough original headers)
     let upstream_req = build_upstream_request(
         method,
@@ -313,6 +329,8 @@ pub async fn proxy_handler(
         oo_debug!(crate::oo_log::modules::PROXY, "SSE response streaming",
             request_id = %request_id, mappings = mapping_count);
         let mapping_store = state.mapping_store.clone();
+        let journal = state.request_journal.clone();
+        let journal_has_mappings = has_mappings;
         let req_id = request_id;
         let sse_flush_timeout =
             std::time::Duration::from_millis(state.config.proxy.sse_flush_timeout_ms);
@@ -338,6 +356,7 @@ pub async fn proxy_handler(
             ),
             move |(mut body, mappings, mut content_decryptor, mut ri_buffer, done, ri_done)| {
                 let mapping_store = mapping_store.clone();
+                let journal = journal.clone();
                 let req_id = req_id;
                 let ri_scanner = ri_scanner.clone();
                 let health = health.clone();
@@ -383,6 +402,20 @@ pub async fn proxy_handler(
                                     oo_debug!(crate::oo_log::modules::PROXY, "SSE flush",
                                         request_id = %req_id, buffered_chars = buf_len, mappings = m.by_ciphertext.len(), flush_bytes = flush.len());
                                     mapping_store.remove(&req_id).await;
+                                    if journal_has_mappings {
+                                        if let Some(ref j) = journal {
+                                            j.write_entry(&crate::crash_buffer::JournalEntry {
+                                                request_id: req_id,
+                                                timestamp: std::time::SystemTime::now()
+                                                    .duration_since(std::time::UNIX_EPOCH)
+                                                    .unwrap_or_default()
+                                                    .as_secs()
+                                                    as i64,
+                                                mapping_count: m.by_ciphertext.len() as u32,
+                                                completed: true,
+                                            });
+                                        }
+                                    }
 
                                     // Inspect: print accumulated SSE response text
                                     if inspect_mode {
@@ -439,6 +472,20 @@ pub async fn proxy_handler(
                             // Stream error — flush content decryptor and emit RI warning
                             let flush = content_decryptor.flush(m);
                             mapping_store.remove(&req_id).await;
+                            if journal_has_mappings {
+                                if let Some(ref j) = journal {
+                                    j.write_entry(&crate::crash_buffer::JournalEntry {
+                                        request_id: req_id,
+                                        timestamp: std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_secs()
+                                            as i64,
+                                        mapping_count: m.by_ciphertext.len() as u32,
+                                        completed: true,
+                                    });
+                                }
+                            }
 
                             let warning = if !ri_done {
                                 emit_sse_ri_warning_inline(
@@ -473,6 +520,20 @@ pub async fn proxy_handler(
                                     request_id = %req_id, buffered_chars = buf_len, flush_bytes = flush.len());
                             }
                             mapping_store.remove(&req_id).await;
+                            if journal_has_mappings {
+                                if let Some(ref j) = journal {
+                                    j.write_entry(&crate::crash_buffer::JournalEntry {
+                                        request_id: req_id,
+                                        timestamp: std::time::SystemTime::now()
+                                            .duration_since(std::time::UNIX_EPOCH)
+                                            .unwrap_or_default()
+                                            .as_secs()
+                                            as i64,
+                                        mapping_count: m.by_ciphertext.len() as u32,
+                                        completed: true,
+                                    });
+                                }
+                            }
 
                             // Inspect: print accumulated SSE response text
                             if inspect_mode && !ri_done {
@@ -576,6 +637,17 @@ pub async fn proxy_handler(
                 resp_content_type.as_deref(),
             );
             state.mapping_store.remove(&request_id).await;
+            if let Some(ref journal) = state.request_journal {
+                journal.write_entry(&crate::crash_buffer::JournalEntry {
+                    request_id,
+                    timestamp: std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs() as i64,
+                    mapping_count: mappings.by_ciphertext.len() as u32,
+                    completed: true,
+                });
+            }
             result
         } else {
             let format = crate::response_format::detect(resp_content_type.as_deref(), &resp_bytes);

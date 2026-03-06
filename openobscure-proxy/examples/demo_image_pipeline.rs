@@ -138,6 +138,7 @@ fn main() {
         } else {
             None
         },
+        face_model_dir_ultralight: None,
         nsfw_classifier_enabled: nsfw_classifier_dir.exists(),
         nsfw_classifier_model_dir: if nsfw_classifier_dir.exists() {
             Some(nsfw_classifier_dir.to_string_lossy().into_owned())

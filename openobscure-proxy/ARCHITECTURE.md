@@ -109,7 +109,7 @@ src/
 ├── image_detect.rs      Base64 image detection in JSON (Anthropic + OpenAI formats)
 ├── image_fetch.rs       URL image fetch: download remote images for inline processing
 ├── image_pipeline.rs    ImageModelManager orchestrator: decode → resize → NSFW → classifier → face → OCR → encode
-├── face_detector.rs     SCRFD-2.5GF (Full/Standard, 640x640) + BlazeFace (Lite, 128x128) face detection
+├── face_detector.rs     SCRFD-2.5GF (Full/Standard, 640x640) + Ultra-Light RFB-320 (Lite, 320x240) + BlazeFace (128x128, fallback) face detection
 ├── nsfw_detector.rs     NudeNet 320n ONNX NSFW/nudity detection (YOLOv8n, 320x320)
 ├── nsfw_classifier.rs   Holistic NSFW classifier (ViT-tiny, Marqo/nsfw-image-detection-384, Phase 0b fallback)
 ├── ocr_engine.rs        PaddleOCR PP-OCRv4 det+rec ONNX (text region detection, CTC decode)
@@ -137,7 +137,7 @@ src/
 ├── health.rs            Health endpoint, HealthStats, crash marker, image counters, device tier + feature budget
 ├── oo_log.rs            Unified logging macros (oo_info!, oo_warn!, oo_audit!) + module constants
 ├── pii_scrub_layer.rs   PII scrub filter for log output (tracing MakeWriter wrapper)
-├── crash_buffer.rs      mmap ring buffer for crash diagnostics (survives SIGKILL/OOM)
+├── crash_buffer.rs      mmap ring buffer for crash diagnostics (survives SIGKILL/OOM) + request journal for crash recovery
 ├── sse_accumulator.rs   SSE frame accumulation for cross-frame PII token and FPE ciphertext reassembly
 ├── error.rs             Unified error types
 ├── integration_tests.rs E2E tests (wiremock + tower::oneshot)
@@ -164,7 +164,7 @@ src/
    │   b. For each image: decode base64 → screen guard check → resize (960px max)
    │   c. Phase 0: NSFW check — NudeNet 320n → if nudity detected, full-image solid fill, skip face/OCR
    │   c2. Phase 0b: If NudeNet clean → holistic ViT-tiny classifier → if NSFW ≥ 0.75, full solid fill, skip face/OCR
-   │   d. Phase 1: Face detection — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) → NMS → solid-fill face regions
+   │   d. Phase 1: Face detection — SCRFD-2.5GF (Full/Standard) or Ultra-Light RFB-320 (Lite, with tiling heuristic) → NMS → solid-fill face regions
    │   e. OCR: PaddleOCR PP-OCRv4 det → text regions → solid fill (Tier 1) or recognize+scan (Tier 2)
    │   f. Encode processed image → replace base64 in JSON
    │   g. Sequential model loading: face model dropped before OCR loaded
@@ -378,7 +378,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **1,559** (675 lib + 858 bin + 14 accuracy + 12 pipeline) |
+| Test count | — | **1,647** (727 lib + 920 bin) |
 
 ## Technology Stack
 
@@ -411,22 +411,25 @@ Two-pass processing in `body.rs`: images first (entire base64 string replacement
 
 ```rust
 pub struct ImageModelManager {
-    nsfw_detector: Mutex<Option<NsfwDetector>>,
-    nsfw_classifier: Mutex<Option<NsfwClassifier>>,
-    face_detector: Mutex<Option<FaceDetector>>,
-    scrfd_detector: Mutex<Option<ScrfdDetector>>,
-    ocr_detector: Mutex<Option<OcrDetector>>,
-    ocr_recognizer: Mutex<Option<OcrRecognizer>>,
+    nsfw_detector: Mutex<Option<Arc<Mutex<NsfwDetector>>>>,
+    nsfw_classifier: Mutex<Option<Arc<Mutex<NsfwClassifier>>>>,
+    face_detector: Mutex<Option<Arc<Mutex<FaceDetector>>>>,
+    scrfd_detector: Mutex<Option<Arc<Mutex<ScrfdDetector>>>>,
+    ultralight_detector: Mutex<Option<Arc<Mutex<UltraLightDetector>>>>,
+    ocr_detector: Mutex<Option<Arc<Mutex<OcrDetector>>>>,
+    ocr_recognizer: Mutex<Option<Arc<Mutex<OcrRecognizer>>>>,
     last_use: Mutex<Instant>,
     config: ImageConfig,
 }
 ```
 
-**Memory rule:** Models loaded sequentially via `Mutex<Option<_>>`. Face model loaded/used/dropped before OCR model loaded. Never both in RAM simultaneously. The holistic NSFW classifier follows the same lazy-load/evict pattern. Background eviction task (60s interval) evicts models idle beyond `model_idle_timeout_secs` (default 300).
+**Request-scoped model guards:** Models use a double-`Mutex<Option<Arc<Mutex<T>>>>` pattern. The outer Mutex protects load/evict, the inner Mutex gives `&mut` access for ONNX inference (`Session::run` requires `&mut self`). Requests clone the inner `Arc` before releasing the outer lock. Eviction sets the slot to `None` without invalidating in-flight references — existing `Arc` clones keep models alive until the request completes.
+
+**Memory rule:** Models loaded sequentially. Face model loaded/used/dropped before OCR model loaded. Never both in RAM simultaneously. The holistic NSFW classifier follows the same lazy-load/evict pattern. Background eviction task (60s interval) evicts models idle beyond `model_idle_timeout_secs` (default 300).
 
 ### Face Detection (`face_detector.rs`)
 
-Tier-gated face detection: SCRFD-2.5GF for Full/Standard tiers (multi-scale), BlazeFace for Lite tier (selfie-distance). Auto-fallback from SCRFD to BlazeFace on error.
+Tier-gated face detection: SCRFD-2.5GF for Full/Standard tiers (multi-scale), Ultra-Light RFB-320 for Lite tier (better resolution than BlazeFace), BlazeFace as fallback. Auto-fallback chain: SCRFD → Ultra-Light → BlazeFace on error.
 
 **SCRFD-2.5GF (Full/Standard tier):**
 
@@ -438,7 +441,17 @@ Tier-gated face detection: SCRFD-2.5GF for Full/Standard tiers (multi-scale), Bl
 | Post-processing | Score threshold + NMS (IoU 0.4) |
 | Strengths | Multi-scale FPN: detects 20px–400px faces in same image |
 
-**BlazeFace (Lite tier fallback):**
+**Ultra-Light RFB-320 (Lite tier):**
+
+| Property | Value |
+|----------|-------|
+| Model | Ultra-Light-Fast-Generic-Face-Detector-1MB (~1.2MB) |
+| Input | `[1, 3, 240, 320]` float32, RGB normalized (pixel-127)/128 |
+| Output | Scores `[1, 4420, 2]` (background/face) + boxes `[1, 4420, 4]` (normalized coords) |
+| Post-processing | Confidence threshold + NMS (IoU 0.3) |
+| Strengths | 2.5x resolution vs BlazeFace (320x240 vs 128x128), ~1.2MB model size |
+
+**BlazeFace (fallback):**
 
 | Property | Value |
 |----------|-------|
@@ -447,6 +460,8 @@ Tier-gated face detection: SCRFD-2.5GF for Full/Standard tiers (multi-scale), Bl
 | Output | Bounding boxes + confidence scores |
 | Post-processing | Sigmoid activation, anchor-relative decoding, NMS (IoU 0.3) |
 | Anchors | 1664 generated (strides 8/16/16/16, 2/6/6/6 per stride) |
+
+**BlazeFace Tiling Heuristic:** When BlazeFace is used (fallback path) on images with longest side > 512px and the first pass finds 0 faces, an automatic tiled second pass runs: 4 overlapping quadrants (62.5% of each dimension, ~25% overlap), BlazeFace on each tile, coordinate remapping, and NMS merge (IoU 0.3). Cost: ~4ms extra, only when needed.
 
 ### OCR Engine (`ocr_engine.rs`)
 
@@ -487,6 +502,10 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 
 ## Recently Completed
 
+- **Request journal for crash recovery** — `RequestJournal` in `crash_buffer.rs` writes mmap-backed journal entries before upstream forward and after mapping cleanup. On startup, incomplete entries logged as WARN for diagnostics. Prevents silent PII mapping loss on proxy crash.
+- **Request-scoped model guards** — All 6 image models changed from `Mutex<Option<T>>` to `Mutex<Option<Arc<Mutex<T>>>>`. Outer lock held briefly to clone Arc; inner lock held during inference. Eviction clears slot without invalidating in-flight references.
+- **Ultra-Light RFB-320 face detector** — New Lite tier face detector (320x240 input, ~1.2MB model) replacing BlazeFace as default on Lite tier. 2.5x resolution vs BlazeFace. BlazeFace retained as fallback.
+- **BlazeFace tiling heuristic** — Automatic 4-tile splitting for images > 512px when first BlazeFace pass finds 0 faces. ~4ms overhead, only on miss. Detects small background faces that BlazeFace's 128x128 input misses.
 - **FPE extended to 10 types** — IPv4 (radix 10), IPv6 (radix 16), GPS (radix 10), MAC (radix 16), and IBAN (radix 36) now use FF1 FPE instead of hash-token redaction. New `ff1_radix16` cipher for hex types (IPv6, MAC). IBAN gets dedicated `PiiType::Iban` with country code preservation. Lowercase normalization applied before FormatTemplate for case-insensitive types (Email, IPv6, MAC, IBAN)
 - **Ensemble NSFW classifier** — ViT-tiny holistic classifier (Marqo/nsfw-image-detection-384, 21MB FP32) as Phase 0b fallback when NudeNet clean, catches semi-nude content NudeNet misses, 0.75 threshold, fail-open, lazy-loaded with eviction (Phase 15)
 - **Multi-LLM response format detection** — `response_format.rs` auto-detects response formats from 6 providers (Anthropic, OpenAI, Gemini, Cohere, Ollama, plaintext) for response integrity text extraction and warning injection

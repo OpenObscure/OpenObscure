@@ -59,6 +59,7 @@ fn make_pipeline_config() -> ImageConfig {
         } else {
             None
         },
+        face_model_dir_ultralight: None,
         ocr_model_dir: if ocr_dir.exists() {
             Some(ocr_dir.to_string_lossy().into_owned())
         } else {

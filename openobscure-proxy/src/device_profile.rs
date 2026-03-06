@@ -285,7 +285,7 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             ocr_tier: "detect_and_fill".to_string(),
             nsfw_enabled: false,
             screen_guard_enabled: false,
-            face_model: "blazeface".to_string(),
+            face_model: "ultralight".to_string(),
             model_idle_timeout_secs: 60,
             voice_enabled: false,
             ri_enabled: false,
@@ -348,7 +348,7 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             ocr_tier: "detect_and_fill".to_string(),
             nsfw_enabled: false,
             screen_guard_enabled: false,
-            face_model: "blazeface".to_string(),
+            face_model: "ultralight".to_string(),
             model_idle_timeout_secs: 60,
             voice_enabled: false,
             ri_enabled: false,
@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
-        assert_eq!(b.face_model, "blazeface");
+        assert_eq!(b.face_model, "ultralight");
         assert_eq!(b.model_idle_timeout_secs, 60);
         assert!(!b.voice_enabled);
         assert!(!b.ri_enabled);
@@ -581,7 +581,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
-        assert_eq!(b.face_model, "blazeface");
+        assert_eq!(b.face_model, "ultralight");
         assert_eq!(b.model_idle_timeout_secs, 60);
         assert!(!b.voice_enabled);
         assert!(!b.ri_enabled);
@@ -602,7 +602,7 @@ mod tests {
         assert_eq!(b.ocr_tier, "detect_and_fill");
         assert!(!b.nsfw_enabled);
         assert!(!b.screen_guard_enabled);
-        assert_eq!(b.face_model, "blazeface");
+        assert_eq!(b.face_model, "ultralight");
         assert_eq!(b.model_idle_timeout_secs, 60);
         assert!(!b.voice_enabled);
         assert!(!b.ri_enabled);

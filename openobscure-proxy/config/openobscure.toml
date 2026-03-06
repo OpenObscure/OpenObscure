@@ -60,6 +60,7 @@ pii_scrub = true             # Scrub PII from log output (defense-in-depth)
 enabled = true
 face_model_dir = "models/blazeface"
 face_model_dir_scrfd = "models/scrfd"
+face_model_dir_ultralight = "models/ultralight"
 ocr_model_dir = "models/paddleocr"
 nsfw_model_dir = "models/nudenet"
 nsfw_classifier_model_dir = "models/nsfw_classifier"

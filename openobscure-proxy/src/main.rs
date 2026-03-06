@@ -418,6 +418,47 @@ async fn run_serve(config: AppConfig, inspect: bool) -> anyhow::Result<()> {
         None
     };
 
+    // Open request journal for crash recovery
+    let request_journal = {
+        let journal_path = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+            .join(".openobscure")
+            .join("request_journal.buf");
+        match crate::crash_buffer::RequestJournal::open(&journal_path) {
+            Ok(journal) => {
+                // Check for incomplete entries from a previous crash
+                let incomplete = journal.read_incomplete();
+                if !incomplete.is_empty() {
+                    for entry in &incomplete {
+                        oo_warn!(
+                            crate::oo_log::modules::PROXY,
+                            "Incomplete journaled request from previous run (possible crash during FPE forward)",
+                            request_id = %entry.request_id,
+                            timestamp = entry.timestamp,
+                            mapping_count = entry.mapping_count
+                        );
+                    }
+                    oo_warn!(
+                        crate::oo_log::modules::PROXY,
+                        "Found incomplete journaled requests",
+                        count = incomplete.len()
+                    );
+                }
+                Some(Arc::new(journal))
+            }
+            Err(e) => {
+                oo_warn!(
+                    crate::oo_log::modules::PROXY,
+                    "Failed to open request journal — crash recovery disabled",
+                    error = %e
+                );
+                None
+            }
+        }
+    };
+
     // Build application state
     let state = AppState {
         config: Arc::new(config),
@@ -451,6 +492,7 @@ async fn run_serve(config: AppConfig, inspect: bool) -> anyhow::Result<()> {
         response_integrity: ri_scanner,
         device_tier: tier,
         inspect,
+        request_journal,
     };
 
     if inspect {

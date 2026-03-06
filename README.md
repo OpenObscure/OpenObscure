@@ -425,10 +425,10 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
-**~1,625 tests** across all components (1,559 Rust proxy + 50 TypeScript plugin + 16 crypto).
+**~1,713 tests** across all components (1,647 Rust proxy + 50 TypeScript plugin + 16 crypto).
 
 ```bash
-# L0 Proxy (1,559 tests: 675 lib + 858 bin + 14 accuracy + 12 pipeline)
+# L0 Proxy (1,647 tests: 727 lib + 920 bin)
 cd openobscure-proxy && cargo test
 
 # L1 Plugin (50 tests)
@@ -468,7 +468,7 @@ PII detection uses a hybrid approach:
 - **Network/device identifiers** — IPv4, IPv6, GPS coordinates, MAC addresses, IBANs (FPE-encrypted with format preservation)
 - **NER/CRF** (TinyBERT INT8) for semantic detection (names, addresses, orgs)
 - **Keyword dictionary** (~700 terms) for health and child-related terms
-- **Image pipeline** (SCRFD/BlazeFace + PaddleOCR ONNX) for visual PII in photos — faces redacted with solid fill (irreversible)
+- **Image pipeline** (SCRFD/Ultra-Light/BlazeFace + PaddleOCR ONNX) for visual PII in photos — faces redacted with solid fill (irreversible)
 - **Voice PII detection** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks
 - **Response integrity** (cognitive firewall) — R1 dictionary scan (~250 phrases, 7 categories) plus R2 TinyBERT multi-label classifier (4 EU AI Act Article 5 categories) with cascade logic (Confirm/Suppress/Upgrade/Discover). Optionally prepends warning labels
 
@@ -524,7 +524,7 @@ cargo run --example demo_image_pipeline -- \
 The image pipeline processes images in three phases:
 
 1. **NSFW detection** (Phase 0): NudeNet 320n ONNX (~12MB) checks for nudity. If detected, the entire image is solid-filled and subsequent phases are skipped.
-2. **Face detection + redaction** (Phase 1): SCRFD-2.5GF (~3MB, 640x640 input) on Full/Standard tiers for multi-scale detection; BlazeFace (~408KB, 128x128 input) on Lite tier. Detected faces are filled with solid light gray (rgb 200,200,200) — original pixels are completely destroyed, not recoverable by AI deblurring models. Faces occupying >80% of the image trigger full-image fill; otherwise, elliptical solid fill is applied to the face bounding box with 15% padding.
+2. **Face detection + redaction** (Phase 1): SCRFD-2.5GF (~3MB, 640x640 input) on Full/Standard tiers for multi-scale detection; Ultra-Light RFB-320 (~1.2MB, 320x240 input) on Lite tier with BlazeFace fallback and tiling heuristic for large images. Detected faces are filled with solid light gray (rgb 200,200,200) — original pixels are completely destroyed, not recoverable by AI deblurring models. Faces occupying >80% of the image trigger full-image fill; otherwise, elliptical solid fill is applied to the face bounding box with 15% padding.
 3. **Text detection** (Phase 2): PaddleOCR v3 ONNX (~2.4MB), detects text regions, applies solid-color fill with vertical padding for complete coverage.
 
 Additional features:

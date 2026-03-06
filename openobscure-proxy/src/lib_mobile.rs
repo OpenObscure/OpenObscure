@@ -283,6 +283,7 @@ impl OpenObscureMobile {
                 face_model: face_model_name,
                 face_model_dir: config.face_model_dir,
                 face_model_dir_scrfd: config.scrfd_model_dir,
+                face_model_dir_ultralight: None,
                 ocr_model_dir: config.ocr_model_dir,
                 screen_guard,
                 exif_strip: true,

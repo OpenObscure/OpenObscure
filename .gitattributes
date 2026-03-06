@@ -10,3 +10,4 @@ openobscure-proxy/models/**/*.bin filter=lfs diff=lfs merge=lfs -text
 openobscure-ner/models/**/*.onnx filter=lfs diff=lfs merge=lfs -text
 openobscure-ner/models/**/*.safetensors filter=lfs diff=lfs merge=lfs -text
 openobscure-ner/models/**/*.bin filter=lfs diff=lfs merge=lfs -text
+openobscure-proxy/models/ultralight/*.onnx filter=lfs diff=lfs merge=lfs -text

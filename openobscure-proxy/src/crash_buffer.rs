@@ -183,6 +183,110 @@ impl<W: Write> Drop for CrashBufferWriter<W> {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Request Journal — lightweight mmap-backed journal for crash recovery
+// ---------------------------------------------------------------------------
+
+/// Default journal file size: 64KB (holds ~400 entries at ~160 bytes each).
+const JOURNAL_DEFAULT_SIZE: usize = 64 * 1024;
+
+/// A journal entry tracking an in-flight FPE-encrypted request.
+///
+/// Written before forwarding the encrypted request upstream, marked complete
+/// after the response is received and mappings are stored. On startup,
+/// incomplete entries indicate requests that may have leaked ciphertext
+/// without recoverable mappings.
+#[derive(Debug, Clone, PartialEq)]
+pub struct JournalEntry {
+    pub request_id: uuid::Uuid,
+    pub timestamp: i64,
+    pub mapping_count: u32,
+    pub completed: bool,
+}
+
+impl JournalEntry {
+    /// Serialize to pipe-delimited line: `J|<uuid>|<timestamp>|<mapping_count>|<0|1>`
+    pub fn to_line(&self) -> String {
+        format!(
+            "J|{}|{}|{}|{}",
+            self.request_id,
+            self.timestamp,
+            self.mapping_count,
+            if self.completed { "1" } else { "0" }
+        )
+    }
+
+    /// Parse from pipe-delimited line.
+    pub fn from_line(line: &str) -> Option<Self> {
+        let parts: Vec<&str> = line.split('|').collect();
+        if parts.len() != 5 || parts[0] != "J" {
+            return None;
+        }
+        let request_id = uuid::Uuid::parse_str(parts[1]).ok()?;
+        let timestamp = parts[2].parse::<i64>().ok()?;
+        let mapping_count = parts[3].parse::<u32>().ok()?;
+        let completed = parts[4] == "1";
+        Some(Self {
+            request_id,
+            timestamp,
+            mapping_count,
+            completed,
+        })
+    }
+}
+
+/// A crash-resilient request journal backed by an mmap ring buffer.
+///
+/// Records in-flight requests so incomplete ones can be detected after a crash.
+pub struct RequestJournal {
+    buffer: CrashBuffer,
+}
+
+impl RequestJournal {
+    /// Open or create a request journal at the given path.
+    pub fn open(path: &Path) -> io::Result<Self> {
+        let buffer = CrashBuffer::open(path, JOURNAL_DEFAULT_SIZE)?;
+        Ok(Self { buffer })
+    }
+
+    /// Write a journal entry (thread-safe).
+    pub fn write_entry(&self, entry: &JournalEntry) {
+        self.buffer.write_line(&entry.to_line());
+    }
+
+    /// Read all incomplete (non-completed) journal entries from the buffer.
+    ///
+    /// Called on startup to detect requests that were in-flight when the proxy
+    /// crashed. Completed entries are filtered out because a later completion
+    /// marker means the request finished successfully.
+    pub fn read_incomplete(&self) -> Vec<JournalEntry> {
+        let contents = match self.buffer.read_contents() {
+            Some(c) => c,
+            None => return Vec::new(),
+        };
+
+        // Collect all entries, tracking completed request IDs
+        let mut all_entries: Vec<JournalEntry> = Vec::new();
+        let mut completed_ids: std::collections::HashSet<uuid::Uuid> =
+            std::collections::HashSet::new();
+
+        for line in contents.lines() {
+            if let Some(entry) = JournalEntry::from_line(line) {
+                if entry.completed {
+                    completed_ids.insert(entry.request_id);
+                }
+                all_entries.push(entry);
+            }
+        }
+
+        // Return entries that were never completed
+        all_entries
+            .into_iter()
+            .filter(|e| !e.completed && !completed_ids.contains(&e.request_id))
+            .collect()
+    }
+}
+
 fn read_u64_le(bytes: &[u8]) -> u64 {
     let mut buf = [0u8; 8];
     buf.copy_from_slice(&bytes[..8]);
@@ -295,5 +399,127 @@ mod tests {
         // Crash buffer should also have it
         let contents = crash_arc.read_contents().unwrap();
         assert!(contents.contains("test log line"));
+    }
+
+    // --- Request Journal tests ---
+
+    fn temp_journal() -> (RequestJournal, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("journal.buf");
+        let journal = RequestJournal::open(&path).unwrap();
+        (journal, dir)
+    }
+
+    #[test]
+    fn test_journal_entry_roundtrip() {
+        let entry = JournalEntry {
+            request_id: uuid::Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap(),
+            timestamp: 1709654400,
+            mapping_count: 7,
+            completed: false,
+        };
+        let line = entry.to_line();
+        assert_eq!(
+            line,
+            "J|550e8400-e29b-41d4-a716-446655440000|1709654400|7|0"
+        );
+        let parsed = JournalEntry::from_line(&line).unwrap();
+        assert_eq!(parsed, entry);
+
+        // Completed entry
+        let entry_done = JournalEntry {
+            completed: true,
+            ..entry
+        };
+        let line_done = entry_done.to_line();
+        assert!(line_done.ends_with("|1"));
+        let parsed_done = JournalEntry::from_line(&line_done).unwrap();
+        assert!(parsed_done.completed);
+    }
+
+    #[test]
+    fn test_journal_incomplete_detected() {
+        let (journal, _dir) = temp_journal();
+        let id = uuid::Uuid::new_v4();
+        journal.write_entry(&JournalEntry {
+            request_id: id,
+            timestamp: 1000,
+            mapping_count: 3,
+            completed: false,
+        });
+
+        let incomplete = journal.read_incomplete();
+        assert_eq!(incomplete.len(), 1);
+        assert_eq!(incomplete[0].request_id, id);
+        assert_eq!(incomplete[0].mapping_count, 3);
+    }
+
+    #[test]
+    fn test_journal_completed_not_flagged() {
+        let (journal, _dir) = temp_journal();
+        let id = uuid::Uuid::new_v4();
+
+        // Write start entry
+        journal.write_entry(&JournalEntry {
+            request_id: id,
+            timestamp: 1000,
+            mapping_count: 5,
+            completed: false,
+        });
+        // Write completion entry
+        journal.write_entry(&JournalEntry {
+            request_id: id,
+            timestamp: 1001,
+            mapping_count: 5,
+            completed: true,
+        });
+
+        let incomplete = journal.read_incomplete();
+        assert!(
+            incomplete.is_empty(),
+            "Completed entries should be filtered out"
+        );
+    }
+
+    #[test]
+    fn test_journal_survives_wrap() {
+        // Small buffer to force wrapping
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("journal_small.buf");
+        // Use raw CrashBuffer with small size, then wrap in journal-like usage
+        let buffer = CrashBuffer::open(&path, 4096).unwrap();
+        let journal = RequestJournal { buffer };
+
+        // Write many entries to force ring wrap
+        let mut last_id = uuid::Uuid::nil();
+        for i in 0..50 {
+            let id = uuid::Uuid::new_v4();
+            journal.write_entry(&JournalEntry {
+                request_id: id,
+                timestamp: 1000 + i,
+                mapping_count: 1,
+                completed: false,
+            });
+            last_id = id;
+        }
+
+        let incomplete = journal.read_incomplete();
+        // Most recent entries should survive
+        assert!(
+            !incomplete.is_empty(),
+            "Some incomplete entries should survive wrap"
+        );
+        // The very last entry should be among survivors
+        assert!(
+            incomplete.iter().any(|e| e.request_id == last_id),
+            "Most recent entry should survive wrap"
+        );
+    }
+
+    #[test]
+    fn test_journal_empty_buffer() {
+        let (journal, _dir) = temp_journal();
+        let incomplete = journal.read_incomplete();
+        assert!(incomplete.is_empty());
     }
 }

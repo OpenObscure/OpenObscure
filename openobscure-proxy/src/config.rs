@@ -345,6 +345,9 @@ pub struct ImageConfig {
     /// Path to SCRFD model directory.
     #[serde(default)]
     pub face_model_dir_scrfd: Option<String>,
+    /// Path to Ultra-Light face detector model directory.
+    #[serde(default)]
+    pub face_model_dir_ultralight: Option<String>,
     /// Path to PaddleOCR model directory.
     #[serde(default)]
     pub ocr_model_dir: Option<String>,
@@ -407,6 +410,7 @@ impl Default for ImageConfig {
             face_model: default_face_model(),
             face_model_dir: None,
             face_model_dir_scrfd: None,
+            face_model_dir_ultralight: None,
             ocr_model_dir: None,
             screen_guard: true,
             exif_strip: true,
@@ -728,6 +732,7 @@ impl AppConfig {
         // Image model dirs
         resolve(&mut self.image.face_model_dir);
         resolve(&mut self.image.face_model_dir_scrfd);
+        resolve(&mut self.image.face_model_dir_ultralight);
         resolve(&mut self.image.ocr_model_dir);
         resolve(&mut self.image.nsfw_model_dir);
         resolve(&mut self.image.nsfw_classifier_model_dir);

@@ -239,6 +239,134 @@ pub fn iou(a: &FaceDetection, b: &FaceDetection) -> f32 {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Ultra-Light-Fast-Generic-Face-Detector (320x240, ~1.2MB)
+// ---------------------------------------------------------------------------
+
+/// Ultra-Light face detector input dimensions.
+const UL_INPUT_W: u32 = 320;
+const UL_INPUT_H: u32 = 240;
+
+/// Ultra-Light face detector using ONNX Runtime.
+///
+/// Uses the RFB-320 variant from Linzaer/Ultra-Light-Fast-Generic-Face-Detector-1MB.
+/// Input: 320x240 RGB, normalized as (pixel-127)/128.
+/// Output: scores [1,4420,2] (background, face) + boxes [1,4420,4] (x_min, y_min, x_max, y_max normalized).
+pub struct UltraLightDetector {
+    session: Session,
+    confidence_threshold: f32,
+    nms_threshold: f32,
+}
+
+impl UltraLightDetector {
+    /// Load Ultra-Light ONNX model from a directory.
+    pub fn load(model_dir: &Path, confidence_threshold: f32) -> Result<Self, ImageError> {
+        let model_path = model_dir.join("version-RFB-320.onnx");
+        if !model_path.exists() {
+            return Err(ImageError::OnnxRuntime(format!(
+                "Ultra-Light model not found: {}",
+                model_path.display()
+            )));
+        }
+
+        let session = crate::ort_ep::build_session(&model_path)
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+
+        oo_info!(crate::oo_log::modules::FACE, "Ultra-Light face detector loaded",
+            model = %model_path.display(),
+            confidence = confidence_threshold);
+
+        Ok(Self {
+            session,
+            confidence_threshold,
+            nms_threshold: 0.3,
+        })
+    }
+
+    /// Detect faces in an image. Returns bounding boxes in original image coordinates.
+    pub fn detect(&mut self, img: &DynamicImage) -> Result<Vec<FaceDetection>, ImageError> {
+        let (orig_w, orig_h) = img.dimensions();
+
+        // Resize to 320x240 for Ultra-Light input
+        let resized = img.resize_exact(
+            UL_INPUT_W,
+            UL_INPUT_H,
+            image::imageops::FilterType::Triangle,
+        );
+
+        // Build NCHW tensor normalized as (pixel - 127) / 128
+        let input = Array4::<f32>::from_shape_fn(
+            (1, 3, UL_INPUT_H as usize, UL_INPUT_W as usize),
+            |(_, c, h, w)| {
+                let pixel = resized.get_pixel(w as u32, h as u32);
+                (pixel[c] as f32 - 127.0) / 128.0
+            },
+        );
+
+        let input_val = ort::value::Value::from_array(input)
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+
+        // Run inference
+        let outputs = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.session.run(ort::inputs!["input" => input_val])
+        })) {
+            Ok(Ok(out)) => out,
+            Ok(Err(e)) => return Err(ImageError::OnnxRuntime(e.to_string())),
+            Err(_) => {
+                return Err(ImageError::OnnxRuntime(
+                    "ONNX panicked during Ultra-Light inference".to_string(),
+                ))
+            }
+        };
+
+        // Extract scores [1, 4420, 2] and boxes [1, 4420, 4]
+        let scores_tensor = outputs["scores"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+        let boxes_tensor = outputs["boxes"]
+            .try_extract_tensor::<f32>()
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+
+        let scores_data = scores_tensor.1;
+        let boxes_data = boxes_tensor.1;
+        let num_anchors = scores_data.len() / 2;
+
+        let mut detections = Vec::new();
+        for i in 0..num_anchors {
+            let face_score = scores_data[i * 2 + 1]; // class 1 = face
+            if face_score < self.confidence_threshold {
+                continue;
+            }
+
+            // Boxes are normalized [0, 1] in (x_min, y_min, x_max, y_max)
+            let x_min = boxes_data[i * 4] * orig_w as f32;
+            let y_min = boxes_data[i * 4 + 1] * orig_h as f32;
+            let x_max = boxes_data[i * 4 + 2] * orig_w as f32;
+            let y_max = boxes_data[i * 4 + 3] * orig_h as f32;
+
+            // Clamp to image bounds
+            let x_min = x_min.max(0.0).min(orig_w as f32);
+            let y_min = y_min.max(0.0).min(orig_h as f32);
+            let x_max = x_max.max(0.0).min(orig_w as f32);
+            let y_max = y_max.max(0.0).min(orig_h as f32);
+
+            if x_max > x_min && y_max > y_min {
+                detections.push(FaceDetection {
+                    x_min,
+                    y_min,
+                    x_max,
+                    y_max,
+                    confidence: face_score,
+                });
+            }
+        }
+
+        let filtered = nms(&mut detections, self.nms_threshold);
+
+        Ok(filtered)
+    }
+}
+
 /// Find the BlazeFace ONNX model file in the model directory.
 fn find_model_file(model_dir: &Path) -> Result<std::path::PathBuf, ImageError> {
     let candidates = ["blazeface_short.onnx", "blazeface.onnx", "model.onnx"];
@@ -728,5 +856,246 @@ mod tests {
             Err(_) => Err(ImageError::OnnxRuntime("panicked".to_string())),
         };
         assert_eq!(result.unwrap(), 42);
+    }
+
+    // --- Ultra-Light detector tests ---
+
+    #[test]
+    fn test_all_detectors_benchmark() {
+        // Comparative benchmark: BlazeFace vs Ultra-Light vs SCRFD
+        let blazeface_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/blazeface");
+        let ultralight_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/ultralight");
+        let scrfd_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/scrfd");
+
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(640, 480, |x, y| {
+            image::Rgb([
+                ((x * 3 + y) % 256) as u8,
+                ((x * 5 + y * 2) % 256) as u8,
+                ((x + y * 7) % 256) as u8,
+            ])
+        }));
+
+        let runs = 50;
+
+        if blazeface_dir.join("blazeface.onnx").exists() {
+            let mut det = FaceDetector::load(&blazeface_dir, 0.75).unwrap();
+            for _ in 0..5 {
+                let _ = det.detect(&img);
+            }
+            let mut times: Vec<u128> = (0..runs)
+                .map(|_| {
+                    let s = std::time::Instant::now();
+                    let _ = det.detect(&img);
+                    s.elapsed().as_micros()
+                })
+                .collect();
+            times.sort();
+            eprintln!(
+                "BlazeFace  (128x128):  p50={:.1}ms  p95={:.1}ms  model={}KB",
+                times[runs / 2] as f64 / 1000.0,
+                times[runs * 95 / 100] as f64 / 1000.0,
+                std::fs::metadata(blazeface_dir.join("blazeface.onnx"))
+                    .map(|m| m.len() / 1024)
+                    .unwrap_or(0)
+            );
+        }
+
+        if ultralight_dir.join("version-RFB-320.onnx").exists() {
+            let mut det = UltraLightDetector::load(&ultralight_dir, 0.7).unwrap();
+            for _ in 0..5 {
+                let _ = det.detect(&img);
+            }
+            let mut times: Vec<u128> = (0..runs)
+                .map(|_| {
+                    let s = std::time::Instant::now();
+                    let _ = det.detect(&img);
+                    s.elapsed().as_micros()
+                })
+                .collect();
+            times.sort();
+            eprintln!(
+                "Ultra-Light (320x240): p50={:.1}ms  p95={:.1}ms  model={}KB",
+                times[runs / 2] as f64 / 1000.0,
+                times[runs * 95 / 100] as f64 / 1000.0,
+                std::fs::metadata(ultralight_dir.join("version-RFB-320.onnx"))
+                    .map(|m| m.len() / 1024)
+                    .unwrap_or(0)
+            );
+        }
+
+        if scrfd_dir.join("scrfd_2.5g.onnx").exists() {
+            let mut det = ScrfdDetector::load(&scrfd_dir, 0.5).unwrap();
+            for _ in 0..5 {
+                let _ = det.detect(&img);
+            }
+            let mut times: Vec<u128> = (0..runs)
+                .map(|_| {
+                    let s = std::time::Instant::now();
+                    let _ = det.detect(&img);
+                    s.elapsed().as_micros()
+                })
+                .collect();
+            times.sort();
+            eprintln!(
+                "SCRFD-2.5G (640x640):  p50={:.1}ms  p95={:.1}ms  model={}KB",
+                times[runs / 2] as f64 / 1000.0,
+                times[runs * 95 / 100] as f64 / 1000.0,
+                std::fs::metadata(scrfd_dir.join("scrfd_2.5g.onnx"))
+                    .map(|m| m.len() / 1024)
+                    .unwrap_or(0)
+            );
+        } else {
+            eprintln!("SCRFD: model not found at {:?}", scrfd_dir);
+        }
+    }
+
+    #[test]
+    fn test_ultralight_load_missing_model() {
+        let result = UltraLightDetector::load(Path::new("/nonexistent/dir"), 0.7);
+        assert!(result.is_err());
+        let err_msg = result.err().unwrap().to_string();
+        assert!(
+            err_msg.contains("not found"),
+            "Expected 'not found' error, got: {}",
+            err_msg
+        );
+    }
+
+    #[test]
+    fn test_ultralight_output_format() {
+        // Verify model output tensor shapes match expectations
+        let model_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/ultralight");
+        if !model_dir.join("version-RFB-320.onnx").exists() {
+            eprintln!("Skipping: Ultra-Light model not found at {:?}", model_dir);
+            return;
+        }
+        let mut detector = UltraLightDetector::load(&model_dir, 0.7).unwrap();
+        // Run on a blank image — should produce 0 detections (no faces)
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            320,
+            240,
+            image::Rgb([128, 128, 128]),
+        ));
+        let result = detector.detect(&img).unwrap();
+        // Blank image should not contain faces
+        assert!(
+            result.is_empty(),
+            "Blank image should have 0 face detections, got {}",
+            result.len()
+        );
+    }
+
+    #[test]
+    fn test_ultralight_nms_dedup() {
+        // Ultra-Light uses the same NMS as BlazeFace
+        let mut dets = vec![
+            FaceDetection {
+                x_min: 10.0,
+                y_min: 10.0,
+                x_max: 50.0,
+                y_max: 50.0,
+                confidence: 0.9,
+            },
+            FaceDetection {
+                x_min: 12.0,
+                y_min: 12.0,
+                x_max: 52.0,
+                y_max: 52.0,
+                confidence: 0.8,
+            },
+        ];
+        let kept = nms(&mut dets, 0.3);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].confidence, 0.9);
+    }
+
+    #[test]
+    fn test_ultralight_vs_blazeface_benchmark() {
+        // Quick latency benchmark: BlazeFace vs Ultra-Light (50 runs each)
+        let blazeface_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/blazeface");
+        let ultralight_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/ultralight");
+
+        // 640x480 patterned test image
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(640, 480, |x, y| {
+            image::Rgb([
+                ((x * 3 + y) % 256) as u8,
+                ((x * 5 + y * 2) % 256) as u8,
+                ((x + y * 7) % 256) as u8,
+            ])
+        }));
+
+        let runs = 50;
+
+        if blazeface_dir.join("blazeface.onnx").exists() {
+            let mut det = FaceDetector::load(&blazeface_dir, 0.75).unwrap();
+            for _ in 0..5 {
+                let _ = det.detect(&img);
+            }
+            let mut times: Vec<u128> = (0..runs)
+                .map(|_| {
+                    let s = std::time::Instant::now();
+                    let _ = det.detect(&img);
+                    s.elapsed().as_micros()
+                })
+                .collect();
+            times.sort();
+            eprintln!(
+                "BlazeFace (128x128): p50={:.1}ms  p95={:.1}ms",
+                times[runs / 2] as f64 / 1000.0,
+                times[runs * 95 / 100] as f64 / 1000.0
+            );
+        }
+
+        if ultralight_dir.join("version-RFB-320.onnx").exists() {
+            let mut det = UltraLightDetector::load(&ultralight_dir, 0.7).unwrap();
+            for _ in 0..5 {
+                let _ = det.detect(&img);
+            }
+            let mut times: Vec<u128> = (0..runs)
+                .map(|_| {
+                    let s = std::time::Instant::now();
+                    let _ = det.detect(&img);
+                    s.elapsed().as_micros()
+                })
+                .collect();
+            times.sort();
+            eprintln!(
+                "Ultra-Light (320x240): p50={:.1}ms  p95={:.1}ms",
+                times[runs / 2] as f64 / 1000.0,
+                times[runs * 95 / 100] as f64 / 1000.0
+            );
+        }
+
+        eprintln!(
+            "\nModel sizes: BlazeFace={:.0}KB  Ultra-Light={:.0}KB",
+            std::fs::metadata(blazeface_dir.join("blazeface.onnx"))
+                .map(|m| m.len() as f64 / 1024.0)
+                .unwrap_or(0.0),
+            std::fs::metadata(ultralight_dir.join("version-RFB-320.onnx"))
+                .map(|m| m.len() as f64 / 1024.0)
+                .unwrap_or(0.0),
+        );
+    }
+
+    #[test]
+    fn test_ultralight_confidence_threshold() {
+        // Detections below threshold should be filtered
+        let model_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("models/ultralight");
+        if !model_dir.join("version-RFB-320.onnx").exists() {
+            eprintln!("Skipping: Ultra-Light model not found");
+            return;
+        }
+        // Load with very high threshold — should detect nothing
+        let mut detector = UltraLightDetector::load(&model_dir, 0.99).unwrap();
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_pixel(
+            320,
+            240,
+            image::Rgb([200, 180, 160]), // skin-tone-ish
+        ));
+        let result = detector.detect(&img).unwrap();
+        assert!(
+            result.is_empty(),
+            "Very high threshold should filter all detections"
+        );
     }
 }
