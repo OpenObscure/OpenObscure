@@ -963,6 +963,19 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     }
 }
 /**
+ * Check if a transcript contains PII without encrypting.
+ *
+ * Returns the count of PII matches. Use to decide whether to strip an audio block.
+ */
+public func checkAudioPii(handle: OpenObscureHandle, transcript: String) -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_openobscure_proxy_fn_func_check_audio_pii(
+        FfiConverterTypeOpenObscureHandle_lower(handle),
+        FfiConverterString.lower(transcript),$0
+    )
+})
+}
+/**
  * Create a new OpenObscure mobile instance.
  *
  * # Arguments
@@ -999,6 +1012,20 @@ public func restoreText(handle: OpenObscureHandle, text: String, mappingJson: St
         FfiConverterTypeOpenObscureHandle_lower(handle),
         FfiConverterString.lower(text),
         FfiConverterString.lower(mappingJson),$0
+    )
+})
+}
+/**
+ * Scan a transcript (from platform speech API) for PII and encrypt matches.
+ *
+ * Used by iOS `SFSpeechRecognizer` and Android `SpeechRecognizer` voice pipelines.
+ * The mobile app transcribes audio locally, then calls this to detect/encrypt PII.
+ */
+public func sanitizeAudioTranscript(handle: OpenObscureHandle, transcript: String)throws  -> SanitizeResultFfi  {
+    return try  FfiConverterTypeSanitizeResultFFI_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
+    uniffi_openobscure_proxy_fn_func_sanitize_audio_transcript(
+        FfiConverterTypeOpenObscureHandle_lower(handle),
+        FfiConverterString.lower(transcript),$0
     )
 })
 }
@@ -1044,6 +1071,9 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
+    if (uniffi_openobscure_proxy_checksum_func_check_audio_pii() != 42564) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_openobscure_proxy_checksum_func_create_openobscure() != 27473) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -1051,6 +1081,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_openobscure_proxy_checksum_func_restore_text() != 12720) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_openobscure_proxy_checksum_func_sanitize_audio_transcript() != 51770) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_openobscure_proxy_checksum_func_sanitize_image() != 8013) {

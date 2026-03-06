@@ -111,7 +111,7 @@ flowchart TB
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
 - **Layers:** L0 (PII scan + FPE)
-- **Features:** Text PII scanning (regex + keywords + NER/CRF on capable devices), FPE encryption, image pipeline, voice PII detection, restore/decrypt for responses
+- **Features:** Text PII scanning (regex + keywords + NER/CRF on capable devices), FPE encryption, image pipeline, voice PII detection (platform Speech APIs + `sanitizeAudioTranscript`/`checkAudioPii` via UniFFI), restore/decrypt for responses
 - **Use case:** Mobile companion apps that sanitize PII on-device *before* data reaches the Gateway over WebSocket — defense in depth
 
 ### When to Use Which
@@ -425,14 +425,17 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
-**~1,713 tests** across all components (1,647 Rust proxy + 50 TypeScript plugin + 16 crypto).
+**~1,801 tests** across all components (1,667 Rust proxy + 112 TypeScript plugin + 6 NAPI + 16 crypto).
 
 ```bash
-# L0 Proxy (1,647 tests: 727 lib + 920 bin)
+# L0 Proxy (1,667 tests: 737 lib + 930 bin)
 cd openobscure-proxy && cargo test
 
-# L1 Plugin (50 tests)
+# L1 Plugin (112 tests — PII redaction + cognitive firewall)
 cd openobscure-plugin && npm test
+
+# NAPI Scanner (6 tests — persuasion scanner bridge)
+cd openobscure-napi && cargo test --lib
 
 # L2 Crypto (16 tests)
 cd enterprise/openobscure-crypto && cargo test

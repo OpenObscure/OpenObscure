@@ -261,6 +261,11 @@ void*_Nonnull uniffi_openobscure_proxy_fn_clone_openobscurehandle(void*_Nonnull 
 void uniffi_openobscure_proxy_fn_free_openobscurehandle(void*_Nonnull ptr, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_CHECK_AUDIO_PII
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_CHECK_AUDIO_PII
+uint32_t uniffi_openobscure_proxy_fn_func_check_audio_pii(void*_Nonnull handle, RustBuffer transcript, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_CREATE_OPENOBSCURE
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_CREATE_OPENOBSCURE
 void*_Nonnull uniffi_openobscure_proxy_fn_func_create_openobscure(RustBuffer config_json, RustBuffer fpe_key_hex, RustCallStatus *_Nonnull out_status
@@ -274,6 +279,11 @@ RustBuffer uniffi_openobscure_proxy_fn_func_get_stats(void*_Nonnull handle, Rust
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_RESTORE_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_RESTORE_TEXT
 RustBuffer uniffi_openobscure_proxy_fn_func_restore_text(void*_Nonnull handle, RustBuffer text, RustBuffer mapping_json, RustCallStatus *_Nonnull out_status
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_SANITIZE_AUDIO_TRANSCRIPT
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_SANITIZE_AUDIO_TRANSCRIPT
+RustBuffer uniffi_openobscure_proxy_fn_func_sanitize_audio_transcript(void*_Nonnull handle, RustBuffer transcript, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_SANITIZE_IMAGE
@@ -566,6 +576,12 @@ void ffi_openobscure_proxy_rust_future_free_void(uint64_t handle
 void ffi_openobscure_proxy_rust_future_complete_void(uint64_t handle, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_CHECK_AUDIO_PII
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_CHECK_AUDIO_PII
+uint16_t uniffi_openobscure_proxy_checksum_func_check_audio_pii(void
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_CREATE_OPENOBSCURE
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_CREATE_OPENOBSCURE
 uint16_t uniffi_openobscure_proxy_checksum_func_create_openobscure(void
@@ -581,6 +597,12 @@ uint16_t uniffi_openobscure_proxy_checksum_func_get_stats(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_RESTORE_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_RESTORE_TEXT
 uint16_t uniffi_openobscure_proxy_checksum_func_restore_text(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_SANITIZE_AUDIO_TRANSCRIPT
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_SANITIZE_AUDIO_TRANSCRIPT
+uint16_t uniffi_openobscure_proxy_checksum_func_sanitize_audio_transcript(void
     
 );
 #endif

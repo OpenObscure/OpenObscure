@@ -25,7 +25,8 @@ use std::sync::Mutex;
 use napi_derive::napi;
 
 use openobscure_proxy::hybrid_scanner::HybridScanner;
-use openobscure_proxy::ner_scanner::NerScanner;
+use openobscure_proxy::ner_scanner::{NerPool, NerScanner};
+use openobscure_proxy::persuasion_dict::PersuasionDict;
 
 /// Default NER confidence threshold (matches proxy default).
 const NER_CONFIDENCE_THRESHOLD: f32 = 0.5;
@@ -97,7 +98,8 @@ impl OpenObscureScanner {
         };
 
         let ner_loaded = ner_scanner.is_some();
-        let scanner = HybridScanner::new(true, ner_scanner);
+        let ner_pool = ner_scanner.map(|ner| NerPool::new(vec![ner]));
+        let scanner = HybridScanner::new(true, ner_pool, None);
 
         Ok(Self {
             inner: Mutex::new(scanner),
@@ -139,5 +141,122 @@ impl OpenObscureScanner {
     #[napi]
     pub fn has_ner(&self) -> bool {
         self.ner_loaded
+    }
+}
+
+// ── Persuasion Scanner ───────────────────────────────────────────────
+
+/// A single persuasion phrase match.
+#[napi(object)]
+pub struct PersuasionMatchJs {
+    pub category: String,
+    pub start: u32,
+    pub end: u32,
+    pub phrase: String,
+}
+
+/// Result of a persuasion scan.
+#[napi(object)]
+pub struct PersuasionScanResultJs {
+    pub matches: Vec<PersuasionMatchJs>,
+    pub timing_us: u32,
+}
+
+/// Scan text for persuasion/manipulation phrases using the Rust dictionary.
+///
+/// Returns all matches with category, offsets, and timing.
+/// This is the R1 dictionary layer only (no R2 model inference).
+#[napi]
+pub fn scan_persuasion(text: String) -> PersuasionScanResultJs {
+    scan_persuasion_inner(&text)
+}
+
+/// Inner implementation (testable without NAPI runtime).
+fn scan_persuasion_inner(text: &str) -> PersuasionScanResultJs {
+    let dict = PersuasionDict::new();
+    let start = std::time::Instant::now();
+    let matches = dict.scan_text(text);
+    let timing_us = start.elapsed().as_micros() as u32;
+
+    PersuasionScanResultJs {
+        matches: matches
+            .into_iter()
+            .map(|m| PersuasionMatchJs {
+                category: m.category.to_string(),
+                start: m.start as u32,
+                end: m.end as u32,
+                phrase: m.phrase,
+            })
+            .collect(),
+        timing_us,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scan_persuasion_detects_urgency() {
+        let result = scan_persuasion_inner("Act now before it's too late!");
+        assert!(
+            result.matches.iter().any(|m| m.category == "Urgency"),
+            "Should detect urgency, got: {:?}",
+            result.matches.iter().map(|m| &m.category).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_scan_persuasion_clean_text() {
+        let result = scan_persuasion_inner("The function returns a sorted list of integers.");
+        assert!(
+            result.matches.is_empty(),
+            "Clean text should have no matches, got {}",
+            result.matches.len()
+        );
+    }
+
+    #[test]
+    fn test_scan_persuasion_multiple_categories() {
+        let result = scan_persuasion_inner(
+            "Act now! Experts agree this exclusive offer is a smart choice.",
+        );
+        let categories: std::collections::HashSet<&str> =
+            result.matches.iter().map(|m| m.category.as_str()).collect();
+        assert!(
+            categories.len() >= 3,
+            "Expected >= 3 categories, got {:?}",
+            categories
+        );
+    }
+
+    #[test]
+    fn test_scan_persuasion_offsets_valid() {
+        let text = "Buy now and save money today!";
+        let result = scan_persuasion_inner(text);
+        for m in &result.matches {
+            let slice = &text[m.start as usize..m.end as usize];
+            assert_eq!(
+                slice.to_lowercase(),
+                m.phrase.to_lowercase(),
+                "Offset [{},{}) should match phrase '{}'",
+                m.start,
+                m.end,
+                m.phrase
+            );
+        }
+    }
+
+    #[test]
+    fn test_scan_persuasion_timing_populated() {
+        let result = scan_persuasion_inner("Act now!");
+        // timing_us can be 0 on very fast machines, but shouldn't be wildly large
+        assert!(result.timing_us < 1_000_000, "Timing should be < 1s");
+    }
+
+    #[test]
+    fn test_scan_persuasion_empty_string() {
+        let result = scan_persuasion_inner("");
+        assert!(result.matches.is_empty());
     }
 }

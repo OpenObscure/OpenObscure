@@ -143,7 +143,7 @@ src/
 ├── integration_tests.rs E2E tests (wiremock + tower::oneshot)
 │
 │   ── Mobile Library (Phase 7+, Embedded Model) ──
-├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats, detect_audio)
+├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats, sanitize_audio_transcript, check_audio_pii)
 └── uniffi_bindings.rs   UniFFI interface definitions for Swift/Kotlin (feature-gated: "mobile")
 ```
 
@@ -378,7 +378,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **1,647** (727 lib + 920 bin) |
+| Test count | — | **1,667** (737 lib + 930 bin) |
 
 ## Technology Stack
 

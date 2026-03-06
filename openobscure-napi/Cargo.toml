@@ -6,7 +6,7 @@ description = "OpenObscure native Node.js scanner addon — HybridScanner via na
 license = "MIT OR Apache-2.0"
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
 napi = { version = "2", default-features = false, features = ["napi4"] }

@@ -30,16 +30,17 @@ L1 Plugin (redactPii)
 
 ```
 src/
-└── lib.rs    OpenObscureScanner class, ScanMatch/ScanResult types (napi-rs exports)
+└── lib.rs    OpenObscureScanner class, scan_persuasion() function, types (napi-rs exports), 6 unit tests
 ```
 
 ## API Surface
 
-| Class | Method | Returns | Description |
-|-------|--------|---------|-------------|
+| Class/Function | Method | Returns | Description |
+|----------------|--------|---------|-------------|
 | `OpenObscureScanner` | `constructor(nerModelDir?)` | — | Create scanner; optionally load NER model from directory |
 | | `scanText(text)` | `ScanResult` | Scan text, return all PII matches + timing |
 | | `hasNer()` | `boolean` | Check if NER model was loaded successfully |
+| `scanPersuasion(text)` | — | `PersuasionScanResult` | Scan text for persuasion phrases (R1 dictionary, 7 categories) |
 
 ### Types
 
@@ -55,6 +56,18 @@ interface ScanMatch {
 interface ScanResult {
   matches: ScanMatch[];
   timingUs: number;    // Total scan time in microseconds
+}
+
+interface PersuasionMatch {
+  category: string;    // "Urgency", "Fear", "Commercial", etc.
+  start: number;       // Byte offset start
+  end: number;         // Byte offset end
+  phrase: string;      // Matched phrase text
+}
+
+interface PersuasionScanResult {
+  matches: PersuasionMatch[];
+  timingUs: number;    // Scan time in microseconds
 }
 ```
 

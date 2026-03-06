@@ -205,7 +205,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **CLI** | Subcommands: `serve` (default), `key-rotate`, `passthrough`, `service {install,start,stop,status,uninstall}` |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 1,559 (675 lib + 858 bin + 14 accuracy + 12 pipeline) |
+| **Tests** | 1,667 (737 lib + 930 bin) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -222,7 +222,7 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 | **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output |
 | **Stack** | TypeScript 5.4, CommonJS |
 | **Resource** | ~25MB RAM (within the host agent's process), ~3MB storage |
-| **Tests** | 50 (9 suites: redactor, heartbeat, state-messages, oo-log, PII scrubbing, audit log, modules, NER-enhanced redaction, before-tool-call) |
+| **Tests** | 112 (22 suites: redactor, heartbeat, state-messages, oo-log, PII scrubbing, audit log, modules, NER-enhanced redaction, before-tool-call, cognitive dictionary, parity, tokenizer, category detection, overlap, offsets, multi-category, severity, warning label, edge cases, severity boundaries, label format, scanPersuasion) |
 | **Docs** | [openobscure-plugin/ARCHITECTURE.md](openobscure-plugin/ARCHITECTURE.md) |
 
 **Process watchdog** (install templates):
@@ -422,6 +422,7 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 | **Phase R1** (complete) | **99.5%** | Response integrity cognitive firewall — persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases), severity tiers (Notice/Warning/Caution), optional warning labels (EU AI Act Article 5), Anthropic + OpenAI format support |
 | **Phase 11** (complete) | **99.5%** | SSE frame accumulation buffer (`SseAccumulator`), model pre-warming (`ReadinessState`), tier-aware body size limits, request/response FPE mapping module |
 | **Phase 12** (complete) | **99.5%** | R2 cognitive firewall — TinyBERT FP32 multi-label classifier (4 EU AI Act Article 5 categories), R1→R2 cascade (Confirm/Suppress/Upgrade/Discover), first-window early exit, ONNX FP32 export (54.9 MB), macro P=80.9% R=74.5% F1=77.3% |
+| **Phase 13** (partial) | **99.5%** | Embedded voice pipeline — platform speech APIs (iOS `SFSpeechRecognizer` + Android `SpeechRecognizer`), mobile audio transcript PII methods (`sanitizeAudioTranscript`/`checkAudioPii` via UniFFI), L1 cognitive firewall (JS persuasion dictionary, NAPI bridge), comprehensive testing (Tier 1-4 coverage) |
 | **Phase 15** (complete) | **99.5%** | Ensemble NSFW classifier — ViT-tiny holistic model (Marqo/nsfw-image-detection-384) as Phase 0b fallback when NudeNet clean, multi-LLM response format detection (`response_format.rs`) |
 
 ## Project Layout
@@ -446,8 +447,8 @@ OpenObscure/
 │   └── pii_finetune_dataset.json  TinyBERT fine-tuning dataset (500-1000 labeled PII samples)
 ├── test/
 │   ├── apps/
-│   │   ├── ios/                 iOS test app (SwiftUI, 25 runner + 23 XCTest)
-│   │   └── android/             Android test app (Compose, 29 instrumented + 8 UI)
+│   │   ├── ios/                 iOS test app (SwiftUI, 25 runner + 30 XCTest incl. audio transcript PII)
+│   │   └── android/             Android test app (Compose, 36 instrumented incl. audio transcript PII + 8 UI)
 │   ├── config/                  Test TOML configs (test_fpe.toml, etc.)
 │   ├── data/
 │   │   ├── input/               PII test corpus (45 files across 8 categories)
@@ -469,13 +470,13 @@ OpenObscure/
 │   └── install/                 Process watchdog templates (launchd, systemd)
 ├── openobscure-napi/               NAPI native scanner addon (Rust via napi-rs)
 │   ├── ARCHITECTURE.md          NAPI architecture details
-│   ├── src/lib.rs               OpenObscureScanner class (scanText, hasNer)
+│   ├── src/lib.rs               OpenObscureScanner class (scanText, hasNer, scanPersuasion)
 │   └── package.json             @openobscure/scanner-napi
 ├── review-notes/                Architecture review analysis & responses
 ├── openobscure-plugin/            L1: Gateway plugin
 │   ├── ARCHITECTURE.md          L1 architecture details
 │   ├── LICENSE_AUDIT.md         Dependency license audit
-│   └── src/                     TypeScript source (redactor, heartbeat, oo-log, core, before-tool-call)
+│   └── src/                     TypeScript source (redactor, heartbeat, oo-log, core, cognitive, before-tool-call)
 └── project-plan/
     ├── MASTER_PLAN.md           Full design reference (single source of truth)
     ├── PHASE1_PLAN.md           Phase 1 plan (COMPLETE — 75 tests)
@@ -1013,9 +1014,12 @@ Recently completed:
 - **GLiNER NER evaluation** — DROPPED (82.78% recall, worse than TinyBERT 97%)
 - **Multilingual PII detection** — `whatlang` language detection + per-language regex/keywords for 9 languages with national ID check-digit validation — DONE (Phase 10C)
 - **Voice anonymization** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8), detects PII trigger phrases and strips matching audio blocks, `voice` feature flag — DONE (Phase 10D)
-- **Mobile test apps** — iOS (SwiftUI, 25 runner + 23 XCTest) and Android (Compose, 29 instrumented + 8 UI) — DONE (Phase 10A)
+- **Mobile test apps** — iOS (SwiftUI, 25 runner + 30 XCTest incl. audio) and Android (Compose, 36 instrumented incl. audio + 8 UI) — DONE (Phase 10A + 13D)
 - **`before_tool_call` preparation** — L1 plugin prepared handler that auto-activates when OpenClaw wires the hook — DONE (Phase 10F)
 - **Response integrity cognitive firewall** — Persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases, severity tiers, warning labels, EU AI Act Article 5) — DONE (Phase R1)
+- **Embedded cognitive firewall** — JS persuasion dictionary (248 phrases, 7 Cialdini categories) + NAPI `scan_persuasion()` bridge in L1 plugin — mirrors Rust R1 logic exactly — DONE (Phase 13F)
+- **Mobile voice platform APIs** — `sanitizeAudioTranscript`/`checkAudioPii` UniFFI methods + iOS `SFSpeechRecognizer` + Android `SpeechRecognizer` wrappers — DONE (Phase 13D)
+- **UniFFI API surface CI assertion** — Binding drift check + function presence verification for 7 required APIs in both Swift and Kotlin bindings — DONE (Phase 14C)
 - **SSE frame accumulation** — `SseAccumulator` cross-frame buffer for PII token and FPE ciphertext reassembly in streaming responses — DONE (Phase 11)
 - **Model pre-warming** — `ReadinessState` enum (Cold/Warming/Ready) in health.rs, health returns 503 until warm — DONE (Phase 11)
 - **Tier-aware body limits** — Per-tier body size limits (Lite 10MB, Standard 50MB, Full 100MB) with streaming early-reject — DONE (Phase 11)

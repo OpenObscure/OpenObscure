@@ -250,4 +250,66 @@ final class OpenObscureXCTests: XCTestCase {
         )
         XCTAssertThrowsError(try sanitizeImage(handle: handle, imageBytes: Data()))
     }
+
+    // MARK: - Audio Transcript PII (Tier 2c)
+
+    func testSanitizeAudioTranscriptWithPii() throws {
+        let handle = try createOpenobscure(configJson: "{}", fpeKeyHex: testKeyHex)
+        let result = try sanitizeAudioTranscript(handle: handle, transcript: "my social security number is 123-45-6789")
+        XCTAssertGreaterThanOrEqual(result.piiCount, 1)
+        XCTAssertFalse(result.sanitizedText.contains("123-45-6789"),
+            "SSN should be sanitized: \(result.sanitizedText)")
+    }
+
+    func testSanitizeAudioTranscriptClean() throws {
+        let handle = try createOpenobscure(configJson: "{}", fpeKeyHex: testKeyHex)
+        let result = try sanitizeAudioTranscript(handle: handle, transcript: "the weather is sunny today")
+        XCTAssertEqual(result.piiCount, 0)
+        XCTAssertEqual(result.sanitizedText, "the weather is sunny today")
+    }
+
+    func testSanitizeAudioTranscriptEmpty() throws {
+        let handle = try createOpenobscure(configJson: "{}", fpeKeyHex: testKeyHex)
+        let result = try sanitizeAudioTranscript(handle: handle, transcript: "")
+        XCTAssertEqual(result.piiCount, 0)
+        XCTAssertEqual(result.sanitizedText, "")
+    }
+
+    func testCheckAudioPiiFound() throws {
+        let handle = try createOpenobscure(configJson: "{}", fpeKeyHex: testKeyHex)
+        let count = checkAudioPii(handle: handle, transcript: "my card is 4111-1111-1111-1111")
+        XCTAssertGreaterThanOrEqual(count, 1, "Should detect credit card")
+    }
+
+    func testCheckAudioPiiClean() throws {
+        let handle = try createOpenobscure(configJson: "{}", fpeKeyHex: testKeyHex)
+        let count = checkAudioPii(handle: handle, transcript: "no personal data here")
+        XCTAssertEqual(count, 0)
+    }
+
+    func testCheckAudioPiiMultiple() throws {
+        let handle = try createOpenobscure(configJson: "{}", fpeKeyHex: testKeyHex)
+        let count = checkAudioPii(
+            handle: handle,
+            transcript: "card 4111-1111-1111-1111 and ssn 123-45-6789"
+        )
+        XCTAssertGreaterThanOrEqual(count, 2, "Should detect both CC and SSN, got \(count)")
+    }
+
+    func testAudioTranscriptRestoreRoundtrip() throws {
+        let handle = try createOpenobscure(configJson: "{}", fpeKeyHex: testKeyHex)
+        let sanitized = try sanitizeAudioTranscript(
+            handle: handle,
+            transcript: "my email is johnathan.doe@example.com"
+        )
+        XCTAssertGreaterThanOrEqual(sanitized.piiCount, 1)
+
+        let restored = restoreText(
+            handle: handle,
+            text: sanitized.sanitizedText,
+            mappingJson: sanitized.mappingJson
+        )
+        XCTAssertTrue(restored.contains("johnathan.doe@example.com"),
+            "Roundtrip should restore email: \(restored)")
+    }
 }

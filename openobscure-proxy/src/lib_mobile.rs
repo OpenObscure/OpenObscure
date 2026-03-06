@@ -511,6 +511,26 @@ impl OpenObscureMobile {
         }
     }
 
+    /// Scan a transcript (from platform speech API) for PII.
+    ///
+    /// Mobile apps transcribe audio using iOS `SFSpeechRecognizer` or Android
+    /// `SpeechRecognizer`, then pass the transcript here for PII detection.
+    /// Returns a `SanitizeResult` with the sanitized transcript and mappings.
+    pub fn sanitize_audio_transcript(
+        &self,
+        transcript: &str,
+    ) -> Result<SanitizeResult, MobileError> {
+        self.sanitize_text(transcript)
+    }
+
+    /// Check if a transcript contains PII without encrypting.
+    ///
+    /// Returns the number of PII matches found. Useful for deciding whether
+    /// to strip an entire audio block vs. pass it through.
+    pub fn check_audio_pii(&self, transcript: &str) -> u32 {
+        self.scanner.scan_text(transcript).len() as u32
+    }
+
     /// Release all loaded image models immediately.
     ///
     /// Call this from iOS `applicationDidReceiveMemoryWarning` or
@@ -726,5 +746,95 @@ mod tests {
                 || stats.device_tier == "standard"
                 || stats.device_tier == "lite"
         );
+    }
+
+    #[test]
+    fn test_mobile_sanitize_audio_transcript_with_pii() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile
+            .sanitize_audio_transcript("my social security number is 123-45-6789")
+            .unwrap();
+        assert!(result.pii_count >= 1);
+        assert!(!result.sanitized_text.contains("123-45-6789"));
+    }
+
+    #[test]
+    fn test_mobile_sanitize_audio_transcript_clean() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile
+            .sanitize_audio_transcript("the weather today is sunny and warm")
+            .unwrap();
+        assert_eq!(result.pii_count, 0);
+        assert_eq!(result.sanitized_text, "the weather today is sunny and warm");
+    }
+
+    #[test]
+    fn test_mobile_check_audio_pii_found() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let count = mobile.check_audio_pii("call me at 555-867-5309 please");
+        assert!(count >= 1, "Should detect phone number, got {}", count);
+    }
+
+    #[test]
+    fn test_mobile_check_audio_pii_clean() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let count = mobile.check_audio_pii("no personal information here");
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_mobile_audio_transcript_multiple_pii() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile
+            .sanitize_audio_transcript("my card is 4111-1111-1111-1111 and my ssn is 123-45-6789")
+            .unwrap();
+        assert!(
+            result.pii_count >= 2,
+            "Expected >= 2 PII, got {}",
+            result.pii_count
+        );
+        assert!(!result.sanitized_text.contains("4111"));
+        assert!(!result.sanitized_text.contains("123-45-6789"));
+    }
+
+    #[test]
+    fn test_mobile_audio_transcript_restore_roundtrip() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let sanitized = mobile
+            .sanitize_audio_transcript("my email is johnathan.doe@example.com")
+            .unwrap();
+        assert!(sanitized.pii_count >= 1);
+        let restored = mobile.restore_text(&sanitized.sanitized_text, &sanitized.mapping_json);
+        assert!(
+            restored.contains("johnathan.doe@example.com"),
+            "Roundtrip should restore original email, got: {}",
+            restored
+        );
+    }
+
+    #[test]
+    fn test_mobile_audio_transcript_empty_string() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile.sanitize_audio_transcript("").unwrap();
+        assert_eq!(result.pii_count, 0);
+        assert_eq!(result.sanitized_text, "");
+    }
+
+    #[test]
+    fn test_mobile_check_audio_pii_exact_count() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        // Two distinct PII items
+        let count = mobile.check_audio_pii("call 555-867-5309 or email johnathan.doe@example.com");
+        assert!(count >= 2, "Expected >= 2 PII items, got {}", count);
+    }
+
+    #[test]
+    fn test_mobile_audio_transcript_unicode_text() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile
+            .sanitize_audio_transcript("私のメールは johnathan.doe@example.com です")
+            .unwrap();
+        assert!(result.pii_count >= 1);
+        assert!(!result.sanitized_text.contains("johnathan.doe@example.com"));
     }
 }

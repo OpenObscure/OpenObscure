@@ -724,6 +724,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -739,11 +743,15 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 // when the library is loaded.
 internal interface IntegrityCheckingUniffiLib : Library {
     // Integrity check functions only
-    fun uniffi_openobscure_proxy_checksum_func_create_openobscure(
+    fun uniffi_openobscure_proxy_checksum_func_check_audio_pii(
+): Short
+fun uniffi_openobscure_proxy_checksum_func_create_openobscure(
 ): Short
 fun uniffi_openobscure_proxy_checksum_func_get_stats(
 ): Short
 fun uniffi_openobscure_proxy_checksum_func_restore_text(
+): Short
+fun uniffi_openobscure_proxy_checksum_func_sanitize_audio_transcript(
 ): Short
 fun uniffi_openobscure_proxy_checksum_func_sanitize_image(
 ): Short
@@ -802,11 +810,15 @@ internal interface UniffiLib : Library {
 ): Pointer
 fun uniffi_openobscure_proxy_fn_free_openobscurehandle(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): Unit
+fun uniffi_openobscure_proxy_fn_func_check_audio_pii(`handle`: Pointer,`transcript`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): Int
 fun uniffi_openobscure_proxy_fn_func_create_openobscure(`configJson`: RustBuffer.ByValue,`fpeKeyHex`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Pointer
 fun uniffi_openobscure_proxy_fn_func_get_stats(`handle`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_openobscure_proxy_fn_func_restore_text(`handle`: Pointer,`text`: RustBuffer.ByValue,`mappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_openobscure_proxy_fn_func_sanitize_audio_transcript(`handle`: Pointer,`transcript`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_openobscure_proxy_fn_func_sanitize_image(`handle`: Pointer,`imageBytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -938,6 +950,9 @@ private fun uniffiCheckContractApiVersion(lib: IntegrityCheckingUniffiLib) {
 }
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
+    if (lib.uniffi_openobscure_proxy_checksum_func_check_audio_pii() != 42564.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_openobscure_proxy_checksum_func_create_openobscure() != 27473.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -945,6 +960,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_proxy_checksum_func_restore_text() != 12720.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_openobscure_proxy_checksum_func_sanitize_audio_transcript() != 51770.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_proxy_checksum_func_sanitize_image() != 8013.toShort()) {
@@ -1721,6 +1739,20 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     }
 }
         /**
+         * Check if a transcript contains PII without encrypting.
+         *
+         * Returns the count of PII matches. Use to decide whether to strip an audio block.
+         */ fun `checkAudioPii`(`handle`: OpenObscureHandle, `transcript`: kotlin.String): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_check_audio_pii(
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`transcript`),_status)
+}
+    )
+    }
+    
+
+        /**
          * Create a new OpenObscure mobile instance.
          *
          * # Arguments
@@ -1759,6 +1791,22 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_restore_text(
         FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`text`),FfiConverterString.lower(`mappingJson`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Scan a transcript (from platform speech API) for PII and encrypt matches.
+         *
+         * Used by iOS `SFSpeechRecognizer` and Android `SpeechRecognizer` voice pipelines.
+         * The mobile app transcribes audio locally, then calls this to detect/encrypt PII.
+         */
+    @Throws(MobileBindingException::class) fun `sanitizeAudioTranscript`(`handle`: OpenObscureHandle, `transcript`: kotlin.String): SanitizeResultFfi {
+            return FfiConverterTypeSanitizeResultFFI.lift(
+    uniffiRustCallWithError(MobileBindingException) { _status ->
+    UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_sanitize_audio_transcript(
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`transcript`),_status)
 }
     )
     }

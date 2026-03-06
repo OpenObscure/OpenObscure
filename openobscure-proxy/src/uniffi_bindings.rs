@@ -121,6 +121,38 @@ pub fn sanitize_image(
         .map_err(|e| MobileBindingError::Processing(e.to_string()))
 }
 
+/// Scan a transcript (from platform speech API) for PII and encrypt matches.
+///
+/// Used by iOS `SFSpeechRecognizer` and Android `SpeechRecognizer` voice pipelines.
+/// The mobile app transcribes audio locally, then calls this to detect/encrypt PII.
+#[cfg(feature = "mobile")]
+#[uniffi::export]
+pub fn sanitize_audio_transcript(
+    handle: &Arc<OpenObscureHandle>,
+    transcript: String,
+) -> Result<SanitizeResultFFI, MobileBindingError> {
+    let result = handle
+        .inner
+        .sanitize_audio_transcript(&transcript)
+        .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
+
+    Ok(SanitizeResultFFI {
+        sanitized_text: result.sanitized_text,
+        pii_count: result.pii_count,
+        categories: result.categories,
+        mapping_json: result.mapping_json,
+    })
+}
+
+/// Check if a transcript contains PII without encrypting.
+///
+/// Returns the count of PII matches. Use to decide whether to strip an audio block.
+#[cfg(feature = "mobile")]
+#[uniffi::export]
+pub fn check_audio_pii(handle: &Arc<OpenObscureHandle>, transcript: String) -> u32 {
+    handle.inner.check_audio_pii(&transcript)
+}
+
 /// Get current statistics for diagnostics.
 #[cfg(feature = "mobile")]
 #[uniffi::export]

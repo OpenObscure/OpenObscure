@@ -20,6 +20,16 @@ export type { ToolCall } from "./types";
 export { HeartbeatMonitor, STATE_MESSAGES } from "./heartbeat";
 export type { ProxyState, HealthResponse, HeartbeatConfig } from "./heartbeat";
 
+// Cognitive Firewall
+export {
+  scanPersuasion, scanDictionary, computeSeverity,
+  formatWarningLabel, tokenize, totalPhraseCount,
+  getCategorySize,
+} from "./cognitive";
+export type {
+  PersuasionCategory, SeverityTier, PersuasionMatch, PersuasionScanResult,
+} from "./cognitive";
+
 // Logging
 export {
   ooInfo, ooWarn, ooError, ooDebug, ooAudit,

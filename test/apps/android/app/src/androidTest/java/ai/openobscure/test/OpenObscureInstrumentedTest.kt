@@ -10,6 +10,8 @@ import uniffi.openobscure_proxy.getStats
 import uniffi.openobscure_proxy.sanitizeText
 import uniffi.openobscure_proxy.restoreText
 import uniffi.openobscure_proxy.sanitizeImage
+import uniffi.openobscure_proxy.sanitizeAudioTranscript
+import uniffi.openobscure_proxy.checkAudioPii
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
@@ -371,5 +373,78 @@ class OpenObscureInstrumentedTest {
         val handle = createOpenobscure(configJson = config, fpeKeyHex = testKeyHex)
         val stats = getStats(handle = handle)
         assertTrue("imagePipelineAvailable should be true", stats.imagePipelineAvailable)
+    }
+
+    // ── Audio Transcript PII (Tier 2b) ──
+
+    @Test
+    fun audioTranscriptWithPii() {
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        val result = sanitizeAudioTranscript(handle = handle, transcript = "my social security number is 123-45-6789")
+        assertTrue("piiCount should be >= 1, got ${result.piiCount}", result.piiCount >= 1u)
+        assertFalse(
+            "SSN should be sanitized: ${result.sanitizedText}",
+            result.sanitizedText.contains("123-45-6789"),
+        )
+    }
+
+    @Test
+    fun audioTranscriptClean() {
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        val result = sanitizeAudioTranscript(handle = handle, transcript = "the weather is sunny today")
+        assertEquals(0u, result.piiCount)
+        assertEquals("the weather is sunny today", result.sanitizedText)
+    }
+
+    @Test
+    fun audioTranscriptEmpty() {
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        val result = sanitizeAudioTranscript(handle = handle, transcript = "")
+        assertEquals(0u, result.piiCount)
+        assertEquals("", result.sanitizedText)
+    }
+
+    @Test
+    fun checkAudioPiiFound() {
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        val count = checkAudioPii(handle = handle, transcript = "my card is 4111-1111-1111-1111")
+        assertTrue("Should detect credit card, got $count", count >= 1u)
+    }
+
+    @Test
+    fun checkAudioPiiClean() {
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        val count = checkAudioPii(handle = handle, transcript = "no personal data here")
+        assertEquals(0u, count)
+    }
+
+    @Test
+    fun checkAudioPiiMultiple() {
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        val count = checkAudioPii(
+            handle = handle,
+            transcript = "card 4111-1111-1111-1111 and ssn 123-45-6789",
+        )
+        assertTrue("Should detect both CC and SSN, got $count", count >= 2u)
+    }
+
+    @Test
+    fun audioTranscriptRestoreRoundtrip() {
+        val handle = createOpenobscure(configJson = "{}", fpeKeyHex = testKeyHex)
+        val sanitized = sanitizeAudioTranscript(
+            handle = handle,
+            transcript = "my email is johnathan.doe@example.com",
+        )
+        assertTrue(sanitized.piiCount >= 1u)
+
+        val restored = restoreText(
+            handle = handle,
+            text = sanitized.sanitizedText,
+            mappingJson = sanitized.mappingJson,
+        )
+        assertTrue(
+            "Roundtrip should restore email: $restored",
+            restored.contains("johnathan.doe@example.com"),
+        )
     }
 }

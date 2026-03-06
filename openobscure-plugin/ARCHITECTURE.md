@@ -32,12 +32,14 @@ graph TD
 ```
 src/
 ├── index.ts                Plugin entry point — register(), hook wiring, tool registration, auth token, before_tool_call
-├── core.ts                 Agent-agnostic API — exports redactPii, redactPiiWithNer, logging without framework wiring
+├── core.ts                 Agent-agnostic API — exports redactPii, redactPiiWithNer, cognitive firewall, logging
 ├── redactor.ts             PII Redactor — regex detection + NER-enhanced redaction via L0 endpoint
+├── cognitive.ts            Cognitive Firewall — JS persuasion dictionary (7 Cialdini categories, 248 phrases, 3→2→1 scanning, severity tiers, warning labels)
 ├── heartbeat.ts            L1 Heartbeat Monitor — pings L0 health endpoint with auth token
 ├── oo-log.ts               Unified logging API — ooInfo/ooWarn/ooError/ooDebug/ooAudit + PII scrub
 ├── types.ts                OpenClaw plugin API type definitions
 ├── redactor.test.ts        Redactor tests (regex + NER-enhanced)
+├── cognitive.test.ts       Cognitive firewall tests (parity, tokenizer, categories, severity, labels, edge cases — 59 tests)
 ├── heartbeat.test.ts       Heartbeat monitor + auth token tests
 ├── oo-log.test.ts          Logging API + PII scrubbing + audit log + module constants tests
 └── before-tool-call.test.ts  Prepared before_tool_call handler tests
@@ -109,6 +111,25 @@ All logging goes through a unified facade — no direct `console.*` calls outsid
 
 **PII scrubbing:** All string fields run through `redactPii()` before output, ensuring no PII leaks through log messages even if developers forget to sanitize.
 
+### Cognitive Firewall (cognitive.ts)
+
+Embedded JS persuasion/manipulation scanner mirroring the L0 Rust `persuasion_dict.rs` + `response_integrity.rs` logic. Provides L1-level response integrity scanning without requiring the L0 proxy.
+
+| Aspect | Detail |
+|--------|--------|
+| **Categories** | 7 Cialdini categories: Urgency, Scarcity, SocialProof, Fear, Authority, Commercial, Flattery |
+| **Phrases** | 248 total (pinned to exact Rust parity per category) |
+| **Scanning** | 3→2→1 word window (longest match first, overlap dedup via byte offsets) |
+| **Severity** | Notice (1 cat, ≤2 matches), Warning (2+ cats or 3+ matches), Caution (4+ cats or Commercial+Fear/Urgency) |
+| **Warning labels** | `--- OpenObscure WARNING ---` format matching L0 output exactly |
+| **NAPI bridge** | `scan_persuasion()` free function wraps Rust `PersuasionDict` for native speed when NAPI addon installed |
+
+```typescript
+import { scanPersuasion } from "openobscure-plugin/core";
+const result = scanPersuasion("Act now! This exclusive offer expires soon.");
+// result.severity → "Caution", result.categories → ["Urgency", "Scarcity", "Commercial"]
+```
+
 ### Plugin Registration (index.ts)
 
 ```typescript
@@ -152,7 +173,13 @@ Tool executes → tool_result_persist fires → PII Redactor scans → redacted 
 | `GDPR audit log` | Audit routing to separate JSONL file |
 | `OO_MODULES constants` | Module constant values and coverage |
 | `before_tool_call handler` | Prepared handler registration, feature check, fallback behavior |
-| **Total** | **50 tests across 9 suites** |
+| `Persuasion Dictionary` | Total phrase count pinned to 248 (Rust parity) |
+| `Per-Category Phrase Count Parity` | 7 per-category count assertions + sum check (Tier 1a) |
+| `Cognitive Edge Cases` | Unicode, long text, HTML tags, newlines, smart quotes, repeated whitespace |
+| `Severity Boundaries` | All boundary conditions (Notice/Warning/Caution thresholds, combo overrides) |
+| `Warning Label Exact Format` | Notice/Warning/Caution string match, SocialProof display name |
+| `scanPersuasion` | Clean text, persuasive text, Caution-level, empty string |
+| **Total** | **112 tests across 22 suites** |
 
 ## Resource Budget
 
@@ -202,6 +229,7 @@ via the default entry point (`openobscure-plugin`).
 - **NER-enhanced redaction:** When L0 is healthy, redactor calls `POST /_openobscure/ner` for semantic PII spans (names, addresses, orgs) merged with regex results — DONE
 - **`before_tool_call` handler:** Prepared handler that auto-activates when OpenClaw wires the hook, upgrading from soft to hard enforcement — DONE (Phase 10F)
 - **Agent-agnostic API (`core.ts`):** Exports core functions without framework wiring for non-OpenClaw integrations — DONE
+- **Cognitive Firewall (`cognitive.ts`):** Embedded JS persuasion dictionary (248 phrases, 7 categories), severity computation, warning labels — mirrors Rust R1 logic exactly. NAPI `scan_persuasion()` bridge for native speed. Tier 1-4 test coverage (59 tests). — DONE (Phase 13F)
 
 ## Future Work
 
