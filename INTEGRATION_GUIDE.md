@@ -94,6 +94,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 | `sanitizeImage` | `(handle, imageBytes) -> Data` | Face redaction + OCR redaction on image bytes (JPEG/PNG) |
 | `sanitizeAudioTranscript` | `(handle, transcript) -> SanitizeResult` | Scan speech transcript for PII |
 | `checkAudioPii` | `(handle, transcript) -> Int` | Quick PII count check (no encryption) |
+| `scanResponse` | `(handle, responseText) -> RiReportFFI?` | Scan LLM response for persuasion/manipulation (cognitive firewall) |
 | `getStats` | `(handle) -> MobileStats` | Device tier, total PII found, image count |
 
 ### SanitizeResult
@@ -105,6 +106,18 @@ piiCount: Int            — Number of PII items found
 categories: [String]     — PII types found ("credit_card", "ssn", "email", etc.)
 ```
 
+### RiReportFFI (Response Integrity)
+
+```
+severity: String          — "Notice", "Warning", or "Caution"
+categories: [String]      — Persuasion categories detected (Urgency, Authority, Scarcity, etc.)
+flags: [String]           — Matched phrases from R1 dictionary scan
+r2Categories: [String]    — EU AI Act Article 5 categories from R2 classifier (if model loaded)
+scanTimeUs: UInt64        — Scan duration in microseconds
+```
+
+Returns `nil`/`null` when no manipulation is detected, RI is disabled, or device is Lite tier.
+
 ### MobileConfig (JSON)
 
 ```json
@@ -112,7 +125,10 @@ categories: [String]     — PII types found ("credit_card", "ssn", "email", etc
   "scanner_mode": "regex",
   "auto_detect": true,
   "keywords_enabled": true,
-  "image_enabled": false
+  "image_enabled": false,
+  "ri_enabled": false,
+  "ri_sensitivity": "medium",
+  "ri_model_dir": null
 }
 ```
 
@@ -120,6 +136,9 @@ categories: [String]     — PII types found ("credit_card", "ssn", "email", etc
 - `auto_detect`: `true` (default) — profiles device RAM for tier selection
 - `keywords_enabled`: `true` (default) — health/child keyword dictionary
 - `image_enabled`: `false` (default) — requires ONNX model files
+- `ri_enabled`: `false` (default) — enable cognitive firewall (response integrity scanning)
+- `ri_sensitivity`: `"medium"` (default) — `"off"`, `"low"`, `"medium"`, `"high"` — controls R2 classifier invocation threshold
+- `ri_model_dir`: `null` (default) — path to R2 model directory; R1 dictionary works without it
 
 ### PII Types (Regex-Only Mode — No Models Required)
 
