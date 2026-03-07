@@ -296,6 +296,11 @@ RustBuffer uniffi_openobscure_proxy_fn_func_sanitize_image(void*_Nonnull handle,
 RustBuffer uniffi_openobscure_proxy_fn_func_sanitize_text(void*_Nonnull handle, RustBuffer text, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_SCAN_RESPONSE
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_SCAN_RESPONSE
+RustBuffer uniffi_openobscure_proxy_fn_func_scan_response(void*_Nonnull handle, RustBuffer response_text, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_FFI_OPENOBSCURE_PROXY_RUSTBUFFER_ALLOC
 #define UNIFFI_FFIDEF_FFI_OPENOBSCURE_PROXY_RUSTBUFFER_ALLOC
 RustBuffer ffi_openobscure_proxy_rustbuffer_alloc(uint64_t size, RustCallStatus *_Nonnull out_status
@@ -615,6 +620,12 @@ uint16_t uniffi_openobscure_proxy_checksum_func_sanitize_image(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_SANITIZE_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_SANITIZE_TEXT
 uint16_t uniffi_openobscure_proxy_checksum_func_sanitize_text(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_SCAN_RESPONSE
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_SCAN_RESPONSE
+uint16_t uniffi_openobscure_proxy_checksum_func_scan_response(void
     
 );
 #endif

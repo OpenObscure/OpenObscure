@@ -742,6 +742,133 @@ public func FfiConverterTypeMobileStatsFFI_lower(_ value: MobileStatsFfi) -> Rus
 
 
 /**
+ * Response integrity report exposed to Swift/Kotlin via UniFFI.
+ */
+public struct RiReportFfi {
+    /**
+     * Severity tier: "Notice", "Warning", or "Caution".
+     */
+    public var severity: String
+    /**
+     * Persuasion categories detected (e.g. "Urgency", "Fear", "Authority").
+     */
+    public var categories: [String]
+    /**
+     * Matched phrases from R1 dictionary scan.
+     */
+    public var flags: [String]
+    /**
+     * Article 5 categories detected by R2 classifier (if model loaded).
+     */
+    public var r2Categories: [String]
+    /**
+     * Scan duration in microseconds.
+     */
+    public var scanTimeUs: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Severity tier: "Notice", "Warning", or "Caution".
+         */severity: String, 
+        /**
+         * Persuasion categories detected (e.g. "Urgency", "Fear", "Authority").
+         */categories: [String], 
+        /**
+         * Matched phrases from R1 dictionary scan.
+         */flags: [String], 
+        /**
+         * Article 5 categories detected by R2 classifier (if model loaded).
+         */r2Categories: [String], 
+        /**
+         * Scan duration in microseconds.
+         */scanTimeUs: UInt64) {
+        self.severity = severity
+        self.categories = categories
+        self.flags = flags
+        self.r2Categories = r2Categories
+        self.scanTimeUs = scanTimeUs
+    }
+}
+
+#if compiler(>=6)
+extension RiReportFfi: Sendable {}
+#endif
+
+
+extension RiReportFfi: Equatable, Hashable {
+    public static func ==(lhs: RiReportFfi, rhs: RiReportFfi) -> Bool {
+        if lhs.severity != rhs.severity {
+            return false
+        }
+        if lhs.categories != rhs.categories {
+            return false
+        }
+        if lhs.flags != rhs.flags {
+            return false
+        }
+        if lhs.r2Categories != rhs.r2Categories {
+            return false
+        }
+        if lhs.scanTimeUs != rhs.scanTimeUs {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(severity)
+        hasher.combine(categories)
+        hasher.combine(flags)
+        hasher.combine(r2Categories)
+        hasher.combine(scanTimeUs)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRiReportFFI: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RiReportFfi {
+        return
+            try RiReportFfi(
+                severity: FfiConverterString.read(from: &buf), 
+                categories: FfiConverterSequenceString.read(from: &buf), 
+                flags: FfiConverterSequenceString.read(from: &buf), 
+                r2Categories: FfiConverterSequenceString.read(from: &buf), 
+                scanTimeUs: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RiReportFfi, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.severity, into: &buf)
+        FfiConverterSequenceString.write(value.categories, into: &buf)
+        FfiConverterSequenceString.write(value.flags, into: &buf)
+        FfiConverterSequenceString.write(value.r2Categories, into: &buf)
+        FfiConverterUInt64.write(value.scanTimeUs, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRiReportFFI_lift(_ buf: RustBuffer) throws -> RiReportFfi {
+    return try FfiConverterTypeRiReportFFI.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRiReportFFI_lower(_ value: RiReportFfi) -> RustBuffer {
+    return FfiConverterTypeRiReportFFI.lower(value)
+}
+
+
+/**
  * Result of sanitizing text, exposed to Swift/Kotlin via UniFFI.
  */
 public struct SanitizeResultFfi {
@@ -941,6 +1068,30 @@ extension MobileBindingError: Foundation.LocalizedError {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeRiReportFFI: FfiConverterRustBuffer {
+    typealias SwiftType = RiReportFfi?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeRiReportFFI.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeRiReportFFI.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -1055,6 +1206,19 @@ public func sanitizeText(handle: OpenObscureHandle, text: String)throws  -> Sani
     )
 })
 }
+/**
+ * Scan a response for persuasion and manipulation techniques (cognitive firewall).
+ *
+ * Returns `Some(RiReportFFI)` if manipulation is detected, `None` if clean or disabled.
+ */
+public func scanResponse(handle: OpenObscureHandle, responseText: String) -> RiReportFfi?  {
+    return try!  FfiConverterOptionTypeRiReportFFI.lift(try! rustCall() {
+    uniffi_openobscure_proxy_fn_func_scan_response(
+        FfiConverterTypeOpenObscureHandle_lower(handle),
+        FfiConverterString.lower(responseText),$0
+    )
+})
+}
 
 private enum InitializationResult {
     case ok
@@ -1090,6 +1254,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_openobscure_proxy_checksum_func_sanitize_text() != 27391) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_openobscure_proxy_checksum_func_scan_response() != 33817) {
         return InitializationResult.apiChecksumMismatch
     }
 

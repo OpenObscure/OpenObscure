@@ -728,6 +728,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -756,6 +758,8 @@ fun uniffi_openobscure_proxy_checksum_func_sanitize_audio_transcript(
 fun uniffi_openobscure_proxy_checksum_func_sanitize_image(
 ): Short
 fun uniffi_openobscure_proxy_checksum_func_sanitize_text(
+): Short
+fun uniffi_openobscure_proxy_checksum_func_scan_response(
 ): Short
 fun ffi_openobscure_proxy_uniffi_contract_version(
 ): Int
@@ -823,6 +827,8 @@ fun uniffi_openobscure_proxy_fn_func_sanitize_audio_transcript(`handle`: Pointer
 fun uniffi_openobscure_proxy_fn_func_sanitize_image(`handle`: Pointer,`imageBytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_openobscure_proxy_fn_func_sanitize_text(`handle`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
+fun uniffi_openobscure_proxy_fn_func_scan_response(`handle`: Pointer,`responseText`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun ffi_openobscure_proxy_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
@@ -969,6 +975,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_proxy_checksum_func_sanitize_text() != 27391.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_openobscure_proxy_checksum_func_scan_response() != 33817.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1546,6 +1555,68 @@ public object FfiConverterTypeMobileStatsFFI: FfiConverterRustBuffer<MobileStats
 
 
 /**
+ * Response integrity report exposed to Swift/Kotlin via UniFFI.
+ */
+data class RiReportFfi (
+    /**
+     * Severity tier: "Notice", "Warning", or "Caution".
+     */
+    var `severity`: kotlin.String, 
+    /**
+     * Persuasion categories detected (e.g. "Urgency", "Fear", "Authority").
+     */
+    var `categories`: List<kotlin.String>, 
+    /**
+     * Matched phrases from R1 dictionary scan.
+     */
+    var `flags`: List<kotlin.String>, 
+    /**
+     * Article 5 categories detected by R2 classifier (if model loaded).
+     */
+    var `r2Categories`: List<kotlin.String>, 
+    /**
+     * Scan duration in microseconds.
+     */
+    var `scanTimeUs`: kotlin.ULong
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRiReportFFI: FfiConverterRustBuffer<RiReportFfi> {
+    override fun read(buf: ByteBuffer): RiReportFfi {
+        return RiReportFfi(
+            FfiConverterString.read(buf),
+            FfiConverterSequenceString.read(buf),
+            FfiConverterSequenceString.read(buf),
+            FfiConverterSequenceString.read(buf),
+            FfiConverterULong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: RiReportFfi) = (
+            FfiConverterString.allocationSize(value.`severity`) +
+            FfiConverterSequenceString.allocationSize(value.`categories`) +
+            FfiConverterSequenceString.allocationSize(value.`flags`) +
+            FfiConverterSequenceString.allocationSize(value.`r2Categories`) +
+            FfiConverterULong.allocationSize(value.`scanTimeUs`)
+    )
+
+    override fun write(value: RiReportFfi, buf: ByteBuffer) {
+            FfiConverterString.write(value.`severity`, buf)
+            FfiConverterSequenceString.write(value.`categories`, buf)
+            FfiConverterSequenceString.write(value.`flags`, buf)
+            FfiConverterSequenceString.write(value.`r2Categories`, buf)
+            FfiConverterULong.write(value.`scanTimeUs`, buf)
+    }
+}
+
+
+
+/**
  * Result of sanitizing text, exposed to Swift/Kotlin via UniFFI.
  */
 data class SanitizeResultFfi (
@@ -1717,6 +1788,38 @@ public object FfiConverterTypeMobileBindingError : FfiConverterRustBuffer<Mobile
 /**
  * @suppress
  */
+public object FfiConverterOptionalTypeRiReportFFI: FfiConverterRustBuffer<RiReportFfi?> {
+    override fun read(buf: ByteBuffer): RiReportFfi? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeRiReportFFI.read(buf)
+    }
+
+    override fun allocationSize(value: RiReportFfi?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeRiReportFFI.allocationSize(value)
+        }
+    }
+
+    override fun write(value: RiReportFfi?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeRiReportFFI.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.String>> {
     override fun read(buf: ByteBuffer): List<kotlin.String> {
         val len = buf.getInt()
@@ -1837,6 +1940,20 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     uniffiRustCallWithError(MobileBindingException) { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_sanitize_text(
         FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`text`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Scan a response for persuasion and manipulation techniques (cognitive firewall).
+         *
+         * Returns `Some(RiReportFFI)` if manipulation is detected, `None` if clean or disabled.
+         */ fun `scanResponse`(`handle`: OpenObscureHandle, `responseText`: kotlin.String): RiReportFfi? {
+            return FfiConverterOptionalTypeRiReportFFI.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_scan_response(
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`responseText`),_status)
 }
     )
     }
