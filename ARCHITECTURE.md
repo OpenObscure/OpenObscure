@@ -54,30 +54,24 @@ For mobile apps and custom integrations, OpenObscure compiles as a **native libr
 
 ```mermaid
 flowchart TB
-    subgraph mobile ["Mobile Device"]
-        subgraph app ["Host App"]
+    subgraph mobile ["User Device"]
+        subgraph app ["Host App (Enchanted, RikkaHub, etc.)"]
             ui["UI Layer (Swift / Kotlin)"]
             lib["OpenObscure lib (Rust)"]
-            ui -- "sanitize_text()" --> lib
-            lib -- "SanitizeResult + mapping" --> ui
-            ui -. "restore_text()" .-> lib
+            ui -- "sanitizeText() / sanitizeImage()" --> lib
+            lib -- "SanitizeResult (PII encrypted)" --> ui
+            ui -. "restoreText() / scanResponse()" .-> lib
+            lib -. "Original PII / RiReport" .-> ui
         end
     end
 
-    app -- "WebSocket (PII encrypted)" --> gw
-    gw -- "response" --> app
-
-    subgraph desktop ["External Computer"]
-        gw["Gateway"]
-        gw -- "HTTP" --> llm(["LLM Provider"])
-    end
+    app -- "HTTPS (PII already sanitized)" --> llm(["LLM Provider"])
+    llm -- "response" --> app
 
     style mobile fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
     style app fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
     style ui fill:#3b48cc,stroke:#232F3E,color:#fff
     style lib fill:#545b64,stroke:#232F3E,color:#fff
-    style desktop fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
-    style gw fill:#3b48cc,stroke:#232F3E,color:#fff
     style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 ```
 

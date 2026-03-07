@@ -76,35 +76,31 @@ flowchart TB
         direction TB
         app["<b>Mobile App</b><br/>(Swift / Kotlin)"]
         lib["<b>OpenObscure Lib</b><br/>(In-Process)"]
-        
-        %% Internal logic
-        app -- "1. sanitize_text()" --> lib
+
+        app -- "1. sanitizeText() / sanitizeImage()" --> lib
         lib -- "2. Result + Mapping" --> app
     end
 
-    subgraph Cloud [" External Computer / Cloud "]
-        gw["<b>Gateway</b><br/>(WebSocket Entry)"]
+    subgraph Cloud [" LLM Provider "]
+        llm["<b>LLM API</b><br/>(OpenAI, Ollama, etc.)"]
     end
 
-    %% Network Connections
-    app == "3. Secure WebSocket<br/>(PII Encrypted)" ==> gw
-    gw -. "4. Response" .-> app
-    
-    %% Final local step
-    app -. "5. restore_text()" .-> lib
+    %% App talks directly to LLM — no Gateway required
+    app == "3. HTTPS<br/>(PII Already Sanitized)" ==> llm
+    llm -. "4. Response" .-> app
+
+    %% Local restore + cognitive firewall on response
+    app -. "5. restoreText() / scanResponse()" .-> lib
 
     %% --- AWS STYLE STYLING ---
-    
-    %% Device Styling (AWS Blue/Grey tones)
+
     style UserDevice fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
     style app fill:#3b48cc,stroke:#232F3E,stroke-width:2px,color:#fff
     style lib fill:#545b64,stroke:#232F3E,stroke-width:2px,color:#fff
 
-    %% Cloud Styling (AWS Orange tones)
     style Cloud fill:#fff7ed,stroke:#ff9900,stroke-width:2px,color:#232F3E
-    style gw fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 
-    %% Link Styling
     linkStyle 0,1,4 stroke:#545b64,stroke-width:2px
     linkStyle 2,3 stroke:#ff9900,stroke-width:3px
 ```
