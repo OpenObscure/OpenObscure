@@ -682,7 +682,7 @@
       "min_text_regions": 0,
       "nsfw_expected": true,
       "screenshot_expected": false,
-      "note": "NSFW — NudeNet flags, full-image blur applied"
+      "note": "NSFW — NudeNet flags, full-image solid fill applied"
     },
     "Visual_PII/semi_nu_pic2.jpg": {
       "subcategory": "NSFW",
@@ -690,7 +690,7 @@
       "min_text_regions": 0,
       "nsfw_expected": true,
       "screenshot_expected": false,
-      "note": "NSFW — NudeNet flags, full-image blur applied"
+      "note": "NSFW — NudeNet flags, full-image solid fill applied"
     },
     "Visual_PII/semi_nu_pic3.jpg": {
       "subcategory": "NSFW",

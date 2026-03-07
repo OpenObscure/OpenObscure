@@ -3,7 +3,7 @@
 # Idempotent — skips files that already exist.
 #
 # Usage: ./download_models.sh [lite|standard|full]
-#   lite     — BlazeFace + PaddleOCR (~11MB) — face blur + text detection only
+#   lite     — BlazeFace + PaddleOCR (~11MB) — face redaction + text detection only
 #   standard — lite + SCRFD + NudeNet (~26MB) — adds better face detection + NSFW
 #   full     — standard + all models (~26MB from this script; NER/KWS/RI via Git LFS)
 #
