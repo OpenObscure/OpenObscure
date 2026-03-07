@@ -111,7 +111,7 @@ flowchart TB
 
 - **Platforms:** iOS (aarch64), Android (arm64-v8a, armeabi-v7a, x86_64)
 - **Layers:** L0 (PII scan + FPE)
-- **Features:** Text PII scanning (regex + keywords + NER/CRF on capable devices), FPE encryption, image pipeline, voice PII detection (platform Speech APIs + `sanitizeAudioTranscript`/`checkAudioPii` via UniFFI), restore/decrypt for responses
+- **Features:** Text PII scanning (regex + keywords + NER/CRF on capable devices), FPE encryption, image pipeline, voice PII detection (platform Speech APIs + `sanitizeAudioTranscript`/`checkAudioPii` via UniFFI), response integrity (cognitive firewall — R1 dictionary + optional R2 classifier, Full/Standard tier), restore/decrypt for responses
 - **Use case:** Mobile companion apps that sanitize PII on-device *before* data reaches the Gateway over WebSocket — defense in depth
 
 ### When to Use Which
@@ -120,7 +120,7 @@ flowchart TB
 |----------|-------|-----|
 | Desktop AI agent (e.g. OpenClaw Gateway) | Gateway | Full feature set, both layers |
 | Server / VPS deployment | Gateway | Same binary, headless key management |
-| iOS / Android companion app | Embedded | On-device PII protection, native bindings |
+| iOS / Android companion app | Embedded | On-device PII protection + cognitive firewall, native bindings |
 | Custom Rust application | Embedded | Link as a library crate, call directly |
 | Edge device (Raspberry Pi) | Gateway | Full features, runs on ARM Linux |
 
@@ -648,7 +648,7 @@ The label uses the severity tier name (NOTICE/WARNING/CAUTION) and lists the det
 
 ## Mobile Library (Embedded Model)
 
-For iOS and Android apps, OpenObscure compiles as a native library with a simple API. Hardware capability detection runs at initialization — a phone with 8GB+ RAM automatically gets NER, CRF, ensemble voting, and full image pipeline, matching gateway-level efficacy.
+For iOS and Android apps, OpenObscure compiles as a native library with a simple API. Hardware capability detection runs at initialization — a phone with 8GB+ RAM automatically gets NER, CRF, ensemble voting, full image pipeline, and cognitive firewall, matching gateway-level efficacy.
 
 ```rust
 // Initialize with FPE key from host app's secure storage
@@ -662,6 +662,11 @@ let result = mobile.sanitize_text("My card is 4111-1111-1111-1111")?;
 
 // Restore original values in responses
 let restored = mobile.restore_text(&response, &result.mapping_json);
+
+// Scan LLM response for persuasion/manipulation (cognitive firewall)
+if let Some(report) = mobile.scan_response(&restored) {
+    println!("Warning: {} — {:?}", report.severity, report.categories);
+}
 
 // Scan speech transcripts for PII
 let audio = mobile.sanitize_audio_transcript("my ssn is 123-45-6789")?;

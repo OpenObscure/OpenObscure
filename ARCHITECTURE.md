@@ -83,7 +83,7 @@ flowchart TB
 
 | Component | What | How it runs |
 |-----------|------|-------------|
-| **L0** (Rust library) | `OpenObscureMobile` API | Linked into host app binary. PII scan + FPE encrypt/decrypt + image pipeline. FPE key provided by host app's native secure storage (iOS Keychain / Android Keystore). |
+| **L0** (Rust library) | `OpenObscureMobile` API | Linked into host app binary. PII scan + FPE encrypt/decrypt + image pipeline + response integrity (cognitive firewall). FPE key provided by host app's native secure storage (iOS Keychain / Android Keystore). |
 
 **Supported platforms:** iOS (aarch64 device + simulator), Android (arm64-v8a, armeabi-v7a, x86_64, x86).
 
@@ -97,6 +97,7 @@ flowchart TB
 | `sanitize_image(bytes)` | Face redact + OCR text redact + NSFW redact + EXIF strip (optional, adds ~20MB) |
 | `sanitize_audio_transcript(text)` | Scan speech transcript for PII, return sanitized text + mapping |
 | `check_audio_pii(text)` | Quick PII count in audio transcript (no encryption) |
+| `scan_response(text)` | Scan LLM response for persuasion/manipulation (cognitive firewall, Full/Standard tier) |
 | `stats()` | PII counts, scanner mode, image pipeline status, device tier |
 
 **Third-party integration:** OpenObscure can be embedded into any iOS/macOS/Android chat app. Tested integrations include [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS Ollama client) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android multi-provider LLM client). See [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for step-by-step instructions.
@@ -104,8 +105,9 @@ flowchart TB
 **Key differences from Gateway Model:**
 - No HTTP server (axum/tokio not compiled in)
 - FPE key passed from host app (no OS keychain access on mobile)
-- Hardware auto-detection (`auto_detect: true` default) profiles device RAM and selects features automatically — phones with 8GB+ RAM get full NER + ensemble + image pipeline, matching gateway efficacy
+- Hardware auto-detection (`auto_detect: true` default) profiles device RAM and selects features automatically — phones with 8GB+ RAM get full NER + ensemble + image pipeline + cognitive firewall, matching gateway efficacy
 - Image pipeline enabled automatically on capable devices (4GB+)
+- Response integrity (cognitive firewall) available on Full/Standard tier — R1 dictionary always, R2 classifier if model provided
 
 ### Defense in Depth: Both Models Together
 
