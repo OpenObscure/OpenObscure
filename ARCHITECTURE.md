@@ -357,53 +357,15 @@ sequenceDiagram
 
 ## Resource Budget
 
-OpenObscure uses a **hardware capability detection system** to select features at startup. The `device_profile` module detects total RAM, available RAM, and CPU cores, classifies the device into a capability tier, and derives a feature budget.
+OpenObscure uses **hardware capability detection** (`device_profile` module) to select features at startup. It detects RAM, classifies a tier, and derives a feature budget.
 
-### Capability Tiers
+| Device RAM | Tier | Key Features | Max RAM |
+|------------|------|-------------|---------|
+| 8GB+ | **Full** | NER + CRF + ensemble + image + cognitive firewall | 275MB |
+| 4–8GB | **Standard** | NER + CRF + image + cognitive firewall (R1 only) | 200MB |
+| <4GB | **Lite** | NER + CRF + image (shorter timeouts) | 80MB |
 
-| Device RAM | Tier | Scanners | Image Pipeline | Model Idle Timeout |
-|------------|------|----------|----------------|--------------------|
-| 8GB+ | **Full** | NER + CRF + ensemble voting | Yes | 300s |
-| 4–8GB | **Standard** | NER + CRF (no ensemble) | Yes | 120s |
-| <4GB | **Lite** | NER + CRF (no ensemble) | Yes (shorter timeout) | 60s |
-
-### Gateway Budgets (fixed per tier)
-
-| Tier | Max RAM | NER | CRF | Ensemble | Image |
-|------|---------|-----|-----|----------|-------|
-| Full | 275MB | Yes | Yes | Yes | Yes |
-| Standard | 200MB | Yes | Yes | No | Yes |
-| Lite | 80MB | Yes | Yes | No | Yes |
-
-### Embedded Budgets (proportional to device RAM)
-
-Budget = 20% of total RAM, clamped to [12MB, 275MB]. Features enabled based on available budget within the tier:
-
-| Device | Total RAM | Budget | Tier | NER | CRF | Ensemble | Image |
-|--------|-----------|--------|------|-----|-----|----------|-------|
-| iPhone 16 Pro | 12GB | 275MB (capped) | Full | Yes | Yes | Yes | Yes |
-| iPhone 15 | 6GB | 275MB (capped) | Standard | Yes | Yes | No | Yes |
-| Budget Android | 3GB | 275MB (capped) | Lite | Yes | Yes | No | Yes |
-| Embedded IoT | 512MB | 102MB | Lite | Yes | Yes | No | Yes |
-
-### Full Stack Component Breakdown
-
-| Component | RAM | Resident? |
-|-----------|-----|-----------|
-| L0 + L1 + runtime | 115MB | Always |
-| TinyBERT INT8 NER | 55MB | Always (when tier enables NER) |
-| Health/child keyword dict | 2MB | Always |
-| SCRFD-2.5GF (face detection, Full/Standard) | 15MB | On-demand |
-| Ultra-Light RFB-320 (face detection, Lite) | 8MB | On-demand |
-| BlazeFace (face detection, fallback) | 8MB | On-demand |
-| PaddleOCR-Lite (OCR) | 35MB | On-demand |
-| Image buffer | 48MB | On-demand |
-| **Peak (Full tier)** | **224MB** | — |
-| **Hard ceiling** | **275MB** | — |
-
-Storage ceiling: **62MB** (including all models, ONNX Runtime, config).
-
-Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
+Embedded budgets scale proportionally (20% of device RAM, clamped to [12MB, 275MB]). See `openobscure-proxy/src/device_profile.rs` for full tier logic and per-component breakdown.
 
 ## PII Coverage Roadmap
 
@@ -433,73 +395,18 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 OpenObscure/
 ├── ARCHITECTURE.md              ← this file (system-level architecture)
 ├── setup/                       Setup guides (gateway proxy, embedded library, example config)
-├── integration/                 Embedding OpenObscure in third-party apps (guide, examples, templates)
-├── session-notes/               Per-session implementation logs
-├── .github/workflows/
-│   ├── ci.yml                   CI: proxy-test matrix, cross-arm64, mobile-build, plugin, lint
-│   └── release.yml              Release: binary matrix + iOS XCFramework + UniFFI bindings
-├── build/
-│   ├── download_models.sh       Download ONNX models for image + voice pipeline
-│   ├── download_kws_models.sh   Download sherpa-onnx KWS models for voice pipeline
-│   ├── build_napi.sh            Build NAPI native scanner addon for current platform
-│   ├── build_ios.sh             Build iOS static library + XCFramework
-│   ├── build_android.sh         Build Android shared library via cargo-ndk
-│   ├── generate_bindings.sh     Generate UniFFI Swift/Kotlin bindings
-│   └── check_openclaw_hooks.sh  Monitor OpenClaw for before_tool_call hook wiring
-├── docs/examples/images/        Before/after visual PII examples
-├── data/
-│   └── pii_finetune_dataset.json  TinyBERT fine-tuning dataset (500-1000 labeled PII samples)
-├── test/
-│   ├── apps/
-│   │   ├── ios/                 iOS test app (SwiftUI, 25 runner + 30 XCTest incl. audio transcript PII)
-│   │   └── android/             Android test app (Compose, 36 instrumented incl. audio transcript PII + 8 UI)
-│   ├── config/                  Test TOML configs (test_fpe.toml, etc.)
-│   ├── data/
-│   │   ├── input/               PII test corpus (45 files across 8 categories)
-│   │   └── output/              Gateway/embedded JSON results
-│   ├── scripts/                 Test runners, validators, echo server
-│   │   └── mock/                Mock data generators (screenshots, mock models, datasets)
-│   ├── expected_results.json    Threshold-based validation manifest (v2.0, ~85%)
-│   ├── snapshot.json            Exact-count snapshot for --strict regression mode
-│   ├── TESTING_GUIDE.md         Testing documentation
-│   ├── GATEWAY_TEST.md          Gateway mode test walkthrough
-│   └── EMBEDDED_TEST.md         Embedded mode test walkthrough
-├── openobscure-proxy/             L0: Rust PII proxy (+ embedded mobile library)
-│   ├── ARCHITECTURE.md          L0 architecture details
-│   ├── LICENSE_AUDIT.md         Dependency license audit
-│   ├── src/                     Rust source (50 modules incl. multilingual/, voice, detection)
-│   ├── examples/                Demo binaries (demo_image_pipeline)
-│   ├── models/                  ONNX models (git-ignored, download via script)
-│   ├── config/openobscure.toml    Default configuration
-│   └── install/                 Process watchdog templates (launchd, systemd)
-├── openobscure-napi/               NAPI native scanner addon (Rust via napi-rs)
-│   ├── ARCHITECTURE.md          NAPI architecture details
-│   ├── src/lib.rs               OpenObscureScanner class (scanText, hasNer, scanPersuasion)
-│   └── package.json             @openobscure/scanner-napi
-├── review-notes/                Architecture review analysis & responses
-├── openobscure-plugin/            L1: Gateway plugin
-│   ├── ARCHITECTURE.md          L1 architecture details
-│   ├── LICENSE_AUDIT.md         Dependency license audit
-│   └── src/                     TypeScript source (redactor, heartbeat, oo-log, core, cognitive, before-tool-call)
-└── project-plan/
-    ├── MASTER_PLAN.md           Full design reference (single source of truth)
-    ├── PHASE1_PLAN.md           Phase 1 plan (COMPLETE — 75 tests)
-    ├── PHASE2_PLAN.md           Phase 2 plan (COMPLETE — 193 tests)
-    ├── PHASE3_PLAN.md           Phase 3 plan (COMPLETE — 319 tests)
-    ├── PHASE4_PLAN.md           Phase 4 plan (COMPLETE — 376 tests)
-    ├── PHASE5_PLAN.md           Phase 5 plan (COMPLETE — 399 tests)
-    ├── PHASE6_PLAN.md           Phase 6 plan (COMPLETE — 418 tests)
-    ├── PHASE7_PLAN.md           Phase 7 plan (COMPLETE — 431 tests)
-    ├── PHASE8_PLAN.md           Phase 8 plan (COMPLETE — 880 tests)
-    ├── PHASE9_PLAN.md           Phase 9 plan (COMPLETE — 9A done, 9C dropped)
-    ├── PHASE10_PLAN.md          Phase 10 plan (COMPLETE — 1,060 tests)
-    ├── PHASE11_PLAN.md          Phase 11 plan (11A/B COMPLETE, 11C/D pending)
-    ├── PHASE12_PLAN.md          Phase 12 plan (COMPLETE — 1,166 tests, R2 cognitive firewall)
-    ├── FEATURE_PARITY.md        Feature comparison L0 vs L1
-    ├── TESTING_STRATEGY.md      Testing strategy and launch readiness
-    ├── COGNITIVE_FIREWALL.md    R1+R2 cognitive firewall design reference
-    └── LOGGING_STRATEGY.md      Platform-specific logging strategy
+├── integration/                 Embedding in third-party apps (guide, diffs, templates)
+├── build/                       Build scripts (iOS, Android, NAPI, model downloads, bindings)
+├── test/                        Test apps (iOS/Android), PII corpus, test runners
+├── openobscure-proxy/           L0: Rust PII proxy + embedded mobile library (see ARCHITECTURE.md inside)
+├── openobscure-plugin/          L1: Gateway plugin (TypeScript, see ARCHITECTURE.md inside)
+├── openobscure-crypto/          L2: Encrypted storage (AES-256-GCM + Argon2id)
+├── openobscure-napi/            NAPI native scanner addon (Rust via napi-rs)
+├── .github/workflows/           CI + release workflows
+└── docs/examples/images/        Before/after visual PII examples
 ```
+
+Each component folder contains its own `ARCHITECTURE.md` with module-level details.
 
 ## Key Design Decisions
 
@@ -549,440 +456,62 @@ cd openobscure-plugin && npm test
 
 ## Health Monitoring & User Experience
 
-OpenObscure must be **invisible when working, clear when not**. Users should never wonder whether their PII is protected.
-
-### OpenObscure States (from the user's perspective)
+OpenObscure must be **invisible when working, clear when not**.
 
 | State | What the user sees | What happens |
 |-------|-------------------|--------------|
 | **Active** | Nothing — AI works normally | L0 encrypts PII, L1 redacts tool results. Silent protection. |
-| **Degraded** | Warning: "OpenObscure proxy is not responding — PII protection is disabled" | L1 detects L0 is down. Agent requests fail (no bypass). User is informed. |
-| **Disabled** | Startup message: "OpenObscure is not enabled. PII will be sent in plaintext." | Host agent configured for direct LLM connections. No protection. |
-| **Crashed** | Same as Degraded — L1 warns, requests fail | L0 process died. Crash marker written for diagnostics. |
-| **OOM** | Warning: "OpenObscure ran out of memory and stopped" + crash marker | L0 killed by OS. L1 detects, warns. Crash marker includes memory stats. |
-| **Recovering** | "OpenObscure proxy recovered from a previous crash" | L0 restarts, finds crash marker, logs recovery, resumes. |
+| **Degraded** | Warning: "proxy is not responding — PII protection is disabled" | L1 detects L0 is down via heartbeat. |
+| **Crashed** | Same as Degraded | L0 writes crash marker (`~/.openobscure/.crashed`) for diagnostics. |
+| **Recovering** | "proxy recovered from a previous crash" | L0 restarts, detects crash marker, logs recovery. |
 
-### Design Principle
+**Design principle:** Warn, don't block. L1's role is explanation, not enforcement — L0 being down already blocks LLM requests since traffic routes through the proxy.
 
-**Warn, don't block.** When L0 is down, L1 should warn the user clearly — but not prevent the host agent from functioning. The user decides whether to continue without protection. L0 being down already blocks LLM requests (traffic is routed through the proxy), so L1's role is **explanation**, not enforcement.
+**Auth:** L0 generates a 32-byte hex token at `~/.openobscure/.auth-token` (0600). L1 sends it via `X-OpenObscure-Token` header on every heartbeat. See `openobscure-proxy/ARCHITECTURE.md` for monitoring architecture details.
 
-### Health Monitoring Architecture
+## Logging
 
-```mermaid
-flowchart LR
-    subgraph l1side ["L1 Plugin"]
-        hb["Heartbeat (every 30s)"]
-        hb --> down["Warn user"]
-        hb --> back["Log recovery"]
-        hb --> auth_fail["401 degraded"]
-    end
-
-    subgraph l0side ["L0 Proxy"]
-        endpoint["GET /health"]
-        auth_check["Validate token"]
-        response["Status JSON"]
-        endpoint --> auth_check --> response
-    end
-
-    token[(".auth-token (0600)")]
-
-    hb -- "HTTP + auth token" --> endpoint
-    token -. "written by L0" .-> l0side
-    token -. "read by L1" .-> l1side
-
-    style l0side fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
-    style l1side fill:#f0ebfa,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
-    style hb fill:#9D7BED,stroke:#232F3E,color:#fff
-    style down fill:#9D7BED,stroke:#232F3E,color:#fff
-    style back fill:#9D7BED,stroke:#232F3E,color:#fff
-    style auth_fail fill:#9D7BED,stroke:#232F3E,color:#fff
-    style endpoint fill:#545b64,stroke:#232F3E,color:#fff
-    style auth_check fill:#545b64,stroke:#232F3E,color:#fff
-    style response fill:#545b64,stroke:#232F3E,color:#fff
-    style token fill:#fff,stroke:#545b64,color:#232F3E
-```
-
-**Crash path:**
-
-```mermaid
-flowchart LR
-    subgraph crash ["Crash (immediate)"]
-        panic["panic hook"] --> write["Write .crashed"] --> abort["abort"]
-    end
-    subgraph recovery ["Recovery (next startup)"]
-        restart["Startup"] --> detect["Detect .crashed"] --> log["Log recovery"] --> delete["Delete marker"]
-    end
-
-    style crash fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
-    style recovery fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
-    style panic fill:#545b64,stroke:#232F3E,color:#fff
-    style write fill:#545b64,stroke:#232F3E,color:#fff
-    style abort fill:#545b64,stroke:#232F3E,color:#fff
-    style restart fill:#545b64,stroke:#232F3E,color:#fff
-    style detect fill:#545b64,stroke:#232F3E,color:#fff
-    style log fill:#545b64,stroke:#232F3E,color:#fff
-    style delete fill:#545b64,stroke:#232F3E,color:#fff
-```
-
-**Auth token handshake:** L0 generates a random 32-byte hex token on first startup, writes to `~/.openobscure/.auth-token` (file permissions 0600 on Unix). L1 reads this file and sends it as the `X-OpenObscure-Token` header with every health check. If the token is missing or wrong, L0 returns 401 Unauthorized. This prevents other localhost processes from querying or impersonating the health endpoint.
-
-Token resolution (L0 startup): `OPENOBSCURE_AUTH_TOKEN` env var → `~/.openobscure/.auth-token` file → auto-generate and write.
-
-| Component | What | Status |
-|-----------|------|--------|
-| `GET /_openobscure/health` endpoint | Returns status, version, uptime, PII stats, device tier, feature budget. Auth-gated via `X-OpenObscure-Token`. | Complete |
-| L1 heartbeat monitor | Pings health endpoint every 30s with auth token, warns user on failure | Complete |
-| L0/L1 auth token | Shared via file (`~/.openobscure/.auth-token`) or env var. Auto-generated on first run. | Complete |
-| Panic hook + crash marker | Writes `~/.openobscure/.crashed` before abort | Complete |
-| Graceful shutdown logging | "OpenObscure proxy shutting down" on SIGTERM/SIGINT | Complete |
-| Process watchdog (launchd/systemd) | Auto-restart L0 on crash via `install/launchd/` and `install/systemd/` templates | Complete |
-
-## Logging Architecture (Phase 2.5)
-
-All logging across both L0 (Rust) and L1 (TypeScript) uses a **unified facade API** — no direct `tracing::*!()` or `console.*` calls outside the logging module. This guarantees every log line passes through PII scrubbing and audit routing.
-
-### L0 Logging Stack
-
-```mermaid
-flowchart TB
-    macros["oo_info! / oo_warn! / oo_error! / oo_debug! / oo_audit!"]
-    subscriber["tracing subscriber (layered)"]
-    macros --> subscriber
-
-    stderr["Stderr"]
-    filelog["File rotation"]
-    audit["Audit Log"]
-    crash["Crash Buffer (mmap ring)"]
-
-    subscriber --> stderr
-    subscriber --> filelog
-    subscriber --> audit
-    subscriber --> crash
-
-    style macros fill:#545b64,stroke:#232F3E,color:#fff
-    style subscriber fill:#545b64,stroke:#232F3E,color:#fff
-    style stderr fill:#f2f5f7,stroke:#545b64,color:#232F3E
-    style filelog fill:#f2f5f7,stroke:#545b64,color:#232F3E
-    style audit fill:#f2f5f7,stroke:#545b64,color:#232F3E
-    style crash fill:#f2f5f7,stroke:#545b64,color:#232F3E
-```
-
-| Layer | Purpose | Config |
-|-------|---------|--------|
-| **Stderr** | Primary output, JSON or human-readable | `logging.json_output` |
-| **PII scrub** | Regex-based scrub of SSN, CC, email, phone, API keys in log text | `logging.pii_scrub` (default: true) |
-| **File rotation** | Daily rolling log files | `logging.file_path`, `max_file_size`, `max_files` |
-| **Audit log** | Audit trail — only `oo_audit!` events routed to separate JSONL | `logging.audit_log_path` |
-| **Crash buffer** | mmap ring buffer (default 2MB) — kernel flushes pages even on hard crash | `logging.crash_buffer`, `crash_buffer_size` |
-
-**Module tagging:** Every log line includes a `module` field (PROXY, SCANNER, HYBRID, FPE, VAULT, HEALTH, CONFIG, NER, CRF, BODY, SERVER, MAPPING, DEVICE, VOICE, LANG, MULTILINGUAL, BREACH, NSFW, IMAGE, KEY_MANAGER) for structured filtering.
-
-### L1 Logging Stack
-
-```mermaid
-flowchart TB
-    funcs["ooInfo / ooWarn / ooError / ooDebug / ooAudit"]
-    facade["ooLog() facade"]
-    funcs --> facade
-
-    console["console.* (PII-scrubbed)"]
-    auditlog["Audit Log (JSONL)"]
-
-    facade --> console
-    facade --> auditlog
-
-    style funcs fill:#9D7BED,stroke:#232F3E,color:#fff
-    style facade fill:#9D7BED,stroke:#232F3E,color:#fff
-    style console fill:#f2f5f7,stroke:#9D7BED,color:#232F3E
-    style auditlog fill:#f2f5f7,stroke:#9D7BED,color:#232F3E
-```
-
-Module constants: REDACTOR, HEARTBEAT, PLUGIN.
-
-All string fields are run through `redactPii()` before output — defense-in-depth ensures no PII leaks through log messages even if developers forget to sanitize.
+Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/`ooWarn` in TypeScript). All log output is PII-scrubbed by default — no direct `tracing::*!()` or `console.*` calls outside the logging module. Supports stderr, file rotation, JSONL audit trail, and crash buffer (mmap ring). See component-level ARCHITECTURE.md files for details.
 
 ---
 
-## Image Pipeline (Phase 3)
+## Image Pipeline
 
-L0 detects base64-encoded images in JSON request bodies (both Anthropic and OpenAI formats) and processes them before text PII scanning. All redaction uses solid light-gray fill — face regions, OCR text regions, and NSFW images all have original pixel data completely destroyed and cannot be recovered by AI deblurring models. For before/after visual examples of the pipeline in action, see [README.md — Visual PII Protection](README.md#visual-pii-protection).
+L0 detects base64-encoded images in JSON request bodies (Anthropic and OpenAI formats) and processes them **before** text PII scanning. All redaction uses solid fill — original pixel data is destroyed and cannot be recovered by AI deblurring.
 
-```mermaid
-flowchart TB
-    entry["process_request_body"]
+**Pipeline phases:** NSFW detection (NudeNet + ViT-tiny classifier) → face solid-fill (SCRFD or BlazeFace) → OCR text solid-fill (PaddleOCR) → EXIF strip → re-encode. If NSFW detected, entire image is solid-filled and face/OCR phases are skipped. Models load on-demand and evict after 300s idle.
 
-    subgraph pass1 ["Pass 1 — Image Processing"]
-        direction LR
-        walk["Walk JSON"] --> detect["Detect images"]
-        detect --> decode["Decode base64"]
-        decode --> exif["EXIF strip"]
-        exif --> resize["Resize"]
-        resize --> nsfw["NSFW check<br>(NudeNet)"]
-        nsfw -->|"safe"| classifier["Classifier<br>(ViT-tiny)"]
-        nsfw -->|"nudity"| fullredact["Full redact"]
-        classifier -->|"safe"| face["Face redact"]
-        classifier -->|"NSFW"| fullredact
-        face --> ocr["OCR redact"]
-        ocr --> encode["Re-encode"]
-        fullredact --> encode
-    end
-
-    subgraph pass2 ["Pass 2 — Text PII Scanning"]
-        direction LR
-        scan["scan_json"] --> match["Hybrid Scanner"]
-        match --> encrypt["FPE encrypt"]
-    end
-
-    entry --> pass1
-    pass1 --> pass2
-
-    style entry fill:#545b64,stroke:#232F3E,color:#fff
-    style pass1 fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
-    style pass2 fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
-    style walk fill:#545b64,stroke:#232F3E,color:#fff
-    style detect fill:#545b64,stroke:#232F3E,color:#fff
-    style decode fill:#545b64,stroke:#232F3E,color:#fff
-    style exif fill:#545b64,stroke:#232F3E,color:#fff
-    style resize fill:#545b64,stroke:#232F3E,color:#fff
-    style nsfw fill:#545b64,stroke:#232F3E,color:#fff
-    style classifier fill:#545b64,stroke:#232F3E,color:#fff
-    style face fill:#545b64,stroke:#232F3E,color:#fff
-    style fullredact fill:#545b64,stroke:#232F3E,color:#fff
-    style ocr fill:#545b64,stroke:#232F3E,color:#fff
-    style encode fill:#545b64,stroke:#232F3E,color:#fff
-    style scan fill:#545b64,stroke:#232F3E,color:#fff
-    style match fill:#545b64,stroke:#232F3E,color:#fff
-    style encrypt fill:#545b64,stroke:#232F3E,color:#fff
-```
-
-**Provider formats:**
-- **Anthropic:** `{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBOR..."}}`
-- **OpenAI:** `{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBOR..."}}`
-
-**Key properties:**
-- Images processed BEFORE text so byte offsets remain correct
-- **Four-phase pipeline:** Phase 0 (NudeNet body-part detection) → Phase 0b (holistic ViT-tiny classifier, if Phase 0 clean) → Phase 1 (face detection via SCRFD or BlazeFace + solid-fill redaction) → Phase 2 (OCR text detection via PP-OCRv4 + solid-fill redaction)
-- NSFW detection: if nudity found by NudeNet or classifier, solid-fill entire image and skip face/OCR phases
-- Phase 0b: ViT-tiny classifier (Marqo/nsfw-image-detection-384) runs only when NudeNet + implied-topless heuristic produce no signal; threshold 0.75 to minimize false positives; fail-open on errors
-- Face redaction: detected face regions are filled with light gray (rgb 200,200,200) — original pixel data is completely destroyed, not recoverable by AI deblurring. Elliptical fill inscribed in the bounding box with 15% padding. If face occupies >80% of image area, fill entire image.
-- OCR text redaction: detected text regions are filled with solid color — same irreversible approach as face redaction.
-- Sequential model loading: models loaded/used/dropped one at a time (never multiple in RAM)
-- EXIF metadata stripped implicitly — `image` crate loads pixels only, discarding all metadata
-- Fail-open: corrupt base64, unsupported format, or model failure → forward original image unchanged
-- Screenshot detection (EXIF software tags, screen resolution, status bar uniformity) flags images; metadata wired into pipeline
-
-**Models (on-demand, evicted after 300s idle):**
-
-| Model | Size | RAM | Purpose |
-|-------|------|-----|---------|
-| NudeNet 320n | ~12MB | ~20MB | NSFW/nudity detection (YOLOv8n, 320x320 input, Phase 0) |
-| Marqo ViT-tiny | ~21MB | ~20MB | Holistic NSFW classifier — Phase 0b fallback (384x384, Apache 2.0) |
-| SCRFD-2.5GF | ~3MB | ~15MB | Face detection — Full/Standard tiers (640x640 input, multi-scale FPN) |
-| Ultra-Light RFB-320 | ~1.2MB | ~8MB | Face detection — Lite tier default (320x240 input, with tiling heuristic) |
-| BlazeFace short-range | ~408KB | ~8MB | Face detection — fallback (128x128 input, NMS) |
-| PaddleOCR det | ~2.4MB | ~15MB | Text region detection |
-| PaddleOCR rec (PP-OCRv4) | ~10MB | ~20MB | Character recognition (Tier 2 only, English) |
-
-**Two OCR tiers:**
-- **Tier 1 (default):** Detect text regions → solid-fill all. No recognition model needed.
-- **Tier 2:** Detect → recognize → scan text for PII → selectively solid-fill PII regions only.
+For visual before/after examples, see [README.md — Visual PII Protection](README.md#visual-pii-protection). For model details, pipeline architecture, and provider format handling, see `openobscure-proxy/ARCHITECTURE.md`.
 
 ---
 
-## Response Integrity — Cognitive Firewall (Phases R1 + R2)
+## Response Integrity — Cognitive Firewall
 
-OpenObscure protects the **outbound path** (user PII encrypted before reaching LLM providers) and the **inbound path** (LLM responses scanned for manipulation before reaching users).
+OpenObscure scans LLM **responses** for manipulation techniques before they reach users. EU AI Act Article 5 prohibits subliminal/manipulative techniques, but there is no enforcement mechanism at the user's endpoint. The cognitive firewall provides that enforcement.
 
-**Why this matters:** Privacy tools typically stop at input sanitization — they protect what you send. But LLM providers control the response side: they can embed persuasion techniques (urgency, scarcity, false authority, fear appeals, commercial pressure) to influence user behavior. EU AI Act Article 5 prohibits such subliminal/manipulative techniques, but there is no enforcement mechanism at the user's endpoint. OpenObscure's cognitive firewall provides that enforcement — scanning every response before it reaches the user or agent.
+**Two-tier cascade:**
+- **R1** — Pattern-based dictionary (~250 phrases across 7 Cialdini categories: urgency, scarcity, social proof, fear, authority, commercial, flattery). Runs on every response, <1ms.
+- **R2** — TinyBERT ONNX multi-label classifier (4 EU AI Act Article 5 categories). Runs conditionally based on sensitivity level and R1 results (~30ms when triggered).
 
-**Two-tier cascade:** R1 (pattern-based dictionary, ~250 phrases across 7 Cialdini categories, <1ms) runs on every response. R2 (TinyBERT FP32 multi-label classifier, ~30ms, 4 EU AI Act Article 5 categories) runs conditionally based on sensitivity level and R1 results — confirming, suppressing, upgrading, or discovering manipulation that R1 alone cannot detect.
+R2 can **confirm**, **suppress** (R1 false positive), **upgrade** (add categories), or **discover** (catch paraphrased manipulation R1 missed) R1's findings.
 
-The response integrity scanner operates after FPE decryption. SSE responses are accumulated via `SseAccumulator` for cross-frame token reassembly before scanning.
+**Severity tiers:** Notice (1 category) → Warning (2-3 categories) → Caution (4+ categories). Enabled by default at `low` sensitivity in log-only mode. Fail-open on errors.
 
-```mermaid
-flowchart LR
-    llm["LLM Response"] --> decrypt["FPE Decrypt"]
-    decrypt --> extract["Extract text from JSON"]
-    extract --> r1["R1 Dict Scan"]
-    r1 -->|"clean"| r2check{"Sensitivity?"}
-    r1 -->|"flagged"| r2confirm["R2 Cascade"]
-    r2check -->|"off/low"| pass["Pass through"]
-    r2check -->|"medium (sample)"| r2discover["R2 Discover"]
-    r2check -->|"high"| r2full["R2 Full Scan"]
-    r2confirm -->|"Confirm/Upgrade"| severity["Compute severity"]
-    r2confirm -->|"Suppress"| pass
-    r2discover -->|"flagged"| severity
-    r2discover -->|"clean"| pass
-    r2full -->|"flagged"| severity
-    r2full -->|"clean"| pass
-    severity -->|"log_only=true"| logonly["Log + pass through"]
-    severity -->|"log_only=false"| label["Prepend warning label"]
-
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
-    style decrypt fill:#545b64,stroke:#232F3E,color:#fff
-    style extract fill:#545b64,stroke:#232F3E,color:#fff
-    style r1 fill:#545b64,stroke:#232F3E,color:#fff
-    style r2check fill:#545b64,stroke:#232F3E,color:#fff
-    style r2confirm fill:#ff9900,stroke:#232F3E,color:#fff
-    style r2discover fill:#ff9900,stroke:#232F3E,color:#fff
-    style r2full fill:#ff9900,stroke:#232F3E,color:#fff
-    style pass fill:#545b64,stroke:#232F3E,color:#fff
-    style severity fill:#545b64,stroke:#232F3E,color:#fff
-    style logonly fill:#545b64,stroke:#232F3E,color:#fff
-    style label fill:#545b64,stroke:#232F3E,color:#fff
-```
-
-**Detection categories** (mapped to Cialdini's persuasion principles):
-
-| Category | Examples | Principle |
-|----------|----------|-----------|
-| Urgency | "act now", "limited time", "don't wait" | Scarcity of time |
-| Scarcity | "only a few left", "exclusive offer", "selling fast" | Scarcity of supply |
-| Social Proof | "everyone is", "most popular", "trusted by millions" | Consensus |
-| Fear | "you could lose", "don't fall behind", "fomo" | Loss aversion |
-| Authority | "experts agree", "studies show", "clinically proven" | Authority |
-| Commercial | "best deal", "free trial", "buy now", "discount" | Commercial pressure |
-| Flattery | "smart choice", "you deserve", "people like you" | Liking |
-
-**Severity tiers:**
-
-| Tier | Trigger | Label |
-|------|---------|-------|
-| Notice | 1 category, 1-2 matches | `--- OpenObscure NOTICE ---` |
-| Warning | 2-3 categories or 3+ matches | `--- OpenObscure WARNING ---` |
-| Caution | 4+ categories or commercial+fear/urgency combo | `--- OpenObscure CAUTION ---` |
-
-**Configuration** (`[response_integrity]` section):
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `enabled` | `true` | Enabled by default — set to `false` to disable entirely |
-| `sensitivity` | `"low"` | `off`/`low` (R2 on R1-flagged only)/`medium` (R2 samples 10%)/`high` (R2 on all) |
-| `log_only` | `true` | When true, flags are logged but responses pass through unchanged. When false, warning labels are prepended to response content |
-
-**Key properties:**
-- **Enabled by default, log-only at low sensitivity** — observe before acting, matches fail-open philosophy
-- **Fail-open** — JSON parse errors or unrecognized response formats forward unchanged
-- **Supports Anthropic and OpenAI response formats** — extracts text from `content[].text` or `choices[].message.content`
-- **SSE streaming supported** — `SseAccumulator` buffers SSE frames for cross-frame token reassembly before R1+R2 scanning
-- **~250 phrases** across 7 categories, HashSet O(1) lookup with 3→2→1 word scanning (longest match first)
-- **R2 model optional** — when `ri_model_dir` is not set, degrades gracefully to R1-only
-
-### R2 Semantic Classifier (Phase 12)
-
-R2 is a TinyBERT FP32 ONNX multi-label classifier that detects manipulation techniques aligned to EU AI Act Article 5 prohibited categories. It runs conditionally after R1, adding semantic understanding that dictionary matching alone cannot provide.
-
-**Model:** `huawei-noah/TinyBERT_General_4L_312D`, fine-tuned on 2,750 synthetic examples (1,924 train / 411 val / 415 test). Exported as ONNX FP32 (54.9 MB). INT8 quantization was evaluated but rejected due to excessive accuracy loss (7.45 max logit error).
-
-**Article 5 categories:**
-
-| Category | What it catches | Examples |
-|----------|----------------|----------|
-| `Art_5_1_a_Deceptive` | Deceptive/manipulative techniques | Urgency, scarcity, social proof, fear, authority, flattery, anchoring, confirmshaming |
-| `Art_5_1_b_Age` | Age vulnerability exploitation | Child gamification, elderly confusion, oversimplified risk |
-| `Art_5_1_b_SocioEcon` | Socioeconomic vulnerability exploitation | Debt pressure, health anxiety, unemployment exploitation, isolation |
-| `Art_5_1_c_Social_Scoring` | Social scoring patterns | Trust score threats, behavioral compliance, access restriction |
-
-**R2 Role (cascade behavior):**
-
-| Role | Trigger | Behavior |
-|------|---------|----------|
-| **Confirm** | R1 flagged, R2 agrees | Severity stays or upgrades based on R2 category count |
-| **Suppress** | R1 flagged, R2 sees benign | R1 false positive suppressed — no detection reported |
-| **Upgrade** | R1 flagged, R2 finds more categories | Severity tier upgraded |
-| **Discover** | R1 clean, R2 finds manipulation | New detection that R1 missed (paraphrased manipulation) |
-
-**Sensitivity tiers (R2 activation):**
-
-| Sensitivity | R1 Clean | R1 Flagged | Overhead |
-|-------------|----------|------------|----------|
-| `off` | Skip all | Skip all | 0ms |
-| `low` | Skip R2 | R2 confirms | ~30ms on 1-5% |
-| `medium` | R2 samples 10% | R2 confirms | ~30ms on ~11-15% |
-| `high` | R2 full scan | R2 confirms | ~30ms on 100% |
-
-**Performance (held-out test set, threshold=0.55):**
-
-| Metric | Value |
-|--------|-------|
-| Macro precision | 80.9% |
-| Macro recall | 74.5% |
-| Macro F1 | 77.3% |
-| Benign accuracy | 94.9% |
-| Model size | 54.9 MB (FP32 ONNX) |
-| Inference | ~30ms (first-window early exit on clean text) |
-
-**Implementation:** R2 model is held behind `Mutex<Option<RiModel>>` inside `ResponseIntegrityScanner`, allowing `scan(&self)` on the `Arc`-shared scanner. First-window early exit: if max sigmoid score on the first 128 tokens is below `early_exit_threshold` (0.30), full-sequence inference is skipped.
-
-**Configuration** (`[response_integrity]` section):
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `ri_model_dir` | `None` | Path to R2 ONNX model directory. `None` = R2 disabled, R1-only |
-| `ri_threshold` | `0.55` | Per-category sigmoid threshold for positive detection |
-| `ri_early_exit_threshold` | `0.30` | Below this on first 128 tokens → skip full inference |
-| `ri_idle_evict_secs` | `300` | Evict R2 model from memory after N seconds idle |
-| `ri_sample_rate` | `0.10` | Fraction of R1-clean responses scanned by R2 at `medium` sensitivity |
+For cascade flow diagrams, R2 model details, performance metrics, and configuration reference, see `openobscure-proxy/ARCHITECTURE.md`.
 
 ---
 
 ## Threat Model
 
-OpenObscure is designed for open-source distribution. Security follows **Kerckhoffs's principle** — the system is secure even when all source code, documentation, and algorithms are public. Security depends entirely on the secrecy of keys, never on code obscurity.
+Security follows **Kerckhoffs's principle** — the system is secure even when all source code and algorithms are public. Security depends entirely on the secrecy of keys.
 
-### What OpenObscure Protects Against
+**Protects against:** PII leaking to LLM providers (FF1 FPE), visual PII in images (face/OCR/NSFW solid fill, EXIF strip), manipulative LLM responses (cognitive firewall), PII in tool transcripts (L1 redaction), frequency analysis (per-record tweaks), API key exposure (passthrough-first).
 
-| Threat | Protection | Layer |
-|--------|-----------|-------|
-| PII leaking to LLM providers in API requests | FF1 FPE encryption of structured PII before request leaves device | L0 |
-| Visual PII in images (faces, text, EXIF) | NSFW full-image solid fill, face solid-fill redaction (irreversible), OCR text solid-fill redaction, EXIF metadata stripping on base64 images | L0 |
-| LLM responses containing persuasion/manipulation techniques | Response integrity scanner detects urgency, scarcity, fear, authority, flattery patterns and prepends warning labels (EU AI Act Article 5) | L0 |
-| PII persisted in tool result transcripts | Regex redaction of PII in tool outputs before persistence | L1 |
-| Frequency analysis of FPE ciphertexts | Per-record tweaks (UUID + JSON path hash) produce unique ciphertexts for identical inputs | L0 |
-| API key exposure via proxy | Passthrough-first — keys are never stored or logged by OpenObscure | L0 |
+**Does NOT protect against:** compromised OS/root access, side-channel attacks on FPE (mitigated by AES-NI).
 
-### What OpenObscure Does NOT Protect Against
+**Secrets:** FPE master key (32 bytes, OS keychain or `OPENOBSCURE_MASTER_KEY` env var) and L0/L1 auth token (32 bytes, `~/.openobscure/.auth-token` or `OPENOBSCURE_AUTH_TOKEN` env var). Both generated with `OsRng`.
 
-| Threat | Why | Mitigation |
-|--------|-----|------------|
-| **Compromised OS / root access** | Attacker with root can read process memory, dump OS keychain, intercept localhost traffic. No userspace software can defend against this. | OS-level security (disk encryption, patching, access controls) |
-| **Semantic PII not covered by regex** (Phase 1) | Names, addresses, health conditions bypass regex. "Tell John about my diabetes" passes through unencrypted. | Phase 2 TinyBERT NER closes this gap (~91% coverage) |
-| **PII in tool results sent to LLM** | L1 hooks `tool_result_persist` (after LLM sees data), not `before_tool_call`. Tool result PII reaches the LLM before L1 can redact it. | OpenClaw limitation — when `before_tool_call` is wired, L1 upgrades to pre-LLM enforcement |
-| **Side-channel attacks on FPE** | Timing analysis of FF1 encrypt/decrypt could theoretically leak information. | AES-NI hardware acceleration provides constant-time operations on supported CPUs |
-| **Model extraction from ONNX** (Phase 2+) | NER model weights are readable from the ONNX file. | Not a concern — the model detects PII patterns, it doesn't contain user data. Knowing the model helps craft evasion, but NER is supplementary to regex, not a sole defense |
-
-### Secrets Inventory
-
-All runtime secrets live in the **OS keychain** or (for headless environments) environment variables. Never in source code or config files:
-
-| Secret | Format | Where | Generated |
-|--------|--------|-------|-----------|
-| FPE master key | 32 bytes (AES-256) | `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) **or** OS keychain (`openobscure/fpe-key`). Env var takes priority. | `--init-key` with `OsRng` |
-| L0/L1 auth token | 32 bytes (hex string) | `OPENOBSCURE_AUTH_TOKEN` env var **or** `~/.openobscure/.auth-token` file (0600). Auto-generated on first run. | `OsRng` at startup |
-
-**Key compromise impact:**
-- FPE key compromised → all FPE ciphertexts are decryptable (but attacker needs both the key AND the ciphertexts, which exist only in LLM provider logs)
-
-### Open-Source Security Considerations
-
-Publishing source code does **not** weaken OpenObscure's security posture:
-
-1. **Algorithms are public standards** — FF1 (NIST SP 800-38G) is a published, peer-reviewed algorithm. Security never depended on algorithm secrecy.
-
-2. **Regex patterns are standard** — Credit card (Luhn), SSN (range validation), phone, email, and API key patterns are well-known. An attacker doesn't need source code to guess them.
-
-3. **NER models are not secrets** — The TinyBERT model detects PII patterns; it doesn't contain user data. An attacker could study the model to craft evasion inputs, but NER is layered on top of regex, not a sole defense.
-
-4. **Community audit is a net positive** — Cryptographic implementations benefit from public scrutiny. Bugs found by the community are bugs that don't become exploits.
-
-### Attack Surface Reduction
-
-- **Localhost-only binding** — L0 proxy listens on `127.0.0.1:18790`, not `0.0.0.0`. Not network-accessible.
-- **Health endpoint auth** — `/_openobscure/health` requires `X-OpenObscure-Token` header. Prevents other localhost processes from querying or impersonating L0.
-- **No telemetry** — Zero outbound connections beyond forwarded LLM requests.
-- **No default credentials** — FPE key must be explicitly generated. No fallback "demo mode" keys. Auth token auto-generated with secure random on first run.
-- **Minimal dependencies** — Rust binary has no runtime dependency beyond libc.
-- **Memory-safe language** — L0 is Rust (no buffer overflows, use-after-free, or memory corruption).
+**Attack surface reduction:** Localhost-only binding, auth-gated health endpoint, no telemetry, no default credentials, memory-safe language (Rust), minimal dependencies.
 
 ---
 
