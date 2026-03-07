@@ -59,29 +59,28 @@ for target in "${TARGETS[@]}"; do
     fi
 done
 
-# Build for each target
+# Build for each target (cd into proxy dir — cargo-ndk needs Cargo.toml in cwd)
 for target in "${TARGETS[@]}"; do
     echo ""
     echo "--- Building for $target ---"
-    cargo ndk --manifest-path "$PROXY_DIR/Cargo.toml" \
+    (cd "$PROXY_DIR" && cargo ndk \
         --target "$target" \
         --platform "$API_LEVEL" \
-        build $BUILD_FLAG --lib --features mobile
+        -- build $BUILD_FLAG --lib --no-default-features --features mobile)
 done
 
 echo ""
 echo "=== Build Complete ==="
 
-# Map Rust targets to Android ABI names
-declare -A ABI_MAP=(
-    ["aarch64-linux-android"]="arm64-v8a"
-    ["armv7-linux-androideabi"]="armeabi-v7a"
-    ["x86_64-linux-android"]="x86_64"
-    ["i686-linux-android"]="x86"
-)
-
+# Report build results
 for target in "${TARGETS[@]}"; do
-    abi="${ABI_MAP[$target]}"
+    case "$target" in
+        aarch64-linux-android)    abi="arm64-v8a" ;;
+        armv7-linux-androideabi)  abi="armeabi-v7a" ;;
+        x86_64-linux-android)    abi="x86_64" ;;
+        i686-linux-android)      abi="x86" ;;
+        *)                       abi="$target" ;;
+    esac
     lib="$PROXY_DIR/target/$target/$PROFILE/libopenobscure_proxy.so"
     if [ -f "$lib" ]; then
         echo "$abi: $(du -h "$lib" | cut -f1)  ($lib)"

@@ -88,7 +88,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `createOpenobscure` | `(configJson: String, fpeKeyHex: String) -> Handle` | Initialize with config JSON and 32-byte FPE key (64 hex chars) |
+| `createOpenobscure` | `(configJson: String, fpeKeyHex: String) -> OpenObscureHandle` | Initialize with config JSON and 32-byte FPE key (64 hex chars) |
 | `sanitizeText` | `(handle, text) -> SanitizeResult` | Scan text for PII, return sanitized text + mapping JSON |
 | `restoreText` | `(handle, text, mappingJson) -> String` | Decrypt FPE tokens in LLM response using saved mapping |
 | `sanitizeImage` | `(handle, imageBytes) -> Data` | Face redaction + OCR redaction on image bytes (JPEG/PNG) |
@@ -102,7 +102,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 ```
 sanitizedText: String    — Text with PII replaced by FPE ciphertexts
 mappingJson: String      — JSON mapping for restore (save per-request)
-piiCount: Int            — Number of PII items found
+piiCount: UInt32         — Number of PII items found
 categories: [String]     — PII types found ("credit_card", "ssn", "email", etc.)
 ```
 
@@ -150,46 +150,68 @@ Credit card (Luhn), SSN (range-validated), phone, email, API key, IPv4, IPv6, GP
 
 ## Part 4: iOS/macOS Integration (Swift)
 
-### 4a. Add to Xcode Project (SPM)
+### 4a. Add to Xcode Project (Local SPM Package)
 
-The simplest approach uses Swift Package Manager, matching our test app structure:
+Create a local Swift package alongside the app project. This approach was verified with Enchanted (macOS BUILD SUCCEEDED).
 
-1. **Copy artifacts into your project:**
+> **Important:** The C target name **must** match the `module` name in the `.modulemap` file. UniFFI generates `module openobscure_proxyFFI`, so the target must be named `openobscure_proxyFFI`.
+
+1. **Create the local package directory:**
 
 ```
-YourApp/
-├── COpenObscure/
-│   └── include/
-│       ├── openobscure_proxyFFI.h       ← from bindings/swift/
-│       └── module.modulemap              ← from bindings/swift/
-├── OpenObscure/
-│   └── openobscure_proxy.swift           ← from bindings/swift/
+OpenObscureLib/
+├── Package.swift
+├── Sources/
+│   ├── COpenObscure/
+│   │   └── include/
+│   │       ├── openobscure_proxyFFI.h         ← from bindings/swift/
+│   │       └── openobscure_proxyFFI.modulemap ← from bindings/swift/
+│   └── OpenObscureLib/
+│       └── openobscure_proxy.swift            ← from bindings/swift/
 └── lib/
-    └── libopenobscure_proxy.a            ← from build output
+    └── libopenobscure_proxy.a                 ← from build output
 ```
 
-2. **Add to your Package.swift** (or Xcode target):
+2. **Package.swift:**
 
 ```swift
-.target(
-    name: "COpenObscure",
-    path: "COpenObscure",
-    linkerSettings: [
-        .unsafeFlags(["-L", "lib"]),
-        .linkedLibrary("openobscure_proxy"),
-        .linkedLibrary("resolv"),
-        .linkedFramework("Security"),
-        .linkedFramework("SystemConfiguration"),
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "OpenObscureLib",
+    platforms: [.iOS(.v17), .macOS(.v14)],
+    products: [
+        .library(name: "OpenObscureLib", targets: ["OpenObscureLib"]),
+    ],
+    targets: [
+        .target(
+            name: "openobscure_proxyFFI",  // MUST match modulemap module name
+            path: "Sources/COpenObscure",
+            publicHeadersPath: "include"
+        ),
+        .target(
+            name: "OpenObscureLib",
+            dependencies: ["openobscure_proxyFFI"],
+            path: "Sources/OpenObscureLib",
+            linkerSettings: [
+                .unsafeFlags(["-L\(Context.packageDirectory)/../lib"]),
+                .linkedLibrary("openobscure_proxy"),
+                .linkedLibrary("resolv"),
+                .linkedFramework("Security"),
+                .linkedFramework("SystemConfiguration"),
+            ]
+        ),
     ]
-),
-.target(
-    name: "OpenObscure",
-    dependencies: ["COpenObscure"],
-    path: "OpenObscure"
-),
+)
 ```
 
-3. **For Xcode projects without SPM**, add these Build Settings:
+3. **Add to Xcode project:**
+   - File > Add Package Dependencies > Add Local > select `OpenObscureLib/`
+   - Add `OpenObscureLib` framework to your target's "Frameworks, Libraries, and Embedded Content"
+   - `import OpenObscureLib` in Swift files that use OpenObscure
+
+4. **For Xcode projects without SPM**, add these Build Settings:
    - Other Linker Flags: `-lopenobscure_proxy -lresolv`
    - Library Search Paths: `$(PROJECT_DIR)/lib`
    - Header Search Paths: `$(PROJECT_DIR)/COpenObscure/include`
@@ -204,7 +226,8 @@ import Foundation
 
 final class OpenObscureManager {
     static let shared = OpenObscureManager()
-    let handle: UInt64
+    let handle: OpenObscureHandle
+    var lastMappingJson: String = "{}"
 
     private init() {
         // Generate or load a 32-byte key (64 hex chars)
@@ -214,6 +237,27 @@ final class OpenObscureManager {
             configJson: #"{"scanner_mode": "regex"}"#,
             fpeKeyHex: key
         )
+    }
+
+    func sanitize(_ text: String) -> (sanitizedText: String, piiCount: UInt32) {
+        let result = try! sanitizeText(handle: handle, text: text)
+        if result.piiCount > 0 {
+            lastMappingJson = result.mappingJson
+        }
+        return (result.sanitizedText, result.piiCount)
+    }
+
+    func restore(_ text: String) -> String {
+        return restoreText(handle: handle, text: text, mappingJson: lastMappingJson)
+    }
+
+    func sanitizeTranscript(_ transcript: String) -> String {
+        let result = try! sanitizeAudioTranscript(handle: handle, transcript: transcript)
+        if result.piiCount > 0 {
+            lastMappingJson = result.mappingJson
+            return result.sanitizedText
+        }
+        return transcript
     }
 
     private static func getOrCreateKey() -> String {
@@ -318,11 +362,13 @@ RecordingView(isRecording: $isRecording.animation()) { transcription in
 
 ```swift
 if let image = image?.render() {
-    if let jpegData = image.jpegData(compressionQuality: 1.0) {
+    // Use compressImageData() — works on both iOS (UIImage) and macOS (NSImage)
+    // Note: NSImage does NOT have jpegData() — always use compressImageData()
+    if let imageData = image.compressImageData() {
         do {
             let sanitized = try sanitizeImage(
                 handle: OpenObscureManager.shared.handle,
-                imageBytes: jpegData
+                imageBytes: imageData
             )
             let base64 = sanitized.base64EncodedString()
             // Use sanitized base64 instead of original
@@ -365,7 +411,15 @@ dependencies {
 }
 ```
 
-4. **Verify Gradle JNI config** — ensure `build.gradle.kts` has:
+4. **Add ProGuard keep rules** in `proguard-rules.pro`:
+
+```
+-keep class uniffi.openobscure_proxy.** { *; }
+-keep class com.sun.jna.** { *; }
+-dontwarn com.sun.jna.**
+```
+
+5. **Verify Gradle JNI config** — ensure `build.gradle.kts` has:
 
 ```kotlin
 android {
@@ -384,15 +438,34 @@ android {
 import uniffi.openobscure_proxy.*
 
 object OpenObscureManager {
-    val handle: Long by lazy {
-        val key = getOrCreateKey()
-        createOpenobscure(
+    private var _handle: OpenObscureHandle? = null
+    var lastMappingJson: String = "{}"
+
+    fun init(context: Context) {
+        if (_handle != null) return
+        val key = getOrCreateKey(context)
+        _handle = createOpenobscure(
             configJson = """{"scanner_mode": "regex"}""",
             fpeKeyHex = key
         )
     }
 
-    private fun getOrCreateKey(): String {
+    private val handle: OpenObscureHandle
+        get() = _handle ?: error("OpenObscureManager.init() not called")
+
+    fun sanitize(text: String): SanitizeResultFfi {
+        val result = sanitizeText(handle = handle, text = text)
+        if (result.piiCount > 0u) {
+            lastMappingJson = result.mappingJson
+        }
+        return result
+    }
+
+    fun restore(text: String): String {
+        return restoreText(handle = handle, text = text, mappingJson = lastMappingJson)
+    }
+
+    private fun getOrCreateKey(context: Context): String {
         val prefs = context.getSharedPreferences("openobscure", Context.MODE_PRIVATE)
         prefs.getString("fpe_key", null)?.let { return it }
 
@@ -425,8 +498,6 @@ import uniffi.openobscure_proxy.*
 import kotlinx.serialization.json.*
 
 class OpenObscureInterceptor : Interceptor {
-    private val handle = OpenObscureManager.handle
-    private var lastMappingJson: String = "{}"
 
     override fun intercept(chain: Interceptor.Chain): Response {
         var request = chain.request()
@@ -450,29 +521,31 @@ class OpenObscureInterceptor : Interceptor {
     }
 
     private fun sanitizeRequestJson(json: String): String {
-        val root = Json.parseToJsonElement(json).jsonObject.toMutableMap()
+        val root = try {
+            Json.parseToJsonElement(json).jsonObject.toMutableMap()
+        } catch (_: Exception) {
+            return json
+        }
+
         val messages = root["messages"]?.jsonArray ?: return json
+        val mgr = OpenObscureManager
 
         val sanitizedMessages = messages.map { msg ->
             val obj = msg.jsonObject
             val content = obj["content"]?.jsonPrimitive?.contentOrNull ?: return@map msg
 
-            val result = sanitizeText(handle, content)
-            if (result.piiCount > 0) {
-                lastMappingJson = result.mappingJson
+            val result = mgr.sanitize(content)
+            if (result.piiCount > 0u) {
+                JsonObject(obj.toMutableMap().apply {
+                    put("content", JsonPrimitive(result.sanitizedText))
+                })
+            } else {
+                msg
             }
-
-            JsonObject(obj.toMutableMap().apply {
-                put("content", JsonPrimitive(result.sanitizedText))
-            })
         }
 
         root["messages"] = JsonArray(sanitizedMessages)
         return JsonObject(root).toString()
-    }
-
-    fun restoreResponse(text: String): String {
-        return restoreText(handle, text, lastMappingJson)
     }
 }
 ```
@@ -854,16 +927,35 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 | JNA not found on Android | Missing dependency | Add `implementation("net.java.dev.jna:jna:5.15.0@aar")` |
 | Image sanitization fails | `image_enabled: false` or no model files | Set `image_enabled: true` and provide model paths in config |
 | 0 PII detected for names | Regex mode can't detect names | Switch to `scanner_mode: "ner"` and provide NER model |
+| `Cannot find 'createOpenobscure' in scope` (Swift) | Missing import | Add `import OpenObscureLib` to the file |
+| Type mismatch `UInt64` vs `OpenObscureHandle` | UniFFI generates an opaque class | Use `OpenObscureHandle` type, not `UInt64` |
+| Type mismatch `Int32` vs `UInt32` for `piiCount` | UniFFI uses unsigned types | `piiCount` is `UInt32` in Swift, compare with `> 0u` in Kotlin |
+| macOS `NSImage` has no `jpegData()` | iOS-only API | Use `compressImageData()` which works on both iOS and macOS |
+| `sherpa-rs-sys` linker failure on iOS/Android | Voice feature pulls in native deps | Build with `--no-default-features --features mobile` |
+| `cargo-ndk --manifest-path` fails | `cargo-ndk` doesn't support this flag | Use `(cd proxy-dir && cargo ndk ...)` subshell pattern |
+| JitPack dependency timeout | JitPack.io outage | Clone repos locally, `publishToMavenLocal`, add `mavenLocal()` before JitPack in `settings.gradle.kts` |
+| `ort-sys` no prebuilt for `x86_64-linux-android` | Expected limitation | Only build `arm64-v8a` for real devices; x86_64 is emulator-only |
 
 ---
 
 ## Reference: Tested Third-Party Apps
 
-| App | Platform | Integration Approach | Key Files to Modify |
-|-----|----------|---------------------|---------------------|
-| **Enchanted** | iOS/macOS | SPM + direct API calls | `ConversationStore.swift` (send/receive), `InputFields_macOS.swift` (speech), `ChatView_iOS.swift` (speech) |
-| **RikkaHub** | Android | OkHttp interceptor + JNI | `DataSourceModule.kt` (interceptor wire), `AIRequestInterceptor.kt` (replace with OpenObscure interceptor) |
-| **OpenClaw** | Desktop | Gateway proxy (see SETUP_GUIDE.md) | Config only — point `LLM_API_BASE` at proxy |
+| App | Platform | Integration Approach | Build Status | Key Files Modified |
+|-----|----------|---------------------|-------------|---------------------|
+| **Enchanted** | iOS/macOS | Local SPM package + direct API calls | **BUILD SUCCEEDED** (macOS ad-hoc) | `OpenObscureManager.swift` (new), `ConversationStore.swift` (send/receive/image), `InputFields_macOS.swift` (speech), `ChatView_iOS.swift` (speech), `project.pbxproj` |
+| **RikkaHub** | Android | OkHttp interceptor + JNI/JNA | **BUILD SUCCEEDED** (debug APK 76MB arm64) | `OpenObscureManager.kt` (new), `OpenObscureInterceptor.kt` (new), `DataSourceModule.kt` (interceptor wire), `RikkaHubApp.kt` (init), `build.gradle.kts` (JNA dep), `proguard-rules.pro` |
+| **OpenClaw** | Desktop | Gateway proxy (see SETUP_GUIDE.md) | Verified | Config only — point `LLM_API_BASE` at proxy |
+
+### Integration Artifacts
+
+| Artifact | Enchanted (macOS) | RikkaHub (Android) |
+|----------|-------------------|-------------------|
+| Fork location | `/Users/admin/Test/enchanted-openobscure/` | `/Users/admin/Test/rikkahub-openobscure/` |
+| Native library | 158MB static `.a` (macOS) / 160MB (iOS) | 24MB `.so` (arm64-v8a) |
+| Bindings | `openobscure_proxy.swift` + FFI header + modulemap | `openobscure_proxy.kt` (UniFFI) |
+| Key storage | iOS Keychain | Android SharedPreferences |
+| Intercept pattern | Direct API calls in ConversationStore | OkHttp Interceptor on request JSON |
+| Build output | Xcode build (CODE_SIGNING_ALLOWED=NO) | `app-arm64-v8a-debug.apk` (76MB) |
 
 ---
 
