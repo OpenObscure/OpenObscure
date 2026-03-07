@@ -1321,3 +1321,15 @@ Then open Discord on your MacBook or iPhone and start chatting.
 | `ollama pull qwen3:8b` | Download Qwen3 8B model |
 | `ollama pull llama3.2:3b` | Download Llama 3.2 3B model |
 | `curl http://127.0.0.1:11434/api/tags` | Check if Ollama is running |
+
+---
+
+## Embedding OpenObscure in Mobile / Third-Party Apps
+
+This guide covers the **gateway/proxy** model. If you want to embed OpenObscure directly into an iOS/macOS or Android app as a native library (no HTTP proxy), see:
+
+**[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)** — Step-by-step instructions for:
+- Building native libraries (`.a` for iOS/macOS, `.so` for Android)
+- Generating Swift/Kotlin bindings via UniFFI
+- Integrating with third-party chat apps ([Enchanted](https://github.com/AugustDev/enchanted) for iOS/macOS, [RikkaHub](https://github.com/rikkahub/rikkahub) for Android)
+- API reference: `sanitizeText`, `restoreText`, `sanitizeImage`, `sanitizeAudioTranscript`, `checkAudioPii`

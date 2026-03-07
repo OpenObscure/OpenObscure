@@ -663,6 +663,10 @@ let result = mobile.sanitize_text("My card is 4111-1111-1111-1111")?;
 // Restore original values in responses
 let restored = mobile.restore_text(&response, &result.mapping_json);
 
+// Scan speech transcripts for PII
+let audio = mobile.sanitize_audio_transcript("my ssn is 123-45-6789")?;
+let pii_count = mobile.check_audio_pii("call 555-867-5309");
+
 // Check device tier and active features
 let stats = mobile.stats();
 println!("Device tier: {}", stats.device_tier); // "full", "standard", or "lite"
@@ -678,7 +682,7 @@ println!("Device tier: {}", stats.device_tier); // "full", "standard", or "lite"
 ./build/build_android.sh --release --all-abis
 ```
 
-See [ARCHITECTURE.md — Embedded Model](ARCHITECTURE.md#embedded-model-mobile--library) for integration details.
+See [ARCHITECTURE.md — Embedded Model](ARCHITECTURE.md#embedded-model-mobile--library) for architecture details, or [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for step-by-step embedding instructions (including tested integrations with [Enchanted](https://github.com/AugustDev/enchanted) and [RikkaHub](https://github.com/rikkahub/rikkahub)).
 
 ---
 

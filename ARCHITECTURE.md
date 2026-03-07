@@ -95,7 +95,11 @@ flowchart TB
 | `sanitize_text(text)` | Scan for PII, encrypt with FPE, return sanitized text + mapping |
 | `restore_text(text, mapping)` | Decrypt FPE values in response text using saved mapping |
 | `sanitize_image(bytes)` | Face redact + OCR text redact + NSFW redact + EXIF strip (optional, adds ~20MB) |
+| `sanitize_audio_transcript(text)` | Scan speech transcript for PII, return sanitized text + mapping |
+| `check_audio_pii(text)` | Quick PII count in audio transcript (no encryption) |
 | `stats()` | PII counts, scanner mode, image pipeline status, device tier |
+
+**Third-party integration:** OpenObscure can be embedded into any iOS/macOS/Android chat app. Tested integrations include [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS Ollama client) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android multi-provider LLM client). See [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for step-by-step instructions.
 
 **Key differences from Gateway Model:**
 - No HTTP server (axum/tokio not compiled in)
@@ -430,6 +434,7 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 ```
 OpenObscure/
 ├── ARCHITECTURE.md              ← this file (system-level architecture)
+├── INTEGRATION_GUIDE.md         Embedding OpenObscure in third-party apps (Enchanted, RikkaHub)
 ├── session-notes/               Per-session implementation logs
 ├── .github/workflows/
 │   ├── ci.yml                   CI: proxy-test matrix, cross-arm64, mobile-build, plugin, lint
@@ -1020,6 +1025,7 @@ Recently completed:
 - **Embedded cognitive firewall** — JS persuasion dictionary (248 phrases, 7 Cialdini categories) + NAPI `scan_persuasion()` bridge in L1 plugin — mirrors Rust R1 logic exactly — DONE (Phase 13F)
 - **Mobile voice platform APIs** — `sanitizeAudioTranscript`/`checkAudioPii` UniFFI methods + iOS `SFSpeechRecognizer` + Android `SpeechRecognizer` wrappers — DONE (Phase 13D)
 - **UniFFI API surface CI assertion** — Binding drift check + function presence verification for 7 required APIs in both Swift and Kotlin bindings — DONE (Phase 14C)
+- **Third-party app integration guide** — Step-by-step embedded integration for Enchanted (iOS/macOS Ollama client) and RikkaHub (Android multi-provider LLM client) with code examples for all intercept points — DONE (Phase 14)
 - **SSE frame accumulation** — `SseAccumulator` cross-frame buffer for PII token and FPE ciphertext reassembly in streaming responses — DONE (Phase 11)
 - **Model pre-warming** — `ReadinessState` enum (Cold/Warming/Ready) in health.rs, health returns 503 until warm — DONE (Phase 11)
 - **Tier-aware body limits** — Per-tier body size limits (Lite 10MB, Standard 50MB, Full 100MB) with streaming early-reject — DONE (Phase 11)
