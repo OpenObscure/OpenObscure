@@ -34,7 +34,7 @@ for testing is how PII is redacted in the output files:
 | **Default Port** | `127.0.0.1:18790` | N/A (library call) |
 | **Detection Entry** | `POST /_openobscure/ner` | `redactPii()` / `redactPiiWithNer()` |
 | **Redaction Entry** | Proxy pass-through (FPE) | `redactPii()` returns labeled text |
-| **Detection** | Regex + Keywords + NER + CRF + Ensemble | NAPI addon: 14 types (same as L0) / Regex: 5 types (+ NER via L0 bridge) |
+| **Detection** | Regex + Keywords + NER + CRF + Ensemble | NAPI addon: 15 types (same as L0) / Regex: 5 types (+ NER via L0 bridge) |
 | **Redaction Mode** | **FF1 FPE** for 5 types + labels for 9 types | **`[REDACTED-*]` labels** for all types |
 | **Image Pipeline** | Face/OCR/NSFW redaction via proxy | `sanitize_image()` on mobile |
 | **Voice Pipeline** | KWS keyword spotting + PII audio strip | N/A |

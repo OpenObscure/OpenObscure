@@ -297,7 +297,7 @@ cargo build --release
 
 ### 1a. Build the NAPI scanner addon (optional)
 
-If you use the L1 TypeScript plugin, the native addon upgrades PII detection from 5 regex types to 14 types (same Rust engine as L0):
+If you use the L1 TypeScript plugin, the native addon upgrades PII detection from 5 regex types to 15 types (same Rust engine as L0):
 
 ```bash
 ./build/build_napi.sh
@@ -367,7 +367,7 @@ For programmatic access to the L1 redaction from TypeScript/JavaScript, import d
 ```typescript
 import { redactPii } from "openobscure-plugin/core";
 
-// Auto-uses native scanner (14 types) if @openobscure/scanner-napi installed,
+// Auto-uses native scanner (15 types) if @openobscure/scanner-napi installed,
 // otherwise falls back to JS regex (5 types)
 const result = redactPii(toolOutput);
 if (result.count > 0) toolOutput = result.text;

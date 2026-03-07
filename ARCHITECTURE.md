@@ -182,7 +182,7 @@ flowchart TB
 | Layer | Language | Why |
 |-------|----------|-----|
 | **L0 Proxy** | Rust | Sits in the hot path of every LLM request — low latency and predictable memory are non-negotiable. Rust's ownership model enforces the 275MB RAM ceiling without GC pauses. ONNX model inference (face detection, OCR, NER) and audio keyword spotting require efficient memory management with multiple models loaded simultaneously. Cross-compiles to mobile targets (iOS/Android) via UniFFI-generated Swift/Kotlin bindings. |
-| **L1 Plugin** | TypeScript | Runs in-process inside the host agent's runtime. OpenClaw (primary integration) is Node.js/TypeScript — same language means direct hook access (`tool_result_persist`, `before_tool_call`) with no FFI or IPC overhead. When `@openobscure/scanner-napi` is installed, auto-upgrades to the Rust HybridScanner for 14-type detection without requiring L0. Falls back to regex-only otherwise. |
+| **L1 Plugin** | TypeScript | Runs in-process inside the host agent's runtime. OpenClaw (primary integration) is Node.js/TypeScript — same language means direct hook access (`tool_result_persist`, `before_tool_call`) with no FFI or IPC overhead. When `@openobscure/scanner-napi` is installed, auto-upgrades to the Rust HybridScanner for 15-type detection without requiring L0. Falls back to regex-only otherwise. |
 | **L2 Storage** | Rust | Shares the L0 crate ecosystem. AES-256-GCM encryption and Argon2id KDF benefit from Rust's constant-time cryptography crates. |
 
 **Design principle:** L0 is Rust because it's a performance-critical network proxy with ML models. L1 is TypeScript because it must speak the host agent's language. Each layer uses the right tool for its job — not a single language forced across both.
@@ -205,7 +205,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **CLI** | Subcommands: `serve` (default), `key-rotate`, `passthrough`, `service {install,start,stop,status,uninstall}` |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 1,667 (737 lib + 930 bin) |
+| **Tests** | 1,683 (745 lib + 938 bin) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -215,8 +215,8 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 
 | Aspect | Detail |
 |--------|--------|
-| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Three detection paths (auto-selected): **(1)** Native NAPI addon (`@openobscure/scanner-napi`) — 14-type Rust HybridScanner in-process, no L0 needed; **(2)** NER-enhanced via `POST /_openobscure/ner` — semantic NER + regex merge when L0 is healthy; **(3)** JS regex fallback — 5 structured types. Prepared `before_tool_call` handler activates when host agent supports it. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
-| **PII handling** | Native addon (14 types, in-process), NER-enhanced via L0 (when active), or regex-only (`[REDACTED]`) — always redaction, not FPE, since tool results are internal |
+| **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Three detection paths (auto-selected): **(1)** Native NAPI addon (`@openobscure/scanner-napi`) — 15-type Rust HybridScanner in-process, no L0 needed; **(2)** NER-enhanced via `POST /_openobscure/ner` — semantic NER + regex merge when L0 is healthy; **(3)** JS regex fallback — 5 structured types. Prepared `before_tool_call` handler activates when host agent supports it. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
+| **PII handling** | Native addon (15 types, in-process), NER-enhanced via L0 (when active), or regex-only (`[REDACTED]`) — always redaction, not FPE, since tool results are internal |
 | **Heartbeat** | Pings L0 `/_openobscure/health` every 30s with `X-OpenObscure-Token` auth header. Warns user when L0 is down, logs recovery. |
 | **Hook model** | Synchronous — must not return a Promise. OpenClaw-specific: OpenClaw silently skips async hooks. Prepared `before_tool_call` handler (hard enforcement) activates automatically when wired upstream. |
 | **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output |
@@ -261,10 +261,11 @@ sequenceDiagram
 | Phone | 10 | 10+ digits | `+`, parens, spaces, dashes |
 | Email | 36 | Local part | `@` + domain |
 | API Key | 62 | Post-prefix body | Known prefix (`sk-`, `AKIA`...) |
-| IPv4 Address | — | Redacted to `[IPv4]` | N/A (not FPE) |
-| IPv6 Address | — | Redacted to `[IPv6]` | N/A (not FPE) |
-| GPS Coordinate | — | Redacted to `[GPS]` | N/A (not FPE) |
-| MAC Address | — | Redacted to `[MAC]` | N/A (not FPE) |
+| IPv4 Address | 10 | Digit octets | Dot positions |
+| IPv6 Address | 16 | Hex groups (lowercase) | Colon positions, `::` structure |
+| GPS Coordinate | 10 | Lat+lon digits together | Signs, dots, comma, space |
+| MAC Address | 16 | 12 hex chars (lowercase) | Colon/dash/dot positions |
+| IBAN | 36 | BBAN (post-country digits+letters) | 2-letter country prefix |
 
 **Algorithm:** FF1 per NIST SP 800-38G. FF3 is **WITHDRAWN** (SP 800-38G Rev 2, Feb 2025) — never used.
 
@@ -364,7 +365,7 @@ OpenObscure uses a **hardware capability detection system** to select features a
 |------------|------|----------|----------------|--------------------|
 | 8GB+ | **Full** | NER + CRF + ensemble voting | Yes | 300s |
 | 4–8GB | **Standard** | NER + CRF (no ensemble) | Yes | 120s |
-| <4GB | **Lite** | CRF + regex only | Yes (shorter timeout) | 60s |
+| <4GB | **Lite** | NER + CRF (no ensemble) | Yes (shorter timeout) | 60s |
 
 ### Gateway Budgets (fixed per tier)
 
@@ -372,7 +373,7 @@ OpenObscure uses a **hardware capability detection system** to select features a
 |------|---------|-----|-----|----------|-------|
 | Full | 275MB | Yes | Yes | Yes | Yes |
 | Standard | 200MB | Yes | Yes | No | Yes |
-| Lite | 80MB | No | Yes | No | Yes |
+| Lite | 80MB | Yes | Yes | No | Yes |
 
 ### Embedded Budgets (proportional to device RAM)
 
@@ -382,8 +383,8 @@ Budget = 20% of total RAM, clamped to [12MB, 275MB]. Features enabled based on a
 |--------|-----------|--------|------|-----|-----|----------|-------|
 | iPhone 16 Pro | 12GB | 275MB (capped) | Full | Yes | Yes | Yes | Yes |
 | iPhone 15 | 6GB | 275MB (capped) | Standard | Yes | Yes | No | Yes |
-| Budget Android | 3GB | 614MB | Lite | No | Yes | No | Yes |
-| Embedded IoT | 512MB | 102MB | Lite | No | Yes | No | Yes |
+| Budget Android | 3GB | 275MB (capped) | Lite | Yes | Yes | No | Yes |
+| Embedded IoT | 512MB | 102MB | Lite | Yes | Yes | No | Yes |
 
 ### Full Stack Component Breakdown
 
@@ -775,7 +776,8 @@ flowchart TB
 | NudeNet 320n | ~12MB | ~20MB | NSFW/nudity detection (YOLOv8n, 320x320 input, Phase 0) |
 | Marqo ViT-tiny | ~21MB | ~20MB | Holistic NSFW classifier — Phase 0b fallback (384x384, Apache 2.0) |
 | SCRFD-2.5GF | ~3MB | ~15MB | Face detection — Full/Standard tiers (640x640 input, multi-scale FPN) |
-| BlazeFace short-range | ~408KB | ~8MB | Face detection — Lite tier fallback (128x128 input, NMS) |
+| Ultra-Light RFB-320 | ~1.2MB | ~8MB | Face detection — Lite tier default (320x240 input, with tiling heuristic) |
+| BlazeFace short-range | ~408KB | ~8MB | Face detection — fallback (128x128 input, NMS) |
 | PaddleOCR det | ~2.4MB | ~15MB | Text region detection |
 | PaddleOCR rec (PP-OCRv4) | ~10MB | ~20MB | Character recognition (Tier 2 only, English) |
 
@@ -1000,7 +1002,7 @@ No. L0 runs as a lightweight sidecar process on the same device as the host agen
 L0 (proxy) does — it sits in the HTTP path and encrypts PII before the request reaches the LLM provider. L1 (plugin) hooks the agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`), which fires *after* tool execution. L1 prevents PII from being persisted to transcripts, but cannot prevent it from being sent to the LLM via tool results.
 
 **How much RAM does OpenObscure actually use?**
-It depends on the device's capability tier. OpenObscure detects hardware at startup and selects features automatically. Lite tier (regex/CRF only): ~12–80MB. Standard tier (NER + images): ~67–200MB. Full tier (NER + ensemble + images): up to 224MB peak. The 275MB ceiling is the hard limit. On mobile, the budget is 20% of device RAM (capped at 275MB), so a 12GB phone gets the same features as a desktop server.
+It depends on the device's capability tier. OpenObscure detects hardware at startup and selects features automatically. Lite tier (NER/CRF, no ensemble): ~12–80MB. Standard tier (NER + images): ~67–200MB. Full tier (NER + ensemble + images): up to 224MB peak. The 275MB ceiling is the hard limit. On mobile, the budget is 20% of device RAM (capped at 275MB), so a 12GB phone gets the same features as a desktop server.
 
 **What happens if OpenObscure is disabled or crashes?**
 If L0 is not running, the host agent can't reach LLM providers (traffic is configured to route through the proxy). If L1 crashes, the agent continues normally but tool results won't be redacted. If OpenObscure is fully disabled via configuration, the agent operates with direct LLM connections — zero overhead.
@@ -1020,7 +1022,7 @@ Recently completed:
 - **Response integrity cognitive firewall** — Persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases, severity tiers, warning labels, EU AI Act Article 5) — DONE (Phase R1)
 - **Embedded cognitive firewall** — JS persuasion dictionary (248 phrases, 7 Cialdini categories) + NAPI `scan_persuasion()` bridge in L1 plugin — mirrors Rust R1 logic exactly — DONE (Phase 13F)
 - **Mobile voice platform APIs** — `sanitizeAudioTranscript`/`checkAudioPii` UniFFI methods + iOS `SFSpeechRecognizer` + Android `SpeechRecognizer` wrappers — DONE (Phase 13D)
-- **UniFFI API surface CI assertion** — Binding drift check + function presence verification for 7 required APIs in both Swift and Kotlin bindings — DONE (Phase 14C)
+- **UniFFI API surface CI assertion** — Binding drift check + function presence verification for 8 required APIs in both Swift and Kotlin bindings — DONE (Phase 14C)
 - **Third-party app integration guide** — Step-by-step embedded integration for Enchanted (iOS/macOS Ollama client) and RikkaHub (Android multi-provider LLM client) with code examples for all intercept points — DONE (Phase 14)
 - **SSE frame accumulation** — `SseAccumulator` cross-frame buffer for PII token and FPE ciphertext reassembly in streaming responses — DONE (Phase 11)
 - **Model pre-warming** — `ReadinessState` enum (Cold/Warming/Ready) in health.rs, health returns 503 until warm — DONE (Phase 11)

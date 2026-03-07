@@ -252,7 +252,7 @@ MobileBindingError
 
 ## 6. NAPI Native Addon (Node.js Embedded Alternative)
 
-For Node.js/TypeScript agents, the NAPI addon provides embedded-style PII scanning without a running proxy. It wraps the same Rust HybridScanner as the L0 proxy, giving 14-type detection in-process.
+For Node.js/TypeScript agents, the NAPI addon provides embedded-style PII scanning without a running proxy. It wraps the same Rust HybridScanner as the L0 proxy, giving 15-type detection in-process.
 
 ### Build
 

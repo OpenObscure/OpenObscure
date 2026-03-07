@@ -143,14 +143,14 @@ jobs:
       - name: Verify API surface in bindings
         run: |
           echo "Checking Swift bindings for required API surface..."
-          for fn in sanitizeAudioTranscript checkAudioPii sanitizeText restoreText getStats sanitizeImage createOpenobscure; do
+          for fn in sanitizeAudioTranscript checkAudioPii sanitizeText restoreText getStats sanitizeImage createOpenobscure scanResponse; do
             if ! grep -q "$fn" bindings/swift/openobscure_proxy.swift; then
               echo "ERROR: Missing function '$fn' in Swift bindings"
               exit 1
             fi
           done
           echo "Checking Kotlin bindings for required API surface..."
-          for fn in sanitizeAudioTranscript checkAudioPii sanitizeText restoreText getStats sanitizeImage createOpenobscure; do
+          for fn in sanitizeAudioTranscript checkAudioPii sanitizeText restoreText getStats sanitizeImage createOpenobscure scanResponse; do
             if ! grep -q "$fn" bindings/kotlin/uniffi/openobscure_proxy/openobscure_proxy.kt; then
               echo "ERROR: Missing function '$fn' in Kotlin bindings"
               exit 1
