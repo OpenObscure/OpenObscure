@@ -153,6 +153,25 @@ pub fn check_audio_pii(handle: &Arc<OpenObscureHandle>, transcript: String) -> u
     handle.inner.check_audio_pii(&transcript)
 }
 
+/// Scan a response for persuasion and manipulation techniques (cognitive firewall).
+///
+/// Returns `Some(RiReportFFI)` if manipulation is detected, `None` if clean or disabled.
+#[cfg(feature = "mobile")]
+#[uniffi::export]
+pub fn scan_response(
+    handle: &Arc<OpenObscureHandle>,
+    response_text: String,
+) -> Option<RiReportFFI> {
+    let report = handle.inner.scan_response(&response_text)?;
+    Some(RiReportFFI {
+        severity: report.severity,
+        categories: report.categories,
+        flags: report.flags,
+        r2_categories: report.r2_categories,
+        scan_time_us: report.scan_time_us,
+    })
+}
+
 /// Get current statistics for diagnostics.
 #[cfg(feature = "mobile")]
 #[uniffi::export]
@@ -189,6 +208,22 @@ pub struct MobileStatsFFI {
     pub image_pipeline_available: bool,
     /// Device capability tier ("full", "standard", "lite", or "manual").
     pub device_tier: String,
+}
+
+/// Response integrity report exposed to Swift/Kotlin via UniFFI.
+#[cfg(feature = "mobile")]
+#[derive(uniffi::Record)]
+pub struct RiReportFFI {
+    /// Severity tier: "Notice", "Warning", or "Caution".
+    pub severity: String,
+    /// Persuasion categories detected (e.g. "Urgency", "Fear", "Authority").
+    pub categories: Vec<String>,
+    /// Matched phrases from R1 dictionary scan.
+    pub flags: Vec<String>,
+    /// Article 5 categories detected by R2 classifier (if model loaded).
+    pub r2_categories: Vec<String>,
+    /// Scan duration in microseconds.
+    pub scan_time_us: u64,
 }
 
 /// Error type exposed to Swift/Kotlin via UniFFI.

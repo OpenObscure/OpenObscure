@@ -16,6 +16,7 @@ use crate::fpe_engine::{FpeEngine, FpeError, TweakGenerator};
 use crate::hash_token::TokenGenerator;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_pipeline::ImageModelManager;
+use crate::response_integrity::{ResponseIntegrityScanner, Sensitivity};
 
 /// Configuration for the mobile library.
 ///
@@ -77,6 +78,19 @@ pub struct MobileConfig {
     /// Maximum image dimension before resize.
     #[serde(default = "default_max_dimension")]
     pub max_dimension: u32,
+
+    /// Enable response integrity (cognitive firewall) scanning.
+    #[serde(default)]
+    pub ri_enabled: bool,
+
+    /// Response integrity sensitivity: "off", "low", "medium" (default), "high".
+    #[serde(default = "default_ri_sensitivity")]
+    pub ri_sensitivity: String,
+
+    /// Path to R2 model directory (model_int8.onnx + vocab.txt).
+    /// Optional — R1 dictionary scan works without any model files.
+    #[serde(default)]
+    pub ri_model_dir: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -89,6 +103,10 @@ fn default_scanner_mode() -> String {
 
 fn default_max_dimension() -> u32 {
     960
+}
+
+fn default_ri_sensitivity() -> String {
+    "medium".to_string()
 }
 
 impl Default for MobileConfig {
@@ -106,6 +124,9 @@ impl Default for MobileConfig {
             ocr_model_dir: None,
             nsfw_model_dir: None,
             max_dimension: 960,
+            ri_enabled: false,
+            ri_sensitivity: "medium".to_string(),
+            ri_model_dir: None,
         }
     }
 }
@@ -139,6 +160,21 @@ pub struct MobileStats {
     pub device_tier: String,
 }
 
+/// Result of scanning a response for persuasion/manipulation (cognitive firewall).
+#[derive(Debug, Clone)]
+pub struct MobileRiReport {
+    /// Severity tier: "Notice", "Warning", or "Caution".
+    pub severity: String,
+    /// Persuasion categories detected by R1 dictionary (e.g. "Urgency", "Fear").
+    pub categories: Vec<String>,
+    /// Matched phrases from R1 dictionary scan.
+    pub flags: Vec<String>,
+    /// Article 5 categories detected by R2 classifier (if model loaded).
+    pub r2_categories: Vec<String>,
+    /// Scan duration in microseconds.
+    pub scan_time_us: u64,
+}
+
 /// Errors from mobile library operations.
 #[derive(Debug, thiserror::Error)]
 pub enum MobileError {
@@ -159,6 +195,7 @@ pub struct OpenObscureMobile {
     scanner: HybridScanner,
     fpe: FpeEngine,
     image_manager: Option<ImageModelManager>,
+    ri_scanner: Option<ResponseIntegrityScanner>,
     stats: std::sync::Mutex<InternalStats>,
 }
 
@@ -307,10 +344,26 @@ impl OpenObscureMobile {
             None
         };
 
+        // Build response integrity scanner (cognitive firewall) if enabled and budget allows
+        let ri_allowed = budget.as_ref().map(|b| b.ri_enabled).unwrap_or(true);
+        let ri_scanner = if config.ri_enabled && ri_allowed {
+            let sensitivity: Sensitivity =
+                config.ri_sensitivity.parse().unwrap_or(Sensitivity::Medium);
+            let scanner = ResponseIntegrityScanner::new(sensitivity);
+            // Optionally load R2 model for deeper classification
+            if let Some(ref dir) = config.ri_model_dir {
+                let _ = scanner.load_r2(std::path::Path::new(dir), 0.5, 0.9);
+            }
+            Some(scanner)
+        } else {
+            None
+        };
+
         Ok(Self {
             scanner,
             fpe,
             image_manager,
+            ri_scanner,
             stats: std::sync::Mutex::new(InternalStats {
                 total_pii_found: 0,
                 total_images_processed: 0,
@@ -529,6 +582,29 @@ impl OpenObscureMobile {
     /// to strip an entire audio block vs. pass it through.
     pub fn check_audio_pii(&self, transcript: &str) -> u32 {
         self.scanner.scan_text(transcript).len() as u32
+    }
+
+    /// Scan a response for persuasion and manipulation techniques (cognitive firewall).
+    ///
+    /// Returns `Some(MobileRiReport)` if manipulation is detected, `None` if clean.
+    /// The cognitive firewall uses a two-tier cascade:
+    /// - R1: Dictionary scan (~250 phrases, <1ms) — always available
+    /// - R2: TinyBERT classifier (~30ms) — requires `ri_model_dir` config
+    pub fn scan_response(&self, text: &str) -> Option<MobileRiReport> {
+        let scanner = self.ri_scanner.as_ref()?;
+        let report = scanner.scan(text)?;
+        Some(MobileRiReport {
+            severity: report.severity.to_string(),
+            categories: report.categories.iter().map(|c| c.to_string()).collect(),
+            flags: report.flags.iter().map(|f| f.phrase.clone()).collect(),
+            r2_categories: report.r2_categories,
+            scan_time_us: report.scan_time_us,
+        })
+    }
+
+    /// Whether the cognitive firewall is enabled and available.
+    pub fn ri_available(&self) -> bool {
+        self.ri_scanner.is_some()
     }
 
     /// Release all loaded image models immediately.
@@ -836,5 +912,110 @@ mod tests {
             .unwrap();
         assert!(result.pii_count >= 1);
         assert!(!result.sanitized_text.contains("johnathan.doe@example.com"));
+    }
+
+    // --- Cognitive firewall (response integrity) tests ---
+
+    fn make_ri_config() -> MobileConfig {
+        MobileConfig {
+            ri_enabled: true,
+            ri_sensitivity: "medium".to_string(),
+            ..MobileConfig::default()
+        }
+    }
+
+    #[test]
+    fn test_mobile_ri_default_disabled() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        assert!(!mobile.ri_available());
+        // scan_response returns None when RI is disabled
+        assert!(mobile
+            .scan_response("Act now or lose your account!")
+            .is_none());
+    }
+
+    #[test]
+    fn test_mobile_ri_enabled_r1_only() {
+        let mobile = OpenObscureMobile::new(make_ri_config(), make_test_key()).unwrap();
+        assert!(mobile.ri_available());
+    }
+
+    #[test]
+    fn test_mobile_ri_detects_urgency() {
+        let mobile = OpenObscureMobile::new(make_ri_config(), make_test_key()).unwrap();
+        let report = mobile.scan_response("Act now before this limited time offer expires!");
+        assert!(report.is_some(), "Should detect urgency phrases");
+        let report = report.unwrap();
+        assert!(
+            report.categories.iter().any(|c| c == "Urgency"),
+            "Expected Urgency category, got: {:?}",
+            report.categories
+        );
+        assert!(!report.flags.is_empty());
+        assert!(report.scan_time_us > 0);
+    }
+
+    #[test]
+    fn test_mobile_ri_clean_response() {
+        let mobile = OpenObscureMobile::new(make_ri_config(), make_test_key()).unwrap();
+        let report =
+            mobile.scan_response("The weather is nice today. Here is the code you requested.");
+        assert!(report.is_none(), "Clean text should not trigger RI");
+    }
+
+    #[test]
+    fn test_mobile_ri_severity_in_report() {
+        let mobile = OpenObscureMobile::new(make_ri_config(), make_test_key()).unwrap();
+        // Multiple persuasion categories should produce a report with a severity tier
+        let report = mobile.scan_response(
+            "Act now! This is a limited time offer. Everyone is doing it. Don't miss out or you'll regret it!"
+        );
+        if let Some(r) = report {
+            assert!(
+                r.severity == "Notice" || r.severity == "Warning" || r.severity == "Caution",
+                "Severity should be a valid tier, got: {}",
+                r.severity
+            );
+        }
+    }
+
+    #[test]
+    fn test_mobile_ri_sensitivity_off() {
+        let config = MobileConfig {
+            ri_enabled: true,
+            ri_sensitivity: "off".to_string(),
+            ..MobileConfig::default()
+        };
+        let mobile = OpenObscureMobile::new(config, make_test_key()).unwrap();
+        assert!(mobile.ri_available());
+        // sensitivity=off means scan always returns None
+        let report = mobile.scan_response("Act now! Limited time offer!");
+        assert!(
+            report.is_none(),
+            "sensitivity=off should suppress all reports"
+        );
+    }
+
+    #[test]
+    fn test_mobile_ri_r2_model_not_found() {
+        let config = MobileConfig {
+            ri_enabled: true,
+            ri_sensitivity: "high".to_string(),
+            ri_model_dir: Some("/nonexistent/path/to/ri".to_string()),
+            ..MobileConfig::default()
+        };
+        // Should not fail — graceful degradation to R1-only
+        let mobile = OpenObscureMobile::new(config, make_test_key()).unwrap();
+        assert!(mobile.ri_available());
+    }
+
+    #[test]
+    fn test_mobile_ri_config_deserialize() {
+        let json =
+            r#"{"ri_enabled": true, "ri_sensitivity": "high", "ri_model_dir": "/models/ri"}"#;
+        let config: MobileConfig = serde_json::from_str(json).unwrap();
+        assert!(config.ri_enabled);
+        assert_eq!(config.ri_sensitivity, "high");
+        assert_eq!(config.ri_model_dir.unwrap(), "/models/ri");
     }
 }

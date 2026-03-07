@@ -498,6 +498,283 @@ val restored = restoreText(OpenObscureManager.handle, assistantText, lastMapping
 
 ---
 
+## Part 6b: Adding NER (Named Entity Recognition)
+
+NER adds detection of **person names**, **locations**, and **organizations** — the 3 PII types that regex alone cannot catch. Two model variants are available:
+
+| Model | File | Size | Latency (p50) | F1 Score | Device Tier |
+|-------|------|------|---------------|----------|-------------|
+| TinyBERT 4L INT8 | `ner-lite/model_int8.onnx` | ~14 MB | 0.8 ms | 85.6% | Standard, Lite (4GB+) |
+| DistilBERT 6L INT8 | `ner/model_int8.onnx` | ~64 MB | 4.3 ms | ≥93% | Full (8GB+) |
+
+### Step 1: Copy Model Files
+
+Each NER model directory contains:
+
+```
+model_int8.onnx      — ONNX INT8 quantized model
+vocab.txt            — WordPiece vocabulary (30,522 tokens)
+label_map.json       — 11-label NER schema (PER/LOC/ORG/HEALTH/CHILD)
+config.json          — Model architecture config
+tokenizer.json       — HuggingFace tokenizer config
+```
+
+**iOS/macOS:** Add the model directory to your app bundle:
+
+```
+YourApp/
+├── Resources/
+│   └── ner-lite/            ← or ner/ for DistilBERT
+│       ├── model_int8.onnx
+│       ├── vocab.txt
+│       └── label_map.json   (+ config.json, tokenizer.json)
+```
+
+**Android:** Add to `assets/`:
+
+```
+app/src/main/assets/
+└── ner-lite/                ← or ner/ for DistilBERT
+    ├── model_int8.onnx
+    ├── vocab.txt
+    └── label_map.json       (+ config.json, tokenizer.json)
+```
+
+The model files ship with OpenObscure under `openobscure-proxy/models/ner/` (DistilBERT) and `openobscure-proxy/models/ner-lite/` (TinyBERT). Copy the appropriate directory into your app.
+
+### Step 2: Update Config JSON
+
+Change `scanner_mode` and provide the model path:
+
+**Option A: Explicit NER mode** — always use NER regardless of device tier:
+
+```json
+{
+  "scanner_mode": "ner",
+  "ner_model_dir": "/path/to/ner",
+  "ner_model_dir_lite": "/path/to/ner-lite"
+}
+```
+
+**Option B: Auto mode (recommended)** — let device profiling choose the best scanner:
+
+```json
+{
+  "scanner_mode": "auto",
+  "auto_detect": true,
+  "ner_model_dir": "/path/to/ner",
+  "ner_model_dir_lite": "/path/to/ner-lite"
+}
+```
+
+In auto mode:
+- **Full tier (≥8 GB RAM):** Uses DistilBERT from `ner_model_dir`
+- **Standard tier (4–8 GB):** Uses TinyBERT from `ner_model_dir_lite`
+- **Lite tier (<4 GB):** Falls back to regex-only (no NER model loaded)
+
+If only `ner_model_dir` is set (no `_lite` variant), all tiers that enable NER use that single model. If only `ner_model_dir_lite` is set, the TinyBERT path is used as fallback for all tiers.
+
+### Step 3: Platform-Specific Model Path Resolution
+
+**Swift (iOS/macOS):**
+
+```swift
+// Resolve model path from app bundle
+let nerLitePath = Bundle.main.path(forResource: "ner-lite", ofType: nil)!
+let nerPath = Bundle.main.path(forResource: "ner", ofType: nil)  // optional
+
+let config = """
+{
+  "scanner_mode": "auto",
+  "auto_detect": true,
+  "ner_model_dir_lite": "\(nerLitePath)",
+  "ner_model_dir": "\(nerPath ?? nerLitePath)"
+}
+"""
+
+let handle = try createOpenobscure(configJson: config, fpeKeyHex: key)
+```
+
+**Kotlin (Android):**
+
+```kotlin
+// Copy model from assets to internal storage (required — ONNX Runtime needs file paths)
+fun copyAssetsDir(context: Context, assetDir: String): String {
+    val outDir = File(context.filesDir, assetDir)
+    if (!outDir.exists()) {
+        outDir.mkdirs()
+        context.assets.list(assetDir)?.forEach { file ->
+            context.assets.open("$assetDir/$file").use { input ->
+                File(outDir, file).outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+        }
+    }
+    return outDir.absolutePath
+}
+
+val nerLitePath = copyAssetsDir(context, "ner-lite")
+val nerPath = copyAssetsDir(context, "ner")  // optional
+
+val config = """
+{
+  "scanner_mode": "auto",
+  "auto_detect": true,
+  "ner_model_dir_lite": "$nerLitePath",
+  "ner_model_dir": "$nerPath"
+}
+""".trimIndent()
+
+val handle = createOpenobscure(configJson = config, fpeKeyHex = key)
+```
+
+### Step 4: Verify NER Detection
+
+Test with names and locations that regex cannot detect:
+
+```
+"Meeting with John Smith tomorrow"           → PER detected
+"Our office is in San Francisco"             → LOC detected
+"Contract with Acme Corporation"             → ORG detected
+"Dr. Emily Chen diagnosed hypertension"     → PER + HEALTH detected
+```
+
+Check the scanner mode in stats:
+
+```swift
+let stats = getStats(handle: handle)
+print(stats.scannerMode)  // "ner" if model loaded, "regex" if fallback
+```
+
+```kotlin
+val stats = getStats(handle)
+println(stats.scannerMode)  // "ner" if model loaded, "regex" if fallback
+```
+
+If `scannerMode` reports `"regex"` when you expected `"ner"`, check:
+1. Model path is correct and accessible at runtime
+2. `model_int8.onnx` and `vocab.txt` exist in the model directory
+3. Device has enough RAM for the selected model tier
+4. Model file isn't a Git LFS pointer (should be >1 MB, not 130 bytes)
+
+### NER Label Schema
+
+The 11-label BIO schema detects 5 entity types:
+
+| Label | Entity Type | Example |
+|-------|-------------|---------|
+| PER | Person name | "John Smith", "Dr. Chen" |
+| LOC | Location | "San Francisco", "123 Main St" |
+| ORG | Organization | "Acme Corp", "WHO" |
+| HEALTH | Health term | "diabetes", "MRI scan" |
+| CHILD | Child-related | "pediatric", "minor" |
+
+NER results are merged with regex matches by the HybridScanner — overlapping detections are deduplicated automatically with confidence-based resolution.
+
+---
+
+## Part 6c: Cognitive Firewall (Response Integrity)
+
+The cognitive firewall scans LLM responses for persuasion, manipulation, and social engineering techniques *before* they reach the user. It uses a two-tier cascade:
+
+- **R1 — Dictionary scan** (<1ms): ~250 phrases across 7 persuasion categories (urgency, authority, scarcity, social proof, fear, reciprocity, commitment)
+- **R2 — TinyBERT classifier** (~30ms): 4 EU AI Act Article 5 categories (subliminal manipulation, exploitation of vulnerabilities, social scoring, real-time biometric)
+
+### Current Status: Available in Both Modes
+
+The cognitive firewall is available in **both** the proxy/gateway path and the mobile embedded API.
+
+| Mode | Cognitive Firewall | How |
+|------|-------------------|-----|
+| **Proxy** (gateway) | Available | Scans responses automatically after FPE decryption |
+| **Embedded** (mobile) | Available | Call `scanResponse(handle, responseText)` after `restoreText()` |
+
+**Tier gating:**
+- **Full/Standard tier:** R1 dictionary + R2 TinyBERT classifier (if model loaded)
+- **Lite tier:** Disabled by `FeatureBudget` (`ri_enabled: false`)
+
+### Embedded API Reference
+
+**UniFFI function:**
+```
+scanResponse(handle, responseText) -> RiReportFFI?
+```
+
+Returns `nil`/`null` if no manipulation detected or if RI is disabled.
+
+**`RiReportFFI`:**
+```
+severity: String          — "Notice", "Warning", or "Caution"
+categories: [String]      — Persuasion categories detected (Urgency, Authority, etc.)
+flags: [String]           — Matched phrases from R1 dictionary
+r2Categories: [String]    — Article 5 categories from R2 classifier (if model loaded)
+scanTimeUs: UInt64        — Scan duration in microseconds
+```
+
+**Config fields** (in `MobileConfig` JSON):
+```json
+{
+  "ri_enabled": true,
+  "ri_sensitivity": "medium",
+  "ri_model_dir": "/path/to/ri"
+}
+```
+
+- `ri_enabled` — Enable/disable the cognitive firewall (default: `false`)
+- `ri_sensitivity` — `"off"`, `"low"`, `"medium"` (default), `"high"` — controls when R2 is invoked
+- `ri_model_dir` — Path to R2 model directory (optional — R1 works without it)
+
+**Model files** (optional — R1 dictionary works without models):
+```
+models/ri/
+├── model_int8.onnx      — TinyBERT R2 classifier
+└── vocab.txt            — WordPiece vocabulary
+```
+
+R1 dictionary scanning requires no model files and runs in <1ms. R2 model adds deeper classification but is optional. If `ri_model_dir` points to a missing directory, the scanner gracefully falls back to R1-only mode.
+
+### Alternative: Proxy Mode
+
+For apps using the proxy/gateway model, the cognitive firewall runs automatically — no code changes needed. Point the app's LLM API base URL at the proxy:
+
+**Enchanted (macOS):** Settings > Server Address > `http://127.0.0.1:18790/ollama`
+
+**RikkaHub (Android):** Provider Settings > Base URL > `http://10.0.2.2:18790/openai/v1` (emulator) or `http://<host-ip>:18790/openai/v1` (device)
+
+### Integration Pattern
+
+**Swift:**
+```swift
+// After restoring response text
+let restored = restoreText(handle: h, text: responseText, mappingJson: mapping)
+
+// Scan for manipulation
+let report = scanResponse(handle: h, responseText: restored)
+if report.severity == "WARNING" {
+    // Show warning banner to user before displaying response
+    showManipulationWarning(report.categories)
+}
+```
+
+**Kotlin:**
+```kotlin
+// After restoring response text
+val restored = restoreText(handle, responseText, mappingJson)
+
+// Scan for manipulation
+val report = scanResponse(handle, restored)
+if (report.severity == "WARNING") {
+    showManipulationWarning(report.categories)
+}
+```
+
+The tier gating follows the existing pattern:
+- **Full/Standard tier:** R1 dictionary + R2 TinyBERT classifier
+- **Lite tier:** R1 dictionary only (no R2 model)
+
+---
+
 ## Part 7: Testing Your Integration
 
 ### Verify PII Detection
