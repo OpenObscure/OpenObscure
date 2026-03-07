@@ -91,7 +91,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 | `createOpenobscure` | `(configJson: String, fpeKeyHex: String) -> Handle` | Initialize with config JSON and 32-byte FPE key (64 hex chars) |
 | `sanitizeText` | `(handle, text) -> SanitizeResult` | Scan text for PII, return sanitized text + mapping JSON |
 | `restoreText` | `(handle, text, mappingJson) -> String` | Decrypt FPE tokens in LLM response using saved mapping |
-| `sanitizeImage` | `(handle, imageBytes) -> Data` | Face blur + OCR blur on image bytes (JPEG/PNG) |
+| `sanitizeImage` | `(handle, imageBytes) -> Data` | Face redaction + OCR redaction on image bytes (JPEG/PNG) |
 | `sanitizeAudioTranscript` | `(handle, transcript) -> SanitizeResult` | Scan speech transcript for PII |
 | `checkAudioPii` | `(handle, transcript) -> Int` | Quick PII count check (no encryption) |
 | `getStats` | `(handle) -> MobileStats` | Device tier, total PII found, image count |
@@ -490,8 +490,8 @@ val restored = restoreText(OpenObscureManager.handle, assistantText, lastMapping
 | Health/Child keywords | Yes | Yes | Yes |
 | Person names | -- | Yes | Yes |
 | Locations, Organizations | -- | Yes | Yes |
-| Image face blur | -- | -- | Yes |
-| Image OCR blur | -- | -- | Yes |
+| Image face solid fill | -- | -- | Yes |
+| Image OCR solid fill | -- | -- | Yes |
 | Audio transcript PII | Yes | Yes | Yes |
 
 **Recommendation:** Start with `scanner_mode: "regex"` (zero model files, 12 of 15 PII types, 99.7% recall on structured PII). Add NER later if person/location detection is needed.
