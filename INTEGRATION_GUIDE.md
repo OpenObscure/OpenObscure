@@ -838,7 +838,7 @@ cd test/apps/ios && swift test
 # Android test app (36 instrumented tests)
 cd test/apps/android && ./gradlew connectedAndroidTest
 
-# Proxy unit tests (1,667 tests including mobile API)
+# Proxy unit tests (1,683 tests including mobile API)
 cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 ```
 

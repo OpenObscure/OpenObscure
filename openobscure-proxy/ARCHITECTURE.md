@@ -372,7 +372,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 
 | Metric | Target | Actual |
 |--------|--------|--------|
-| RAM (Lite tier) | ~12–80MB | CRF + regex only |
+| RAM (Lite tier) | ~12–80MB | NER + CRF (no ensemble) |
 | RAM (Standard tier) | ~67–200MB | NER + image pipeline |
 | RAM (Full tier, peak) | ~224MB | NER + ensemble + image pipeline |
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |

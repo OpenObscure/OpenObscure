@@ -132,14 +132,14 @@ OpenObscure detects device hardware at startup and automatically selects feature
 |------------|------|----------|----------------|--------------------|
 | 8GB+ | **Full** | NER + CRF + ensemble voting | Yes | 300s |
 | 4–8GB | **Standard** | NER + CRF (no ensemble) | Yes | 120s |
-| <4GB | **Lite** | CRF + regex only | Yes (shorter timeout) | 60s |
+| <4GB | **Lite** | NER + CRF (no ensemble) | Yes (shorter timeout) | 60s |
 
 Tier classification uses **total physical RAM** — a stable device indicator that doesn't fluctuate with app usage.
 
 ### Gateway vs Embedded Budgets
 
 - **Gateway** (desktop/server): Fixed RAM budget per tier (Full=275MB, Standard=200MB, Lite=80MB)
-- **Embedded** (mobile): 20% of total device RAM, capped at 275MB. A 12GB phone gets a 275MB budget (Full tier). A 6GB phone gets 275MB capped from 1228MB (Standard). A 3GB phone gets ~614MB budget (Lite)
+- **Embedded** (mobile): 20% of total device RAM, capped at 275MB. A 12GB phone gets a 275MB budget (Full tier). A 6GB phone gets 275MB capped from 1228MB (Standard). A 3GB phone gets 275MB budget capped (Lite)
 
 ### Explicit Override
 
@@ -406,8 +406,8 @@ ocr_tier = "detect_and_fill"  # "detect_and_fill" or "full_recognition"
 max_dimension = 960
 
 [response_integrity]
-enabled = false               # Opt-in cognitive firewall
-sensitivity = "medium"        # off, low, medium, high
+enabled = true                # Enabled by default; set false to disable
+sensitivity = "low"           # off, low, medium, high (default: low)
 log_only = true               # true = log only; false = prepend warning labels
 
 [logging]
@@ -421,10 +421,10 @@ See `config/openobscure.toml` for all available options.
 
 ## Running Tests
 
-**~1,801 tests** across all components (1,667 Rust proxy + 112 TypeScript plugin + 6 NAPI + 16 crypto).
+**~1,817 tests** across all components (1,683 Rust proxy + 112 TypeScript plugin + 6 NAPI + 16 crypto).
 
 ```bash
-# L0 Proxy (1,667 tests: 737 lib + 930 bin)
+# L0 Proxy (1,683 tests: 745 lib + 938 bin)
 cd openobscure-proxy && cargo test
 
 # L1 Plugin (112 tests — PII redaction + cognitive firewall)
@@ -513,7 +513,7 @@ cargo run --example demo_image_pipeline -- \
 | Scenario | Before | After |
 |----------|--------|-------|
 | **Screenshot PII Redaction** — Full patient record with names, SSNs, credit cards, phone numbers, emails, addresses, and medical history. PaddleOCR detects all text regions and solid-fills them. | ![Original screenshot](docs/examples/images/screenshot-original.png) | ![Screenshot redacted](docs/examples/images/screenshot-redacted.png) |
-| **Face Detection + Solid Fill** — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces and fills with solid light gray. Original pixels are destroyed — not recoverable by AI deblurring. | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face redacted](docs/examples/images/face-redacted.jpg) |
+| **Face Detection + Solid Fill** — SCRFD-2.5GF (Full/Standard) or Ultra-Light RFB-320 (Lite) detects faces and fills with solid light gray. Original pixels are destroyed — not recoverable by AI deblurring. | ![Original face photo](docs/examples/images/face-original.jpg) | ![Face redacted](docs/examples/images/face-redacted.jpg) |
 | **Multi-Face Detection** — Detects and redacts multiple faces independently in group photos. Each face gets its own elliptical solid-fill region. | ![Original group photo](docs/examples/images/group-original.jpg) | ![Group faces redacted](docs/examples/images/group-redacted.jpg) |
 | **Child Face Privacy** — Automatically detects and redacts children's faces with solid fill to protect minors' privacy. | ![Original child photo](docs/examples/images/child-original.jpg) | ![Child face redacted](docs/examples/images/child-redacted.jpg) |
 | **OCR PII Redaction** — PaddleOCR detects text regions, then PII scanner filters and solid-fills only sensitive values (names, SSNs, emails, phones, card numbers) while leaving non-PII text readable. | ![Original document](docs/examples/images/text-original.jpg) | ![PII redacted](docs/examples/images/text-redacted.jpg) |
@@ -540,7 +540,7 @@ Most privacy tools focus on what you *send*. OpenObscure also protects what you 
 
 LLM providers can embed persuasion techniques in responses — urgency ("act now!"), false authority ("experts agree"), fear appeals ("you could lose everything"), commercial pressure ("limited-time offer") — to influence user behavior. [EU AI Act Article 5](https://eur-lex.europa.eu/eli/reg/2024/1689/oj) explicitly prohibits subliminal and manipulative AI techniques, but no enforcement mechanism exists at the endpoint. OpenObscure's cognitive firewall fills that gap: it scans every LLM response for persuasion patterns across 7 categories (~250 phrases) and flags or labels responses before they reach the user.
 
-Detection uses a two-tier cascade: R1 (pattern-based dictionary, <1ms) and R2 (TinyBERT FP32 multi-label classifier, ~30ms) both run on every response by default. R2 confirms, suppresses, or upgrades R1 detections — and discovers manipulation that R1 alone cannot detect.
+Detection uses a two-tier cascade: R1 (pattern-based dictionary, <1ms) runs on every response. R2 (TinyBERT FP32 multi-label classifier, ~30ms) runs conditionally based on sensitivity level and R1 results — confirming, suppressing, or upgrading R1 detections, and discovering manipulation that R1 alone cannot detect.
 
 ### How It Works
 
@@ -610,7 +610,7 @@ R2 adds semantic model-based analysis to detect manipulation that dictionary mat
 ```toml
 [response_integrity]
 enabled = true            # Enable the cognitive firewall
-sensitivity = "high"      # off, low, medium, high (default: high)
+sensitivity = "low"       # off, low, medium, high (default: low)
 log_only = true           # true = log detections; false = prepend warning labels
 
 # R2 model (optional — omit for R1-only mode)
@@ -621,7 +621,7 @@ ri_idle_evict_secs = 300         # Evict R2 model after idle (seconds)
 ri_sample_rate = 0.10            # R2 sampling rate at medium sensitivity
 ```
 
-- **Disabled by default** — opt-in, zero overhead when off
+- **Enabled by default** at `low` sensitivity — R1 dictionary runs on every response (<1ms), R2 only on R1-flagged
 - **Log-only by default** — observe detections before deciding to modify responses
 - **R2 optional** — when `ri_model_dir` is not set, operates with R1 dictionary only
 - **Fail-open** — if response JSON can't be parsed, forward unchanged

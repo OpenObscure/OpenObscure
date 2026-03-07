@@ -196,7 +196,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | Aspect | Detail |
 |--------|--------|
 | **What it does** | **Request path:** Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE. Processes base64-encoded images (face solid-fill redaction, OCR text solid-fill redaction, NSFW solid-fill redaction, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. **Response path:** Decrypts FPE ciphertexts in responses (SSE streaming supported). Scans for persuasion/manipulation techniques (response integrity cognitive firewall) and optionally prepends warning labels (EU AI Act Article 5 compliance). |
-| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (NudeNet ONNX), faces in photos — solid-color fill redaction (SCRFD-2.5GF on Full/Standard, BlazeFace on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks (`voice` feature). |
+| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (NudeNet ONNX), faces in photos — solid-color fill redaction (SCRFD-2.5GF on Full/Standard, Ultra-Light RFB-320 on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks (`voice` feature). |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged |
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
@@ -394,7 +394,8 @@ Budget = 20% of total RAM, clamped to [12MB, 275MB]. Features enabled based on a
 | TinyBERT INT8 NER | 55MB | Always (when tier enables NER) |
 | Health/child keyword dict | 2MB | Always |
 | SCRFD-2.5GF (face detection, Full/Standard) | 15MB | On-demand |
-| BlazeFace (face detection, Lite fallback) | 8MB | On-demand |
+| Ultra-Light RFB-320 (face detection, Lite) | 8MB | On-demand |
+| BlazeFace (face detection, fallback) | 8MB | On-demand |
 | PaddleOCR-Lite (OCR) | 35MB | On-demand |
 | Image buffer | 48MB | On-demand |
 | **Peak (Full tier)** | **224MB** | — |
@@ -854,12 +855,12 @@ flowchart LR
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `enabled` | `false` | Opt-in — zero impact when disabled |
-| `sensitivity` | `"medium"` | `off`/`low` (Warning+ only)/`medium`/`high` (all detections) |
+| `enabled` | `true` | Enabled by default — set to `false` to disable entirely |
+| `sensitivity` | `"low"` | `off`/`low` (R2 on R1-flagged only)/`medium` (R2 samples 10%)/`high` (R2 on all) |
 | `log_only` | `true` | When true, flags are logged but responses pass through unchanged. When false, warning labels are prepended to response content |
 
 **Key properties:**
-- **Opt-in, log-only default** — observe before acting, matches fail-open philosophy
+- **Enabled by default, log-only at low sensitivity** — observe before acting, matches fail-open philosophy
 - **Fail-open** — JSON parse errors or unrecognized response formats forward unchanged
 - **Supports Anthropic and OpenAI response formats** — extracts text from `content[].text` or `choices[].message.content`
 - **SSE streaming supported** — `SseAccumulator` buffers SSE frames for cross-frame token reassembly before R1+R2 scanning
@@ -1013,7 +1014,7 @@ Recently completed:
 - **Ensemble NSFW classifier** — ViT-tiny (Marqo/nsfw-image-detection-384, 21MB FP32 ONNX) as Phase 0b fallback — catches semi-nude content NudeNet body-part detector misses, 0.75 threshold, fail-open, lazy-loaded with eviction — DONE (Phase 15)
 - **Multi-LLM response format detection** — `response_format.rs` auto-detects 6 provider formats (Anthropic, OpenAI, Gemini, Cohere, Ollama, plaintext) for response integrity text extraction — DONE
 - **ONNX Runtime mobile EPs** — CoreML (Apple) and NNAPI (Android) via `ort_ep.rs` — DONE
-- **SCRFD multi-scale face detection** — SCRFD-2.5GF for Full/Standard tiers, BlazeFace for Lite — DONE
+- **SCRFD multi-scale face detection** — SCRFD-2.5GF for Full/Standard tiers, Ultra-Light RFB-320 for Lite (BlazeFace fallback) — DONE
 - **GLiNER NER evaluation** — DROPPED (82.78% recall, worse than TinyBERT 97%)
 - **Multilingual PII detection** — `whatlang` language detection + per-language regex/keywords for 9 languages with national ID check-digit validation — DONE (Phase 10C)
 - **Voice anonymization** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8), detects PII trigger phrases and strips matching audio blocks, `voice` feature flag — DONE (Phase 10D)

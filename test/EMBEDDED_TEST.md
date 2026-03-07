@@ -134,7 +134,7 @@ let mobile = OpenObscureMobile::new(config, fpe_key).unwrap();
 
 // On a 12GB phone: Full tier → NER + CRF + ensemble + image pipeline
 // On a 6GB phone: Standard tier → NER + CRF + image pipeline
-// On a 3GB phone: Lite tier → CRF + regex only
+// On a 3GB phone: Lite tier → NER + CRF (no ensemble)
 ```
 
 To disable auto-detection and force a specific scanner:

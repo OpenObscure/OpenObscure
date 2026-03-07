@@ -315,7 +315,7 @@ curl -s -X POST http://127.0.0.1:18790/anthropic/v1/messages \
 1. Detect base64 image in JSON
 2. Decode to DynamicImage (EXIF metadata auto-stripped)
 3. Resize if exceeds `max_dimension` (default: 960px)
-4. Face redaction — SCRFD-2.5GF (Full/Standard) or BlazeFace (Lite) detects faces, applies solid-color fill
+4. Face redaction — SCRFD-2.5GF (Full/Standard) or Ultra-Light RFB-320 (Lite) detects faces, applies solid-color fill
 5. OCR redaction — PaddleOCR ONNX detects text regions, applies solid-color fill
 6. NSFW check — NudeNet ONNX confidence score
 7. Screenshot detection — heuristics (solid color bars, pixel patterns)
