@@ -94,7 +94,7 @@ flowchart TB
 | `scan_response(text)` | Scan LLM response for persuasion/manipulation (cognitive firewall, Full/Standard tier) |
 | `stats()` | PII counts, scanner mode, image pipeline status, device tier |
 
-**Third-party integration:** OpenObscure can be embedded into any iOS/macOS/Android chat app. Tested integrations include [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS Ollama client) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android multi-provider LLM client). See [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for step-by-step instructions.
+**Third-party integration:** OpenObscure can be embedded into any iOS/macOS/Android chat app. Tested integrations include [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS Ollama client) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android multi-provider LLM client). See [INTEGRATION_GUIDE.md](integration/INTEGRATION_GUIDE.md) for step-by-step instructions.
 
 **Key differences from Gateway Model:**
 - No HTTP server (axum/tokio not compiled in)
@@ -432,7 +432,7 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 ```
 OpenObscure/
 ├── ARCHITECTURE.md              ← this file (system-level architecture)
-├── INTEGRATION_GUIDE.md         Embedding OpenObscure in third-party apps (Enchanted, RikkaHub)
+├── integration/                 Embedding OpenObscure in third-party apps (guide, examples, templates)
 ├── session-notes/               Per-session implementation logs
 ├── .github/workflows/
 │   ├── ci.yml                   CI: proxy-test matrix, cross-arm64, mobile-build, plugin, lint

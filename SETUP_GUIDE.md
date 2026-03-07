@@ -1328,7 +1328,7 @@ Then open Discord on your MacBook or iPhone and start chatting.
 
 This guide covers the **gateway/proxy** model. If you want to embed OpenObscure directly into an iOS/macOS or Android app as a native library (no HTTP proxy), see:
 
-**[INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md)** — Step-by-step instructions for:
+**[INTEGRATION_GUIDE.md](integration/INTEGRATION_GUIDE.md)** — Step-by-step instructions for:
 - Building native libraries (`.a` for iOS/macOS, `.so` for Android)
 - Generating Swift/Kotlin bindings via UniFFI
 - Integrating with third-party chat apps ([Enchanted](https://github.com/AugustDev/enchanted) for iOS/macOS, [RikkaHub](https://github.com/rikkahub/rikkahub) for Android)

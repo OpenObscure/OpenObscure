@@ -683,7 +683,7 @@ println!("Device tier: {}", stats.device_tier); // "full", "standard", or "lite"
 ./build/build_android.sh --release --all-abis
 ```
 
-See [ARCHITECTURE.md — Embedded Model](ARCHITECTURE.md#embedded-model-mobile--library) for architecture details, or [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) for step-by-step embedding instructions (including tested integrations with [Enchanted](https://github.com/AugustDev/enchanted) and [RikkaHub](https://github.com/rikkahub/rikkahub)).
+See [ARCHITECTURE.md — Embedded Model](ARCHITECTURE.md#embedded-model-mobile--library) for architecture details, or [INTEGRATION_GUIDE.md](integration/INTEGRATION_GUIDE.md) for step-by-step embedding instructions (including tested integrations with [Enchanted](https://github.com/AugustDev/enchanted) and [RikkaHub](https://github.com/rikkahub/rikkahub)).
 
 ---
 
