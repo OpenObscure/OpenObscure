@@ -1,0 +1,114 @@
+# OpenObscure PII Privacy Proxy — Example Configuration
+#
+# Copy this file to openobscure-proxy/config/openobscure.toml and adjust as needed.
+# This is the gateway/proxy configuration. For embedded (mobile) usage, configuration
+# is passed via the createOpenobscure() API call instead of a TOML file.
+
+[proxy]
+listen_addr = "127.0.0.1"
+port = 18790
+request_timeout_secs = 300
+max_body_bytes = 16777216   # 16MB
+# "open" (default): forward original body on processing errors (never block AI).
+#   Per-match FPE failures: plaintext PII forwarded, WARN logged,
+#   X-OpenObscure-PII-Unprotected header set on response.
+# "closed": reject request with 502 if body processing fails (strict privacy).
+#   Per-match FPE failures: destructive redaction [REDACTED:type] replaces plaintext.
+fail_mode = "open"
+
+[fpe]
+enabled = true
+keychain_service = "openobscure"
+keychain_user = "fpe-master-key"
+
+# Per-type overrides: set to false to disable FPE for specific PII types
+# [fpe.type_overrides]
+# credit_card = true
+# ssn = true
+# phone = true
+# email = true
+# api_key = true
+
+[scanner]
+enabled = true
+skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k", "tools", "functions", "tool_choice"]
+ner_model_dir = "models/ner"
+ner_model_dir_lite = "models/ner-lite"
+# NER model: "tinybert" (fast, default) or "distilbert" (higher accuracy)
+# ner_model = "tinybert"
+ner_pool_size = 4
+# respect_code_fences = true    # Skip PII scanning inside code fences (default: true)
+# min_confidence = 0.5          # Ensemble voting minimum confidence (default: 0.5)
+# agreement_bonus = 0.15        # Confidence bonus when 2+ scanners agree (default: 0.15)
+# gazetteer_enabled = true      # Enable name gazetteer for person detection (default: true)
+
+# Custom regex patterns (in addition to built-in CC, SSN, phone, email, API key)
+# [scanner.custom_patterns.my_pattern]
+# regex = "CUSTOM-[A-Z]{4}-[0-9]{8}"
+# radix = 36
+# alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+[logging]
+level = "info"
+json_output = false
+# file_path = "/var/log/openobscure/proxy.log"  # Uncomment to log to file
+# max_file_size = 10485760   # 10MB per file before rotation
+# max_files = 3              # Keep 3 rotated log files
+# audit_log_path = "/var/log/openobscure/audit.jsonl"  # GDPR audit trail
+pii_scrub = true             # Scrub PII from log output (defense-in-depth)
+
+[image]
+enabled = true
+face_model_dir = "models/blazeface"
+face_model_dir_scrfd = "models/scrfd"
+face_model_dir_ultralight = "models/ultralight"
+ocr_model_dir = "models/paddleocr"
+nsfw_model_dir = "models/nudenet"
+nsfw_classifier_model_dir = "models/nsfw_classifier"
+# max_dimension = 960           # Resize longest edge (default: 960)
+# nsfw_threshold = 0.25         # NSFW confidence threshold (default: 0.25)
+# nsfw_classifier_threshold = 0.75  # Holistic classifier threshold (default: 0.75)
+# model_idle_timeout_secs = 300 # Evict models after N seconds idle (default: 300)
+
+# --- Response Integrity (Cognitive Firewall) ---
+# Scans LLM responses for persuasion/manipulation (EU AI Act Article 5).
+# R1 = dictionary-based regex (<1ms); R2 = TinyBERT ONNX classifier (~30ms, fires only when R1 flags).
+[response_integrity]
+# enabled = true             # default: true
+# sensitivity = "low"        # off, low, medium, high (default: low)
+ri_model_dir = "models/ri"   # R2 TinyBERT model directory (optional)
+# ri_min_flags = 3            # Min R1 phrase matches before injecting warning (default: 3)
+
+# --- Voice PII Detection ---
+# Scans audio blocks for PII keywords using sherpa-onnx Zipformer keyword spotting.
+# Blocks with PII are stripped; clean audio passes through.
+[voice]
+# enabled = true               # default: true (when voice feature compiled in)
+# kws_model_dir = "models/kws" # KWS Zipformer ONNX model directory
+# kws_keywords_file = "models/kws/keywords.txt"  # Tokenized PII keywords
+# kws_threshold = 0.1          # Detection threshold, lower = more sensitive (default: 0.1)
+# kws_score = 3.0              # Keyword boosting score, higher = easier to trigger (default: 3.0)
+
+# --- Provider Definitions ---
+# Each provider maps a local path prefix to an upstream API URL.
+# Auth headers from the host agent pass through unchanged.
+
+[providers.anthropic]
+upstream_url = "https://api.anthropic.com"
+route_prefix = "/anthropic"
+strip_headers = ["x-openobscure-internal"]
+
+[providers.openai]
+upstream_url = "https://api.openai.com"
+route_prefix = "/openai"
+strip_headers = ["x-openobscure-internal"]
+
+[providers.openrouter]
+upstream_url = "https://openrouter.ai/api"
+route_prefix = "/openrouter"
+strip_headers = ["x-openobscure-internal"]
+
+[providers.ollama]
+upstream_url = "http://127.0.0.1:11434"
+route_prefix = "/ollama"
+strip_headers = []

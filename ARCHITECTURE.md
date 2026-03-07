@@ -432,6 +432,7 @@ Explicit `scanner_mode` config ("ner", "crf", "regex") overrides auto-detection.
 ```
 OpenObscure/
 ├── ARCHITECTURE.md              ← this file (system-level architecture)
+├── setup/                       Setup guides (gateway proxy, embedded library, example config)
 ├── integration/                 Embedding OpenObscure in third-party apps (guide, examples, templates)
 ├── session-notes/               Per-session implementation logs
 ├── .github/workflows/

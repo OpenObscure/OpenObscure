@@ -2,7 +2,7 @@
 
 A step-by-step guide for integrating OpenObscure as a **native library** (embedded model) into iOS, Android, and macOS chat applications. This covers both first-party test apps and third-party apps like [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android).
 
-> **Proxy vs Embedded:** The [SETUP_GUIDE.md](SETUP_GUIDE.md) covers the **gateway/proxy** model where OpenObscure runs as a sidecar HTTP proxy. This guide covers the **embedded** model where OpenObscure is compiled into your app as a native library.
+> **Proxy vs Embedded:** The [gateway setup guide](../setup/gateway_setup.md) covers the **gateway/proxy** model where OpenObscure runs as a sidecar HTTP proxy. This guide covers the **embedded** model where OpenObscure is compiled into your app as a native library. See [embedded setup](../setup/embedded_setup.md) for build prerequisites.
 
 ---
 
@@ -944,7 +944,7 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 |-----|----------|---------------------|-------------|---------------------|
 | **Enchanted** | iOS/macOS | Local SPM package + direct API calls | **BUILD SUCCEEDED** (macOS ad-hoc) | `OpenObscureManager.swift` (new), `ConversationStore.swift` (send/receive/image), `InputFields_macOS.swift` (speech), `ChatView_iOS.swift` (speech), `project.pbxproj` |
 | **RikkaHub** | Android | OkHttp interceptor + JNI/JNA | **BUILD SUCCEEDED** (debug APK 76MB arm64) | `OpenObscureManager.kt` (new), `OpenObscureInterceptor.kt` (new), `DataSourceModule.kt` (interceptor wire), `RikkaHubApp.kt` (init), `build.gradle.kts` (JNA dep), `proguard-rules.pro` |
-| **OpenClaw** | Desktop | Gateway proxy (see SETUP_GUIDE.md) | Verified | Config only — point `LLM_API_BASE` at proxy |
+| **OpenClaw** | Desktop | Gateway proxy (see [gateway setup](../setup/gateway_setup.md)) | Verified | Config only — point `LLM_API_BASE` at proxy |
 
 ### Integration Artifacts
 

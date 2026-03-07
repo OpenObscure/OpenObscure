@@ -1,8 +1,10 @@
-# Setup Guide: OpenClaw + OpenObscure + Discord
+# Gateway Setup: OpenClaw + OpenObscure + Discord
 
 A step-by-step guide for running OpenClaw (AI agent) with OpenObscure (privacy firewall) using Discord as the chat interface, on MacBook and iPhone.
 
 **No programming experience required.** This guide uses terminal commands you can copy and paste.
+
+> **Prerequisites:** Complete the [common setup](README.md) first (dev tools, Rust, clone, model download).
 
 ---
 
@@ -30,9 +32,9 @@ You (Discord) ──► OpenClaw (AI Agent) ──► OpenObscure (Privacy) ─�
 
 ## What You'll Need
 
-Before starting, make sure you have:
+In addition to the [common prerequisites](README.md):
 
-- [ ] A **MacBook** (Apple Silicon or Intel, macOS 13+)
+- [ ] **Node.js** (20+): `brew install node`
 - [ ] A **Discord account** (free at https://discord.com)
 - [ ] An **LLM provider** — choose one:
   - **Cloud:** An API key from Anthropic (Claude) or OpenAI (GPT)
@@ -48,73 +50,18 @@ Before starting, make sure you have:
 
 ## Part 1: MacBook Setup
 
-### Step 1 — Install Developer Tools
-
-Open the **Terminal** app (search for "Terminal" in Spotlight, or find it in Applications > Utilities).
-
-Copy and paste this command, then press Enter:
-
-```bash
-xcode-select --install
-```
-
-A dialog will appear asking to install Command Line Tools. Click **Install** and wait for it to finish. If you see "already installed", that's fine — move on.
-
-### Step 2 — Install Homebrew
-
-Homebrew is a package manager that makes installing software easy. Paste this into Terminal:
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-Follow the on-screen instructions. When it finishes, it may tell you to run two extra commands to add Homebrew to your path — **run those commands too**.
-
-Verify it works:
-
-```bash
-brew --version
-```
-
-You should see a version number (e.g., `Homebrew 4.x.x`).
-
-### Step 3 — Install Rust and Node.js
-
-```bash
-brew install rustup node
-rustup-init -y
-source "$HOME/.cargo/env"
-```
-
-Verify both are installed:
-
-```bash
-rustc --version
-node --version
-```
-
-You should see version numbers for both (Rust 1.75+ and Node.js 20+).
-
-### Step 4 — Download OpenObscure
-
-```bash
-cd ~/Desktop
-git clone https://github.com/OpenObscure/OpenObscure.git
-cd OpenObscure
-```
-
-### Step 5 — Build the Privacy Proxy
+### Step 1 — Build the Privacy Proxy
 
 This compiles OpenObscure from source. It will take a few minutes on the first build.
 
 ```bash
-cd openobscure-proxy
+cd ~/Desktop/OpenObscure/openobscure-proxy
 cargo build --release
 ```
 
 When it finishes without errors, the proxy is ready. The compiled program is at `target/release/openobscure-proxy`.
 
-### Step 6 — Generate Your Encryption Key
+### Step 2 — Generate Your Encryption Key
 
 This creates a unique encryption key and stores it securely in your Mac's Keychain (the same place your saved passwords go):
 
@@ -124,21 +71,7 @@ cargo run --release -- --init-key
 
 You should see a message confirming the key was generated. This only needs to be done once.
 
-### Step 7 — Download AI Models
-
-OpenObscure uses small AI models to detect faces in photos and PII trigger phrases in audio. Download them:
-
-```bash
-cd ~/Desktop/OpenObscure
-./build/download_models.sh
-./build/download_kws_models.sh
-```
-
-This downloads about 25 MB of model files. You only need to do this once.
-
-> **Optional:** To enable the R2 cognitive firewall (AI-based persuasion detection), you also need the R2 TinyBERT model (~55 MB). This is an advanced feature — the proxy works fine without it using R1 dictionary detection only. If you want R2, either train it with `python3 scripts/r2_finetune.py` or download a pre-trained checkpoint to `models/r2_persuasion_tinybert/`.
-
-### Step 8 — Set Up a Local LLM (Optional — Skip If Using Cloud API)
+### Step 3 — Set Up a Local LLM (Optional — Skip If Using Cloud API)
 
 If you want everything to run on your MacBook with no cloud dependency, install Ollama and download an open-source model. **Skip this step if you're using Anthropic or OpenAI.**
 
@@ -207,9 +140,11 @@ Discord ──► OpenClaw ──► OpenObscure (:18790) ──► Ollama (:114
                                                     nothing leaves your Mac
 ```
 
+> **Configuration reference:** See [examples/openobscure.toml](examples/openobscure.toml) for a fully commented example configuration file with all available options.
+
 ---
 
-### Step 9 — Start the Privacy Proxy
+### Step 4 — Start the Privacy Proxy
 
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-proxy
@@ -226,7 +161,7 @@ INFO openobscure_proxy: FPE engine ready
 
 **Leave this Terminal window open.** The proxy needs to keep running.
 
-### Step 10 — Verify the Proxy Is Running
+### Step 5 — Verify the Proxy Is Running
 
 Open a **new Terminal window** (Cmd+N) and run:
 
@@ -236,7 +171,7 @@ curl -s http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
 
 You should see a JSON response containing `"status": "ok"`. This confirms the proxy is running and ready.
 
-### Step 11 — Download and Build OpenClaw
+### Step 6 — Download and Build OpenClaw
 
 In the same new Terminal window:
 
@@ -252,9 +187,9 @@ pnpm build
 
 This installs dependencies, builds the web UI, and compiles OpenClaw from TypeScript to JavaScript. The first build may take a minute or two.
 
-> **Reinstalling or upgrading?** If you had a previous OpenClaw installation, purge stale config and state first — see [Purging a stale OpenClaw setup](#purging-a-stale-openclaw-setup) in Troubleshooting below. Then continue with Step 12.
+> **Reinstalling or upgrading?** If you had a previous OpenClaw installation, purge stale config and state first — see [Purging a stale OpenClaw setup](#purging-a-stale-openclaw-setup) in Troubleshooting below. Then continue with Step 7.
 
-### Step 12 — Create a Discord Bot
+### Step 7 — Create a Discord Bot
 
 1. Go to https://discord.com/developers/applications in your browser
 2. Click **New Application** — name it something like "My AI Assistant"
@@ -272,7 +207,7 @@ This installs dependencies, builds the web UI, and compiles OpenClaw from TypeSc
 10. Copy the generated URL at the bottom and open it in your browser
 11. Select the Discord server you want to add the bot to and click **Authorize**
 
-### Step 13 — Configure OpenClaw with OpenObscure
+### Step 8 — Configure OpenClaw with OpenObscure
 
 OpenClaw uses two configuration sources: a `.env` file for secrets (API keys, tokens) and an `openclaw.json` file for settings (channels, plugins, model routing).
 
@@ -324,7 +259,7 @@ ENVFILE
 
 > `OLLAMA_API_KEY` can be any non-empty value — Ollama itself ignores it, but OpenClaw uses it to register Ollama as a provider.
 
-Replace the placeholder values with your actual tokens from Step 12 and your LLM provider.
+Replace the placeholder values with your actual tokens from Step 7 and your LLM provider.
 
 #### Create the configuration file
 
@@ -471,9 +406,9 @@ Replace `qwen3:8b` with `llama3.2:3b` (and update the `models` array to match) i
 >
 > **`baseUrl` and API versioning:** For providers that use the OpenAI-compatible API format (`"api": "openai-completions"`), include `/v1` after the route prefix in `baseUrl` (e.g. `http://127.0.0.1:18790/openai/v1`). OpenClaw appends `/chat/completions` to this URL, so without `/v1` the upstream path would be wrong. Anthropic and Ollama use their own API formats and handle versioning internally — their `baseUrl` does not need `/v1`.
 
-### Step 14 — Build and Verify the OpenObscure Plugin
+### Step 9 — Build and Verify the OpenObscure Plugin
 
-The OpenObscure plugin ships bundled with OpenClaw in `extensions/openobscure-plugin/`. Step 13 already enabled it in `openclaw.json`, but you need to compile it first.
+The OpenObscure plugin ships bundled with OpenClaw in `extensions/openobscure-plugin/`. Step 8 already enabled it in `openclaw.json`, but you need to compile it first.
 
 ```bash
 cd ~/Desktop/openclaw/extensions/openobscure-plugin
@@ -487,7 +422,7 @@ Verify the build succeeded:
 ls ~/Desktop/openclaw/extensions/openobscure-plugin/dist/index.js
 ```
 
-You should see the file listed. The plugin will activate automatically when the gateway starts (Step 15) and will connect to the OpenObscure proxy running on port 18790 (Step 9).
+You should see the file listed. The plugin will activate automatically when the gateway starts (Step 10) and will connect to the OpenObscure proxy running on port 18790 (Step 4).
 
 When the gateway starts successfully with the plugin, you should see these log lines:
 
@@ -499,7 +434,7 @@ When the gateway starts successfully with the plugin, you should see these log l
 
 > **If the plugin doesn't load:** Check that `dist/` exists (it's created by `pnpm run build`). If the gateway logs don't show the lines above at startup, the plugin wasn't compiled or the `plugins` section in `openclaw.json` is missing.
 
-### Step 15 — Start OpenClaw
+### Step 10 — Start OpenClaw
 
 ```bash
 cd ~/Desktop/openclaw
@@ -510,7 +445,7 @@ You should see output indicating the gateway has started and the Discord bot has
 
 > **First time?** You can run `pnpm openclaw onboard` for an interactive setup wizard that walks you through configuration and optionally installs the gateway as a background service (`pnpm openclaw onboard --install-daemon`).
 
-**If using Ollama (local LLM):** Make sure the Ollama server from Step 8 is still running in its own Terminal window. You should now have **three** Terminal windows open: Ollama, OpenObscure proxy, and OpenClaw.
+**If using Ollama (local LLM):** Make sure the Ollama server from Step 3 is still running in its own Terminal window. You should now have **three** Terminal windows open: Ollama, OpenObscure proxy, and OpenClaw.
 
 **DM pairing:** The first time you message the bot via DM, it will respond with a short pairing code. Approve it from the MacBook Terminal:
 
@@ -521,7 +456,7 @@ pnpm openclaw pairing approve discord <code>
 
 After approval, the bot will respond normally to your messages.
 
-### Step 16 — Test It
+### Step 11 — Test It
 
 In your Discord server, send a message to the bot (mention it or DM it, depending on your OpenClaw configuration):
 
@@ -557,7 +492,7 @@ Open Discord and sign in with the **same account** you used on your MacBook.
 
 ### Requirement
 
-Your MacBook must be **running and connected to the internet** for the bot to respond. If you close the Terminal windows from Part 1 (Steps 9 and 15, plus Step 8 if using Ollama), the bot will go offline.
+Your MacBook must be **running and connected to the internet** for the bot to respond. If you close the Terminal windows from Part 1 (Steps 4 and 10, plus Step 3 if using Ollama), the bot will go offline.
 
 ---
 
@@ -575,7 +510,7 @@ My Visa card is 4532-8970-1234-5678 and it expires 12/28.
 
 **What to check (MacBook — proxy logs):**
 
-In the Terminal window where the proxy is running (Step 9), you should see:
+In the Terminal window where the proxy is running (Step 4), you should see:
 
 ```
 INFO  SCAN  PII match: credit_card at messages[0].content (confidence=1.00)
@@ -987,7 +922,7 @@ Then try the command again. If this keeps happening every time you open a new Te
 
 ### "Connection refused" or proxy not starting
 
-1. Make sure the proxy Terminal window from Step 9 is still open and running
+1. Make sure the proxy Terminal window from Step 4 is still open and running
 2. Check if something else is using port 18790:
    ```bash
    lsof -i :18790
@@ -1007,9 +942,9 @@ If you see a keychain access dialog, click **Allow** or **Always Allow**.
 
 ### Bot appears offline in Discord
 
-1. Make sure the OpenClaw Terminal (Step 15) is still running
+1. Make sure the OpenClaw Terminal (Step 10) is still running
 2. Verify your Discord bot token in the `.env` file is correct (the env var is `DISCORD_BOT_TOKEN`)
-3. Check that you enabled **Message Content Intent** in the Discord Developer Portal (Step 12)
+3. Check that you enabled **Message Content Intent** in the Discord Developer Portal (Step 7)
 4. Try restarting OpenClaw:
    ```bash
    cd ~/Desktop/openclaw
@@ -1022,7 +957,7 @@ If you see a keychain access dialog, click **Allow** or **Always Allow**.
 
 ### Bot responds but PII is not being encrypted
 
-1. Verify the proxy is running (Step 9)
+1. Verify the proxy is running (Step 4)
 2. Make sure the OpenObscure plugin is enabled in `~/.openclaw/openclaw.json` with `proxyUrl` set to `http://127.0.0.1:18790`
 3. Check proxy logs for errors — if you see no log activity at all when chatting, the plugin may not be connecting to the proxy
 4. Restart OpenClaw after any config changes
@@ -1225,7 +1160,7 @@ rm -f ~/.openclaw/openclaw.json.bak*
 
 #### Remove old .env files
 
-If you previously used `LLM_API_BASE` or `DISCORD_TOKEN` (without `_BOT`) in your `.env`, delete the old file and recreate it per Step 13:
+If you previously used `LLM_API_BASE` or `DISCORD_TOKEN` (without `_BOT`) in your `.env`, delete the old file and recreate it per Step 8:
 
 ```bash
 rm ~/Desktop/openclaw/.env
@@ -1242,7 +1177,7 @@ pnpm openclaw doctor
 
 This checks for stale paths, misconfigured settings, and security issues. Use `pnpm openclaw doctor --fix` to auto-repair common problems.
 
-Then proceed with Step 13 to reconfigure from scratch.
+Then proceed with Step 8 to reconfigure from scratch.
 
 ### iPhone messages not working
 
@@ -1321,15 +1256,3 @@ Then open Discord on your MacBook or iPhone and start chatting.
 | `ollama pull qwen3:8b` | Download Qwen3 8B model |
 | `ollama pull llama3.2:3b` | Download Llama 3.2 3B model |
 | `curl http://127.0.0.1:11434/api/tags` | Check if Ollama is running |
-
----
-
-## Embedding OpenObscure in Mobile / Third-Party Apps
-
-This guide covers the **gateway/proxy** model. If you want to embed OpenObscure directly into an iOS/macOS or Android app as a native library (no HTTP proxy), see:
-
-**[INTEGRATION_GUIDE.md](integration/INTEGRATION_GUIDE.md)** — Step-by-step instructions for:
-- Building native libraries (`.a` for iOS/macOS, `.so` for Android)
-- Generating Swift/Kotlin bindings via UniFFI
-- Integrating with third-party chat apps ([Enchanted](https://github.com/AugustDev/enchanted) for iOS/macOS, [RikkaHub](https://github.com/rikkahub/rikkahub) for Android)
-- API reference: `sanitizeText`, `restoreText`, `sanitizeImage`, `sanitizeAudioTranscript`, `checkAudioPii`
