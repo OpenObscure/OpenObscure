@@ -12,6 +12,10 @@ final class OpenObscureManager {
 
     private init() {
         let key = OpenObscureManager.getOrCreateKey()
+        // Minimal config — regex-only, no model files needed.
+        // To enable NER/image/RI with bundled models, use models_base_dir:
+        //   let modelsBase = Bundle.main.path(forResource: "Models", ofType: nil)!
+        //   configJson: "{\"scanner_mode\":\"auto\",\"models_base_dir\":\"\(modelsBase)\"}"
         handle = try! createOpenobscure(
             configJson: #"{"scanner_mode": "regex"}"#,
             fpeKeyHex: key

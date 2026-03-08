@@ -125,20 +125,26 @@ Returns `nil`/`null` when no manipulation is detected, RI is disabled, or device
   "scanner_mode": "regex",
   "auto_detect": true,
   "keywords_enabled": true,
-  "image_enabled": false,
-  "ri_enabled": false,
+  "image_enabled": true,
+  "ri_enabled": true,
   "ri_sensitivity": "medium",
-  "ri_model_dir": null
+  "ri_model_dir": null,
+  "nsfw_classifier_model_dir": null,
+  "models_base_dir": null
 }
 ```
 
 - `scanner_mode`: `"auto"` (default, uses device tier), `"regex"`, `"crf"`, `"ner"`
 - `auto_detect`: `true` (default) — profiles device RAM for tier selection
 - `keywords_enabled`: `true` (default) — health/child keyword dictionary
-- `image_enabled`: `false` (default) — requires ONNX model files
-- `ri_enabled`: `false` (default) — enable cognitive firewall (response integrity scanning)
+- `image_enabled`: `true` (default) — device budget gates actual activation; requires ONNX model files for face/OCR/NSFW redaction. Set `false` to disable explicitly.
+- `ri_enabled`: `true` (default) — device budget gates actual activation. Set `false` to disable explicitly.
 - `ri_sensitivity`: `"medium"` (default) — `"off"`, `"low"`, `"medium"`, `"high"` — controls R2 classifier invocation threshold
 - `ri_model_dir`: `null` (default) — path to R2 model directory; R1 dictionary works without it
+- `nsfw_classifier_model_dir`: `null` (default) — path to ViT-tiny NSFW holistic classifier for Phase 0b cascade (supplements NudeNet body-part detector)
+- `models_base_dir`: `null` (default) — base directory containing model subdirectories. When set, individual `*_model_dir` fields are auto-resolved from standard subdirectory names. Explicit per-model paths always take priority. Standard subdirectories: `ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw/`, `nsfw_classifier/`, `ri/`.
+
+> **Migration note (v0.18+):** `image_enabled` and `ri_enabled` now default to `true`. Without model files on disk these features are effectively no-ops, but if you previously relied on the `false` default, set them to `false` explicitly in your config JSON.
 
 ### PII Types (Regex-Only Mode — No Models Required)
 
@@ -659,6 +665,18 @@ Change `scanner_mode` and provide the model path:
 }
 ```
 
+**Option C: `models_base_dir` (simplest)** — point to a single directory containing all model subdirectories:
+
+```json
+{
+  "scanner_mode": "auto",
+  "auto_detect": true,
+  "models_base_dir": "/path/to/models"
+}
+```
+
+When `models_base_dir` is set, OpenObscure auto-resolves `ner_model_dir` from `<base>/ner/`, `ner_model_dir_lite` from `<base>/ner_lite/`, and so on for all model directories. Only subdirectories that exist on disk are used. Explicit per-model paths (e.g., `"ner_model_dir": "/custom/path"`) always override auto-resolved paths.
+
 In auto mode:
 - **Full tier (≥8 GB RAM):** Uses DistilBERT from `ner_model_dir`
 - **Standard tier (4–8 GB):** Uses TinyBERT from `ner_model_dir_lite`
@@ -684,6 +702,16 @@ let config = """
 }
 """
 
+let handle = try createOpenobscure(configJson: config, fpeKeyHex: key)
+```
+
+**Swift alternative — `models_base_dir`:** If all model directories are bundled under a single `Models/` folder:
+
+```swift
+let modelsBase = Bundle.main.path(forResource: "Models", ofType: nil)!
+let config = """
+{"scanner_mode": "auto", "auto_detect": true, "models_base_dir": "\(modelsBase)"}
+"""
 let handle = try createOpenobscure(configJson: config, fpeKeyHex: key)
 ```
 
@@ -718,6 +746,14 @@ val config = """
 }
 """.trimIndent()
 
+val handle = createOpenobscure(configJson = config, fpeKeyHex = key)
+```
+
+**Kotlin alternative — `models_base_dir`:** If all model directories are copied under a single `models/` folder:
+
+```kotlin
+val modelsBase = copyAssetsDir(context, "models")
+val config = """{"scanner_mode": "auto", "auto_detect": true, "models_base_dir": "$modelsBase"}"""
 val handle = createOpenobscure(configJson = config, fpeKeyHex = key)
 ```
 
@@ -813,9 +849,11 @@ scanTimeUs: UInt64        — Scan duration in microseconds
 }
 ```
 
-- `ri_enabled` — Enable/disable the cognitive firewall (default: `false`)
+- `ri_enabled` — Enable/disable the cognitive firewall (default: `true`; device budget gates actual activation)
 - `ri_sensitivity` — `"off"`, `"low"`, `"medium"` (default), `"high"` — controls when R2 is invoked
 - `ri_model_dir` — Path to R2 model directory (optional — R1 works without it)
+
+**R2 cascade behavior:** When R2 disagrees with R1, the cascade role depends on the strength of R1 evidence. If R1 flagged matches across **2 or more** persuasion categories, R2 disagreement is treated as Confirm (strong R1 evidence stands). Single-category R1 hits may be suppressed by R2 (Suppress role). This prevents false-negative suppression of genuine multi-vector persuasion attempts.
 
 **Model files** (optional — R1 dictionary works without models):
 ```
@@ -925,7 +963,8 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 | Linker error: `_openobscure_proxy_*` | Library not linked | Add `-lopenobscure_proxy` to Other Linker Flags |
 | `UnsatisfiedLinkError` on Android | `.so` not in correct ABI folder | Verify `jniLibs/<abi>/libopenobscure_proxy.so` path |
 | JNA not found on Android | Missing dependency | Add `implementation("net.java.dev.jna:jna:5.15.0@aar")` |
-| Image sanitization fails | `image_enabled: false` or no model files | Set `image_enabled: true` and provide model paths in config |
+| Image sanitization fails | No model files on disk | Provide face/OCR model paths in config (or use `models_base_dir`) |
+| Image/RI features active unexpectedly | `image_enabled` and `ri_enabled` now default to `true` | Set `"image_enabled": false` or `"ri_enabled": false` explicitly in config JSON to disable |
 | 0 PII detected for names | Regex mode can't detect names | Switch to `scanner_mode: "ner"` and provide NER model |
 | `Cannot find 'createOpenobscure' in scope` (Swift) | Missing import | Add `import OpenObscureLib` to the file |
 | Type mismatch `UInt64` vs `OpenObscureHandle` | UniFFI generates an opaque class | Use `OpenObscureHandle` type, not `UInt64` |

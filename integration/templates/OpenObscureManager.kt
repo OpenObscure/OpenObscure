@@ -14,6 +14,10 @@ object OpenObscureManager {
     fun init(context: Context) {
         if (_handle != null) return
         val key = getOrCreateKey(context)
+        // Minimal config — regex-only, no model files needed.
+        // To enable NER/image/RI with bundled models, use models_base_dir:
+        //   val modelsBase = copyAssetsDir(context, "models")
+        //   configJson = """{"scanner_mode":"auto","models_base_dir":"$modelsBase"}"""
         _handle = createOpenobscure(
             configJson = """{"scanner_mode": "regex"}""",
             fpeKeyHex = key
