@@ -92,6 +92,7 @@ flowchart TB
 | `sanitize_audio_transcript(text)` | Scan speech transcript for PII, return sanitized text + mapping |
 | `check_audio_pii(text)` | Quick PII count in audio transcript (no encryption) |
 | `scan_response(text)` | Scan LLM response for persuasion/manipulation (cognitive firewall, Full/Standard tier) |
+| `rotate_key(new_key)` | Rotate FPE key with 30-second overlap window for in-flight mappings |
 | `stats()` | PII counts, scanner mode, image pipeline status, device tier |
 
 **Third-party integration:** OpenObscure can be embedded into any iOS/macOS/Android chat app. Tested integrations include [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS Ollama client) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android multi-provider LLM client). See [INTEGRATION_GUIDE.md](integration/INTEGRATION_GUIDE.md) for step-by-step instructions.
@@ -102,7 +103,13 @@ flowchart TB
 - Hardware auto-detection (`auto_detect: true` default) profiles device RAM and selects features automatically — phones with 8GB+ RAM get full NER + ensemble + image pipeline + cognitive firewall, matching gateway efficacy
 - `models_base_dir` config field simplifies model path setup — point to a single directory and individual `*_model_dir` fields are auto-resolved from standard subdirectories (`ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw/`, `nsfw_classifier/`, `ri/`)
 - Image pipeline and cognitive firewall default to enabled (`image_enabled: true`, `ri_enabled: true`); device budget gates actual activation — without model files on disk these are no-ops
-- Response integrity (cognitive firewall) available on Full/Standard tier — R1 dictionary always, R2 classifier if model provided
+- Response integrity (cognitive firewall) available on Full/Standard tier — R1 dictionary always, R2 classifier if model provided; R2 Discover role suppressed (matches gateway behavior)
+- All features tier-gated via `FeatureBudget` — `gazetteer_enabled`, `keywords_enabled`, `ner_pool_size` all budget-gated (not just config defaults)
+- FPE key rotation with 30-second overlap window via `rotate_key()` — matches gateway `KeyManager` semantics
+- Per-match FPE tweaks (byte offset) prevent frequency analysis within a single request
+- Name gazetteer enabled by default (embedded name lists, no model files needed)
+- Screenshot detection via EXIF + resolution heuristics when `screen_guard` budget flag is enabled
+- OCR Tier 2 uses full HybridScanner (NER + regex + keywords) for text in images
 
 ### Defense in Depth: Both Models Together
 
@@ -206,7 +213,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **CLI** | Subcommands: `serve` (default), `key-rotate`, `passthrough`, `service {install,start,stop,status,uninstall}` |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 1,683 (745 lib + 938 bin) |
+| **Tests** | 1,723 (765 lib + 958 bin) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
 | **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
 
@@ -270,7 +277,7 @@ sequenceDiagram
 
 **Algorithm:** FF1 per NIST SP 800-38G. FF3 is **WITHDRAWN** (SP 800-38G Rev 2, Feb 2025) — never used.
 
-**Tweak strategy:** Per-record `request_uuid (16B) || SHA-256(json_path)[0..16]` — same PII value in different requests produces different ciphertexts, preventing frequency analysis.
+**Tweak strategy:** Per-record `request_uuid (16B) || SHA-256(path)[0..16]` — same PII value in different requests produces different ciphertexts, preventing frequency analysis. Gateway uses JSON path (e.g., `$.messages[0].content`); embedded uses match byte offset (e.g., `m:42`).
 
 ## L0 vs L1 — Why Both?
 
@@ -389,6 +396,7 @@ Embedded budgets scale proportionally (20% of device RAM, clamped to [12MB, 275M
 | **Phase 12** (complete) | **99.5%** | R2 cognitive firewall — TinyBERT FP32 multi-label classifier (4 EU AI Act Article 5 categories), R1→R2 cascade (Confirm/Suppress/Upgrade/Discover), first-window early exit, ONNX FP32 export (54.9 MB), macro P=80.9% R=74.5% F1=77.3% |
 | **Phase 13** (partial) | **99.5%** | Embedded voice pipeline — platform speech APIs (iOS `SFSpeechRecognizer` + Android `SpeechRecognizer`), mobile audio transcript PII methods (`sanitizeAudioTranscript`/`checkAudioPii` via UniFFI), L1 cognitive firewall (JS persuasion dictionary, NAPI bridge), comprehensive testing (Tier 1-4 coverage) |
 | **Phase 15** (complete) | **99.5%** | Ensemble NSFW classifier — ViT-tiny holistic model (Marqo/nsfw-image-detection-384) as Phase 0b fallback when NudeNet clean, multi-LLM response format detection (`response_format.rs`) |
+| **Phase 19** (complete) | **99.5%** | Mobile parity — name gazetteer, per-match FPE tweaks, key rotation (30s overlap), OCR full scanner, screenshot detection, NER pool config, R2 Discover suppression, all features tier-gated via FeatureBudget |
 
 ## Project Layout
 

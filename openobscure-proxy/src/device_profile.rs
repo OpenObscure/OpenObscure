@@ -82,6 +82,12 @@ pub struct FeatureBudget {
     pub voice_enabled: bool,
     /// Enable response integrity scanning (R2 model gating).
     pub ri_enabled: bool,
+    /// Enable name gazetteer for person name detection.
+    pub gazetteer_enabled: bool,
+    /// Enable keyword dictionary for health/child term detection.
+    pub keywords_enabled: bool,
+    /// Maximum NER pool size (number of concurrent model instances).
+    pub ner_pool_size: usize,
 }
 
 // ── Hardware Detection ───────────────────────────────────────────────────
@@ -257,6 +263,9 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             model_idle_timeout_secs: 300,
             voice_enabled: true,
             ri_enabled: true,
+            gazetteer_enabled: true,
+            keywords_enabled: true,
+            ner_pool_size: 2,
         },
         CapabilityTier::Standard => FeatureBudget {
             tier,
@@ -273,6 +282,9 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             model_idle_timeout_secs: 120,
             voice_enabled: true,
             ri_enabled: true,
+            gazetteer_enabled: true,
+            keywords_enabled: true,
+            ner_pool_size: 1,
         },
         CapabilityTier::Lite => FeatureBudget {
             tier,
@@ -289,6 +301,9 @@ fn budget_for_gateway(tier: CapabilityTier) -> FeatureBudget {
             model_idle_timeout_secs: 60,
             voice_enabled: false,
             ri_enabled: false,
+            gazetteer_enabled: true,
+            keywords_enabled: true,
+            ner_pool_size: 1,
         },
     }
 }
@@ -315,6 +330,9 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             model_idle_timeout_secs: 300,
             voice_enabled: true,
             ri_enabled: true,
+            gazetteer_enabled: true,
+            keywords_enabled: true,
+            ner_pool_size: 1,
         },
         CapabilityTier::Standard => FeatureBudget {
             tier,
@@ -336,6 +354,9 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             model_idle_timeout_secs: 120,
             voice_enabled: max_ram >= 50,
             ri_enabled: max_ram >= 80,
+            gazetteer_enabled: true,
+            keywords_enabled: true,
+            ner_pool_size: 1,
         },
         CapabilityTier::Lite => FeatureBudget {
             tier,
@@ -352,6 +373,9 @@ fn budget_for_embedded(tier: CapabilityTier, profile: &DeviceProfile) -> Feature
             model_idle_timeout_secs: 60,
             voice_enabled: false,
             ri_enabled: false,
+            gazetteer_enabled: true,
+            keywords_enabled: true,
+            ner_pool_size: 1,
         },
     }
 }

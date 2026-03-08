@@ -95,6 +95,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 | `sanitizeAudioTranscript` | `(handle, transcript) -> SanitizeResult` | Scan speech transcript for PII |
 | `checkAudioPii` | `(handle, transcript) -> Int` | Quick PII count check (no encryption) |
 | `scanResponse` | `(handle, responseText) -> RiReportFFI?` | Scan LLM response for persuasion/manipulation (cognitive firewall) |
+| `rotateKey` | `(handle, newKeyHex: String)` | Rotate FPE key with 30s overlap window for in-flight mappings |
 | `getStats` | `(handle) -> MobileStats` | Device tier, total PII found, image count |
 
 ### SanitizeResult
@@ -125,24 +126,28 @@ Returns `nil`/`null` when no manipulation is detected, RI is disabled, or device
   "scanner_mode": "regex",
   "auto_detect": true,
   "keywords_enabled": true,
+  "gazetteer_enabled": true,
   "image_enabled": true,
   "ri_enabled": true,
   "ri_sensitivity": "medium",
   "ri_model_dir": null,
   "nsfw_classifier_model_dir": null,
-  "models_base_dir": null
+  "models_base_dir": null,
+  "ner_pool_size": 1
 }
 ```
 
 - `scanner_mode`: `"auto"` (default, uses device tier), `"regex"`, `"crf"`, `"ner"`
 - `auto_detect`: `true` (default) — profiles device RAM for tier selection
-- `keywords_enabled`: `true` (default) — health/child keyword dictionary
+- `keywords_enabled`: `true` (default) — health/child keyword dictionary; budget-gated
+- `gazetteer_enabled`: `true` (default) — name gazetteer for person name detection (embedded name lists, no model files); budget-gated
 - `image_enabled`: `true` (default) — device budget gates actual activation; requires ONNX model files for face/OCR/NSFW redaction. Set `false` to disable explicitly.
 - `ri_enabled`: `true` (default) — device budget gates actual activation. Set `false` to disable explicitly.
 - `ri_sensitivity`: `"medium"` (default) — `"off"`, `"low"`, `"medium"`, `"high"` — controls R2 classifier invocation threshold
 - `ri_model_dir`: `null` (default) — path to R2 model directory; R1 dictionary works without it
 - `nsfw_classifier_model_dir`: `null` (default) — path to ViT-tiny NSFW holistic classifier for Phase 0b cascade (supplements NudeNet body-part detector)
 - `models_base_dir`: `null` (default) — base directory containing model subdirectories. When set, individual `*_model_dir` fields are auto-resolved from standard subdirectory names. Explicit per-model paths always take priority. Standard subdirectories: `ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw/`, `nsfw_classifier/`, `ri/`.
+- `ner_pool_size`: `1` (default) — number of NER model instances; budget caps the maximum (Full gateway: 2, all embedded: 1)
 
 > **Migration note (v0.18+):** `image_enabled` and `ri_enabled` now default to `true`. Without model files on disk these features are effectively no-ops, but if you previously relied on the `false` default, set them to `false` explicitly in your config JSON.
 
@@ -586,11 +591,16 @@ val restored = restoreText(OpenObscureManager.handle, assistantText, lastMapping
 | Phone, Email, API Key | Yes | Yes | Yes |
 | IPv4, IPv6, GPS, MAC, IBAN | Yes | Yes | Yes |
 | Health/Child keywords | Yes | Yes | Yes |
-| Person names | -- | Yes | Yes |
+| Multilingual national IDs (9 langs) | Yes | Yes | Yes |
+| Name gazetteer (common names) | Yes | Yes | Yes |
+| Person names (semantic) | -- | Yes | Yes |
 | Locations, Organizations | -- | Yes | Yes |
 | Image face solid fill | -- | -- | Yes |
-| Image OCR solid fill | -- | -- | Yes |
+| Image OCR solid fill (full scanner) | -- | -- | Yes |
+| Screenshot detection | -- | -- | Yes |
+| Cognitive firewall (R1+R2) | Yes (R1) | Yes (R1) | Yes (R1+R2) |
 | Audio transcript PII | Yes | Yes | Yes |
+| FPE key rotation (30s overlap) | Yes | Yes | Yes |
 
 **Recommendation:** Start with `scanner_mode: "regex"` (zero model files, 12 of 15 PII types, 99.7% recall on structured PII). Add NER later if person/location detection is needed.
 

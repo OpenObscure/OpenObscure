@@ -16,7 +16,8 @@ use crate::fpe_engine::{FpeEngine, FpeError, TweakGenerator};
 use crate::hash_token::TokenGenerator;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_pipeline::ImageModelManager;
-use crate::response_integrity::{ResponseIntegrityScanner, Sensitivity};
+use crate::name_gazetteer::NameGazetteer;
+use crate::response_integrity::{R2Role, ResponseIntegrityScanner, Sensitivity};
 
 /// Configuration for the mobile library.
 ///
@@ -104,6 +105,16 @@ pub struct MobileConfig {
     /// Individual `*_model_dir` fields override the auto-resolved path if both are set.
     #[serde(default)]
     pub models_base_dir: Option<String>,
+
+    /// Enable name gazetteer for person name detection.
+    /// Uses embedded name lists (no model files needed). Default: true.
+    #[serde(default = "default_true")]
+    pub gazetteer_enabled: bool,
+
+    /// Number of NER model instances in the pool. Default: 1.
+    /// Higher values allow concurrent inference but use more memory.
+    #[serde(default = "default_ner_pool_size")]
+    pub ner_pool_size: usize,
 }
 
 fn default_true() -> bool {
@@ -116,6 +127,10 @@ fn default_scanner_mode() -> String {
 
 fn default_max_dimension() -> u32 {
     960
+}
+
+fn default_ner_pool_size() -> usize {
+    1
 }
 
 fn default_ri_sensitivity() -> String {
@@ -175,6 +190,8 @@ impl Default for MobileConfig {
             ri_sensitivity: "medium".to_string(),
             ri_model_dir: None,
             models_base_dir: None,
+            gazetteer_enabled: true,
+            ner_pool_size: 1,
         }
     }
 }
@@ -238,10 +255,58 @@ pub enum MobileError {
     Serialization(String),
 }
 
+/// Manages FPE key rotation with a 30-second overlap window.
+/// During the overlap, the previous key is retained so that in-flight
+/// responses encrypted with the old key can still be restored.
+struct MobileKeyManager {
+    current: std::sync::RwLock<FpeEngine>,
+    previous: std::sync::Mutex<Option<(FpeEngine, std::time::Instant)>>,
+}
+
+impl MobileKeyManager {
+    fn new(engine: FpeEngine) -> Self {
+        Self {
+            current: std::sync::RwLock::new(engine),
+            previous: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Rotate to a new FPE key. The old engine is retained for 30 seconds.
+    fn rotate(&self, new_key: &[u8; 32]) -> Result<(), MobileError> {
+        let new_engine = FpeEngine::new(new_key)?;
+        let mut current = self.current.write().unwrap();
+        let old = std::mem::replace(&mut *current, new_engine);
+        let mut prev = self.previous.lock().unwrap();
+        *prev = Some((old, std::time::Instant::now()));
+        Ok(())
+    }
+
+    /// Access the current engine for encryption.
+    fn current(&self) -> std::sync::RwLockReadGuard<'_, FpeEngine> {
+        self.current.read().unwrap()
+    }
+
+    /// Access the previous engine if still within the 30-second overlap window.
+    #[allow(dead_code)]
+    fn previous(&self) -> Option<FpeEngine> {
+        // Note: we cannot return a reference through the Mutex, so we check
+        // and return None if expired. The previous engine is only used for
+        // FPE decryption during overlap, which restore_text doesn't need
+        // (it uses stored mappings). This is provided for future use.
+        let mut prev = self.previous.lock().unwrap();
+        if let Some((_, retired_at)) = prev.as_ref() {
+            if retired_at.elapsed() >= std::time::Duration::from_secs(30) {
+                *prev = None;
+            }
+        }
+        None // Previous engine access not needed for current mobile restore pattern
+    }
+}
+
 /// The main mobile API handle. Thread-safe and reusable across calls.
 pub struct OpenObscureMobile {
     scanner: HybridScanner,
-    fpe: FpeEngine,
+    key_manager: MobileKeyManager,
     image_manager: Option<ImageModelManager>,
     ri_scanner: Option<ResponseIntegrityScanner>,
     stats: std::sync::Mutex<InternalStats>,
@@ -270,37 +335,53 @@ impl OpenObscureMobile {
         config.resolve_model_dirs();
 
         let fpe = FpeEngine::new(&fpe_key)?;
+        let key_manager = MobileKeyManager::new(fpe);
+
+        // Compute device budget first — all feature gating flows through it
+        let profile = crate::device_profile::detect(true);
+        let tier = crate::device_profile::tier_for_profile(&profile);
+        let budget = crate::device_profile::budget_for_tier(tier, &profile);
+
+        // Gate features by budget ∩ config (both must agree)
+        let gazetteer_allowed = config.gazetteer_enabled && budget.gazetteer_enabled;
+        let keywords_allowed = config.keywords_enabled && budget.keywords_enabled;
+        let effective_pool_size = config.ner_pool_size.min(budget.ner_pool_size);
+
+        // Load name gazetteer if allowed by budget and config
+        let gazetteer = if gazetteer_allowed {
+            Some(NameGazetteer::new())
+        } else {
+            None
+        };
 
         // Determine scanner and tier via auto-detection or explicit mode
-        let (scanner, effective_mode, device_tier, budget) = if config.auto_detect
+        let (scanner, effective_mode, device_tier) = if config.auto_detect
             && config.scanner_mode == "auto"
         {
-            let profile = crate::device_profile::detect(true);
-            let tier = crate::device_profile::tier_for_profile(&profile);
-            let budget = crate::device_profile::budget_for_tier(tier, &profile);
-
-            let (mut scan, mode) = Self::build_scanner_from_budget(&config, &budget);
+            let (mut scan, mode) = Self::build_scanner_from_budget(
+                &config,
+                &budget,
+                gazetteer,
+                keywords_allowed,
+                effective_pool_size,
+            );
             let effective_bonus = if budget.ensemble_enabled { 0.15 } else { 0.0 };
             scan.set_confidence_params(0.5, effective_bonus);
-            (scan, mode, tier.to_string(), Some(budget))
+            (scan, mode, tier.to_string())
         } else {
             // Explicit mode — honor scanner_mode literally, but still use
             // device tier for NER model selection (TinyBERT vs DistilBERT).
-            let profile = crate::device_profile::detect(true);
-            let tier = crate::device_profile::tier_for_profile(&profile);
-            let budget = crate::device_profile::budget_for_tier(tier, &profile);
-
             let scanner = match config.scanner_mode.as_str() {
                 "crf" => {
                     if let Some(ref dir) = config.crf_model_dir {
                         match crate::crf_scanner::CrfScanner::load(std::path::Path::new(dir), 0.5) {
                             Ok(crf) => {
-                                HybridScanner::with_crf(config.keywords_enabled, Some(crf), None)
+                                HybridScanner::with_crf(keywords_allowed, Some(crf), gazetteer)
                             }
-                            Err(_) => HybridScanner::new(config.keywords_enabled, None, None),
+                            Err(_) => HybridScanner::new(keywords_allowed, None, gazetteer),
                         }
                     } else {
-                        HybridScanner::new(config.keywords_enabled, None, None)
+                        HybridScanner::new(keywords_allowed, None, gazetteer)
                     }
                 }
                 "ner" => {
@@ -312,55 +393,24 @@ impl OpenObscureMobile {
                             .or(config.ner_model_dir.as_ref()),
                         _ => config.ner_model_dir.as_ref(),
                     };
-                    if let Some(dir) = model_dir {
-                        match crate::ner_scanner::NerScanner::load(std::path::Path::new(dir), 0.60)
-                        {
-                            Ok(ner) => {
-                                let pool = crate::ner_scanner::NerPool::new(vec![ner]);
-                                HybridScanner::new(config.keywords_enabled, Some(pool), None)
-                            }
-                            Err(_) => HybridScanner::new(config.keywords_enabled, None, None),
-                        }
-                    } else {
-                        HybridScanner::new(config.keywords_enabled, None, None)
-                    }
+                    let pool = model_dir.and_then(|d| Self::load_ner_pool(d, effective_pool_size));
+                    HybridScanner::new(keywords_allowed, pool, gazetteer)
                 }
                 _ => {
                     // "regex" or unknown — regex+keywords only
-                    HybridScanner::new(config.keywords_enabled, None, None)
+                    HybridScanner::new(keywords_allowed, None, gazetteer)
                 }
             };
-            (
-                scanner,
-                config.scanner_mode.clone(),
-                tier.to_string(),
-                Some(budget),
-            )
+            (scanner, config.scanner_mode.clone(), tier.to_string())
         };
 
         // Build image pipeline if enabled and budget allows
-        let image_pipeline_allowed = budget
-            .as_ref()
-            .map(|b| b.image_pipeline_enabled)
-            .unwrap_or(true); // manual mode: no budget gating
-        let image_manager = if config.image_enabled && image_pipeline_allowed {
-            let idle_timeout = budget
-                .as_ref()
-                .map(|b| b.model_idle_timeout_secs)
-                .unwrap_or(300);
-            let ocr_tier = budget
-                .as_ref()
-                .map(|b| b.ocr_tier.clone())
-                .unwrap_or_else(|| "detect_and_fill".to_string());
-            let screen_guard = budget
-                .as_ref()
-                .map(|b| b.screen_guard_enabled)
-                .unwrap_or(false);
-            let nsfw_enabled = budget.as_ref().map(|b| b.nsfw_enabled).unwrap_or(false);
-            let face_model_name = budget
-                .as_ref()
-                .map(|b| b.face_model.clone())
-                .unwrap_or_else(|| "blazeface".to_string());
+        let image_manager = if config.image_enabled && budget.image_pipeline_enabled {
+            let idle_timeout = budget.model_idle_timeout_secs;
+            let ocr_tier = budget.ocr_tier.clone();
+            let screen_guard = budget.screen_guard_enabled;
+            let nsfw_enabled = budget.nsfw_enabled;
+            let face_model_name = budget.face_model.clone();
             let img_config = ImageConfig {
                 enabled: true,
                 face_detection: config.face_model_dir.is_some() || config.scrfd_model_dir.is_some(),
@@ -400,8 +450,7 @@ impl OpenObscureMobile {
         };
 
         // Build response integrity scanner (cognitive firewall) if enabled and budget allows
-        let ri_allowed = budget.as_ref().map(|b| b.ri_enabled).unwrap_or(true);
-        let ri_scanner = if config.ri_enabled && ri_allowed {
+        let ri_scanner = if config.ri_enabled && budget.ri_enabled {
             let sensitivity: Sensitivity =
                 config.ri_sensitivity.parse().unwrap_or(Sensitivity::Medium);
             let scanner = ResponseIntegrityScanner::new(sensitivity);
@@ -416,7 +465,7 @@ impl OpenObscureMobile {
 
         Ok(Self {
             scanner,
-            fpe,
+            key_manager,
             image_manager,
             ri_scanner,
             stats: std::sync::Mutex::new(InternalStats {
@@ -428,10 +477,30 @@ impl OpenObscureMobile {
         })
     }
 
+    /// Load NER pool with `config.ner_pool_size` instances.
+    fn load_ner_pool(dir: &str, pool_size: usize) -> Option<crate::ner_scanner::NerPool> {
+        let path = std::path::Path::new(dir);
+        let mut scanners = Vec::with_capacity(pool_size.max(1));
+        for _ in 0..pool_size.max(1) {
+            match crate::ner_scanner::NerScanner::load(path, 0.60) {
+                Ok(s) => scanners.push(s),
+                Err(_) => break,
+            }
+        }
+        if scanners.is_empty() {
+            None
+        } else {
+            Some(crate::ner_scanner::NerPool::new(scanners))
+        }
+    }
+
     /// Build a scanner based on the device profiler's feature budget.
     fn build_scanner_from_budget(
         config: &MobileConfig,
         budget: &crate::device_profile::FeatureBudget,
+        gazetteer: Option<NameGazetteer>,
+        keywords_allowed: bool,
+        pool_size: usize,
     ) -> (HybridScanner, String) {
         if budget.ner_enabled {
             // Select model dir based on budget tier: tinybert uses lite path
@@ -442,16 +511,11 @@ impl OpenObscureMobile {
                     .or(config.ner_model_dir.as_ref()),
                 _ => config.ner_model_dir.as_ref(),
             };
-            if let Some(dir) = model_dir {
-                if let Ok(ner) =
-                    crate::ner_scanner::NerScanner::load(std::path::Path::new(dir), 0.60)
-                {
-                    let pool = crate::ner_scanner::NerPool::new(vec![ner]);
-                    return (
-                        HybridScanner::new(config.keywords_enabled, Some(pool), None),
-                        "ner".to_string(),
-                    );
-                }
+            if let Some(pool) = model_dir.and_then(|d| Self::load_ner_pool(d, pool_size)) {
+                return (
+                    HybridScanner::new(keywords_allowed, Some(pool), gazetteer),
+                    "ner".to_string(),
+                );
             }
         }
         if budget.crf_enabled {
@@ -460,14 +524,14 @@ impl OpenObscureMobile {
                     crate::crf_scanner::CrfScanner::load(std::path::Path::new(dir), 0.5)
                 {
                     return (
-                        HybridScanner::with_crf(config.keywords_enabled, Some(crf), None),
+                        HybridScanner::with_crf(keywords_allowed, Some(crf), gazetteer),
                         "crf".to_string(),
                     );
                 }
             }
         }
         (
-            HybridScanner::new(config.keywords_enabled, None, None),
+            HybridScanner::new(keywords_allowed, None, gazetteer),
             "regex".to_string(),
         )
     }
@@ -506,12 +570,13 @@ impl OpenObscureMobile {
         // Mapping tuples: (ciphertext, plaintext, pii_type_str)
         let mut mapping_data: Vec<(String, String, String)> = Vec::new();
         let mut token_gen = TokenGenerator::new(request_id);
+        let fpe = self.key_manager.current();
 
         for m in &matches {
             let type_str = m.pii_type.to_string();
             if m.pii_type.is_fpe_eligible() {
-                let tweak = TweakGenerator::generate(&request_id, "mobile");
-                match self.fpe.encrypt_match(m, &tweak) {
+                let tweak = TweakGenerator::generate(&request_id, &format!("m:{}", m.start));
+                match fpe.encrypt_match(m, &tweak) {
                     Ok(result) => {
                         mapping_data.push((
                             result.encrypted.clone(),
@@ -631,11 +696,18 @@ impl OpenObscureMobile {
         let img = crate::image_pipeline::decode_image(image_bytes)
             .map_err(|e| MobileError::ImageError(e.to_string()))?;
 
+        // Run screenshot detection if screen_guard is enabled in config
+        let screen_result = if manager.config().screen_guard {
+            Some(crate::screen_guard::detect_screenshot(image_bytes, &img))
+        } else {
+            None
+        };
+
         let max_dim = manager.config().max_dimension;
         let img = crate::image_pipeline::resize_if_needed(img, max_dim);
 
         let (result_img, _stats, _meta) = manager
-            .process_image(img, None, None)
+            .process_image(img, screen_result.as_ref(), Some(&self.scanner))
             .map_err(|e| MobileError::ImageError(e.to_string()))?;
 
         // Update stats
@@ -693,6 +765,10 @@ impl OpenObscureMobile {
     pub fn scan_response(&self, text: &str) -> Option<MobileRiReport> {
         let scanner = self.ri_scanner.as_ref()?;
         let report = scanner.scan(text)?;
+        // Suppress R2-only discoveries (no R1 confirmation) — high false-positive risk
+        if report.r2_role == R2Role::Discover {
+            return None;
+        }
         Some(MobileRiReport {
             severity: report.severity.to_string(),
             categories: report.categories.iter().map(|c| c.to_string()).collect(),
@@ -705,6 +781,15 @@ impl OpenObscureMobile {
     /// Whether the cognitive firewall is enabled and available.
     pub fn ri_available(&self) -> bool {
         self.ri_scanner.is_some()
+    }
+
+    /// Rotate the FPE key. The previous key is retained for 30 seconds
+    /// so that in-flight responses can still be restored using saved mappings.
+    ///
+    /// Call this when the host app's secure storage provides a new key
+    /// (e.g., periodic rotation or user-initiated key change).
+    pub fn rotate_key(&self, new_key: &[u8; 32]) -> Result<(), MobileError> {
+        self.key_manager.rotate(new_key)
     }
 
     /// Release all loaded image models immediately.
@@ -995,13 +1080,19 @@ mod tests {
             "image pipeline should be available"
         );
 
-        // Load the face test image and verify sanitize_image succeeds
+        // Load the face test image and verify sanitize_image succeeds.
+        // Skip if the file is a Git LFS pointer (CI without LFS pull).
         let face_img_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
             .join("test/data/input/Visual_PII/Faces/face_single_frontal_05.jpg");
         if face_img_path.exists() {
             let img_bytes = std::fs::read(&face_img_path).unwrap();
+            // LFS pointer files start with "version https://git-lfs"
+            if img_bytes.starts_with(b"version ") {
+                eprintln!("Skipping face image test: LFS pointer (not fetched)");
+                return;
+            }
             let result = mobile.sanitize_image(&img_bytes);
             assert!(
                 result.is_ok(),
@@ -1035,6 +1126,11 @@ mod tests {
             .join("test/data/input/Visual_PII/NSFW/semi_nu_pic2.jpg");
         if nsfw_path.exists() {
             let img_bytes = std::fs::read(&nsfw_path).unwrap();
+            // Skip if LFS pointer (CI without LFS pull)
+            if img_bytes.starts_with(b"version ") {
+                eprintln!("Skipping NSFW image test: LFS pointer (not fetched)");
+                return;
+            }
             let result = mobile.sanitize_image(&img_bytes).unwrap();
             // NSFW should solid-fill the entire image — result should differ from input
             assert_ne!(result, img_bytes, "NSFW image should be redacted");

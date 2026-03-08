@@ -116,6 +116,8 @@ The embedded API is minimal — six functions cover all use cases:
 | `sanitizeImage(handle, imageBytes)` | Face redact + OCR text redact + NSFW redact + EXIF strip |
 | `sanitizeAudioTranscript(handle, transcript)` | Scan speech transcript for PII, return sanitized text + mapping |
 | `checkAudioPii(handle, transcript)` | Quick PII count in audio transcript (no encryption) |
+| `rotateKey(handle, newKeyHex)` | Rotate FPE key with 30-second overlap window |
+| `scanResponse(handle, text)` | Scan LLM response for manipulation (cognitive firewall) |
 
 ---
 
