@@ -113,7 +113,7 @@ The embedded API is minimal — six functions cover all use cases:
 | `createOpenobscure(configJson, fpeKeyHex)` | Initialize an `OpenObscureHandle` with config and FPE key |
 | `sanitizeText(handle, text)` | Scan text for PII, encrypt matches, return sanitized text + mapping |
 | `restoreText(handle, text, mappingJson)` | Decrypt FPE values in LLM response using saved mapping |
-| `sanitizeImage(handle, imageBytes)` | Face redact + OCR text redact + NSFW redact + EXIF strip |
+| `sanitizeImage(handle, imageBytes)` | EXIF strip (always) + face redact + OCR text redact + NSFW redact (model-dependent) |
 | `sanitizeAudioTranscript(handle, transcript)` | Scan speech transcript for PII, return sanitized text + mapping |
 | `checkAudioPii(handle, transcript)` | Quick PII count in audio transcript (no encryption) |
 | `rotateKey(handle, newKeyHex)` | Rotate FPE key with 30-second overlap window |
@@ -126,6 +126,7 @@ The embedded API is minimal — six functions cover all use cases:
 For detailed integration instructions — Xcode project setup (SPM), Gradle configuration, OkHttp interceptor wiring, and working example diffs from tested third-party apps:
 
 **[Integration Guide](../integration/INTEGRATION_GUIDE.md)** — covers:
+- Bundling all models (~75 MB) with dynamic tier-based loading (Part 6a)
 - Setting up a local SPM package for Xcode (iOS/macOS)
 - Gradle + JNA + ProGuard configuration (Android)
 - `OpenObscureManager` singleton pattern (key storage, sanitize/restore convenience methods)

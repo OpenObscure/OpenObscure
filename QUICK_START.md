@@ -173,9 +173,10 @@ import openobscure_proxy
 // Generate a 32-byte hex key (64 chars) and store in iOS Keychain
 let fpeKey = "0123456789abcdef..."  // 64 hex characters
 
-// Minimal config — auto-detects device tier and selects features
+// Point to bundled models — auto-detects device tier and loads accordingly
+let modelsDir = Bundle.main.resourcePath! + "/models"
 let config = """
-{"auto_detect": true}
+{"scanner_mode": "auto", "models_base_dir": "\(modelsDir)"}
 """
 
 let handle = try createOpenobscure(configJson: config, fpeKeyHex: fpeKey)
@@ -200,7 +201,8 @@ let restored = try restoreText(
 import uniffi.openobscure_proxy.*
 
 val fpeKey = "0123456789abcdef..."  // 64 hex characters
-val config = """{"auto_detect": true}"""
+val modelsDir = copyAssetsDir(context, "models")  // copy from assets to internal storage
+val config = """{"scanner_mode": "auto", "models_base_dir": "$modelsDir"}"""
 
 val handle = createOpenobscure(configJson = config, fpeKeyHex = fpeKey)
 
@@ -223,7 +225,7 @@ val restored = restoreText(
 | `createOpenobscure(configJson, fpeKeyHex)` | Initialize with config and FPE key |
 | `sanitizeText(handle, text)` | Scan + encrypt PII, return sanitized text + mapping |
 | `restoreText(handle, text, mappingJson)` | Decrypt FPE values using saved mapping |
-| `sanitizeImage(handle, imageBytes)` | Face + OCR + NSFW redaction + EXIF strip |
+| `sanitizeImage(handle, imageBytes)` | EXIF strip (always) + face/OCR/NSFW redaction (model-dependent) |
 | `sanitizeAudioTranscript(handle, transcript)` | Scan speech transcript for PII |
 | `checkAudioPii(handle, transcript)` | Quick PII count (no encryption) |
 | `rotateKey(handle, newKeyHex)` | Rotate FPE key with 30-second overlap |

@@ -686,36 +686,43 @@ impl OpenObscureMobile {
 
     /// Process an image for visual PII (face redaction, OCR text redaction, EXIF strip).
     ///
-    /// Returns the sanitized image bytes in the same format as input (JPEG/PNG).
+    /// EXIF metadata is always stripped (decode → re-encode), even when the full
+    /// image pipeline is disabled. Face/OCR/NSFW detection requires models but
+    /// EXIF stripping does not.
+    ///
+    /// Returns the sanitized image bytes in JPEG format.
     pub fn sanitize_image(&self, image_bytes: &[u8]) -> Result<Vec<u8>, MobileError> {
-        let manager = self
-            .image_manager
-            .as_ref()
-            .ok_or_else(|| MobileError::ImageError("Image pipeline not enabled".to_string()))?;
-
+        // Always decode first — this strips all metadata (EXIF, IPTC, XMP)
+        // because the `image` crate only loads pixel data.
         let img = crate::image_pipeline::decode_image(image_bytes)
             .map_err(|e| MobileError::ImageError(e.to_string()))?;
 
-        // Run screenshot detection if screen_guard is enabled in config
-        let screen_result = if manager.config().screen_guard {
-            Some(crate::screen_guard::detect_screenshot(image_bytes, &img))
+        let result_img = if let Some(ref manager) = self.image_manager {
+            // Full pipeline: screenshot detection → resize → face/OCR/NSFW
+            let screen_result = if manager.config().screen_guard {
+                Some(crate::screen_guard::detect_screenshot(image_bytes, &img))
+            } else {
+                None
+            };
+
+            let max_dim = manager.config().max_dimension;
+            let img = crate::image_pipeline::resize_if_needed(img, max_dim);
+
+            let (result_img, _stats, _meta) = manager
+                .process_image(img, screen_result.as_ref(), Some(&self.scanner))
+                .map_err(|e| MobileError::ImageError(e.to_string()))?;
+            result_img
         } else {
-            None
+            // No image pipeline — still resize and strip EXIF via decode → re-encode
+            crate::image_pipeline::resize_if_needed(img, 960)
         };
-
-        let max_dim = manager.config().max_dimension;
-        let img = crate::image_pipeline::resize_if_needed(img, max_dim);
-
-        let (result_img, _stats, _meta) = manager
-            .process_image(img, screen_result.as_ref(), Some(&self.scanner))
-            .map_err(|e| MobileError::ImageError(e.to_string()))?;
 
         // Update stats
         if let Ok(mut s) = self.stats.lock() {
             s.total_images_processed += 1;
         }
 
-        // Encode back to JPEG
+        // Encode back to JPEG (metadata-free)
         let mut buf = std::io::Cursor::new(Vec::new());
         result_img
             .write_to(&mut buf, image::ImageFormat::Jpeg)
@@ -1022,15 +1029,21 @@ mod tests {
     }
 
     #[test]
-    fn test_mobile_image_not_enabled() {
+    fn test_mobile_image_not_enabled_still_strips_exif() {
         let config = MobileConfig {
             image_enabled: false,
             ..MobileConfig::default()
         };
         let mobile = OpenObscureMobile::new(config, make_test_key()).unwrap();
-        let result = mobile.sanitize_image(&[0xFF, 0xD8, 0xFF]); // JPEG header
+        // Invalid bytes still produce a decode error (not "not enabled")
+        let result = mobile.sanitize_image(&[0xFF, 0xD8, 0xFF]);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not enabled"));
+        // Error should be a decode error, not "not enabled"
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            !err_msg.contains("not enabled"),
+            "sanitize_image should attempt decode even without image pipeline: {err_msg}"
+        );
     }
 
     #[test]

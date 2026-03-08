@@ -14,12 +14,15 @@ object OpenObscureManager {
     fun init(context: Context) {
         if (_handle != null) return
         val key = getOrCreateKey(context)
-        // Minimal config — regex-only, no model files needed.
-        // To enable NER/image/RI with bundled models, use models_base_dir:
-        //   val modelsBase = copyAssetsDir(context, "models")
-        //   configJson = """{"scanner_mode":"auto","models_base_dir":"$modelsBase"}"""
+        // Bundle all models under assets/models/. Copy to internal storage at first launch.
+        // The tier system auto-detects device RAM and loads only what fits:
+        //   Full (≥8 GB) → DistilBERT NER, SCRFD, full OCR, NSFW, RI
+        //   Standard (4–8 GB) → TinyBERT NER, SCRFD, detect-only OCR
+        //   Lite (<4 GB) → TinyBERT NER, BlazeFace, minimal pipeline
+        // EXIF metadata is always stripped from images regardless of tier.
+        val modelsDir = copyAssetsDir(context, "models")
         _handle = createOpenobscure(
-            configJson = """{"scanner_mode": "regex"}""",
+            configJson = """{"scanner_mode": "auto", "models_base_dir": "$modelsDir"}""",
             fpeKeyHex = key
         )
     }

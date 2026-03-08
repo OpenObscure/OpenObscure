@@ -91,7 +91,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 | `createOpenobscure` | `(configJson: String, fpeKeyHex: String) -> OpenObscureHandle` | Initialize with config JSON and 32-byte FPE key (64 hex chars) |
 | `sanitizeText` | `(handle, text) -> SanitizeResult` | Scan text for PII, return sanitized text + mapping JSON |
 | `restoreText` | `(handle, text, mappingJson) -> String` | Decrypt FPE tokens in LLM response using saved mapping |
-| `sanitizeImage` | `(handle, imageBytes) -> Data` | Face redaction + OCR redaction on image bytes (JPEG/PNG) |
+| `sanitizeImage` | `(handle, imageBytes) -> Data` | EXIF strip (always) + face/OCR/NSFW redaction (model-dependent) on image bytes (JPEG/PNG) |
 | `sanitizeAudioTranscript` | `(handle, transcript) -> SanitizeResult` | Scan speech transcript for PII |
 | `checkAudioPii` | `(handle, transcript) -> Int` | Quick PII count check (no encryption) |
 | `scanResponse` | `(handle, responseText) -> RiReportFFI?` | Scan LLM response for persuasion/manipulation (cognitive firewall) |
@@ -602,11 +602,95 @@ val restored = restoreText(OpenObscureManager.handle, assistantText, lastMapping
 | Audio transcript PII | Yes | Yes | Yes |
 | FPE key rotation (30s overlap) | Yes | Yes | Yes |
 
-**Recommendation:** Start with `scanner_mode: "regex"` (zero model files, 12 of 15 PII types, 99.7% recall on structured PII). Add NER later if person/location detection is needed.
+**Recommendation:** Bundle all models with `scanner_mode: "auto"` and `models_base_dir`. The tier system dynamically loads only what the device can handle — unused models stay on disk, not in RAM.
 
 ---
 
-## Part 6b: Adding NER (Named Entity Recognition)
+## Part 6a: Bundling All Models (Recommended)
+
+The simplest approach: bundle all model files and let OpenObscure's tier system decide what to load based on device RAM. Models that aren't activated by the device budget are never loaded into memory.
+
+### Model Directory Layout
+
+Copy the `models/` directory from `openobscure-proxy/models/` into your app resources:
+
+```
+models/
+├── ner_lite/          — TinyBERT NER (~14 MB, Standard/Lite tier)
+│   ├── model_int8.onnx
+│   ├── vocab.txt
+│   ├── label_map.json
+│   ├── config.json
+│   ├── tokenizer.json
+│   ├── tokenizer_config.json
+│   └── special_tokens_map.json
+├── scrfd/             — SCRFD face detection (~3.1 MB, Standard/Full tier)
+│   └── scrfd_2.5g.onnx
+├── blazeface/         — BlazeFace face detection (~408 KB, Lite tier fallback)
+│   └── blazeface.onnx
+├── ocr/               — PaddleOCR v4 text detection + recognition (~9.7 MB)
+│   ├── det_model.onnx
+│   ├── rec_model.onnx
+│   └── ppocr_keys.txt
+├── nsfw/              — NudeNet body-part detector (~12 MB, AGPL-3.0)
+│   └── 320n.onnx
+├── nsfw_classifier/   — ViT-tiny holistic NSFW classifier (~21 MB)
+│   └── nsfw_classifier.onnx
+└── ri/                — R2 response integrity classifier (~14 MB, optional)
+    ├── model_int8.onnx
+    └── vocab.txt
+```
+
+**Total size on disk: ~75 MB** (without DistilBERT). Add `ner/` (~64 MB) for Full-tier DistilBERT NER if needed.
+
+### Config
+
+```json
+{"scanner_mode": "auto", "models_base_dir": "<path_to_models>"}
+```
+
+### iOS/macOS Setup
+
+1. Copy the `models/` folder into your Xcode project root
+2. In Xcode: right-click the project navigator → **Add Files** → select `models/` → check **Create folder references** (blue folder icon, not yellow group)
+3. Verify the `models` folder appears in **Build Phases → Copy Bundle Resources**
+
+```swift
+let modelsDir = Bundle.main.resourcePath! + "/models"
+let config = """
+{"scanner_mode": "auto", "models_base_dir": "\(modelsDir)"}
+"""
+let handle = try createOpenobscure(configJson: config, fpeKeyHex: key)
+```
+
+### Android Setup
+
+1. Copy model subdirectories to `app/src/main/assets/models/`
+2. At runtime, copy from assets to internal storage (ONNX Runtime needs file paths):
+
+```kotlin
+val modelsDir = copyAssetsDir(context, "models")
+val config = """{"scanner_mode": "auto", "models_base_dir": "$modelsDir"}"""
+val handle = createOpenobscure(configJson = config, fpeKeyHex = key)
+```
+
+### What Gets Loaded by Tier
+
+| Device RAM | Tier | NER | Face | OCR | NSFW | R2 |
+|-----------|------|-----|------|-----|------|----|
+| ≥8 GB | Full | DistilBERT (or TinyBERT) | SCRFD | Full recognition | Yes | Yes |
+| 4–8 GB | Standard | TinyBERT | SCRFD | Detect + fill | Yes (if budget ≥150 MB) | Yes |
+| <4 GB | Lite | TinyBERT | BlazeFace | Detect + fill | No | No |
+
+Models are loaded **on-demand** when first needed and **evicted after idle timeout** (60–300s depending on tier) to free RAM. EXIF metadata is always stripped from images regardless of which models are loaded.
+
+### AGPL-3.0 Note
+
+NudeNet (`nsfw/320n.onnx`) is AGPL-3.0 licensed. If your app is not AGPL-compatible, omit the `nsfw/` directory — the NSFW detection feature will be disabled but all other features work normally. The `nsfw_classifier/` model uses a permissive license.
+
+---
+
+## Part 6b: Adding NER Only (Minimal)
 
 NER adds detection of **person names**, **locations**, and **organizations** — the 3 PII types that regex alone cannot catch. Two model variants are available:
 
@@ -973,9 +1057,10 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 | Linker error: `_openobscure_proxy_*` | Library not linked | Add `-lopenobscure_proxy` to Other Linker Flags |
 | `UnsatisfiedLinkError` on Android | `.so` not in correct ABI folder | Verify `jniLibs/<abi>/libopenobscure_proxy.so` path |
 | JNA not found on Android | Missing dependency | Add `implementation("net.java.dev.jna:jna:5.15.0@aar")` |
-| Image sanitization fails | No model files on disk | Provide face/OCR model paths in config (or use `models_base_dir`) |
+| Image sanitization fails | No model files on disk | Provide face/OCR model paths in config (or use `models_base_dir`). EXIF is still stripped even without models. |
+| GPS/EXIF leaks in LLM response | Models dir missing or not in app bundle | Verify `models/` is added as a **folder reference** (blue icon) in Xcode, not a group (yellow icon). Check debug log for `models_dir:` path. EXIF stripping is always active — if GPS leaks, `sanitizeImage()` may be failing silently (check for catch blocks using original image). |
 | Image/RI features active unexpectedly | `image_enabled` and `ri_enabled` now default to `true` | Set `"image_enabled": false` or `"ri_enabled": false` explicitly in config JSON to disable |
-| 0 PII detected for names | Regex mode can't detect names | Switch to `scanner_mode: "ner"` and provide NER model |
+| 0 PII detected for names | Regex mode can't detect names | Switch to `scanner_mode: "auto"` with `models_base_dir` pointing to bundled NER model |
 | `Cannot find 'createOpenobscure' in scope` (Swift) | Missing import | Add `import OpenObscureLib` to the file |
 | Type mismatch `UInt64` vs `OpenObscureHandle` | UniFFI generates an opaque class | Use `OpenObscureHandle` type, not `UInt64` |
 | Type mismatch `Int32` vs `UInt32` for `piiCount` | UniFFI uses unsigned types | `piiCount` is `UInt32` in Swift, compare with `> 0u` in Kotlin |

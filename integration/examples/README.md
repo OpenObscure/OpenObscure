@@ -18,6 +18,7 @@ These diffs are provided as reference — adapt the patterns to your own app.
 - `OpenObscureManager.swift` — see [templates/](../templates/OpenObscureManager.swift)
 - Local SPM package (`OpenObscureLib`) wrapping UniFFI bindings + static library
 - Xcode project changes (`.pbxproj`) — add the local package dependency manually
+- `models/` folder reference in Xcode (add as folder reference → Copy Bundle Resources) — see [Integration Guide Part 6a](../INTEGRATION_GUIDE.md#part-6a-bundling-all-models-recommended)
 
 ## RikkaHub (Android — multi-provider LLM client)
 
@@ -37,3 +38,4 @@ These diffs are provided as reference — adapt the patterns to your own app.
 - `OpenObscureInterceptor.kt` — see [templates/](../templates/OpenObscureInterceptor.kt)
 - UniFFI Kotlin bindings (`uniffi/openobscure_proxy/openobscure_proxy.kt`)
 - Native `.so` library in `jniLibs/arm64-v8a/`
+- Model files in `assets/models/` — see [Integration Guide Part 6a](../INTEGRATION_GUIDE.md#part-6a-bundling-all-models-recommended)
