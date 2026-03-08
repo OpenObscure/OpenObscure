@@ -375,28 +375,36 @@ OpenObscure uses **hardware capability detection** (`device_profile` module) to 
 
 Embedded budgets scale proportionally (20% of device RAM, clamped to [12MB, 275MB]). See `openobscure-proxy/src/device_profile.rs` for full tier logic and per-component breakdown.
 
-## PII Coverage Roadmap
+## Roadmap
 
-| Phase | Coverage | What's Added |
-|-------|----------|--------------|
-| **Phase 1** (complete) | **78%** | Regex + FPE for structured PII (CC, SSN, phone, email, API keys) |
-| **Phase 2** (complete) | **91%** | Hybrid scanner (NER/CRF + keywords), health monitoring, nested JSON, code fences |
-| **Phase 2.5** (complete) | **91%** | Unified logging, PII scrub layer, mmap crash buffer, file rotation |
-| **Phase 3** (complete) | **95%** | Visual PII (face redaction, OCR text extraction, EXIF strip, screenshot detection, platform logging) |
-| **Phase 5** (complete) | **97%** | SSE streaming, PII benchmark corpus (~400 samples, 100% recall), production benchmarks (criterion) |
-| **Phase 6** (complete) | **97%** | Ensemble confidence voting (cluster-based overlap resolution + agreement bonus) |
-| **Phase 7** (complete) | **97%** | Cross-platform support (Windows, Linux ARM64), mobile library API (iOS + Android via UniFFI), Embedded deployment model |
-| **Post-Phase 7** (complete) | **98%** | Network/device identifier detection (IPv4, IPv6, GPS coordinates, MAC addresses) — closes PII-06 + PII-12 |
-| **Phase 8** (complete) | **98%** | Production hardening — CI/CD matrix, mobile API gaps (breach detect, SIEM export, encrypted storage), governance feature flags |
-| **Post-Phase 8** (complete) | **99%** | Tier-gated features — SCRFD-2.5GF face detection (Full/Standard), L1 NER via L0 endpoint, CoreML/NNAPI mobile EPs, PP-OCRv4 English OCR, 99.7% recall |
-| **Phase 9** (complete) | **99%** | Runtime hardware capability detection — device profiler auto-selects features based on RAM; mobile devices with 8GB+ get full NER + ensemble parity with gateway |
-| **Phase 10** (complete) | **99.5%** | Multilingual PII (9 languages, national ID validation), voice anonymization (KWS keyword spotting via sherpa-onnx Zipformer), mobile test apps (iOS + Android), UniFFI binding automation, TinyBERT fine-tuning dataset, OpenClaw `before_tool_call` preparation |
-| **Phase R1** (complete) | **99.5%** | Response integrity cognitive firewall — persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases), severity tiers (Notice/Warning/Caution), optional warning labels (EU AI Act Article 5), Anthropic + OpenAI format support |
-| **Phase 11** (complete) | **99.5%** | SSE frame accumulation buffer (`SseAccumulator`), model pre-warming (`ReadinessState`), tier-aware body size limits, request/response FPE mapping module |
-| **Phase 12** (complete) | **99.5%** | R2 cognitive firewall — TinyBERT FP32 multi-label classifier (4 EU AI Act Article 5 categories), R1→R2 cascade (Confirm/Suppress/Upgrade/Discover), first-window early exit, ONNX FP32 export (54.9 MB), macro P=80.9% R=74.5% F1=77.3% |
-| **Phase 13** (partial) | **99.5%** | Embedded voice pipeline — platform speech APIs (iOS `SFSpeechRecognizer` + Android `SpeechRecognizer`), mobile audio transcript PII methods (`sanitizeAudioTranscript`/`checkAudioPii` via UniFFI), L1 cognitive firewall (JS persuasion dictionary, NAPI bridge), comprehensive testing (Tier 1-4 coverage) |
-| **Phase 15** (complete) | **99.5%** | Ensemble NSFW classifier — ViT-tiny holistic model (Marqo/nsfw-image-detection-384) as Phase 0b fallback when NudeNet clean, multi-LLM response format detection (`response_format.rs`) |
-| **Phase 19** (complete) | **99.5%** | Mobile parity — name gazetteer, per-match FPE tweaks, key rotation (30s overlap), OCR full scanner, screenshot detection, NER pool config, R2 Discover suppression, all features tier-gated via FeatureBudget |
+### Current Capabilities
+
+| Category | What's Detected / Protected | Tier |
+|----------|----------------------------|------|
+| **Structured PII** | Credit cards (Luhn), SSNs (range-validated), phone numbers, emails, API keys (`sk-`, `AKIA`, etc.), IBANs | All |
+| **Network / Device** | IPv4, IPv6 (full + compressed), GPS coordinates (4+ decimal), MAC addresses | All |
+| **Semantic PII** | Person names, addresses, organizations (NER/CRF), name gazetteer | All |
+| **Health / Child** | ~700 keyword terms (multilingual) | All |
+| **Multilingual** | 9 languages (es/fr/de/pt/ja/zh/ko/ar) + national ID check-digit validation (DNI, NIR, CPF, My Number, etc.) | All |
+| **Visual — Faces** | SCRFD-2.5GF solid-fill redaction | Full / Standard |
+| **Visual — Faces** | Ultra-Light RFB-320 solid-fill redaction | Lite |
+| **Visual — Text** | PaddleOCR PP-OCRv4 solid-fill redaction in screenshots/images | All (with models) |
+| **Visual — NSFW** | NudeNet body-part detector + ViT-tiny holistic classifier — solid-fill entire image | All (with models) |
+| **Visual — Metadata** | EXIF strip, screenshot detection (heuristics) | All |
+| **Voice** | KWS keyword spotting (sherpa-onnx Zipformer, ~5MB INT8) — PII trigger phrase detection + audio transcript sanitization | All (`voice` feature) |
+| **FPE Encryption** | FF1 (NIST SP 800-38G) — format-preserving, per-record tweaks, key rotation with 30s overlap | All |
+| **Ensemble Voting** | Cluster-based overlap resolution + agreement bonus across scanner types | Full |
+| **Cognitive Firewall** | R1 dictionary (~250 phrases, 7 Cialdini categories) + R2 TinyBERT classifier (4 EU AI Act Article 5 categories), R1→R2 cascade | Full / Standard |
+| **SSE Streaming** | Frame accumulation buffer for cross-frame PII/FPE reassembly | All |
+| **Platforms** | macOS, Linux (x64 + ARM64), Windows (x64), iOS (device + simulator), Android (arm64-v8a, x86_64) | All |
+
+**Recall:** 99.7% (regex scanner), 100% precision. Hybrid scanner 99.7% overall across ~400-sample benchmark corpus.
+
+### Planned
+
+- **Protection status header** — `X-OpenObscure-Protection` response header so UI clients can display a privacy indicator
+- **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path
+- **Streaming redaction** — Incremental redaction for large tool results (blocked by OpenClaw's synchronous hook API)
 
 ## Project Layout
 
@@ -547,29 +555,3 @@ It depends on the device's capability tier. OpenObscure detects hardware at star
 **What happens if OpenObscure is disabled or crashes?**
 If L0 is not running, the host agent can't reach LLM providers (traffic is configured to route through the proxy). If L1 crashes, the agent continues normally but tool results won't be redacted. If OpenObscure is fully disabled via configuration, the agent operates with direct LLM connections — zero overhead.
 
-## Future Architecture Changes
-
-Recently completed:
-- **Ensemble NSFW classifier** — ViT-tiny (Marqo/nsfw-image-detection-384, 21MB FP32 ONNX) as Phase 0b fallback — catches semi-nude content NudeNet body-part detector misses, 0.75 threshold, fail-open, lazy-loaded with eviction — DONE (Phase 15)
-- **Multi-LLM response format detection** — `response_format.rs` auto-detects 6 provider formats (Anthropic, OpenAI, Gemini, Cohere, Ollama, plaintext) for response integrity text extraction — DONE
-- **ONNX Runtime mobile EPs** — CoreML (Apple) and NNAPI (Android) via `ort_ep.rs` — DONE
-- **SCRFD multi-scale face detection** — SCRFD-2.5GF for Full/Standard tiers, Ultra-Light RFB-320 for Lite (BlazeFace fallback) — DONE
-- **GLiNER NER evaluation** — DROPPED (82.78% recall, worse than TinyBERT 97%)
-- **Multilingual PII detection** — `whatlang` language detection + per-language regex/keywords for 9 languages with national ID check-digit validation — DONE (Phase 10C)
-- **Voice anonymization** — KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8), detects PII trigger phrases and strips matching audio blocks, `voice` feature flag — DONE (Phase 10D)
-- **Mobile test apps** — iOS (SwiftUI, 25 runner + 30 XCTest incl. audio) and Android (Compose, 36 instrumented incl. audio + 8 UI) — DONE (Phase 10A + 13D)
-- **`before_tool_call` preparation** — L1 plugin prepared handler that auto-activates when OpenClaw wires the hook — DONE (Phase 10F)
-- **Response integrity cognitive firewall** — Persuasion/manipulation detection on LLM responses (7 categories, ~250 phrases, severity tiers, warning labels, EU AI Act Article 5) — DONE (Phase R1)
-- **Embedded cognitive firewall** — JS persuasion dictionary (248 phrases, 7 Cialdini categories) + NAPI `scan_persuasion()` bridge in L1 plugin — mirrors Rust R1 logic exactly — DONE (Phase 13F)
-- **Mobile voice platform APIs** — `sanitizeAudioTranscript`/`checkAudioPii` UniFFI methods + iOS `SFSpeechRecognizer` + Android `SpeechRecognizer` wrappers — DONE (Phase 13D)
-- **UniFFI API surface CI assertion** — Binding drift check + function presence verification for 8 required APIs in both Swift and Kotlin bindings — DONE (Phase 14C)
-- **Third-party app integration guide** — Step-by-step embedded integration for Enchanted (iOS/macOS Ollama client) and RikkaHub (Android multi-provider LLM client) with code examples for all intercept points — DONE (Phase 14)
-- **SSE frame accumulation** — `SseAccumulator` cross-frame buffer for PII token and FPE ciphertext reassembly in streaming responses — DONE (Phase 11)
-- **Model pre-warming** — `ReadinessState` enum (Cold/Warming/Ready) in health.rs, health returns 503 until warm — DONE (Phase 11)
-- **Tier-aware body limits** — Per-tier body size limits (Lite 10MB, Standard 50MB, Full 100MB) with streaming early-reject — DONE (Phase 11)
-- **Response integrity R2** — TinyBERT FP32 multi-label classifier for 4 EU AI Act Article 5 categories, R1→R2 cascade (Confirm/Suppress/Upgrade/Discover), first-window early exit, SSE streaming via SseAccumulator — DONE (Phase 12)
-
-Planned (future):
-- **Protection status header** — L0 injects `X-OpenObscure-Protection` response header (`pii=on; ri=on; image=on`) so L1 or any UI client can display a "Privacy Protection ON" indicator; header stripped before upstream forwarding
-- **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D, deferred)
-- **Streaming redaction** — Incremental redaction for large tool results (blocked by OpenClaw's synchronous hook API)
