@@ -56,7 +56,8 @@ pub struct MobileConfig {
     pub ner_model_dir_lite: Option<String>,
 
     /// Enable image processing pipeline.
-    #[serde(default)]
+    /// Defaults to true — the device budget gates actual activation.
+    #[serde(default = "default_true")]
     pub image_enabled: bool,
 
     /// Path to BlazeFace model directory (Lite tier).
@@ -75,12 +76,17 @@ pub struct MobileConfig {
     #[serde(default)]
     pub nsfw_model_dir: Option<String>,
 
+    /// Path to NSFW holistic classifier model directory (Phase 0b cascade).
+    #[serde(default)]
+    pub nsfw_classifier_model_dir: Option<String>,
+
     /// Maximum image dimension before resize.
     #[serde(default = "default_max_dimension")]
     pub max_dimension: u32,
 
     /// Enable response integrity (cognitive firewall) scanning.
-    #[serde(default)]
+    /// Defaults to true — the device budget gates actual activation.
+    #[serde(default = "default_true")]
     pub ri_enabled: bool,
 
     /// Response integrity sensitivity: "off", "low", "medium" (default), "high".
@@ -91,6 +97,13 @@ pub struct MobileConfig {
     /// Optional — R1 dictionary scan works without any model files.
     #[serde(default)]
     pub ri_model_dir: Option<String>,
+
+    /// Base directory containing model subdirectories.
+    /// When set, individual `*_model_dir` fields are auto-resolved from standard
+    /// subdirectory names (ner/, ner_lite/, crf/, scrfd/, blazeface/, ocr/, nsfw/, ri/).
+    /// Individual `*_model_dir` fields override the auto-resolved path if both are set.
+    #[serde(default)]
+    pub models_base_dir: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -109,6 +122,39 @@ fn default_ri_sensitivity() -> String {
     "medium".to_string()
 }
 
+impl MobileConfig {
+    /// Resolve individual `*_model_dir` fields from `models_base_dir`.
+    ///
+    /// For each model directory field that is `None`, checks if the standard
+    /// subdirectory exists under `models_base_dir` and sets it. Explicit
+    /// per-model paths always take priority.
+    fn resolve_model_dirs(&mut self) {
+        let base = match self.models_base_dir.as_ref() {
+            Some(b) => std::path::PathBuf::from(b),
+            None => return,
+        };
+
+        let resolve = |field: &mut Option<String>, subdir: &str| {
+            if field.is_none() {
+                let path = base.join(subdir);
+                if path.is_dir() {
+                    *field = Some(path.to_string_lossy().into_owned());
+                }
+            }
+        };
+
+        resolve(&mut self.ner_model_dir, "ner");
+        resolve(&mut self.ner_model_dir_lite, "ner_lite");
+        resolve(&mut self.crf_model_dir, "crf");
+        resolve(&mut self.scrfd_model_dir, "scrfd");
+        resolve(&mut self.face_model_dir, "blazeface");
+        resolve(&mut self.ocr_model_dir, "ocr");
+        resolve(&mut self.nsfw_model_dir, "nsfw");
+        resolve(&mut self.nsfw_classifier_model_dir, "nsfw_classifier");
+        resolve(&mut self.ri_model_dir, "ri");
+    }
+}
+
 impl Default for MobileConfig {
     fn default() -> Self {
         Self {
@@ -118,15 +164,17 @@ impl Default for MobileConfig {
             crf_model_dir: None,
             ner_model_dir: None,
             ner_model_dir_lite: None,
-            image_enabled: false,
+            image_enabled: true,
             face_model_dir: None,
             scrfd_model_dir: None,
             ocr_model_dir: None,
             nsfw_model_dir: None,
+            nsfw_classifier_model_dir: None,
             max_dimension: 960,
-            ri_enabled: false,
+            ri_enabled: true,
             ri_sensitivity: "medium".to_string(),
             ri_model_dir: None,
+            models_base_dir: None,
         }
     }
 }
@@ -217,7 +265,10 @@ impl OpenObscureMobile {
     /// the device profiler detects hardware capabilities and enables the
     /// best scanner the device can support (NER on 8GB+ devices, CRF on
     /// 4-8GB, regex-only on <4GB).
-    pub fn new(config: MobileConfig, fpe_key: [u8; 32]) -> Result<Self, MobileError> {
+    pub fn new(mut config: MobileConfig, fpe_key: [u8; 32]) -> Result<Self, MobileError> {
+        // Resolve model paths from base directory before anything else
+        config.resolve_model_dirs();
+
         let fpe = FpeEngine::new(&fpe_key)?;
 
         // Determine scanner and tier via auto-detection or explicit mode
@@ -331,8 +382,12 @@ impl OpenObscureMobile {
                     None
                 },
                 nsfw_threshold: 0.45,
-                nsfw_classifier_enabled: false, // Classifier not yet bundled for mobile
-                nsfw_classifier_model_dir: None,
+                nsfw_classifier_enabled: nsfw_enabled && config.nsfw_classifier_model_dir.is_some(),
+                nsfw_classifier_model_dir: if nsfw_enabled {
+                    config.nsfw_classifier_model_dir
+                } else {
+                    None
+                },
                 nsfw_classifier_threshold: 0.75,
                 url_fetch_enabled: false, // Mobile doesn't fetch URLs
                 url_max_bytes: 0,
@@ -448,28 +503,34 @@ impl OpenObscureMobile {
 
         // Build replacements sorted by position (reverse order for safe replacement)
         let mut replacements: Vec<(usize, usize, String)> = Vec::new();
-        let mut mapping_data: Vec<(String, String)> = Vec::new();
+        // Mapping tuples: (ciphertext, plaintext, pii_type_str)
+        let mut mapping_data: Vec<(String, String, String)> = Vec::new();
         let mut token_gen = TokenGenerator::new(request_id);
 
         for m in &matches {
+            let type_str = m.pii_type.to_string();
             if m.pii_type.is_fpe_eligible() {
                 let tweak = TweakGenerator::generate(&request_id, "mobile");
                 match self.fpe.encrypt_match(m, &tweak) {
                     Ok(result) => {
-                        mapping_data.push((result.encrypted.clone(), m.raw_value.clone()));
+                        mapping_data.push((
+                            result.encrypted.clone(),
+                            m.raw_value.clone(),
+                            type_str,
+                        ));
                         replacements.push((m.start, m.end, result.encrypted));
                     }
                     Err(_) => {
                         // FPE failed (e.g. domain too small) — fall back to hash token
                         let token = token_gen.generate(m.pii_type, &m.raw_value);
-                        mapping_data.push((token.clone(), m.raw_value.clone()));
+                        mapping_data.push((token.clone(), m.raw_value.clone(), type_str));
                         replacements.push((m.start, m.end, token));
                     }
                 }
             } else {
                 // Non-FPE types get hash-based token (e.g., PER_a7f2)
                 let token = token_gen.generate(m.pii_type, &m.raw_value);
-                mapping_data.push((token.clone(), m.raw_value.clone()));
+                mapping_data.push((token.clone(), m.raw_value.clone(), type_str));
                 replacements.push((m.start, m.end, token));
             }
         }
@@ -503,19 +564,58 @@ impl OpenObscureMobile {
     /// Restore original PII values in a response text using saved mappings.
     ///
     /// The `mapping_json` should be the value from a previous `sanitize_text()` call.
+    /// Mirrors the gateway's `decrypt_response` logic:
+    /// 1. Normalize markdown escapes (`\_` → `_`) — LLMs escape underscores in tokens
+    /// 2. Normalize unicode dashes (en-dash, em-dash, etc.) to ASCII hyphens
+    /// 3. Exact match pass (fast path)
+    /// 4. Fuzzy regex match for numeric PII types (handles LLM reformatting of separators)
     pub fn restore_text(&self, text: &str, mapping_json: &str) -> String {
-        let mappings: Vec<(String, String)> = match serde_json::from_str(mapping_json) {
-            Ok(m) => m,
-            Err(_) => return text.to_string(),
-        };
+        // Accept both 2-tuple (legacy) and 3-tuple (with PII type) formats
+        let mappings: Vec<(String, String, Option<String>)> =
+            if let Ok(m) = serde_json::from_str::<Vec<(String, String, String)>>(mapping_json) {
+                m.into_iter().map(|(c, p, t)| (c, p, Some(t))).collect()
+            } else if let Ok(m) = serde_json::from_str::<Vec<(String, String)>>(mapping_json) {
+                m.into_iter().map(|(c, p)| (c, p, None)).collect()
+            } else {
+                return text.to_string();
+            };
 
-        let mut result = text.to_string();
+        // Normalize: markdown escape + unicode dashes (same as gateway)
+        let result = text.replace("\\_", "_");
+        let mut result = crate::mapping::normalize_unicode_dashes(&result);
+
         // Sort by ciphertext length descending to avoid partial matches
-        let mut sorted_mappings = mappings;
-        sorted_mappings.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
-        for (ciphertext, plaintext) in &sorted_mappings {
-            result = result.replace(ciphertext, plaintext);
+        let mut sorted = mappings;
+        sorted.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
+
+        // Phase 1: Exact match (fast path)
+        let mut unmatched_numeric: Vec<&(String, String, Option<String>)> = Vec::new();
+        for entry in &sorted {
+            if result.contains(&entry.0) {
+                result = result.replace(&entry.0, &entry.1);
+            } else if let Some(ref t) = entry.2 {
+                if matches!(t.as_str(), "credit_card" | "ssn" | "phone" | "iban") {
+                    unmatched_numeric.push(entry);
+                }
+            }
         }
+
+        // Phase 2: Fuzzy regex match for unmatched numeric PII (handles LLM reformatting)
+        for (ciphertext, plaintext, type_str) in &unmatched_numeric {
+            let pii_type = match type_str.as_deref() {
+                Some("phone") => crate::pii_types::PiiType::PhoneNumber,
+                Some("ssn") => crate::pii_types::PiiType::Ssn,
+                Some("credit_card") => crate::pii_types::PiiType::CreditCard,
+                Some("iban") => crate::pii_types::PiiType::Iban,
+                _ => continue,
+            };
+            if let Some(re) = crate::mapping::build_fpe_fuzzy_regex(ciphertext, &pii_type) {
+                result = re
+                    .replace_all(&result, regex::NoExpand(plaintext))
+                    .to_string();
+            }
+        }
+
         result
     }
 
@@ -648,6 +748,24 @@ mod tests {
     }
 
     #[test]
+    fn test_mobile_sanitize_api_key() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile
+            .sanitize_text("Here's my ABC key: sk-ant-api03-abc123def456ghi789jkl012mn")
+            .unwrap();
+        eprintln!("api_key sanitized: {}", result.sanitized_text);
+        assert!(result.pii_count >= 1, "Expected API key to be detected");
+        assert!(
+            !result
+                .sanitized_text
+                .contains("sk-ant-api03-abc123def456ghi789jkl012mn"),
+            "API key should be sanitized, got: {}",
+            result.sanitized_text
+        );
+        assert!(result.categories.contains(&"api_key".to_string()));
+    }
+
+    #[test]
     fn test_mobile_sanitize_email() {
         let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
         let result = mobile
@@ -690,7 +808,104 @@ mod tests {
         let _ = mobile.sanitize_text("Card: 4111-1111-1111-1111");
         let stats = mobile.stats();
         assert!(stats.total_pii_found >= 1);
-        assert!(!stats.image_pipeline_available);
+        assert!(stats.image_pipeline_available);
+    }
+
+    #[test]
+    fn test_mobile_sanitize_ipv4() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile.sanitize_text("Server IP is 203.0.113.42").unwrap();
+        assert!(result.pii_count >= 1, "Expected IP to be detected");
+        assert!(
+            !result.sanitized_text.contains("203.0.113.42"),
+            "IP should be sanitized, got: {}",
+            result.sanitized_text
+        );
+        assert!(result.categories.contains(&"ipv4_address".to_string()));
+    }
+
+    #[test]
+    fn test_mobile_sanitize_mac_address() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile.sanitize_text("MAC: aa:bb:cc:dd:ee:ff").unwrap();
+        assert!(result.pii_count >= 1, "Expected MAC to be detected");
+        assert!(
+            !result.sanitized_text.contains("aa:bb:cc:dd:ee:ff"),
+            "MAC should be sanitized, got: {}",
+            result.sanitized_text
+        );
+        assert!(result.categories.contains(&"mac_address".to_string()));
+    }
+
+    #[test]
+    fn test_mobile_sanitize_gps() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile
+            .sanitize_text("Location: 45.52310, -122.67650")
+            .unwrap();
+        assert!(result.pii_count >= 1, "Expected GPS to be detected");
+        assert!(
+            !result.sanitized_text.contains("45.52310"),
+            "GPS should be sanitized, got: {}",
+            result.sanitized_text
+        );
+        assert!(result.categories.contains(&"gps_coordinate".to_string()));
+    }
+
+    #[test]
+    fn test_mobile_sanitize_ipv4_roundtrip() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let result = mobile.sanitize_text("Server IP is 203.0.113.42").unwrap();
+        assert!(result.pii_count >= 1);
+        let restored = mobile.restore_text(&result.sanitized_text, &result.mapping_json);
+        assert!(
+            restored.contains("203.0.113.42"),
+            "Expected restored text to contain original IP, got: {}",
+            restored
+        );
+    }
+
+    #[test]
+    fn test_mobile_ri_scan_detects_persuasion() {
+        let mobile = OpenObscureMobile::new(make_ri_config(), make_test_key()).unwrap();
+        assert!(mobile.ri_available());
+        let report = mobile.scan_response(
+            "You must act now! This is a limited time offer. Don't miss out or you'll regret it forever. Trust me, I'm an expert.",
+        );
+        assert!(
+            report.is_some(),
+            "Expected RI scanner to detect persuasion phrases"
+        );
+        let r = report.unwrap();
+        assert!(
+            !r.categories.is_empty(),
+            "Expected at least one persuasion category"
+        );
+    }
+
+    #[test]
+    fn test_mobile_ri_scan_short_phrase() {
+        let mobile = OpenObscureMobile::new(make_ri_config(), make_test_key()).unwrap();
+        assert!(mobile.ri_available());
+        let report = mobile.scan_response("You must act now! Don't miss out!");
+        eprintln!("Short phrase RI result: {:?}", report);
+        // Even a short phrase with "act now" + "don't miss out" should be detected
+        assert!(
+            report.is_some(),
+            "Expected short persuasion phrase to be detected"
+        );
+    }
+
+    #[test]
+    fn test_mobile_ri_scan_clean_response() {
+        let mobile = OpenObscureMobile::new(make_ri_config(), make_test_key()).unwrap();
+        let report =
+            mobile.scan_response("The weather today is partly cloudy with a high of 72 degrees.");
+        assert!(
+            report.is_none(),
+            "Expected clean response to return None, got: {:?}",
+            report
+        );
     }
 
     #[test]
@@ -708,7 +923,9 @@ mod tests {
         assert_eq!(config.scanner_mode, "auto");
         assert!(config.auto_detect);
         assert!(config.ner_model_dir.is_none());
-        assert!(!config.image_enabled);
+        assert!(config.image_enabled);
+        assert!(config.ri_enabled);
+        assert!(config.models_base_dir.is_none());
         assert_eq!(config.max_dimension, 960);
     }
 
@@ -721,7 +938,11 @@ mod tests {
 
     #[test]
     fn test_mobile_image_not_enabled() {
-        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let config = MobileConfig {
+            image_enabled: false,
+            ..MobileConfig::default()
+        };
+        let mobile = OpenObscureMobile::new(config, make_test_key()).unwrap();
         let result = mobile.sanitize_image(&[0xFF, 0xD8, 0xFF]); // JPEG header
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not enabled"));
@@ -750,6 +971,79 @@ mod tests {
         assert!(result.pii_count >= 2);
         assert!(!result.sanitized_text.contains("4111"));
         assert!(!result.sanitized_text.contains("123-45-6789"));
+    }
+
+    #[test]
+    fn test_mobile_models_base_dir_enables_face_detection() {
+        // Simulates the exact config Enchanted/RikkaHub use
+        let models_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("models");
+        let config_json = format!(
+            r#"{{"scanner_mode": "regex", "models_base_dir": "{}"}}"#,
+            models_dir.display()
+        );
+        let config: MobileConfig = serde_json::from_str(&config_json).unwrap();
+        assert!(config.image_enabled, "image_enabled should default to true");
+        assert!(
+            config.scrfd_model_dir.is_none(),
+            "before resolve, scrfd_model_dir should be None"
+        );
+
+        let mobile = OpenObscureMobile::new(config, make_test_key()).unwrap();
+        let stats = mobile.stats();
+        assert!(
+            stats.image_pipeline_available,
+            "image pipeline should be available"
+        );
+
+        // Load the face test image and verify sanitize_image succeeds
+        let face_img_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("test/data/input/Visual_PII/Faces/face_single_frontal_05.jpg");
+        if face_img_path.exists() {
+            let img_bytes = std::fs::read(&face_img_path).unwrap();
+            let result = mobile.sanitize_image(&img_bytes);
+            assert!(
+                result.is_ok(),
+                "sanitize_image should succeed: {:?}",
+                result.err()
+            );
+            let sanitized = result.unwrap();
+            // Sanitized image should be different from original (face redaction applied)
+            assert_ne!(sanitized.len(), 0);
+            assert_ne!(
+                sanitized, img_bytes,
+                "sanitized image should differ from original"
+            );
+        }
+    }
+
+    #[test]
+    fn test_mobile_nsfw_detection_via_models_base_dir() {
+        let models_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("models");
+        let config_json = format!(
+            r#"{{"scanner_mode": "regex", "models_base_dir": "{}"}}"#,
+            models_dir.display()
+        );
+        let mobile =
+            OpenObscureMobile::new(serde_json::from_str(&config_json).unwrap(), make_test_key())
+                .unwrap();
+
+        let nsfw_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("test/data/input/Visual_PII/NSFW/semi_nu_pic2.jpg");
+        if nsfw_path.exists() {
+            let img_bytes = std::fs::read(&nsfw_path).unwrap();
+            let result = mobile.sanitize_image(&img_bytes).unwrap();
+            // NSFW should solid-fill the entire image — result should differ from input
+            assert_ne!(result, img_bytes, "NSFW image should be redacted");
+            eprintln!(
+                "NSFW result: {} bytes (original {} bytes)",
+                result.len(),
+                img_bytes.len()
+            );
+        }
     }
 
     #[test]
@@ -783,6 +1077,87 @@ mod tests {
         let config: MobileConfig = serde_json::from_str(json).unwrap();
         assert!(!config.auto_detect);
         assert_eq!(config.scanner_mode, "regex");
+    }
+
+    #[test]
+    fn test_mobile_config_defaults_budget_driven() {
+        // All feature flags should default to true — the budget gates activation
+        let config = MobileConfig::default();
+        assert!(config.image_enabled, "image_enabled should default to true");
+        assert!(config.ri_enabled, "ri_enabled should default to true");
+        assert!(
+            config.keywords_enabled,
+            "keywords_enabled should default to true"
+        );
+        assert!(config.auto_detect, "auto_detect should default to true");
+        assert_eq!(config.scanner_mode, "auto");
+    }
+
+    #[test]
+    fn test_mobile_config_deserialize_defaults_true() {
+        // Minimal config — all feature flags should be true by default
+        let json = r#"{}"#;
+        let config: MobileConfig = serde_json::from_str(json).unwrap();
+        assert!(config.image_enabled);
+        assert!(config.ri_enabled);
+        assert!(config.keywords_enabled);
+        assert!(config.auto_detect);
+        assert!(config.models_base_dir.is_none());
+    }
+
+    #[test]
+    fn test_mobile_config_models_base_dir_resolves() {
+        let tmp = std::env::temp_dir().join("oo_test_base_dir");
+        let _ = std::fs::remove_dir_all(&tmp);
+        // Create standard subdirectories
+        std::fs::create_dir_all(tmp.join("ner")).unwrap();
+        std::fs::create_dir_all(tmp.join("ocr")).unwrap();
+        std::fs::create_dir_all(tmp.join("scrfd")).unwrap();
+
+        let mut config = MobileConfig {
+            models_base_dir: Some(tmp.to_string_lossy().into_owned()),
+            ..MobileConfig::default()
+        };
+        config.resolve_model_dirs();
+
+        assert_eq!(
+            config.ner_model_dir.as_deref(),
+            Some(tmp.join("ner").to_str().unwrap())
+        );
+        assert_eq!(
+            config.ocr_model_dir.as_deref(),
+            Some(tmp.join("ocr").to_str().unwrap())
+        );
+        assert_eq!(
+            config.scrfd_model_dir.as_deref(),
+            Some(tmp.join("scrfd").to_str().unwrap())
+        );
+        // Subdirs that don't exist should remain None
+        assert!(config.crf_model_dir.is_none());
+        assert!(config.nsfw_model_dir.is_none());
+        assert!(config.face_model_dir.is_none());
+        assert!(config.ri_model_dir.is_none());
+
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    #[test]
+    fn test_mobile_config_explicit_dir_overrides_base() {
+        let tmp = std::env::temp_dir().join("oo_test_override");
+        let _ = std::fs::remove_dir_all(&tmp);
+        std::fs::create_dir_all(tmp.join("ner")).unwrap();
+
+        let mut config = MobileConfig {
+            models_base_dir: Some(tmp.to_string_lossy().into_owned()),
+            ner_model_dir: Some("/explicit/ner".to_string()),
+            ..MobileConfig::default()
+        };
+        config.resolve_model_dirs();
+
+        // Explicit path takes priority over base dir resolution
+        assert_eq!(config.ner_model_dir.as_deref(), Some("/explicit/ner"));
+
+        let _ = std::fs::remove_dir_all(&tmp);
     }
 
     #[test]
@@ -925,10 +1300,23 @@ mod tests {
     }
 
     #[test]
-    fn test_mobile_ri_default_disabled() {
+    fn test_mobile_ri_default_enabled() {
+        // RI defaults to enabled — budget gates activation
         let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        assert!(mobile.ri_available());
+        // R1 dictionary scanner works without models
+        let result = mobile.scan_response("Act now or lose your account!");
+        assert!(result.is_some(), "R1 should detect persuasion phrases");
+    }
+
+    #[test]
+    fn test_mobile_ri_explicitly_disabled() {
+        let config = MobileConfig {
+            ri_enabled: false,
+            ..MobileConfig::default()
+        };
+        let mobile = OpenObscureMobile::new(config, make_test_key()).unwrap();
         assert!(!mobile.ri_available());
-        // scan_response returns None when RI is disabled
         assert!(mobile
             .scan_response("Act now or lose your account!")
             .is_none());
@@ -938,6 +1326,28 @@ mod tests {
     fn test_mobile_ri_enabled_r1_only() {
         let mobile = OpenObscureMobile::new(make_ri_config(), make_test_key()).unwrap();
         assert!(mobile.ri_available());
+    }
+
+    #[test]
+    fn test_mobile_ri_with_regex_scanner_mode() {
+        // Simulate exact Enchanted config
+        let json = r#"{"scanner_mode": "regex", "models_base_dir": "/nonexistent"}"#;
+        let config: MobileConfig = serde_json::from_str(json).unwrap();
+        assert!(
+            config.ri_enabled,
+            "ri_enabled should default to true even with scanner_mode=regex"
+        );
+        let mobile = OpenObscureMobile::new(config, make_test_key()).unwrap();
+        assert!(
+            mobile.ri_available(),
+            "RI should be available with scanner_mode=regex"
+        );
+        let report = mobile.scan_response("You must act now! Don't miss out!");
+        eprintln!("regex mode RI result: {:?}", report);
+        assert!(
+            report.is_some(),
+            "Should detect persuasion with scanner_mode=regex"
+        );
     }
 
     #[test]
@@ -1017,5 +1427,81 @@ mod tests {
         assert!(config.ri_enabled);
         assert_eq!(config.ri_sensitivity, "high");
         assert_eq!(config.ri_model_dir.unwrap(), "/models/ri");
+    }
+
+    #[test]
+    fn test_mobile_restore_markdown_escaped_tokens() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let sanitized = mobile
+            .sanitize_text("Patient has hypertension and diabetes")
+            .unwrap();
+        assert!(sanitized.pii_count >= 2);
+
+        // Simulate LLM escaping underscores in hash tokens: HLT_xxxx → HLT\_xxxx
+        let escaped = sanitized.sanitized_text.replace("_", "\\_");
+        let restored = mobile.restore_text(&escaped, &sanitized.mapping_json);
+        assert!(
+            restored.contains("hypertension"),
+            "Markdown-escaped token should be restored, got: {}",
+            restored
+        );
+        assert!(
+            restored.contains("diabetes"),
+            "Markdown-escaped token should be restored, got: {}",
+            restored
+        );
+    }
+
+    #[test]
+    fn test_mobile_restore_unicode_dashes() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let sanitized = mobile.sanitize_text("SSN: 123-45-6789").unwrap();
+        assert!(sanitized.pii_count >= 1);
+
+        // Replace ASCII hyphens with en-dashes in the ciphertext (LLM behavior)
+        let with_endash = sanitized.sanitized_text.replace('-', "\u{2013}");
+        let restored = mobile.restore_text(&with_endash, &sanitized.mapping_json);
+        assert!(
+            restored.contains("123-45-6789"),
+            "Unicode dash normalization should enable restore, got: {}",
+            restored
+        );
+    }
+
+    #[test]
+    fn test_mobile_restore_fuzzy_phone_reformatting() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let sanitized = mobile.sanitize_text("Call (305) 555-0188").unwrap();
+        assert!(sanitized.pii_count >= 1);
+
+        // Extract the FPE-encrypted phone digits, reformat with dots (LLM behavior)
+        let ct = &sanitized.sanitized_text;
+        let digits: String = ct.chars().filter(|c| c.is_ascii_digit()).collect();
+        if digits.len() >= 10 {
+            let reformatted = format!(
+                "Call {}.{}.{}",
+                &digits[digits.len() - 10..digits.len() - 7],
+                &digits[digits.len() - 7..digits.len() - 4],
+                &digits[digits.len() - 4..]
+            );
+            let restored = mobile.restore_text(&reformatted, &sanitized.mapping_json);
+            assert!(
+                restored.contains("(305) 555-0188")
+                    || restored.contains("305-555-0188")
+                    || restored.contains("305") && restored.contains("0188"),
+                "Fuzzy match should restore reformatted phone, got: {}",
+                restored
+            );
+        }
+    }
+
+    #[test]
+    fn test_mobile_restore_legacy_2tuple_mapping() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        // Legacy 2-tuple format (no PII type) — should still work for exact matches
+        let legacy_mapping = r#"[["HLT_test","hypertension"],["PER_abcd","John Smith"]]"#;
+        let response = "Patient HLT_test treated by PER_abcd";
+        let restored = mobile.restore_text(response, legacy_mapping);
+        assert_eq!(restored, "Patient hypertension treated by John Smith");
     }
 }

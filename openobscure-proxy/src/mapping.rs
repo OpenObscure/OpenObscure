@@ -243,7 +243,7 @@ impl MappingStore {
 ///
 /// Extracts digits from the ciphertext and builds a regex that matches
 /// those exact digits with any combination of common separators between groups.
-fn build_fpe_fuzzy_regex(ciphertext: &str, pii_type: &PiiType) -> Option<Regex> {
+pub(crate) fn build_fpe_fuzzy_regex(ciphertext: &str, pii_type: &PiiType) -> Option<Regex> {
     let digits: String = ciphertext.chars().filter(|c| c.is_ascii_digit()).collect();
     let sep = r"[-.\s]*";
 
@@ -330,7 +330,7 @@ fn build_fpe_fuzzy_regex(ciphertext: &str, pii_type: &PiiType) -> Option<Regex> 
 /// LLMs frequently substitute ASCII hyphens with typographic alternatives
 /// (en-dash, non-breaking hyphen, figure dash, etc.) in formatted output,
 /// which breaks exact-match FPE ciphertext replacement.
-fn normalize_unicode_dashes(text: &str) -> String {
+pub(crate) fn normalize_unicode_dashes(text: &str) -> String {
     let mut result = String::with_capacity(text.len());
     for ch in text.chars() {
         match ch {

@@ -1,5 +1,5 @@
 Hostname	IPv4	IPv6	MAC	Location	Admin_Email	GPS
-web-01	203.0.113.50	2001:db8:85a3::8a2e:370:7334	00:1A:2B:3C:4D:5E	Austin DC Rack A3	admin@meridian-tech.com	30.2672, -97.7431
+web-01	my 	2001:db8:85a3::8a2e:370:7334	00:1A:2B:3C:4D:5E	Austin DC Rack A3	admin@meridian-tech.com	30.2672, -97.7431
 web-02	203.0.113.51	2001:db8:85a3::8a2e:370:7335	3C:22:FB:7A:B1:90	Austin DC Rack A3	admin@meridian-tech.com	30.2672, -97.7431
 db-primary	10.0.0.55	2001:db8:1::30	48:D7:05:F3:A2:81	Austin DC Rack B1	dba@meridian-tech.com	30.2672, -97.7431
 db-replica	10.0.0.56	2001:db8:1::31	A4:C1:38:2D:E7:F0	Austin DC Rack B1	dba@meridian-tech.com	30.2672, -97.7431

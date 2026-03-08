@@ -516,15 +516,21 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
 
 
 /**
- * The main mobile API handle. Thread-safe and reusable across calls.
+ * Opaque handle exposed to Swift/Kotlin via UniFFI.
+ *
+ * Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
+ * crate (where `UniFfiTag` exists) rather than on the shared struct.
  */
-public protocol OpenObscureMobileProtocol: AnyObject, Sendable {
+public protocol OpenObscureHandleProtocol: AnyObject, Sendable {
     
 }
 /**
- * The main mobile API handle. Thread-safe and reusable across calls.
+ * Opaque handle exposed to Swift/Kotlin via UniFFI.
+ *
+ * Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
+ * crate (where `UniFfiTag` exists) rather than on the shared struct.
  */
-open class OpenObscureMobile: OpenObscureMobileProtocol, @unchecked Sendable {
+open class OpenObscureHandle: OpenObscureHandleProtocol, @unchecked Sendable {
     fileprivate let pointer: UnsafeMutableRawPointer!
 
     /// Used to instantiate a [FFIObject] without an actual pointer, for fakes in tests, mostly.
@@ -561,7 +567,7 @@ open class OpenObscureMobile: OpenObscureMobileProtocol, @unchecked Sendable {
     @_documentation(visibility: private)
 #endif
     public func uniffiClonePointer() -> UnsafeMutableRawPointer {
-        return try! rustCall { uniffi_openobscure_proxy_fn_clone_openobscuremobile(self.pointer, $0) }
+        return try! rustCall { uniffi_openobscure_proxy_fn_clone_openobscurehandle(self.pointer, $0) }
     }
     // No primary constructor declared for this class.
 
@@ -570,7 +576,7 @@ open class OpenObscureMobile: OpenObscureMobileProtocol, @unchecked Sendable {
             return
         }
 
-        try! rustCall { uniffi_openobscure_proxy_fn_free_openobscuremobile(pointer, $0) }
+        try! rustCall { uniffi_openobscure_proxy_fn_free_openobscurehandle(pointer, $0) }
     }
 
     
@@ -583,20 +589,20 @@ open class OpenObscureMobile: OpenObscureMobileProtocol, @unchecked Sendable {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public struct FfiConverterTypeOpenObscureMobile: FfiConverter {
+public struct FfiConverterTypeOpenObscureHandle: FfiConverter {
 
     typealias FfiType = UnsafeMutableRawPointer
-    typealias SwiftType = OpenObscureMobile
+    typealias SwiftType = OpenObscureHandle
 
-    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> OpenObscureMobile {
-        return OpenObscureMobile(unsafeFromRawPointer: pointer)
+    public static func lift(_ pointer: UnsafeMutableRawPointer) throws -> OpenObscureHandle {
+        return OpenObscureHandle(unsafeFromRawPointer: pointer)
     }
 
-    public static func lower(_ value: OpenObscureMobile) -> UnsafeMutableRawPointer {
+    public static func lower(_ value: OpenObscureHandle) -> UnsafeMutableRawPointer {
         return value.uniffiClonePointer()
     }
 
-    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OpenObscureMobile {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> OpenObscureHandle {
         let v: UInt64 = try readInt(&buf)
         // The Rust code won't compile if a pointer won't fit in a UInt64.
         // We have to go via `UInt` because that's the thing that's the size of a pointer.
@@ -607,7 +613,7 @@ public struct FfiConverterTypeOpenObscureMobile: FfiConverter {
         return try lift(ptr!)
     }
 
-    public static func write(_ value: OpenObscureMobile, into buf: inout [UInt8]) {
+    public static func write(_ value: OpenObscureHandle, into buf: inout [UInt8]) {
         // This fiddling is because `Int` is the thing that's the same size as a pointer.
         // The Rust code won't compile if a pointer won't fit in a `UInt64`.
         writeInt(&buf, UInt64(bitPattern: Int64(Int(bitPattern: lower(value)))))
@@ -618,15 +624,15 @@ public struct FfiConverterTypeOpenObscureMobile: FfiConverter {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeOpenObscureMobile_lift(_ pointer: UnsafeMutableRawPointer) throws -> OpenObscureMobile {
-    return try FfiConverterTypeOpenObscureMobile.lift(pointer)
+public func FfiConverterTypeOpenObscureHandle_lift(_ pointer: UnsafeMutableRawPointer) throws -> OpenObscureHandle {
+    return try FfiConverterTypeOpenObscureHandle.lift(pointer)
 }
 
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
-public func FfiConverterTypeOpenObscureMobile_lower(_ value: OpenObscureMobile) -> UnsafeMutableRawPointer {
-    return FfiConverterTypeOpenObscureMobile.lower(value)
+public func FfiConverterTypeOpenObscureHandle_lower(_ value: OpenObscureHandle) -> UnsafeMutableRawPointer {
+    return FfiConverterTypeOpenObscureHandle.lower(value)
 }
 
 
@@ -732,6 +738,133 @@ public func FfiConverterTypeMobileStatsFFI_lift(_ buf: RustBuffer) throws -> Mob
 #endif
 public func FfiConverterTypeMobileStatsFFI_lower(_ value: MobileStatsFfi) -> RustBuffer {
     return FfiConverterTypeMobileStatsFFI.lower(value)
+}
+
+
+/**
+ * Response integrity report exposed to Swift/Kotlin via UniFFI.
+ */
+public struct RiReportFfi {
+    /**
+     * Severity tier: "Notice", "Warning", or "Caution".
+     */
+    public var severity: String
+    /**
+     * Persuasion categories detected (e.g. "Urgency", "Fear", "Authority").
+     */
+    public var categories: [String]
+    /**
+     * Matched phrases from R1 dictionary scan.
+     */
+    public var flags: [String]
+    /**
+     * Article 5 categories detected by R2 classifier (if model loaded).
+     */
+    public var r2Categories: [String]
+    /**
+     * Scan duration in microseconds.
+     */
+    public var scanTimeUs: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(
+        /**
+         * Severity tier: "Notice", "Warning", or "Caution".
+         */severity: String, 
+        /**
+         * Persuasion categories detected (e.g. "Urgency", "Fear", "Authority").
+         */categories: [String], 
+        /**
+         * Matched phrases from R1 dictionary scan.
+         */flags: [String], 
+        /**
+         * Article 5 categories detected by R2 classifier (if model loaded).
+         */r2Categories: [String], 
+        /**
+         * Scan duration in microseconds.
+         */scanTimeUs: UInt64) {
+        self.severity = severity
+        self.categories = categories
+        self.flags = flags
+        self.r2Categories = r2Categories
+        self.scanTimeUs = scanTimeUs
+    }
+}
+
+#if compiler(>=6)
+extension RiReportFfi: Sendable {}
+#endif
+
+
+extension RiReportFfi: Equatable, Hashable {
+    public static func ==(lhs: RiReportFfi, rhs: RiReportFfi) -> Bool {
+        if lhs.severity != rhs.severity {
+            return false
+        }
+        if lhs.categories != rhs.categories {
+            return false
+        }
+        if lhs.flags != rhs.flags {
+            return false
+        }
+        if lhs.r2Categories != rhs.r2Categories {
+            return false
+        }
+        if lhs.scanTimeUs != rhs.scanTimeUs {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(severity)
+        hasher.combine(categories)
+        hasher.combine(flags)
+        hasher.combine(r2Categories)
+        hasher.combine(scanTimeUs)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeRiReportFFI: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RiReportFfi {
+        return
+            try RiReportFfi(
+                severity: FfiConverterString.read(from: &buf), 
+                categories: FfiConverterSequenceString.read(from: &buf), 
+                flags: FfiConverterSequenceString.read(from: &buf), 
+                r2Categories: FfiConverterSequenceString.read(from: &buf), 
+                scanTimeUs: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: RiReportFfi, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.severity, into: &buf)
+        FfiConverterSequenceString.write(value.categories, into: &buf)
+        FfiConverterSequenceString.write(value.flags, into: &buf)
+        FfiConverterSequenceString.write(value.r2Categories, into: &buf)
+        FfiConverterUInt64.write(value.scanTimeUs, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRiReportFFI_lift(_ buf: RustBuffer) throws -> RiReportFfi {
+    return try FfiConverterTypeRiReportFFI.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeRiReportFFI_lower(_ value: RiReportFfi) -> RustBuffer {
+    return FfiConverterTypeRiReportFFI.lower(value)
 }
 
 
@@ -935,6 +1068,30 @@ extension MobileBindingError: Foundation.LocalizedError {
 #if swift(>=5.8)
 @_documentation(visibility: private)
 #endif
+fileprivate struct FfiConverterOptionTypeRiReportFFI: FfiConverterRustBuffer {
+    typealias SwiftType = RiReportFfi?
+
+    public static func write(_ value: SwiftType, into buf: inout [UInt8]) {
+        guard let value = value else {
+            writeInt(&buf, Int8(0))
+            return
+        }
+        writeInt(&buf, Int8(1))
+        FfiConverterTypeRiReportFFI.write(value, into: &buf)
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SwiftType {
+        switch try readInt(&buf) as Int8 {
+        case 0: return nil
+        case 1: return try FfiConverterTypeRiReportFFI.read(from: &buf)
+        default: throw UniffiInternalError.unexpectedOptionalTag
+        }
+    }
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
 fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     typealias SwiftType = [String]
 
@@ -957,6 +1114,19 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
     }
 }
 /**
+ * Check if a transcript contains PII without encrypting.
+ *
+ * Returns the count of PII matches. Use to decide whether to strip an audio block.
+ */
+public func checkAudioPii(handle: OpenObscureHandle, transcript: String) -> UInt32  {
+    return try!  FfiConverterUInt32.lift(try! rustCall() {
+    uniffi_openobscure_proxy_fn_func_check_audio_pii(
+        FfiConverterTypeOpenObscureHandle_lower(handle),
+        FfiConverterString.lower(transcript),$0
+    )
+})
+}
+/**
  * Create a new OpenObscure mobile instance.
  *
  * # Arguments
@@ -966,8 +1136,8 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
  * # Returns
  * An opaque handle to use with other functions.
  */
-public func createOpenobscure(configJson: String, fpeKeyHex: String)throws  -> OpenObscureMobile  {
-    return try  FfiConverterTypeOpenObscureMobile_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
+public func createOpenobscure(configJson: String, fpeKeyHex: String)throws  -> OpenObscureHandle  {
+    return try  FfiConverterTypeOpenObscureHandle_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
     uniffi_openobscure_proxy_fn_func_create_openobscure(
         FfiConverterString.lower(configJson),
         FfiConverterString.lower(fpeKeyHex),$0
@@ -977,34 +1147,48 @@ public func createOpenobscure(configJson: String, fpeKeyHex: String)throws  -> O
 /**
  * Get current statistics for diagnostics.
  */
-public func getStats(handle: OpenObscureMobile) -> MobileStatsFfi  {
+public func getStats(handle: OpenObscureHandle) -> MobileStatsFfi  {
     return try!  FfiConverterTypeMobileStatsFFI_lift(try! rustCall() {
     uniffi_openobscure_proxy_fn_func_get_stats(
-        FfiConverterTypeOpenObscureMobile_lower(handle),$0
+        FfiConverterTypeOpenObscureHandle_lower(handle),$0
     )
 })
 }
 /**
  * Restore original PII values in response text using saved mappings.
  */
-public func restoreText(handle: OpenObscureMobile, text: String, mappingJson: String) -> String  {
+public func restoreText(handle: OpenObscureHandle, text: String, mappingJson: String) -> String  {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_openobscure_proxy_fn_func_restore_text(
-        FfiConverterTypeOpenObscureMobile_lower(handle),
+        FfiConverterTypeOpenObscureHandle_lower(handle),
         FfiConverterString.lower(text),
         FfiConverterString.lower(mappingJson),$0
     )
 })
 }
 /**
- * Process an image for visual PII (face blur, OCR text blur, EXIF strip).
+ * Scan a transcript (from platform speech API) for PII and encrypt matches.
+ *
+ * Used by iOS `SFSpeechRecognizer` and Android `SpeechRecognizer` voice pipelines.
+ * The mobile app transcribes audio locally, then calls this to detect/encrypt PII.
+ */
+public func sanitizeAudioTranscript(handle: OpenObscureHandle, transcript: String)throws  -> SanitizeResultFfi  {
+    return try  FfiConverterTypeSanitizeResultFFI_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
+    uniffi_openobscure_proxy_fn_func_sanitize_audio_transcript(
+        FfiConverterTypeOpenObscureHandle_lower(handle),
+        FfiConverterString.lower(transcript),$0
+    )
+})
+}
+/**
+ * Process an image for visual PII (face redaction, OCR text redaction, EXIF strip).
  *
  * Returns sanitized image bytes (JPEG format).
  */
-public func sanitizeImage(handle: OpenObscureMobile, imageBytes: Data)throws  -> Data  {
+public func sanitizeImage(handle: OpenObscureHandle, imageBytes: Data)throws  -> Data  {
     return try  FfiConverterData.lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
     uniffi_openobscure_proxy_fn_func_sanitize_image(
-        FfiConverterTypeOpenObscureMobile_lower(handle),
+        FfiConverterTypeOpenObscureHandle_lower(handle),
         FfiConverterData.lower(imageBytes),$0
     )
 })
@@ -1014,11 +1198,24 @@ public func sanitizeImage(handle: OpenObscureMobile, imageBytes: Data)throws  ->
  *
  * Returns a result with sanitized text and mapping data for later restoration.
  */
-public func sanitizeText(handle: OpenObscureMobile, text: String)throws  -> SanitizeResultFfi  {
+public func sanitizeText(handle: OpenObscureHandle, text: String)throws  -> SanitizeResultFfi  {
     return try  FfiConverterTypeSanitizeResultFFI_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
     uniffi_openobscure_proxy_fn_func_sanitize_text(
-        FfiConverterTypeOpenObscureMobile_lower(handle),
+        FfiConverterTypeOpenObscureHandle_lower(handle),
         FfiConverterString.lower(text),$0
+    )
+})
+}
+/**
+ * Scan a response for persuasion and manipulation techniques (cognitive firewall).
+ *
+ * Returns `Some(RiReportFFI)` if manipulation is detected, `None` if clean or disabled.
+ */
+public func scanResponse(handle: OpenObscureHandle, responseText: String) -> RiReportFfi?  {
+    return try!  FfiConverterOptionTypeRiReportFFI.lift(try! rustCall() {
+    uniffi_openobscure_proxy_fn_func_scan_response(
+        FfiConverterTypeOpenObscureHandle_lower(handle),
+        FfiConverterString.lower(responseText),$0
     )
 })
 }
@@ -1038,19 +1235,28 @@ private let initializationResult: InitializationResult = {
     if bindings_contract_version != scaffolding_contract_version {
         return InitializationResult.contractVersionMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_create_openobscure() != 4398) {
+    if (uniffi_openobscure_proxy_checksum_func_check_audio_pii() != 42564) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_get_stats() != 2743) {
+    if (uniffi_openobscure_proxy_checksum_func_create_openobscure() != 27473) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_restore_text() != 28518) {
+    if (uniffi_openobscure_proxy_checksum_func_get_stats() != 30522) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_sanitize_image() != 60095) {
+    if (uniffi_openobscure_proxy_checksum_func_restore_text() != 12720) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_openobscure_proxy_checksum_func_sanitize_text() != 65098) {
+    if (uniffi_openobscure_proxy_checksum_func_sanitize_audio_transcript() != 51770) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_openobscure_proxy_checksum_func_sanitize_image() != 8013) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_openobscure_proxy_checksum_func_sanitize_text() != 27391) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_openobscure_proxy_checksum_func_scan_response() != 33817) {
         return InitializationResult.apiChecksumMismatch
     }
 

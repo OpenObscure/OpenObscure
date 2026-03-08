@@ -226,8 +226,9 @@ impl ResponseIntegrityScanner {
             .is_some();
         let should_run_r2 = has_r2 && self.should_invoke_r2(r1_flagged);
 
+        let r1_cat_count = categories.len();
         let (r2_prediction, r2_role, r2_categories) = if should_run_r2 {
-            self.run_r2_cascade(text, r1_flagged)
+            self.run_r2_cascade(text, r1_flagged, r1_cat_count)
         } else {
             (None, R2Role::NotUsed, Vec::new())
         };
@@ -284,6 +285,7 @@ impl ResponseIntegrityScanner {
         &self,
         text: &str,
         r1_flagged: bool,
+        r1_cat_count: usize,
     ) -> (Option<RiPrediction>, R2Role, Vec<String>) {
         let mut guard = self.r2_model.lock().unwrap_or_else(|e| e.into_inner());
         let model = match guard.as_mut() {
@@ -315,7 +317,16 @@ impl ResponseIntegrityScanner {
                     R2Role::Upgrade
                 }
             }
-            (true, false) => R2Role::Suppress,
+            (true, false) => {
+                // R2 disagrees with R1. Only suppress if R1 evidence is weak
+                // (single category). Multi-category R1 hits are strong enough
+                // to stand on their own — pass through as Confirm.
+                if r1_cat_count >= 2 {
+                    R2Role::Confirm
+                } else {
+                    R2Role::Suppress
+                }
+            }
             (false, true) => R2Role::Discover,
             (false, false) => R2Role::NotUsed,
         };
