@@ -1154,10 +1154,11 @@ mod tests {
     fn test_mobile_models_base_dir_enables_face_detection() {
         // Simulates the exact config Enchanted/RikkaHub use
         let models_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("models");
-        let config_json = format!(
-            r#"{{"scanner_mode": "regex", "models_base_dir": "{}"}}"#,
-            models_dir.display()
-        );
+        let config_json = serde_json::json!({
+            "scanner_mode": "regex",
+            "models_base_dir": models_dir.to_str().unwrap()
+        })
+        .to_string();
         let config: MobileConfig = serde_json::from_str(&config_json).unwrap();
         assert!(config.image_enabled, "image_enabled should default to true");
         assert!(
@@ -1204,10 +1205,11 @@ mod tests {
     #[test]
     fn test_mobile_nsfw_detection_via_models_base_dir() {
         let models_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("models");
-        let config_json = format!(
-            r#"{{"scanner_mode": "regex", "models_base_dir": "{}"}}"#,
-            models_dir.display()
-        );
+        let config_json = serde_json::json!({
+            "scanner_mode": "regex",
+            "models_base_dir": models_dir.to_str().unwrap()
+        })
+        .to_string();
         let mobile =
             OpenObscureMobile::new(serde_json::from_str(&config_json).unwrap(), make_test_key())
                 .unwrap();

@@ -730,6 +730,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is 
 // rather `InterfaceTooLargeException`, caused by too many methods 
@@ -748,6 +750,8 @@ internal interface IntegrityCheckingUniffiLib : Library {
     fun uniffi_openobscure_proxy_checksum_func_check_audio_pii(
 ): Short
 fun uniffi_openobscure_proxy_checksum_func_create_openobscure(
+): Short
+fun uniffi_openobscure_proxy_checksum_func_get_debug_log(
 ): Short
 fun uniffi_openobscure_proxy_checksum_func_get_stats(
 ): Short
@@ -818,6 +822,8 @@ fun uniffi_openobscure_proxy_fn_func_check_audio_pii(`handle`: Pointer,`transcri
 ): Int
 fun uniffi_openobscure_proxy_fn_func_create_openobscure(`configJson`: RustBuffer.ByValue,`fpeKeyHex`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
 ): Pointer
+fun uniffi_openobscure_proxy_fn_func_get_debug_log(uniffi_out_err: UniffiRustCallStatus, 
+): RustBuffer.ByValue
 fun uniffi_openobscure_proxy_fn_func_get_stats(`handle`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
 ): RustBuffer.ByValue
 fun uniffi_openobscure_proxy_fn_func_restore_text(`handle`: Pointer,`text`: RustBuffer.ByValue,`mappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -960,6 +966,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_proxy_checksum_func_create_openobscure() != 27473.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_openobscure_proxy_checksum_func_get_debug_log() != 2879.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_proxy_checksum_func_get_stats() != 30522.toShort()) {
@@ -1870,6 +1879,22 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     uniffiRustCallWithError(MobileBindingException) { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_create_openobscure(
         FfiConverterString.lower(`configJson`),FfiConverterString.lower(`fpeKeyHex`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Get buffered debug log messages from the Rust layer.
+         *
+         * Returns all accumulated messages since last call, then clears the buffer.
+         * Use this for diagnostics — call after `createOpenobscure` or `sanitizeImage`
+         * and print the result in Swift/Kotlin.
+         */ fun `getDebugLog`(): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_openobscure_proxy_fn_func_get_debug_log(
+        _status)
 }
     )
     }
