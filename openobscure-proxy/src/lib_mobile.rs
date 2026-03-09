@@ -13,6 +13,28 @@
 
 use crate::config::ImageConfig;
 use crate::fpe_engine::{FpeEngine, FpeError, TweakGenerator};
+
+/// Global debug log buffer for mobile diagnostics.
+/// Swift/Kotlin can retrieve this via `get_debug_log()` UniFFI function.
+static DEBUG_LOG: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+/// Append a debug message to the global log buffer.
+pub(crate) fn debug_log(msg: String) {
+    if let Ok(mut log) = DEBUG_LOG.lock() {
+        log.push(msg);
+    }
+}
+
+/// Drain and return all buffered debug messages.
+pub fn drain_debug_log() -> String {
+    if let Ok(mut log) = DEBUG_LOG.lock() {
+        let result = log.join("\n");
+        log.clear();
+        result
+    } else {
+        String::new()
+    }
+}
 use crate::hash_token::TokenGenerator;
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_pipeline::ImageModelManager;
@@ -138,6 +160,50 @@ fn default_ri_sensitivity() -> String {
 }
 
 impl MobileConfig {
+    /// Verify that all expected model subdirectories exist under `models_base_dir`.
+    /// Logs missing models to the debug buffer so Swift/Kotlin can surface them.
+    fn verify_models(&self) {
+        let base = match self.models_base_dir.as_ref() {
+            Some(b) => std::path::PathBuf::from(b),
+            None => {
+                debug_log("models_base_dir not set — skipping model verification".to_string());
+                return;
+            }
+        };
+
+        // All subdirectory names that resolve_model_dirs() looks for
+        let expected = [
+            ("ner", "DistilBERT NER (Full/Standard)"),
+            ("ner_lite", "TinyBERT NER (Lite/fallback)"),
+            ("scrfd", "SCRFD face detection (Full/Standard)"),
+            ("blazeface", "BlazeFace face detection (Lite/fallback)"),
+            ("ocr", "PaddleOCR text detection"),
+            ("nsfw", "NudeNet NSFW detection"),
+            ("nsfw_classifier", "NSFW classifier"),
+            ("ri", "Response Integrity model"),
+        ];
+
+        let mut missing = Vec::new();
+        let mut present = Vec::new();
+        for (name, desc) in &expected {
+            if base.join(name).is_dir() {
+                present.push(*name);
+            } else {
+                missing.push(format!("{} ({})", name, desc));
+            }
+        }
+
+        debug_log(format!(
+            "model_verify: present=[{}] missing=[{}]",
+            present.join(", "),
+            if missing.is_empty() {
+                "none".to_string()
+            } else {
+                missing.join(", ")
+            }
+        ));
+    }
+
     /// Resolve individual `*_model_dir` fields from `models_base_dir`.
     ///
     /// For each model directory field that is `None`, checks if the standard
@@ -332,6 +398,7 @@ impl OpenObscureMobile {
     /// 4-8GB, regex-only on <4GB).
     pub fn new(mut config: MobileConfig, fpe_key: [u8; 32]) -> Result<Self, MobileError> {
         // Resolve model paths from base directory before anything else
+        config.verify_models();
         config.resolve_model_dirs();
 
         let fpe = FpeEngine::new(&fpe_key)?;
@@ -385,13 +452,16 @@ impl OpenObscureMobile {
                     }
                 }
                 "ner" => {
-                    // Select model dir based on device tier
+                    // Select model dir based on device tier, with fallback
                     let model_dir = match budget.ner_model.as_str() {
                         "tinybert" => config
                             .ner_model_dir_lite
                             .as_ref()
                             .or(config.ner_model_dir.as_ref()),
-                        _ => config.ner_model_dir.as_ref(),
+                        _ => config
+                            .ner_model_dir
+                            .as_ref()
+                            .or(config.ner_model_dir_lite.as_ref()),
                     };
                     let pool = model_dir.and_then(|d| Self::load_ner_pool(d, effective_pool_size));
                     HybridScanner::new(keywords_allowed, pool, gazetteer)
@@ -484,7 +554,10 @@ impl OpenObscureMobile {
         for _ in 0..pool_size.max(1) {
             match crate::ner_scanner::NerScanner::load(path, 0.60) {
                 Ok(s) => scanners.push(s),
-                Err(_) => break,
+                Err(e) => {
+                    debug_log(format!("NER model load FAILED dir={} error={}", dir, e));
+                    break;
+                }
             }
         }
         if scanners.is_empty() {
@@ -503,13 +576,19 @@ impl OpenObscureMobile {
         pool_size: usize,
     ) -> (HybridScanner, String) {
         if budget.ner_enabled {
-            // Select model dir based on budget tier: tinybert uses lite path
+            // Select model dir based on budget tier.
+            // Prefer the budget-recommended model, but fall back to whatever is available.
+            // tinybert → ner_lite/ (fallback: ner/)
+            // distilbert → ner/ (fallback: ner_lite/)
             let model_dir = match budget.ner_model.as_str() {
                 "tinybert" => config
                     .ner_model_dir_lite
                     .as_ref()
                     .or(config.ner_model_dir.as_ref()),
-                _ => config.ner_model_dir.as_ref(),
+                _ => config
+                    .ner_model_dir
+                    .as_ref()
+                    .or(config.ner_model_dir_lite.as_ref()),
             };
             if let Some(pool) = model_dir.and_then(|d| Self::load_ner_pool(d, pool_size)) {
                 return (

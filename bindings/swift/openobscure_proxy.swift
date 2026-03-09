@@ -1145,6 +1145,19 @@ public func createOpenobscure(configJson: String, fpeKeyHex: String)throws  -> O
 })
 }
 /**
+ * Get buffered debug log messages from the Rust layer.
+ *
+ * Returns all accumulated messages since last call, then clears the buffer.
+ * Use this for diagnostics — call after `createOpenobscure` or `sanitizeImage`
+ * and print the result in Swift/Kotlin.
+ */
+public func getDebugLog() -> String  {
+    return try!  FfiConverterString.lift(try! rustCall() {
+    uniffi_openobscure_proxy_fn_func_get_debug_log($0
+    )
+})
+}
+/**
  * Get current statistics for diagnostics.
  */
 public func getStats(handle: OpenObscureHandle) -> MobileStatsFfi  {
@@ -1239,6 +1252,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_openobscure_proxy_checksum_func_create_openobscure() != 27473) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_openobscure_proxy_checksum_func_get_debug_log() != 2879) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_openobscure_proxy_checksum_func_get_stats() != 30522) {

@@ -186,6 +186,17 @@ pub fn get_stats(handle: &Arc<OpenObscureHandle>) -> MobileStatsFFI {
     }
 }
 
+/// Get buffered debug log messages from the Rust layer.
+///
+/// Returns all accumulated messages since last call, then clears the buffer.
+/// Use this for diagnostics — call after `createOpenobscure` or `sanitizeImage`
+/// and print the result in Swift/Kotlin.
+#[cfg(feature = "mobile")]
+#[uniffi::export]
+pub fn get_debug_log() -> String {
+    crate::lib_mobile::drain_debug_log()
+}
+
 // ---- FFI-safe types for UniFFI ----
 
 /// Result of sanitizing text, exposed to Swift/Kotlin via UniFFI.

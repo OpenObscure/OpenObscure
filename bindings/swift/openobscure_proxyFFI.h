@@ -271,6 +271,12 @@ uint32_t uniffi_openobscure_proxy_fn_func_check_audio_pii(void*_Nonnull handle, 
 void*_Nonnull uniffi_openobscure_proxy_fn_func_create_openobscure(RustBuffer config_json, RustBuffer fpe_key_hex, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_GET_DEBUG_LOG
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_GET_DEBUG_LOG
+RustBuffer uniffi_openobscure_proxy_fn_func_get_debug_log(RustCallStatus *_Nonnull out_status
+    
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_GET_STATS
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_FN_FUNC_GET_STATS
 RustBuffer uniffi_openobscure_proxy_fn_func_get_stats(void*_Nonnull handle, RustCallStatus *_Nonnull out_status
@@ -590,6 +596,12 @@ uint16_t uniffi_openobscure_proxy_checksum_func_check_audio_pii(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_CREATE_OPENOBSCURE
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_CREATE_OPENOBSCURE
 uint16_t uniffi_openobscure_proxy_checksum_func_create_openobscure(void
+    
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_GET_DEBUG_LOG
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_PROXY_CHECKSUM_FUNC_GET_DEBUG_LOG
+uint16_t uniffi_openobscure_proxy_checksum_func_get_debug_log(void
     
 );
 #endif

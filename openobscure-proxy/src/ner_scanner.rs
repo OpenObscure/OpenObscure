@@ -98,7 +98,10 @@ impl NerScanner {
         let label_map = build_label_map(&label_map_path)?;
         let num_labels = label_map.len();
 
-        let session = crate::ort_ep::build_session(&model_path)
+        // CPU-only for NER — CoreML NeuralNetwork format works for CNN models (SCRFD,
+        // OCR, NSFW) but fails to load TinyBERT/DistilBERT transformers on iOS.
+        // At 0.8ms p50 on CPU, there's no meaningful latency difference for NER.
+        let session = crate::ort_ep::build_session_cpu(&model_path)
             .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
 
         // Check if model expects token_type_ids (BERT/TinyBERT yes, DistilBERT no)

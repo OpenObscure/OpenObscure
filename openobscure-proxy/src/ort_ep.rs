@@ -17,12 +17,32 @@ use ort::session::Session;
 ///
 /// Empty on desktop Linux/Windows (CPU-only).
 /// Non-empty on Apple (CoreML) or Android (NNAPI).
+///
+/// **iOS**: Uses CoreML with NeuralNetwork format (Core ML 3+) and CPUAndGPU compute
+/// units. The default MLProgram format produces incorrect Conv padding for SCRFD,
+/// PaddleOCR, and TinyBERT models on iOS. NeuralNetwork format avoids this.
+/// ANE is skipped because some devices report `Unknown aneSubType`.
+///
+/// **macOS**: Uses CoreML with default settings (MLProgram + All compute units).
 pub fn platform_eps() -> Vec<ExecutionProviderDispatch> {
     #[allow(unused_mut)]
     let mut eps = Vec::new();
 
-    // CoreML: Apple Neural Engine + GPU on iOS/macOS
-    #[cfg(target_vendor = "apple")]
+    // CoreML on iOS: NeuralNetwork format + GPU only (no ANE)
+    // MLProgram format mangles conv layers in SCRFD/PaddleOCR/TinyBERT models.
+    // ANE has unknown subtype on some iOS devices → skip it.
+    #[cfg(target_os = "ios")]
+    {
+        eps.push(
+            ort::ep::CoreML::default()
+                .with_model_format(ort::ep::coreml::ModelFormat::NeuralNetwork)
+                .with_compute_units(ort::ep::coreml::ComputeUnits::CPUAndGPU)
+                .build(),
+        );
+    }
+
+    // CoreML on macOS: default settings (MLProgram works fine on macOS)
+    #[cfg(all(target_vendor = "apple", not(target_os = "ios")))]
     {
         eps.push(ort::ep::CoreML::default().build());
     }
@@ -78,8 +98,10 @@ mod tests {
     #[test]
     fn test_platform_eps_returns_vec() {
         let eps = platform_eps();
-        // On macOS (Apple), should have CoreML; on other platforms, empty
+        // Apple (macOS + iOS): CoreML EP; Android: NNAPI EP; other: CPU only
         #[cfg(target_vendor = "apple")]
+        assert_eq!(eps.len(), 1);
+        #[cfg(target_os = "android")]
         assert_eq!(eps.len(), 1);
         #[cfg(not(any(target_vendor = "apple", target_os = "android")))]
         assert!(eps.is_empty());
