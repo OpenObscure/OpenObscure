@@ -97,6 +97,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 | `scanResponse` | `(handle, responseText) -> RiReportFFI?` | Scan LLM response for persuasion/manipulation (cognitive firewall) |
 | `rotateKey` | `(handle, newKeyHex: String)` | Rotate FPE key with 30s overlap window for in-flight mappings |
 | `getStats` | `(handle) -> MobileStats` | Device tier, total PII found, image count |
+| `getDebugLog` | `() -> String` | Drain accumulated Rust-side debug log (model loading, errors, verification) |
 
 ### SanitizeResult
 
@@ -118,6 +119,21 @@ scanTimeUs: UInt64        — Scan duration in microseconds
 ```
 
 Returns `nil`/`null` when no manipulation is detected, RI is disabled, or device is Lite tier.
+
+### Debug Log
+
+`getDebugLog()` is a standalone function (no handle required) that drains the Rust-side debug buffer. It returns all accumulated log messages since the last call, then clears the buffer. Useful for diagnosing model loading issues on iOS where `stderr` goes to `/dev/null`.
+
+**What it captures:**
+- Model directory verification results (present/missing subdirectories)
+- NER model selection and loading (budget tier, model variant, fallback)
+- NER/image pipeline load failures with error details
+- Device tier and scanner mode selection
+
+**When to call it:**
+- After `createOpenobscure()` — to check model loading diagnostics
+- After `sanitizeImage()` failures — to see image pipeline errors
+- On debug/beta builds — write to app log file for support
 
 ### MobileConfig (JSON)
 
@@ -230,79 +246,65 @@ let package = Package(
 
 ### 4b. Initialize OpenObscure
 
-Create a singleton manager:
+Create a singleton manager (see full template at [templates/OpenObscureManager.swift](templates/OpenObscureManager.swift)):
 
 ```swift
 import Foundation
+import Security
+import OpenObscureLib
 
 final class OpenObscureManager {
     static let shared = OpenObscureManager()
     let handle: OpenObscureHandle
-    var lastMappingJson: String = "{}"
+    /// Accumulated token→plaintext mappings across all sanitize calls in a conversation.
+    private var accumulatedMappings: [[String]] = []
 
     private init() {
-        // Generate or load a 32-byte key (64 hex chars)
-        // In production: store in iOS Keychain
         let key = OpenObscureManager.getOrCreateKey()
+        let modelsDir = Bundle.main.resourcePath.map { $0 + "/models" }
+            ?? Bundle.main.bundlePath + "/Contents/Resources/models"
         handle = try! createOpenobscure(
-            configJson: #"{"scanner_mode": "regex"}"#,
+            configJson: """
+            {"scanner_mode": "auto", "models_base_dir": "\(modelsDir)"}
+            """,
             fpeKeyHex: key
         )
+        // Drain Rust-side debug log — model loading diagnostics.
+        // On iOS, stderr goes to /dev/null so this is the only way to see Rust logs.
+        let debugLog = getDebugLog()
+        if !debugLog.isEmpty { print("[OpenObscure] \(debugLog)") }
     }
 
     func sanitize(_ text: String) -> (sanitizedText: String, piiCount: UInt32) {
         let result = try! sanitizeText(handle: handle, text: text)
-        if result.piiCount > 0 {
-            lastMappingJson = result.mappingJson
-        }
+        if result.piiCount > 0 { mergeMappings(result.mappingJson) }
         return (result.sanitizedText, result.piiCount)
     }
 
     func restore(_ text: String) -> String {
-        return restoreText(handle: handle, text: text, mappingJson: lastMappingJson)
+        let json = (try? JSONSerialization.data(withJSONObject: accumulatedMappings)) ?? Data("{}".utf8)
+        return restoreText(handle: handle, text: text, mappingJson: String(data: json, encoding: .utf8) ?? "{}")
+    }
+
+    func scanResponse(_ text: String) -> RiReportFfi? {
+        return OpenObscureLib.scanResponse(handle: handle, responseText: text)
     }
 
     func sanitizeTranscript(_ transcript: String) -> String {
         let result = try! sanitizeAudioTranscript(handle: handle, transcript: transcript)
         if result.piiCount > 0 {
-            lastMappingJson = result.mappingJson
+            mergeMappings(result.mappingJson)
             return result.sanitizedText
         }
         return transcript
     }
 
-    private static func getOrCreateKey() -> String {
-        let service = "com.yourapp.openobscure"
-        let account = "fpe-key"
+    /// Reset mappings when starting a new conversation.
+    func resetMappings() { accumulatedMappings = [] }
 
-        // Try to load existing key from Keychain
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecReturnData as String: true
-        ]
-        var result: AnyObject?
-        if SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-           let data = result as? Data {
-            return String(data: data, encoding: .utf8)!
-        }
-
-        // Generate new 32-byte random key
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, 32, &bytes)
-        let hex = bytes.map { String(format: "%02x", $0) }.joined()
-
-        // Store in Keychain
-        let addQuery: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-            kSecValueData as String: hex.data(using: .utf8)!
-        ]
-        SecItemAdd(addQuery as CFDictionary, nil)
-        return hex
-    }
+    // See template for full mergeMappings() and getOrCreateKey() implementations
+    private func mergeMappings(_ json: String) { /* ... */ }
+    private static func getOrCreateKey() -> String { /* Keychain storage ... */ }
 }
 ```
 
@@ -445,50 +447,53 @@ android {
 
 ### 5b. Initialize OpenObscure
 
+See full template at [templates/OpenObscureManager.kt](templates/OpenObscureManager.kt) (includes accumulated mappings, `scanResponse()`, `resetMappings()`, recursive `copyAssetsDir()`, and `getDebugLog()` diagnostics).
+
 ```kotlin
+import android.util.Log
 import uniffi.openobscure_proxy.*
 
 object OpenObscureManager {
     private var _handle: OpenObscureHandle? = null
-    var lastMappingJson: String = "{}"
+    private val accumulatedMappings = mutableListOf<List<String>>()
 
     fun init(context: Context) {
         if (_handle != null) return
         val key = getOrCreateKey(context)
+        val modelsDir = copyAssetsDir(context, "models")
         _handle = createOpenobscure(
-            configJson = """{"scanner_mode": "regex"}""",
+            configJson = """{"scanner_mode": "auto", "models_base_dir": "$modelsDir"}""",
             fpeKeyHex = key
         )
+        // Drain Rust-side debug log — model loading diagnostics
+        val debugLog = getDebugLog()
+        if (debugLog.isNotEmpty()) Log.d("OpenObscure", debugLog)
     }
 
-    private val handle: OpenObscureHandle
+    val handle: OpenObscureHandle
         get() = _handle ?: error("OpenObscureManager.init() not called")
 
     fun sanitize(text: String): SanitizeResultFfi {
-        val result = sanitizeText(handle = handle, text = text)
-        if (result.piiCount > 0u) {
-            lastMappingJson = result.mappingJson
-        }
+        val result = sanitizeText(handle, text)
+        if (result.piiCount > 0u) mergeMappings(result.mappingJson)
         return result
     }
 
     fun restore(text: String): String {
-        return restoreText(handle = handle, text = text, mappingJson = lastMappingJson)
+        val json = /* serialize accumulatedMappings */ "{}"
+        return restoreText(handle, text, json)
     }
 
-    private fun getOrCreateKey(context: Context): String {
-        val prefs = context.getSharedPreferences("openobscure", Context.MODE_PRIVATE)
-        prefs.getString("fpe_key", null)?.let { return it }
-
-        // Generate 32 random bytes → 64 hex chars
-        val bytes = ByteArray(32)
-        java.security.SecureRandom().nextBytes(bytes)
-        val hex = bytes.joinToString("") { "%02x".format(it) }
-
-        // In production: use Android Keystore instead of SharedPreferences
-        prefs.edit().putString("fpe_key", hex).apply()
-        return hex
+    fun scanResponse(text: String): RiReportFfi? {
+        return uniffi.openobscure_proxy.scanResponse(handle, text)
     }
+
+    fun resetMappings() { accumulatedMappings.clear() }
+
+    // See template for full mergeMappings(), copyAssetsDir(), getOrCreateKey()
+    private fun mergeMappings(json: String) { /* ... */ }
+    private fun copyAssetsDir(context: Context, dir: String): String { /* ... */ }
+    private fun getOrCreateKey(context: Context): String { /* ... */ }
 }
 ```
 
@@ -612,10 +617,30 @@ The simplest approach: bundle all model files and let OpenObscure's tier system 
 
 ### Model Directory Layout
 
-Copy the `models/` directory from `openobscure-proxy/models/` into your app resources:
+Use the bundling script to copy models with correct directory naming:
+
+```bash
+# Bundle all models from dev repo to app resources
+./build/bundle_models.sh /path/to/your/app/models
+
+# Example for Enchanted
+./build/bundle_models.sh ~/Test/enchanted-openobscure/models
+```
+
+The script maps dev repo directory names to the standard names expected by `models_base_dir` auto-resolution (e.g., `paddleocr` → `ocr`, `nudenet` → `nsfw`, `ner-lite` → `ner_lite`). It verifies all 8 expected subdirectories exist after copying.
+
+Alternatively, copy the `models/` directory manually from `openobscure-proxy/models/` into your app resources:
 
 ```
 models/
+├── ner/               — DistilBERT NER (~64 MB, Full tier — optional)
+│   ├── model_int8.onnx
+│   ├── vocab.txt
+│   ├── label_map.json
+│   ├── config.json
+│   ├── tokenizer.json
+│   ├── tokenizer_config.json
+│   └── special_tokens_map.json
 ├── ner_lite/          — TinyBERT NER (~14 MB, Standard/Lite tier)
 │   ├── model_int8.onnx
 │   ├── vocab.txt
@@ -641,7 +666,9 @@ models/
     └── vocab.txt
 ```
 
-**Total size on disk: ~75 MB** (without DistilBERT). Add `ner/` (~64 MB) for Full-tier DistilBERT NER if needed.
+**Total size on disk: ~75 MB** (without DistilBERT NER). With `ner/` (~64 MB) for Full-tier DistilBERT NER: **~140 MB**.
+
+> **Recommended:** Bundle both `ner/` and `ner_lite/`. The tier system loads only one based on device RAM. If only one is bundled, the NER loader automatically falls back to whichever is available.
 
 ### Config
 
@@ -661,6 +688,10 @@ let config = """
 {"scanner_mode": "auto", "models_base_dir": "\(modelsDir)"}
 """
 let handle = try createOpenobscure(configJson: config, fpeKeyHex: key)
+
+// Check model loading diagnostics (especially useful on iOS where stderr is silent)
+let debugLog = getDebugLog()
+print("[OpenObscure] \(debugLog)")
 ```
 
 ### Android Setup
@@ -683,6 +714,27 @@ val handle = createOpenobscure(configJson = config, fpeKeyHex = key)
 | <4 GB | Lite | TinyBERT | BlazeFace | Detect + fill | No | No |
 
 Models are loaded **on-demand** when first needed and **evicted after idle timeout** (60–300s depending on tier) to free RAM. EXIF metadata is always stripped from images regardless of which models are loaded.
+
+### Platform-Specific Execution Providers
+
+On mobile, OpenObscure uses hardware-accelerated ONNX Runtime execution providers where available:
+
+| Platform | EP | Details |
+|----------|-----|---------|
+| **iOS** | CoreML (NeuralNetwork + CPUAndGPU) | CNN models (SCRFD, OCR, NSFW) use CoreML for GPU acceleration. ANE is skipped (some devices report unknown subtype). |
+| **macOS** | CoreML (default) | MLProgram format + all compute units (ANE/GPU/CPU) |
+| **Android** | NNAPI | Qualcomm Hexagon / Mali GPU acceleration |
+| **Other** | CPU | Default fallback |
+
+**NER models always use CPU-only inference** — CoreML (even NeuralNetwork format) fails to load TinyBERT/DistilBERT transformer architectures on iOS. At 0.8ms p50 on CPU, there is no meaningful latency difference.
+
+### NER Model Fallback
+
+If the budget-selected NER model directory is missing, the loader automatically falls back:
+- **DistilBERT selected** (Full tier) but `ner/` missing → falls back to `ner_lite/` (TinyBERT)
+- **TinyBERT selected** (Standard/Lite) but `ner_lite/` missing → falls back to `ner/` (DistilBERT)
+
+This means bundling only one NER variant still works — the tier system adapts. Check `getDebugLog()` output to see which model was actually loaded.
 
 ### AGPL-3.0 Note
 
@@ -776,7 +828,9 @@ In auto mode:
 - **Standard tier (4–8 GB):** Uses TinyBERT from `ner_model_dir_lite`
 - **Lite tier (<4 GB):** Falls back to regex-only (no NER model loaded)
 
-If only `ner_model_dir` is set (no `_lite` variant), all tiers that enable NER use that single model. If only `ner_model_dir_lite` is set, the TinyBERT path is used as fallback for all tiers.
+If only `ner_model_dir` is set (no `_lite` variant), all tiers that enable NER use that single model. If only `ner_model_dir_lite` is set, the TinyBERT path is used as fallback for all tiers. The NER loader has automatic fallback: if the budget-selected model directory is missing, it tries the other variant before giving up.
+
+> **Note:** NER models always run on CPU, even on iOS/Android where CoreML/NNAPI is available. CoreML cannot load transformer architectures (TinyBERT/DistilBERT). At 0.8ms p50, CPU inference is fast enough.
 
 ### Step 3: Platform-Specific Model Path Resolution
 
@@ -879,6 +933,8 @@ If `scannerMode` reports `"regex"` when you expected `"ner"`, check:
 2. `model_int8.onnx` and `vocab.txt` exist in the model directory
 3. Device has enough RAM for the selected model tier
 4. Model file isn't a Git LFS pointer (should be >1 MB, not 130 bytes)
+5. Call `getDebugLog()` after init — look for `"NER budget: ... dir=None"` or `"NER model load FAILED"` messages
+6. If using `models_base_dir`, verify subdirectory names match: `ner/` (not `ner-distilbert/`) and `ner_lite/` (not `ner-lite/`). Use `bundle_models.sh` to ensure correct naming.
 
 ### NER Label Schema
 
@@ -1069,6 +1125,11 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 | `cargo-ndk --manifest-path` fails | `cargo-ndk` doesn't support this flag | Use `(cd proxy-dir && cargo ndk ...)` subshell pattern |
 | JitPack dependency timeout | JitPack.io outage | Clone repos locally, `publishToMavenLocal`, add `mavenLocal()` before JitPack in `settings.gradle.kts` |
 | `ort-sys` no prebuilt for `x86_64-linux-android` | Expected limitation | Only build `arm64-v8a` for real devices; x86_64 is emulator-only |
+| `scannerMode` is `"regex"` but expected `"ner"` | NER model dir missing or not resolved | Check `getDebugLog()` for `"NER budget: ... dir=None"`. Ensure both `ner/` and `ner_lite/` are bundled, or use `models_base_dir` for auto-resolution. Run `bundle_models.sh` to ensure correct directory naming. |
+| CoreML Conv padding warnings on iOS | MLProgram format incompatible with CNN models | Already fixed in OpenObscure — iOS uses NeuralNetwork format + CPUAndGPU. If you see these warnings, rebuild with the latest `.a` file and clear Xcode DerivedData: `rm -rf ~/Library/Developer/Xcode/DerivedData/YourApp-*` |
+| NER model fails to load on iOS | CoreML can't handle transformer architectures | Already fixed — NER uses CPU-only inference on all platforms. Check `getDebugLog()` for `"NER model load FAILED"` messages. |
+| Xcode links stale binary after rebuild | DerivedData caching | Delete DerivedData: `rm -rf ~/Library/Developer/Xcode/DerivedData/YourApp-*`, then rebuild. Also re-resolve packages: `xcodebuild -resolvePackageDependencies` |
+| No Rust debug output on iOS device | `stderr` goes to `/dev/null` on iOS | Use `getDebugLog()` to retrieve Rust-side diagnostics. Call after `createOpenobscure()` or after operations that may fail. |
 
 ---
 
@@ -1101,4 +1162,5 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 | `build/build_android.sh` | Android shared libs | `.so` per ABI |
 | `build/build_napi.sh` | Node.js native addon | `scanner.node` |
 | `build/generate_bindings.sh` | UniFFI Swift + Kotlin bindings | `bindings/swift/`, `bindings/kotlin/` |
+| `build/bundle_models.sh` | Copy & rename models for embedded apps | `<output_dir>/{ner,ner_lite,scrfd,blazeface,ocr,nsfw,nsfw_classifier,ri}/` |
 | `build/download_models.sh` | ONNX model files | `openobscure-proxy/models/` |

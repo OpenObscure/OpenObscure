@@ -8,7 +8,8 @@ import OpenObscureLib
 final class OpenObscureManager {
     static let shared = OpenObscureManager()
     let handle: OpenObscureHandle
-    var lastMappingJson: String = "{}"
+    /// Accumulated token→plaintext mappings across all sanitize calls in a conversation.
+    private var accumulatedMappings: [[String]] = []
 
     private init() {
         let key = OpenObscureManager.getOrCreateKey()
@@ -26,30 +27,68 @@ final class OpenObscureManager {
             """,
             fpeKeyHex: key
         )
+
+        // Drain Rust-side debug log — model loading diagnostics, verification results.
+        // On iOS, stderr goes to /dev/null so this is the only way to see Rust logs.
+        let debugLog = getDebugLog()
+        if !debugLog.isEmpty {
+            print("[OpenObscure] \(debugLog)")
+        }
     }
 
     /// Sanitize text — returns (sanitized text, PII count).
+    /// Mappings are accumulated across calls for the current conversation.
     func sanitize(_ text: String) -> (sanitizedText: String, piiCount: UInt32) {
         let result = try! sanitizeText(handle: handle, text: text)
         if result.piiCount > 0 {
-            lastMappingJson = result.mappingJson
+            mergeMappings(result.mappingJson)
         }
         return (result.sanitizedText, result.piiCount)
     }
 
-    /// Restore PII in LLM response text using the last saved mapping.
+    /// Restore PII in LLM response text using accumulated mappings.
     func restore(_ text: String) -> String {
-        return restoreText(handle: handle, text: text, mappingJson: lastMappingJson)
+        let json = (try? JSONSerialization.data(withJSONObject: accumulatedMappings)) ?? Data("{}".utf8)
+        return restoreText(handle: handle, text: text, mappingJson: String(data: json, encoding: .utf8) ?? "{}")
+    }
+
+    /// Scan LLM response for persuasion/manipulation (cognitive firewall).
+    /// Returns nil if no manipulation detected or RI is disabled.
+    func scanResponse(_ text: String) -> RiReportFfi? {
+        return OpenObscureLib.scanResponse(handle: handle, responseText: text)
     }
 
     /// Sanitize a speech transcript (convenience wrapper).
     func sanitizeTranscript(_ transcript: String) -> String {
         let result = try! sanitizeAudioTranscript(handle: handle, transcript: transcript)
         if result.piiCount > 0 {
-            lastMappingJson = result.mappingJson
+            mergeMappings(result.mappingJson)
             return result.sanitizedText
         }
         return transcript
+    }
+
+    /// Reset mappings when starting a new conversation.
+    func resetMappings() {
+        accumulatedMappings = []
+    }
+
+    /// Merge new mappings into the accumulated set. New tokens overwrite existing ones.
+    private func mergeMappings(_ json: String) {
+        guard let data = json.data(using: .utf8),
+              let newPairs = try? JSONSerialization.jsonObject(with: data) as? [[String]] else { return }
+        var tokenIndex: [String: Int] = [:]
+        for (i, pair) in accumulatedMappings.enumerated() {
+            if pair.count >= 2 { tokenIndex[pair[0]] = i }
+        }
+        for pair in newPairs where pair.count >= 2 {
+            if let idx = tokenIndex[pair[0]] {
+                accumulatedMappings[idx] = pair
+            } else {
+                tokenIndex[pair[0]] = accumulatedMappings.count
+                accumulatedMappings.append(pair)
+            }
+        }
     }
 
     // MARK: - Keychain key storage
