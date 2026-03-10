@@ -522,7 +522,7 @@ cargo run --example demo_image_pipeline -- \
 
 The image pipeline processes images in three phases:
 
-1. **NSFW detection** (Phase 0): NudeNet 320n ONNX (~12MB) checks for nudity. If detected, the entire image is solid-filled and subsequent phases are skipped.
+1. **NSFW detection** (Phase 0): ViT-base 5-class NSFW classifier (~83MB INT8, Apache-2.0) scores images across 5 classes (drawings, hentai, neutral, porn, sexy). NSFW score = P(hentai) + P(porn) + P(sexy), threshold 0.50. If NSFW, the entire image is solid-filled and subsequent phases are skipped.
 2. **Face detection + redaction** (Phase 1): SCRFD-2.5GF (~3MB, 640x640 input) on Full/Standard tiers for multi-scale detection; Ultra-Light RFB-320 (~1.2MB, 320x240 input) on Lite tier with BlazeFace fallback and tiling heuristic for large images. Detected faces are filled with solid light gray (rgb 200,200,200) — original pixels are completely destroyed, not recoverable by AI deblurring models. Faces occupying >80% of the image trigger full-image fill; otherwise, elliptical solid fill is applied to the face bounding box with 15% padding.
 3. **Text detection** (Phase 2): PaddleOCR v3 ONNX (~2.4MB), detects text regions, applies solid-color fill with vertical padding for complete coverage.
 

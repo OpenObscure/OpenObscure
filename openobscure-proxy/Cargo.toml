@@ -15,6 +15,7 @@ crate-type = ["lib", "staticlib", "cdylib"]
 [[bin]]
 name = "openobscure-proxy"
 path = "src/main.rs"
+required-features = ["server"]
 
 [[bin]]
 name = "uniffi-bindgen"
@@ -22,7 +23,8 @@ path = "uniffi-bindgen.rs"
 required-features = ["bindgen"]
 
 [features]
-default = ["voice"]
+default = ["server", "voice"]
+server = ["axum", "hyper", "hyper-util", "http-body-util", "tower", "tower-http", "hyper-rustls", "rustls"]
 mobile = ["uniffi"]
 # Voice PII detection (KWS keyword spotting + audio decoding)
 voice = ["sherpa-rs", "sherpa-rs-sys", "symphonia", "symphonia-format-ogg", "symphonia-codec-vorbis"]
@@ -30,18 +32,18 @@ voice = ["sherpa-rs", "sherpa-rs-sys", "symphonia", "symphonia-format-ogg", "sym
 bindgen = ["mobile", "uniffi/cli"]
 
 [dependencies]
-# HTTP stack
-axum = { version = "0.8", features = ["json", "macros"] }
-hyper = { version = "1", features = ["full"] }
-hyper-util = { version = "0.1", features = ["client-legacy", "http1", "http2", "tokio"] }
-http-body-util = "0.1"
+# HTTP stack (behind `server` feature — not needed for mobile library)
+axum = { version = "0.8", features = ["json", "macros"], optional = true }
+hyper = { version = "1", features = ["full"], optional = true }
+hyper-util = { version = "0.1", features = ["client-legacy", "http1", "http2", "tokio"], optional = true }
+http-body-util = { version = "0.1", optional = true }
 tokio = { version = "1", features = ["full"] }
-tower = { version = "0.5", features = ["util", "timeout"] }
-tower-http = { version = "0.6", features = ["trace", "timeout"] }
+tower = { version = "0.5", features = ["util", "timeout"], optional = true }
+tower-http = { version = "0.6", features = ["trace", "timeout"], optional = true }
 
-# TLS for upstream HTTPS
-hyper-rustls = { version = "0.27", features = ["http1", "http2", "ring", "webpki-tokio"] }
-rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+# TLS for upstream HTTPS (behind `server` feature)
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "ring", "tls12", "native-tokio", "webpki-tokio"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"], optional = true }
 
 # FPE (FF1 only — FF3 is NIST-withdrawn)
 fpe = "0.6"
@@ -118,7 +120,7 @@ dirs-next = "2"
 ort = { version = "=2.0.0-rc.11", features = ["coreml"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-ort = { version = "=2.0.0-rc.11", features = ["nnapi"] }
+ort = { version = "=2.0.0-rc.11", features = ["load-dynamic"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = ["Win32_System_SystemInformation"] }

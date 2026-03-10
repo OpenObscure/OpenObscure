@@ -63,11 +63,9 @@ face_model_dir = "models/blazeface"
 face_model_dir_scrfd = "models/scrfd"
 face_model_dir_ultralight = "models/ultralight"
 ocr_model_dir = "models/paddleocr"
-nsfw_model_dir = "models/nudenet"
-nsfw_classifier_model_dir = "models/nsfw_classifier"
+nsfw_model_dir = "models/nsfw_classifier"
 # max_dimension = 960           # Resize longest edge (default: 960)
-# nsfw_threshold = 0.25         # NSFW confidence threshold (default: 0.25)
-# nsfw_classifier_threshold = 0.75  # Holistic classifier threshold (default: 0.75)
+# nsfw_threshold = 0.75         # ViT-base NSFW classifier confidence threshold (default: 0.75)
 # model_idle_timeout_secs = 300 # Evict models after N seconds idle (default: 300)
 
 # --- Response Integrity (Cognitive Firewall) ---

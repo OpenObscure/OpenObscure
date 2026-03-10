@@ -23,7 +23,7 @@ OUTPUT_DIR="$1"
 mkdir -p "$OUTPUT_DIR"
 
 # source_name:dest_name pairs
-MAPPINGS="ner:ner ner-lite:ner_lite scrfd:scrfd blazeface:blazeface paddleocr:ocr nudenet:nsfw nsfw_classifier:nsfw_classifier ri:ri"
+MAPPINGS="ner:ner ner-lite:ner_lite scrfd:scrfd blazeface:blazeface paddleocr:ocr nsfw_classifier:nsfw_classifier ri:ri"
 
 COPIED=0
 SKIPPED=0
@@ -61,7 +61,7 @@ echo "Total size: $total_size"
 # Verify all expected subdirectories exist
 echo ""
 echo "=== Verification ==="
-EXPECTED="ner ner_lite scrfd blazeface ocr nsfw nsfw_classifier ri"
+EXPECTED="ner ner_lite scrfd blazeface ocr nsfw_classifier ri"
 ALL_OK=true
 for name in $EXPECTED; do
     if [ -d "$OUTPUT_DIR/$name" ]; then

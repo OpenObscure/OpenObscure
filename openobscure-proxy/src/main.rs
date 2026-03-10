@@ -35,7 +35,6 @@ mod name_gazetteer;
 mod ner_endpoint;
 mod ner_scanner;
 mod nsfw_classifier;
-mod nsfw_detector;
 mod ocr_engine;
 mod ort_ep;
 mod passthrough;

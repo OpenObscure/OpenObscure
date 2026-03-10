@@ -358,24 +358,21 @@ pub struct ImageConfig {
     #[serde(default = "default_true")]
     pub exif_strip: bool,
     /// Enable NSFW/nudity detection (default: true).
+    /// Uses a 5-class ViT-base classifier (drawings/hentai/neutral/porn/sexy).
     #[serde(default = "default_true")]
     pub nsfw_detection: bool,
-    /// Path to NudeNet ONNX model directory.
+    /// Path to NSFW classifier ONNX model directory.
     #[serde(default)]
     pub nsfw_model_dir: Option<String>,
-    /// NSFW detection confidence threshold (default: 0.45).
+    /// NSFW detection threshold on combined P(hentai)+P(porn)+P(sexy) (default: 0.5).
     #[serde(default = "default_nsfw_threshold")]
     pub nsfw_threshold: f32,
-    /// Enable holistic NSFW classifier as secondary check (default: true).
-    /// Runs a ViT-tiny classifier when NudeNet + heuristic produce no NSFW signal.
-    #[serde(default = "default_true")]
+    // Legacy fields kept for backwards compatibility with existing TOML configs.
+    #[serde(default)]
     pub nsfw_classifier_enabled: bool,
-    /// Path to ViT-tiny NSFW classifier ONNX model directory.
     #[serde(default)]
     pub nsfw_classifier_model_dir: Option<String>,
-    /// NSFW classifier confidence threshold (default: 0.75).
-    /// High threshold to minimize false positives on ambiguous content.
-    #[serde(default = "default_nsfw_classifier_threshold")]
+    #[serde(default)]
     pub nsfw_classifier_threshold: f32,
     /// Enable fetching and processing of URL-referenced images (default: true).
     #[serde(default = "default_true")]
@@ -417,9 +414,9 @@ impl Default for ImageConfig {
             nsfw_detection: true,
             nsfw_model_dir: None,
             nsfw_threshold: default_nsfw_threshold(),
-            nsfw_classifier_enabled: true,
+            nsfw_classifier_enabled: false,
             nsfw_classifier_model_dir: None,
-            nsfw_classifier_threshold: default_nsfw_classifier_threshold(),
+            nsfw_classifier_threshold: 0.75,
             url_fetch_enabled: true,
             url_max_bytes: default_url_max_bytes(),
             url_timeout_secs: default_url_timeout(),
@@ -430,6 +427,7 @@ impl Default for ImageConfig {
 
 impl ImageConfig {
     /// Convert to `ImageFetchConfig` for the URL fetch module.
+    #[cfg(feature = "server")]
     pub fn to_fetch_config(&self) -> crate::image_fetch::ImageFetchConfig {
         crate::image_fetch::ImageFetchConfig {
             enabled: self.url_fetch_enabled && self.enabled,
@@ -578,10 +576,7 @@ fn default_max_dimension() -> u32 {
     960
 }
 fn default_nsfw_threshold() -> f32 {
-    0.25
-}
-fn default_nsfw_classifier_threshold() -> f32 {
-    0.75
+    0.50
 }
 fn default_model_idle_timeout() -> u64 {
     300
@@ -735,7 +730,6 @@ impl AppConfig {
         resolve(&mut self.image.face_model_dir_ultralight);
         resolve(&mut self.image.ocr_model_dir);
         resolve(&mut self.image.nsfw_model_dir);
-        resolve(&mut self.image.nsfw_classifier_model_dir);
 
         // Voice model dirs
         resolve_str(&mut self.voice.kws_model_dir);
@@ -889,7 +883,7 @@ nsfw_detection = false
         assert!(config.image.screen_guard);
         assert!(config.image.exif_strip);
         assert!(config.image.nsfw_detection);
-        assert_eq!(config.image.nsfw_threshold, 0.25);
+        assert_eq!(config.image.nsfw_threshold, 0.50);
     }
 
     // --- Full config with overrides ---

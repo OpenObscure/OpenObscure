@@ -4,22 +4,20 @@
 #
 # Usage: ./download_models.sh [lite|standard|full]
 #   lite     — BlazeFace + PaddleOCR (~11MB) — face redaction + text detection only
-#   standard — lite + SCRFD + NudeNet (~26MB) — adds better face detection + NSFW
-#   full     — standard + all models (~26MB from this script; NER/KWS/RI via Git LFS)
+#   standard — lite + SCRFD (~14MB) — adds better face detection
+#   full     — standard + all models (~14MB from this script; NER/KWS/RI via Git LFS)
 #
 # Models:
 #   BlazeFace short-range  — face detection, Lite tier (128x128 input)
 #   SCRFD-2.5GF            — face detection, Full/Standard tier (640x640 input)
 #   PaddleOCR v3 detector  — text region detection
 #   PaddleOCR English rec  — text recognition (Tier 2 only)
-#   NudeNet 320n           — NSFW/nudity detection (YOLOv8n)
 #
 # Sources:
 #   BlazeFace: https://github.com/axinc-ai/ailia-models (GCS mirror)
 #   SCRFD:     https://github.com/cysin/scrfd_onnx
 #   PaddleOCR: https://huggingface.co/deepghs/paddleocr (PP-OCRv4 English rec)
 #              https://huggingface.co/monkt/paddleocr-onnx (v3 detector)
-#   NudeNet:   https://huggingface.co/vladmandic/nudenet
 
 set -euo pipefail
 
@@ -31,7 +29,7 @@ case "$TIER" in
        echo ""
        echo "Tiers:"
        echo "  lite     — BlazeFace + PaddleOCR (~11MB)"
-       echo "  standard — lite + SCRFD + NudeNet (~26MB)"
+       echo "  standard — lite + SCRFD (~14MB)"
        echo "  full     — standard (NER/KWS/RI models are tracked via Git LFS)"
        exit 1
        ;;
@@ -43,7 +41,6 @@ MODELS_DIR="$PROXY_DIR/models"
 BLAZEFACE_DIR="$MODELS_DIR/blazeface"
 SCRFD_DIR="$MODELS_DIR/scrfd"
 PADDLEOCR_DIR="$MODELS_DIR/paddleocr"
-NUDENET_DIR="$MODELS_DIR/nudenet"
 
 # ── URLs ──
 BLAZEFACE_URL="https://storage.googleapis.com/ailia-models/blazeface/blazeface.onnx"
@@ -51,7 +48,6 @@ SCRFD_URL="https://github.com/cysin/scrfd_onnx/raw/refs/heads/main/scrfd_2.5g_bn
 PADDLEOCR_DET_URL="https://huggingface.co/monkt/paddleocr-onnx/resolve/main/detection/v3/det.onnx"
 PADDLEOCR_REC_URL="https://huggingface.co/deepghs/paddleocr/resolve/main/rec/en_PP-OCRv4_rec/model.onnx"
 PADDLEOCR_DICT_URL="https://huggingface.co/deepghs/paddleocr/resolve/main/rec/en_PP-OCRv4_rec/dict.txt"
-NUDENET_URL="https://huggingface.co/vladmandic/nudenet/resolve/main/nudenet.onnx"
 
 download() {
     local url="$1" dest="$2" label="$3"
@@ -90,14 +86,6 @@ if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
     download "$SCRFD_URL" "$SCRFD_DIR/scrfd_2.5g.onnx" "scrfd_2.5g.onnx (~3.1MB)"
 fi
 
-# ── NudeNet (standard + full) ──
-if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
-    echo ""
-    echo "NudeNet (NSFW/nudity detection):"
-    mkdir -p "$NUDENET_DIR"
-    download "$NUDENET_URL" "$NUDENET_DIR/nudenet.onnx" "nudenet.onnx (~12MB)"
-fi
-
 echo ""
 echo "=== Done ==="
 echo ""
@@ -110,10 +98,6 @@ if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
 fi
 echo "  $PADDLEOCR_DIR/"
 ls -lh "$PADDLEOCR_DIR/" 2>/dev/null | grep -v total || true
-if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
-    echo "  $NUDENET_DIR/"
-    ls -lh "$NUDENET_DIR/" 2>/dev/null | grep -v total || true
-fi
 if [ "$TIER" = "full" ]; then
     echo ""
     echo "Note: NER, KWS, and RI models are tracked via Git LFS."
@@ -130,4 +114,4 @@ fi
 echo '  face_model_dir = "models/blazeface"'
 echo '  face_model_dir_scrfd = "models/scrfd"'
 echo '  ocr_model_dir = "models/paddleocr"'
-echo '  nsfw_model_dir = "models/nudenet"'
+echo '  nsfw_model_dir = "models/nsfw_classifier"'

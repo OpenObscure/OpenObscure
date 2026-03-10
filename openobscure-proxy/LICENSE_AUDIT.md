@@ -2,7 +2,7 @@
 
 > **Audit date:** 2026-02-20
 > **Project license:** MIT OR Apache-2.0
-> **Verdict:** All crate dependencies are open source and permissive. MPL-2.0 deps (`symphonia`, `uniffi`) are optional features only — file-level copyleft, no project-level impact. No GPL/LGPL/AGPL in crate deps. NudeNet ONNX model is GPL-3.0 (downloaded at build time, not committed — see ONNX Model Licenses section).
+> **Verdict:** All crate dependencies are open source and permissive. MPL-2.0 deps (`symphonia`, `uniffi`) are optional features only — file-level copyleft, no project-level impact. No GPL/LGPL/AGPL in crate deps. All ONNX models are permissive (Apache-2.0, MIT) or trained in-house — no GPL/AGPL model dependencies.
 
 ---
 
@@ -80,19 +80,18 @@ Dev-only:
 
 | Model | File | License | Source |
 |-------|------|---------|--------|
-| NudeNet 320n | `nudenet/320n.onnx` | GPL-3.0 | notAI-tech/NudeNet (download script, not committed) |
+| ViT-base NSFW Classifier | `nsfw_classifier/nsfw_classifier.onnx` | Apache-2.0 | LukeJacob2023/nsfw-image-detector |
 | SCRFD-2.5GF | `scrfd/scrfd_2.5g_bnkps.onnx` | MIT | InsightFace |
 | BlazeFace | `blazeface/face_detection_short_range.onnx` | Apache-2.0 | MediaPipe |
 | PaddleOCR det | `paddleocr/det_model.onnx` | Apache-2.0 | PaddlePaddle |
 | PaddleOCR rec | `paddleocr/rec_model.onnx` | Apache-2.0 | PaddlePaddle |
-| Marqo NSFW | `nsfw_classifier/nsfw_classifier.onnx` | Apache-2.0 | Marqo/nsfw-image-detection-384 |
 | R2 TinyBERT | `ri/model.onnx` | Custom (trained in-house) | OpenObscure |
 | TinyBERT NER | `ner/model.onnx` | Custom (trained in-house) | OpenObscure |
 | KWS Zipformer | `kws/*.onnx` | Apache-2.0 | k2-fsa/sherpa-onnx |
 
-> **Note:** NudeNet is GPL-3.0 — it is downloaded at build time via `scripts/download_nudenet.sh` and never committed to the repo. The GPL-3.0 license applies to the model weights only and does not affect the project source code license (MIT OR Apache-2.0). All other models are permissive (Apache-2.0, MIT) or trained in-house.
+> **Note:** All models are permissive (Apache-2.0, MIT) or trained in-house. No GPL/AGPL model dependencies.
 >
-> No new Rust crate dependencies were added for the ensemble NSFW classifier — it reuses existing `ort`, `image`, and `ndarray`.
+> No new Rust crate dependencies were added for the NSFW classifier — it reuses existing `ort`, `image`, and `ndarray`.
 
 ---
 

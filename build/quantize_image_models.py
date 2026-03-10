@@ -7,7 +7,6 @@ NOT support quantized operators (QLinearConv, MatMulInteger), so those ops
 will fall back to CPU — benchmark before deploying.
 
 Models quantized:
-  - NudeNet 320n       (11.6 MB → ~3-4 MB)
   - PaddleOCR rec v4   (7.3 MB  → ~2-3 MB)
   - SCRFD-2.5GF        (3.1 MB  → ~1-2 MB)
   - PaddleOCR det v4   (2.3 MB  → ~1 MB)
@@ -36,11 +35,6 @@ MODELS_DIR = os.path.join(
 )
 
 TARGETS = [
-    {
-        "name": "NudeNet 320n",
-        "path": os.path.join(MODELS_DIR, "nudenet", "320n.onnx"),
-        "preprocess": False,  # Has proper initializers
-    },
     {
         "name": "PaddleOCR rec v4",
         "path": os.path.join(MODELS_DIR, "paddleocr", "rec_model.onnx"),

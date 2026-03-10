@@ -101,7 +101,7 @@ flowchart TB
 - No HTTP server (axum/tokio not compiled in)
 - FPE key passed from host app (no OS keychain access on mobile)
 - Hardware auto-detection (`auto_detect: true` default) profiles device RAM and selects features automatically — phones with 8GB+ RAM get full NER + ensemble + image pipeline + cognitive firewall, matching gateway efficacy
-- `models_base_dir` config field simplifies model path setup — point to a single directory and individual `*_model_dir` fields are auto-resolved from standard subdirectories (`ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw/`, `nsfw_classifier/`, `ri/`)
+- `models_base_dir` config field simplifies model path setup — point to a single directory and individual `*_model_dir` fields are auto-resolved from standard subdirectories (`ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw/`, `ri/`)
 - Image pipeline and cognitive firewall default to enabled (`image_enabled: true`, `ri_enabled: true`); device budget gates actual activation — without model files on disk these are no-ops
 - Response integrity (cognitive firewall) available on Full/Standard tier — R1 dictionary always, R2 classifier if model provided; R2 Discover role suppressed (matches gateway behavior)
 - All features tier-gated via `FeatureBudget` — `gazetteer_enabled`, `keywords_enabled`, `ner_pool_size` all budget-gated (not just config defaults)
@@ -204,7 +204,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | Aspect | Detail |
 |--------|--------|
 | **What it does** | **Request path:** Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE. Processes base64-encoded images (face solid-fill redaction, OCR text solid-fill redaction, NSFW solid-fill redaction, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. **Response path:** Decrypts FPE ciphertexts in responses (SSE streaming supported). Scans for persuasion/manipulation techniques (response integrity cognitive firewall) and optionally prepends warning labels (EU AI Act Article 5 compliance). |
-| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (NudeNet ONNX), faces in photos — solid-color fill redaction (SCRFD-2.5GF on Full/Standard, Ultra-Light RFB-320 on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks (`voice` feature). |
+| **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (ViT-base 5-class classifier, ~83MB INT8), faces in photos — solid-color fill redaction (SCRFD-2.5GF on Full/Standard, Ultra-Light RFB-320 on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks (`voice` feature). |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged |
 | **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
@@ -389,7 +389,7 @@ Embedded budgets scale proportionally (20% of device RAM, clamped to [12MB, 275M
 | **Visual — Faces** | SCRFD-2.5GF solid-fill redaction | Full / Standard |
 | **Visual — Faces** | Ultra-Light RFB-320 solid-fill redaction | Lite |
 | **Visual — Text** | PaddleOCR PP-OCRv4 solid-fill redaction in screenshots/images | All (with models) |
-| **Visual — NSFW** | NudeNet body-part detector + ViT-tiny holistic classifier — solid-fill entire image | All (with models) |
+| **Visual — NSFW** | ViT-base 5-class classifier (LukeJacob2023/nsfw-image-detector, ~83MB INT8, 224x224 NCHW) — NSFW score = P(hentai) + P(porn) + P(sexy) threshold 0.50, solid-fill entire image | All (with models) |
 | **Visual — Metadata** | EXIF strip, screenshot detection (heuristics) | All |
 | **Voice** | KWS keyword spotting (sherpa-onnx Zipformer, ~5MB INT8) — PII trigger phrase detection + audio transcript sanitization | All (`voice` feature) |
 | **FPE Encryption** | FF1 (NIST SP 800-38G) — format-preserving, per-record tweaks, key rotation with 30s overlap | All |
@@ -496,7 +496,7 @@ Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/
 
 L0 detects base64-encoded images in JSON request bodies (Anthropic and OpenAI formats) and processes them **before** text PII scanning. All redaction uses solid fill — original pixel data is destroyed and cannot be recovered by AI deblurring.
 
-**Pipeline phases:** NSFW detection (NudeNet + ViT-tiny classifier) → face solid-fill (SCRFD or BlazeFace) → OCR text solid-fill (PaddleOCR) → EXIF strip → re-encode. If NSFW detected, entire image is solid-filled and face/OCR phases are skipped. Models load on-demand and evict after 300s idle.
+**Pipeline phases:** NSFW detection (ViT-base 5-class classifier) → face solid-fill (SCRFD or BlazeFace) → OCR text solid-fill (PaddleOCR) → EXIF strip → re-encode. If NSFW detected (P(hentai) + P(porn) + P(sexy) ≥ 0.50), entire image is solid-filled and face/OCR phases are skipped. Models load on-demand and evict after 300s idle.
 
 For visual before/after examples, see [README.md — Visual PII Protection](README.md#visual-pii-protection). For model details, pipeline architecture, and provider format handling, see `openobscure-proxy/ARCHITECTURE.md`.
 

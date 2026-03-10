@@ -11,6 +11,13 @@
 //! The FPE key is provided by the host app's native secure storage (iOS Keychain
 //! or Android Keystore).
 
+// Android bionic libc does not export `__libc_single_threaded` (a glibc symbol),
+// but the ONNX Runtime prebuilt binary references it. Provide a stub that signals
+// "multi-threaded" (0) so ORT always uses its thread-safe code paths.
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub static __libc_single_threaded: u8 = 0;
+
 use crate::config::ImageConfig;
 use crate::fpe_engine::{FpeEngine, FpeError, TweakGenerator};
 
@@ -95,11 +102,11 @@ pub struct MobileConfig {
     #[serde(default)]
     pub ocr_model_dir: Option<String>,
 
-    /// Path to NSFW/NudeNet model directory.
+    /// Path to NSFW classifier model directory (ViT-base 5-class).
     #[serde(default)]
     pub nsfw_model_dir: Option<String>,
 
-    /// Path to NSFW holistic classifier model directory (Phase 0b cascade).
+    /// Legacy field — ignored. Use `nsfw_model_dir` instead.
     #[serde(default)]
     pub nsfw_classifier_model_dir: Option<String>,
 
@@ -127,6 +134,13 @@ pub struct MobileConfig {
     /// Individual `*_model_dir` fields override the auto-resolved path if both are set.
     #[serde(default)]
     pub models_base_dir: Option<String>,
+
+    /// Path to the ONNX Runtime dynamic library (`libonnxruntime.so`).
+    /// Required on Android when using `alternative-backend` (runtime-loaded ORT).
+    /// Typically set to `<nativeLibraryDir>/libonnxruntime.so`.
+    /// Ignored on iOS/macOS (ORT is statically linked).
+    #[serde(default)]
+    pub ort_dylib_path: Option<String>,
 
     /// Enable name gazetteer for person name detection.
     /// Uses embedded name lists (no model files needed). Default: true.
@@ -178,8 +192,7 @@ impl MobileConfig {
             ("scrfd", "SCRFD face detection (Full/Standard)"),
             ("blazeface", "BlazeFace face detection (Lite/fallback)"),
             ("ocr", "PaddleOCR text detection"),
-            ("nsfw", "NudeNet NSFW detection"),
-            ("nsfw_classifier", "NSFW classifier"),
+            ("nsfw_classifier", "NSFW classifier (ViT-base 5-class)"),
             ("ri", "Response Integrity model"),
         ];
 
@@ -230,8 +243,7 @@ impl MobileConfig {
         resolve(&mut self.scrfd_model_dir, "scrfd");
         resolve(&mut self.face_model_dir, "blazeface");
         resolve(&mut self.ocr_model_dir, "ocr");
-        resolve(&mut self.nsfw_model_dir, "nsfw");
-        resolve(&mut self.nsfw_classifier_model_dir, "nsfw_classifier");
+        resolve(&mut self.nsfw_model_dir, "nsfw_classifier");
         resolve(&mut self.ri_model_dir, "ri");
     }
 }
@@ -256,6 +268,7 @@ impl Default for MobileConfig {
             ri_sensitivity: "medium".to_string(),
             ri_model_dir: None,
             models_base_dir: None,
+            ort_dylib_path: None,
             gazetteer_enabled: true,
             ner_pool_size: 1,
         }
@@ -397,6 +410,28 @@ impl OpenObscureMobile {
     /// best scanner the device can support (NER on 8GB+ devices, CRF on
     /// 4-8GB, regex-only on <4GB).
     pub fn new(mut config: MobileConfig, fpe_key: [u8; 32]) -> Result<Self, MobileError> {
+        // On Android, ORT uses `alternative-backend` (disable-linking) which requires
+        // explicit initialization with the path to `libonnxruntime.so` before any
+        // Session API calls. This must happen before verify_models/resolve_model_dirs
+        // because those may trigger ORT session creation downstream.
+        #[cfg(target_os = "android")]
+        if let Some(ref dylib_path) = config.ort_dylib_path {
+            debug_log(format!("ort_init_from: {}", dylib_path));
+            match ort::init_from(dylib_path) {
+                Ok(builder) => {
+                    builder.commit();
+                    debug_log("ort_init_from: success".to_string());
+                }
+                Err(e) => {
+                    debug_log(format!("ort_init_from: error: {}", e));
+                    // Don't fail — scanner will fall back to regex-only if ORT unavailable
+                }
+            }
+        } else {
+            #[cfg(target_os = "android")]
+            debug_log("ort_dylib_path not set — ORT models will be unavailable".to_string());
+        }
+
         // Resolve model paths from base directory before anything else
         config.verify_models();
         config.resolve_model_dirs();
@@ -480,6 +515,10 @@ impl OpenObscureMobile {
             let ocr_tier = budget.ocr_tier.clone();
             let screen_guard = budget.screen_guard_enabled;
             let nsfw_enabled = budget.nsfw_enabled;
+            debug_log(format!(
+                "image_config: nsfw_enabled={}, nsfw_model_dir={:?}, tier={}, max_ram={}",
+                nsfw_enabled, config.nsfw_model_dir, tier, budget.max_ram_mb
+            ));
             let face_model_name = budget.face_model.clone();
             let img_config = ImageConfig {
                 enabled: true,
@@ -501,13 +540,9 @@ impl OpenObscureMobile {
                 } else {
                     None
                 },
-                nsfw_threshold: 0.45,
-                nsfw_classifier_enabled: nsfw_enabled && config.nsfw_classifier_model_dir.is_some(),
-                nsfw_classifier_model_dir: if nsfw_enabled {
-                    config.nsfw_classifier_model_dir
-                } else {
-                    None
-                },
+                nsfw_threshold: 0.50,
+                nsfw_classifier_enabled: false,
+                nsfw_classifier_model_dir: None,
                 nsfw_classifier_threshold: 0.75,
                 url_fetch_enabled: false, // Mobile doesn't fetch URLs
                 url_max_bytes: 0,
@@ -787,9 +822,23 @@ impl OpenObscureMobile {
             let max_dim = manager.config().max_dimension;
             let img = crate::image_pipeline::resize_if_needed(img, max_dim);
 
-            let (result_img, _stats, _meta) = manager
+            let (result_img, stats, meta) = manager
                 .process_image(img, screen_result.as_ref(), Some(&self.scanner))
                 .map_err(|e| MobileError::ImageError(e.to_string()))?;
+            debug_log(format!(
+                "image_pipeline: nsfw_detected={}, faces_redacted={}, text_regions={}, nsfw_ms={}ms, total_ms={}ms",
+                stats.nsfw_detected, stats.faces_redacted, stats.text_regions_found,
+                stats.nsfw_ms, stats.processing_ms
+            ));
+            if let Some(ref nsfw) = meta.nsfw {
+                debug_log(format!(
+                    "nsfw_detail: is_nsfw={}, confidence={:.3}, threshold={:.3}, category={:?}, classifier={:?}",
+                    nsfw.is_nsfw, nsfw.confidence, nsfw.threshold,
+                    nsfw.category, nsfw.classifier_score
+                ));
+            } else {
+                debug_log("nsfw_detail: no nsfw meta (detector did not run)".to_string());
+            }
             result_img
         } else {
             // No image pipeline — still resize and strip EXIF via decode → re-encode

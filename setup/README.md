@@ -55,7 +55,7 @@ cd OpenObscure
 OpenObscure uses small ONNX models for face detection, OCR text detection, and voice PII keyword spotting:
 
 ```bash
-./build/download_models.sh       # ~25MB: BlazeFace, SCRFD, PaddleOCR, NudeNet, NER
+./build/download_models.sh       # ~14MB: BlazeFace, SCRFD, PaddleOCR, NER
 ./build/download_kws_models.sh   # ~5MB: sherpa-onnx KWS Zipformer
 ```
 

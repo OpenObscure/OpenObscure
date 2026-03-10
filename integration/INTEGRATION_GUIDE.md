@@ -161,8 +161,8 @@ Returns `nil`/`null` when no manipulation is detected, RI is disabled, or device
 - `ri_enabled`: `true` (default) — device budget gates actual activation. Set `false` to disable explicitly.
 - `ri_sensitivity`: `"medium"` (default) — `"off"`, `"low"`, `"medium"`, `"high"` — controls R2 classifier invocation threshold
 - `ri_model_dir`: `null` (default) — path to R2 model directory; R1 dictionary works without it
-- `nsfw_classifier_model_dir`: `null` (default) — path to ViT-tiny NSFW holistic classifier for Phase 0b cascade (supplements NudeNet body-part detector)
-- `models_base_dir`: `null` (default) — base directory containing model subdirectories. When set, individual `*_model_dir` fields are auto-resolved from standard subdirectory names. Explicit per-model paths always take priority. Standard subdirectories: `ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw/`, `nsfw_classifier/`, `ri/`.
+- `nsfw_classifier_model_dir`: `null` (default) — path to ViT-base NSFW classifier (~83 MB INT8). This is the sole NSFW detection model (NudeNet has been removed)
+- `models_base_dir`: `null` (default) — base directory containing model subdirectories. When set, individual `*_model_dir` fields are auto-resolved from standard subdirectory names. Explicit per-model paths always take priority. Standard subdirectories: `ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw_classifier/`, `ri/`.
 - `ner_pool_size`: `1` (default) — number of NER model instances; budget caps the maximum (Full gateway: 2, all embedded: 1)
 
 > **Migration note (v0.18+):** `image_enabled` and `ri_enabled` now default to `true`. Without model files on disk these features are effectively no-ops, but if you previously relied on the `false` default, set them to `false` explicitly in your config JSON.
@@ -627,7 +627,7 @@ Use the bundling script to copy models with correct directory naming:
 ./build/bundle_models.sh ~/Test/enchanted-openobscure/models
 ```
 
-The script maps dev repo directory names to the standard names expected by `models_base_dir` auto-resolution (e.g., `paddleocr` → `ocr`, `nudenet` → `nsfw`, `ner-lite` → `ner_lite`). It verifies all 8 expected subdirectories exist after copying.
+The script maps dev repo directory names to the standard names expected by `models_base_dir` auto-resolution (e.g., `paddleocr` → `ocr`, `ner-lite` → `ner_lite`). It verifies all expected subdirectories exist after copying.
 
 Alternatively, copy the `models/` directory manually from `openobscure-proxy/models/` into your app resources:
 
@@ -657,16 +657,14 @@ models/
 │   ├── det_model.onnx
 │   ├── rec_model.onnx
 │   └── ppocr_keys.txt
-├── nsfw/              — NudeNet body-part detector (~12 MB, AGPL-3.0)
-│   └── 320n.onnx
-├── nsfw_classifier/   — ViT-tiny holistic NSFW classifier (~21 MB)
+├── nsfw_classifier/   — ViT-base NSFW classifier (~83 MB INT8, Apache-2.0)
 │   └── nsfw_classifier.onnx
 └── ri/                — R2 response integrity classifier (~14 MB, optional)
     ├── model_int8.onnx
     └── vocab.txt
 ```
 
-**Total size on disk: ~75 MB** (without DistilBERT NER). With `ner/` (~64 MB) for Full-tier DistilBERT NER: **~140 MB**.
+**Total size on disk: ~125 MB** (without DistilBERT NER). With `ner/` (~64 MB) for Full-tier DistilBERT NER: **~190 MB**.
 
 > **Recommended:** Bundle both `ner/` and `ner_lite/`. The tier system loads only one based on device RAM. If only one is bundled, the NER loader automatically falls back to whichever is available.
 
@@ -736,9 +734,9 @@ If the budget-selected NER model directory is missing, the loader automatically 
 
 This means bundling only one NER variant still works — the tier system adapts. Check `getDebugLog()` output to see which model was actually loaded.
 
-### AGPL-3.0 Note
+### NSFW Model License
 
-NudeNet (`nsfw/320n.onnx`) is AGPL-3.0 licensed. If your app is not AGPL-compatible, omit the `nsfw/` directory — the NSFW detection feature will be disabled but all other features work normally. The `nsfw_classifier/` model uses a permissive license.
+The NSFW classifier (`nsfw_classifier/nsfw_classifier.onnx`) is Apache-2.0 licensed — no copyleft obligations.
 
 ---
 

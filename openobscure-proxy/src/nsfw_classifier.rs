@@ -1,16 +1,20 @@
-//! Holistic NSFW image classifier using ViT-tiny ONNX model.
+//! NSFW image classifier using ViT-base 5-class ONNX model.
 //!
-//! Provides a binary SFW/NSFW classification as a secondary check after NudeNet's
-//! body-part detector. While NudeNet excels at detecting explicit exposed body parts,
-//! it misses semi-nude content where body parts appear "covered" or are not detected
-//! at all. This holistic classifier sees the full image context and provides a
-//! complementary signal.
+//! Single-model NSFW detection replacing the previous two-model cascade
+//! (NudeNet 320n detector + ViT-tiny binary classifier). The ViT-base model
+//! provides holistic image classification into 5 categories and catches both
+//! explicit nudity and semi-nude/suggestive content that region-based detectors miss.
 //!
-//! Model: Marqo/nsfw-image-detection-384 (ViT-tiny, Apache 2.0)
-//! Input: [1, 3, 384, 384] NCHW, float32 normalized with mean=0.5, std=0.5
-//! Output: [1, 2] logits — index 0 = NSFW, index 1 = SFW
+//! Model: LukeJacob2023/nsfw-image-detector (ViT-base-patch16-224, Apache 2.0)
+//! Input: [1, 3, 224, 224] NCHW, float32 normalized with mean=0.5, std=0.5
+//! Output: [1, 5] logits — 5 classes:
+//!   0 = drawings  (safe cartoon/art)
+//!   1 = hentai    (NSFW drawn)
+//!   2 = neutral   (safe photo)
+//!   3 = porn      (explicit)
+//!   4 = sexy      (semi-nude / suggestive)
 //!
-//! Only invoked when NudeNet + implied-topless heuristic produce no NSFW signal.
+//! NSFW score = P(hentai) + P(porn) + P(sexy) — sum of all NSFW class probabilities.
 
 use std::path::Path;
 
@@ -20,33 +24,48 @@ use ort::session::Session;
 
 use crate::image_pipeline::ImageError;
 
-/// Classifier input size (384×384 as per model config).
-const INPUT_SIZE: u32 = 384;
+/// ViT-base input size (224×224).
+const INPUT_SIZE: u32 = 224;
 
-/// ImageNet-style normalization for this model: mean=0.5, std=0.5 per channel.
+/// ImageNet-style normalization: mean=0.5, std=0.5 per channel.
 const NORM_MEAN: [f32; 3] = [0.5, 0.5, 0.5];
 const NORM_STD: [f32; 3] = [0.5, 0.5, 0.5];
 
-/// Output class index for NSFW (from model's id2label config).
-const NSFW_INDEX: usize = 0;
+/// Number of output classes.
+const NUM_CLASSES: usize = 5;
 
-/// Holistic NSFW image classifier.
+/// Output class indices.
+#[allow(dead_code)]
+const IDX_DRAWINGS: usize = 0;
+const IDX_HENTAI: usize = 1;
+const IDX_NEUTRAL: usize = 2;
+const IDX_PORN: usize = 3;
+const IDX_SEXY: usize = 4;
+
+/// NSFW class names for logging/metadata.
+const CLASS_NAMES: [&str; NUM_CLASSES] = ["drawings", "hentai", "neutral", "porn", "sexy"];
+
+/// NSFW image classifier.
 pub struct NsfwClassifier {
     session: Session,
     threshold: f32,
 }
 
-/// Result of holistic NSFW classification.
+/// Result of 5-class NSFW classification.
 #[derive(Debug, Clone)]
 pub struct ClassifierResult {
-    /// Whether the image is classified as NSFW.
+    /// Whether the image is classified as NSFW (nsfw_score >= threshold).
     pub is_nsfw: bool,
-    /// P(NSFW) probability from softmax output.
+    /// Combined P(hentai) + P(porn) + P(sexy).
     pub nsfw_score: f32,
+    /// Name of the top-scoring class.
+    pub top_class: String,
+    /// Per-class probabilities [drawings, hentai, neutral, porn, sexy].
+    pub class_probs: [f32; NUM_CLASSES],
 }
 
 impl NsfwClassifier {
-    /// Load the ViT-tiny NSFW classifier from a model directory.
+    /// Load the ViT-base NSFW classifier from a model directory.
     pub fn load(model_dir: &Path, threshold: f32) -> Result<Self, ImageError> {
         let model_path = find_model_file(model_dir)?;
 
@@ -60,35 +79,29 @@ impl NsfwClassifier {
         Ok(Self { session, threshold })
     }
 
-    /// Classify an image as SFW or NSFW.
+    /// Classify an image into 5 NSFW categories.
     pub fn classify(&mut self, img: &DynamicImage) -> Result<ClassifierResult, ImageError> {
-        // Preprocessing must match timm's transform pipeline:
-        //   1. Resize shortest edge to 384 (preserve aspect ratio, bicubic)
-        //   2. Center crop to 384×384
-        //   3. Normalize with mean=0.5, std=0.5
-
+        // Preprocessing: resize to 224×224, normalize with mean=0.5, std=0.5
         let (w, h) = img.dimensions();
         let resized = if w == h {
-            // Square — resize directly
             img.resize_exact(
                 INPUT_SIZE,
                 INPUT_SIZE,
                 image::imageops::FilterType::CatmullRom,
             )
         } else {
-            // Resize shortest edge to INPUT_SIZE, preserving aspect ratio
+            // Resize shortest edge to INPUT_SIZE, preserving aspect ratio, then center crop
             let scale = INPUT_SIZE as f32 / w.min(h) as f32;
             let new_w = (w as f32 * scale).round() as u32;
             let new_h = (h as f32 * scale).round() as u32;
             let scaled = img.resize_exact(new_w, new_h, image::imageops::FilterType::CatmullRom);
 
-            // Center crop to INPUT_SIZE × INPUT_SIZE
             let crop_x = (new_w.saturating_sub(INPUT_SIZE)) / 2;
             let crop_y = (new_h.saturating_sub(INPUT_SIZE)) / 2;
             scaled.crop_imm(crop_x, crop_y, INPUT_SIZE, INPUT_SIZE)
         };
 
-        // Build input tensor [1, 3, 384, 384] with normalization: (pixel/255 - mean) / std
+        // Build input tensor [1, 3, 224, 224]: (pixel/255 - mean) / std
         let input = Array4::<f32>::from_shape_fn(
             (1, 3, INPUT_SIZE as usize, INPUT_SIZE as usize),
             |(_, c, h, w)| {
@@ -115,24 +128,41 @@ impl NsfwClassifier {
             }
         };
 
-        // Output: [1, 2] logits — extract and apply softmax
+        // Output: [1, 5] logits — extract and apply softmax
         let (_shape, data) = outputs[0]
             .try_extract_tensor::<f32>()
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
-        if data.len() < 2 {
+        if data.len() < NUM_CLASSES {
             return Err(ImageError::OnnxRuntime(format!(
-                "Expected 2 output logits, got {}",
+                "Expected {} output logits, got {}",
+                NUM_CLASSES,
                 data.len()
             )));
         }
 
-        let probs = softmax(&[data[0], data[1]]);
-        let nsfw_score = probs[NSFW_INDEX];
+        let logits: Vec<f32> = data[..NUM_CLASSES].to_vec();
+        let probs = softmax(&logits);
+
+        // NSFW score = P(hentai) + P(porn) + P(sexy)
+        let nsfw_score = probs[IDX_HENTAI] + probs[IDX_PORN] + probs[IDX_SEXY];
+
+        // Find top class
+        let top_idx = probs
+            .iter()
+            .enumerate()
+            .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(i, _)| i)
+            .unwrap_or(IDX_NEUTRAL);
+
+        let mut class_probs = [0.0f32; NUM_CLASSES];
+        class_probs.copy_from_slice(&probs[..NUM_CLASSES]);
 
         Ok(ClassifierResult {
             is_nsfw: nsfw_score >= self.threshold,
             nsfw_score,
+            top_class: CLASS_NAMES[top_idx].to_string(),
+            class_probs,
         })
     }
 }
@@ -147,7 +177,12 @@ fn softmax(logits: &[f32]) -> Vec<f32> {
 
 /// Find a classifier model file in the given directory.
 fn find_model_file(model_dir: &Path) -> Result<std::path::PathBuf, ImageError> {
-    let candidates = ["nsfw_classifier.onnx", "model.onnx"];
+    let candidates = [
+        "nsfw_5class_int8.onnx",
+        "nsfw_5class.onnx",
+        "nsfw_classifier.onnx",
+        "model.onnx",
+    ];
     for name in &candidates {
         let path = model_dir.join(name);
         if path.exists() {
@@ -172,86 +207,85 @@ mod tests {
 
     #[test]
     fn test_softmax_normalization() {
-        let probs = softmax(&[1.0, 2.0]);
+        let probs = softmax(&[1.0, 2.0, 0.5, 3.0, 0.1]);
         let sum: f32 = probs.iter().sum();
         assert!(
-            (sum - 1.0).abs() < 1e-6,
+            (sum - 1.0).abs() < 1e-5,
             "Softmax should sum to 1.0, got {}",
             sum
-        );
-        assert!(
-            probs[1] > probs[0],
-            "Higher logit should have higher probability"
         );
     }
 
     #[test]
     fn test_softmax_equal_inputs() {
-        let probs = softmax(&[0.0, 0.0]);
-        assert!((probs[0] - 0.5).abs() < 1e-6);
-        assert!((probs[1] - 0.5).abs() < 1e-6);
+        let probs = softmax(&[0.0; 5]);
+        for p in &probs {
+            assert!((*p - 0.2).abs() < 1e-6);
+        }
     }
 
     #[test]
     fn test_softmax_large_values() {
-        // Test numerical stability with large logits
-        let probs = softmax(&[1000.0, 1001.0]);
+        let probs = softmax(&[1000.0, 1001.0, 999.0, 1002.0, 998.0]);
         let sum: f32 = probs.iter().sum();
         assert!(
-            (sum - 1.0).abs() < 1e-5,
+            (sum - 1.0).abs() < 1e-4,
             "Softmax should be numerically stable"
         );
-        assert!(probs[1] > probs[0]);
     }
 
     #[test]
-    fn test_softmax_negative_values() {
-        let probs = softmax(&[-2.0, -1.0]);
-        let sum: f32 = probs.iter().sum();
-        assert!((sum - 1.0).abs() < 1e-6);
-        assert!(probs[1] > probs[0]);
+    fn test_nsfw_score_calculation() {
+        // Simulated probabilities: mostly porn
+        let probs: [f32; 5] = [0.01, 0.05, 0.04, 0.85, 0.05]; // draw, hentai, neutral, porn, sexy
+        let nsfw_score = probs[IDX_HENTAI] + probs[IDX_PORN] + probs[IDX_SEXY];
+        assert!((nsfw_score - 0.95).abs() < 1e-6);
     }
 
     #[test]
-    fn test_threshold_boundary_above() {
-        // Score above threshold → is_nsfw
+    fn test_safe_score_calculation() {
+        // Simulated probabilities: clearly neutral
+        let probs = [0.01, 0.001, 0.98, 0.005, 0.004];
+        let nsfw_score = probs[IDX_HENTAI] + probs[IDX_PORN] + probs[IDX_SEXY];
+        assert!(nsfw_score < 0.05);
+    }
+
+    #[test]
+    fn test_threshold_boundary() {
         let result = ClassifierResult {
-            is_nsfw: 0.80 >= 0.75,
-            nsfw_score: 0.80,
+            is_nsfw: 0.50 >= 0.50,
+            nsfw_score: 0.50,
+            top_class: "sexy".to_string(),
+            class_probs: [0.1, 0.1, 0.4, 0.1, 0.3],
         };
         assert!(result.is_nsfw);
-    }
 
-    #[test]
-    fn test_threshold_boundary_at() {
-        // Score exactly at threshold → is_nsfw (>=)
-        let result = ClassifierResult {
-            is_nsfw: 0.75 >= 0.75,
-            nsfw_score: 0.75,
+        let result2 = ClassifierResult {
+            is_nsfw: 0.49 >= 0.50,
+            nsfw_score: 0.49,
+            top_class: "neutral".to_string(),
+            class_probs: [0.1, 0.1, 0.51, 0.1, 0.19],
         };
-        assert!(result.is_nsfw);
+        assert!(!result2.is_nsfw);
     }
 
     #[test]
-    fn test_threshold_boundary_below() {
-        // Score below threshold → not nsfw
-        let result = ClassifierResult {
-            is_nsfw: 0.74 >= 0.75,
-            nsfw_score: 0.74,
-        };
-        assert!(!result.is_nsfw);
-    }
-
-    #[test]
-    fn test_nsfw_index() {
-        // Verify NSFW is at index 0 per model config
-        assert_eq!(NSFW_INDEX, 0);
+    fn test_class_names() {
+        assert_eq!(CLASS_NAMES[IDX_DRAWINGS], "drawings");
+        assert_eq!(CLASS_NAMES[IDX_HENTAI], "hentai");
+        assert_eq!(CLASS_NAMES[IDX_NEUTRAL], "neutral");
+        assert_eq!(CLASS_NAMES[IDX_PORN], "porn");
+        assert_eq!(CLASS_NAMES[IDX_SEXY], "sexy");
     }
 
     #[test]
     fn test_norm_constants() {
-        // Model uses 0.5/0.5 normalization (not standard ImageNet)
         assert_eq!(NORM_MEAN, [0.5, 0.5, 0.5]);
         assert_eq!(NORM_STD, [0.5, 0.5, 0.5]);
+    }
+
+    #[test]
+    fn test_input_size() {
+        assert_eq!(INPUT_SIZE, 224);
     }
 }

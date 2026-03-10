@@ -47,11 +47,9 @@ pub fn platform_eps() -> Vec<ExecutionProviderDispatch> {
         eps.push(ort::ep::CoreML::default().build());
     }
 
-    // NNAPI: Qualcomm Hexagon / Mali GPU on Android
-    #[cfg(target_os = "android")]
-    {
-        eps.push(ort::ep::NNAPI::default().build());
-    }
+    // Android uses `alternative-backend` (runtime-loaded ORT) which doesn't
+    // support NNAPI EP. CPU-only execution via the dynamically loaded library.
+    // NNAPI was removed because it requires direct symbol linking at compile time.
 
     eps
 }
@@ -84,8 +82,6 @@ pub fn build_session_cpu(model_path: &Path) -> ort::Result<Session> {
 pub fn ep_name() -> &'static str {
     if cfg!(target_vendor = "apple") {
         "CoreML"
-    } else if cfg!(target_os = "android") {
-        "NNAPI"
     } else {
         "CPU"
     }
@@ -98,12 +94,10 @@ mod tests {
     #[test]
     fn test_platform_eps_returns_vec() {
         let eps = platform_eps();
-        // Apple (macOS + iOS): CoreML EP; Android: NNAPI EP; other: CPU only
+        // Apple (macOS + iOS): CoreML EP; Android: CPU only (alternative-backend); other: CPU only
         #[cfg(target_vendor = "apple")]
         assert_eq!(eps.len(), 1);
-        #[cfg(target_os = "android")]
-        assert_eq!(eps.len(), 1);
-        #[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+        #[cfg(not(target_vendor = "apple"))]
         assert!(eps.is_empty());
     }
 
@@ -112,9 +106,7 @@ mod tests {
         let name = ep_name();
         #[cfg(target_vendor = "apple")]
         assert_eq!(name, "CoreML");
-        #[cfg(target_os = "android")]
-        assert_eq!(name, "NNAPI");
-        #[cfg(not(any(target_vendor = "apple", target_os = "android")))]
+        #[cfg(not(target_vendor = "apple"))]
         assert_eq!(name, "CPU");
     }
 

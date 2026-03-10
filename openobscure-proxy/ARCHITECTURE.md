@@ -110,8 +110,8 @@ src/
 ├── image_fetch.rs       URL image fetch: download remote images for inline processing
 ├── image_pipeline.rs    ImageModelManager orchestrator: decode → resize → NSFW → classifier → face → OCR → encode
 ├── face_detector.rs     SCRFD-2.5GF (Full/Standard, 640x640) + Ultra-Light RFB-320 (Lite, 320x240) + BlazeFace (128x128, fallback) face detection
-├── nsfw_detector.rs     NudeNet 320n ONNX NSFW/nudity detection (YOLOv8n, 320x320)
-├── nsfw_classifier.rs   Holistic NSFW classifier (ViT-tiny, Marqo/nsfw-image-detection-384, Phase 0b fallback)
+├── nsfw_detector.rs     [DEPRECATED] Legacy NudeNet detector, retained for fallback reference
+├── nsfw_classifier.rs   NSFW classifier (ViT-base 5-class, LukeJacob2023/nsfw-image-detector)
 ├── ocr_engine.rs        PaddleOCR PP-OCRv4 det+rec ONNX (text region detection, CTC decode)
 ├── image_redact.rs      Solid-color fill for face and text regions (irreversible redaction)
 ├── screen_guard.rs      Screenshot heuristics (EXIF, resolution, status bar uniformity)
@@ -162,8 +162,7 @@ src/
    │   a. Walk JSON tree for base64 image content blocks
    │      (Anthropic: type="image" + source.data, OpenAI: type="image_url" + data: URI)
    │   b. For each image: decode base64 → screen guard check → resize (960px max)
-   │   c. Phase 0: NSFW check — NudeNet 320n → if nudity detected, full-image solid fill, skip face/OCR
-   │   c2. Phase 0b: If NudeNet clean → holistic ViT-tiny classifier → if NSFW ≥ 0.75, full solid fill, skip face/OCR
+   │   c. Phase 0: NSFW check — ViT-base 5-class classifier (LukeJacob2023/nsfw-image-detector) → if NSFW detected, full-image solid fill, skip face/OCR
    │   d. Phase 1: Face detection — SCRFD-2.5GF (Full/Standard) or Ultra-Light RFB-320 (Lite, with tiling heuristic) → NMS → solid-fill face regions
    │   e. OCR: PaddleOCR PP-OCRv4 det → text regions → solid fill (Tier 1) or recognize+scan (Tier 2)
    │   f. Encode processed image → replace base64 in JSON
@@ -411,7 +410,6 @@ Two-pass processing in `body.rs`: images first (entire base64 string replacement
 
 ```rust
 pub struct ImageModelManager {
-    nsfw_detector: Mutex<Option<Arc<Mutex<NsfwDetector>>>>,
     nsfw_classifier: Mutex<Option<Arc<Mutex<NsfwClassifier>>>>,
     face_detector: Mutex<Option<Arc<Mutex<FaceDetector>>>>,
     scrfd_detector: Mutex<Option<Arc<Mutex<ScrfdDetector>>>>,
@@ -425,7 +423,7 @@ pub struct ImageModelManager {
 
 **Request-scoped model guards:** Models use a double-`Mutex<Option<Arc<Mutex<T>>>>` pattern. The outer Mutex protects load/evict, the inner Mutex gives `&mut` access for ONNX inference (`Session::run` requires `&mut self`). Requests clone the inner `Arc` before releasing the outer lock. Eviction sets the slot to `None` without invalidating in-flight references — existing `Arc` clones keep models alive until the request completes.
 
-**Memory rule:** Models loaded sequentially. Face model loaded/used/dropped before OCR model loaded. Never both in RAM simultaneously. The holistic NSFW classifier follows the same lazy-load/evict pattern. Background eviction task (60s interval) evicts models idle beyond `model_idle_timeout_secs` (default 300).
+**Memory rule:** Models loaded sequentially. Face model loaded/used/dropped before OCR model loaded. Never both in RAM simultaneously. The NSFW classifier follows the same lazy-load/evict pattern. Background eviction task (60s interval) evicts models idle beyond `model_idle_timeout_secs` (default 300).
 
 ### Face Detection (`face_detector.rs`)
 
@@ -503,11 +501,11 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 ## Recently Completed
 
 - **Request journal for crash recovery** — `RequestJournal` in `crash_buffer.rs` writes mmap-backed journal entries before upstream forward and after mapping cleanup. On startup, incomplete entries logged as WARN for diagnostics. Prevents silent PII mapping loss on proxy crash.
-- **Request-scoped model guards** — All 6 image models changed from `Mutex<Option<T>>` to `Mutex<Option<Arc<Mutex<T>>>>`. Outer lock held briefly to clone Arc; inner lock held during inference. Eviction clears slot without invalidating in-flight references.
+- **Request-scoped model guards** — All image models changed from `Mutex<Option<T>>` to `Mutex<Option<Arc<Mutex<T>>>>`. Outer lock held briefly to clone Arc; inner lock held during inference. Eviction clears slot without invalidating in-flight references.
 - **Ultra-Light RFB-320 face detector** — New Lite tier face detector (320x240 input, ~1.2MB model) replacing BlazeFace as default on Lite tier. 2.5x resolution vs BlazeFace. BlazeFace retained as fallback.
 - **BlazeFace tiling heuristic** — Automatic 4-tile splitting for images > 512px when first BlazeFace pass finds 0 faces. ~4ms overhead, only on miss. Detects small background faces that BlazeFace's 128x128 input misses.
 - **FPE extended to 10 types** — IPv4 (radix 10), IPv6 (radix 16), GPS (radix 10), MAC (radix 16), and IBAN (radix 36) now use FF1 FPE instead of hash-token redaction. New `ff1_radix16` cipher for hex types (IPv6, MAC). IBAN gets dedicated `PiiType::Iban` with country code preservation. Lowercase normalization applied before FormatTemplate for case-insensitive types (Email, IPv6, MAC, IBAN)
-- **Ensemble NSFW classifier** — ViT-tiny holistic classifier (Marqo/nsfw-image-detection-384, 21MB FP32) as Phase 0b fallback when NudeNet clean, catches semi-nude content NudeNet misses, 0.75 threshold, fail-open, lazy-loaded with eviction (Phase 15)
+- **NSFW classifier** — ViT-base 5-class classifier (LukeJacob2023/nsfw-image-detector) as single Phase 0 NSFW gate, replaces previous NudeNet + ViT-tiny cascade, fail-open, lazy-loaded with eviction
 - **Multi-LLM response format detection** — `response_format.rs` auto-detects response formats from 6 providers (Anthropic, OpenAI, Gemini, Cohere, Ollama, plaintext) for response integrity text extraction and warning injection
 - **SCRFD-2.5GF** — multi-scale face detection for Full/Standard tiers (640x640 input, FPN, 20px–400px faces)
 - **CoreML/NNAPI EPs** — `ort_ep.rs` consolidates all ONNX session building with hardware-accelerated inference on mobile
