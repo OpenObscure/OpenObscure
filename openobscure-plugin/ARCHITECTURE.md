@@ -1,6 +1,6 @@
 # OpenObscure Plugin — Architecture
 
-> Layer 1 of the OpenObscure privacy firewall. See `../project-plan/MASTER_PLAN.md` for full system architecture.
+> Layer 1 of the OpenObscure privacy firewall. For system context, see [System Overview](../docs/architecture/system-overview.md). For license audit, see [LICENSE_AUDIT.md](LICENSE_AUDIT.md).
 
 ---
 
@@ -201,13 +201,8 @@ Tool executes → tool_result_persist fires → PII Redactor scans → redacted 
 
 ## Relationship to L0 (Rust Proxy)
 
-| Aspect | L0 (Proxy) | L1 (Plugin) |
-|--------|------------|-------------|
-| **Intercept point** | HTTP requests/responses | Tool results |
-| **PII handling** | FPE encryption (format-preserving) | Redaction (`[REDACTED]`) |
-| **Reversible?** | Yes (decrypt on response) | No (destructive redaction) |
-| **Runs in** | Standalone Rust binary | OpenClaw Node.js process |
-| **Catches** | All LLM API traffic | Tool outputs (web, file, API) |
+> **Comparison table:** See [L0 vs L1 — When to Use Which](../docs/architecture/system-overview.md#two-layer-defense-in-depth) in the
+> System Overview.
 
 Together, L0 and L1 form a **defense-in-depth** strategy: L0 encrypts PII in transit to LLMs, L1 redacts PII from local tool operations.
 

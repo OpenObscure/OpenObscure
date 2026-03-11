@@ -224,6 +224,18 @@ pub struct ScannerConfig {
     /// Enable name gazetteer for person name detection (default: true).
     #[serde(default = "default_true")]
     pub gazetteer_enabled: bool,
+    /// Restrict multilingual scanning to specific languages (ISO 639-1 codes).
+    ///
+    /// When empty (default), all 8 non-English languages are active: es, fr, de, pt, ja, zh, ko, ar.
+    /// Each language is only triggered when `whatlang` detects that language with ≥15% confidence,
+    /// so unlisted languages are naturally skipped even without this filter.
+    ///
+    /// Use this to pin an agent to a known language set and avoid confusable-language
+    /// side-scans (e.g., Spanish ↔ Portuguese ↔ French) on short texts.
+    ///
+    /// Example: `enabled_languages = ["es", "fr"]`
+    #[serde(default)]
+    pub enabled_languages: Vec<String>,
 }
 
 impl Default for ScannerConfig {
@@ -246,6 +258,7 @@ impl Default for ScannerConfig {
             min_confidence: default_min_confidence(),
             agreement_bonus: default_agreement_bonus(),
             gazetteer_enabled: true,
+            enabled_languages: Vec::new(),
         }
     }
 }
@@ -440,7 +453,7 @@ impl ImageConfig {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct VoiceConfig {
-    /// Enable voice PII detection pipeline (default: false).
+    /// Enable voice PII detection pipeline (default: true).
     /// When enabled and KWS models are available, audio blocks are scanned
     /// for PII keywords. Blocks with PII are stripped; clean audio passes through.
     /// When KWS models are unavailable, audio passes through unscanned.
@@ -510,7 +523,7 @@ pub struct ResponseIntegrityConfig {
     #[serde(default)]
     pub ri_model_dir: Option<String>,
 
-    /// R2 classification threshold (0.0–1.0). Sigmoid outputs above this are positive (default: 0.70).
+    /// R2 classification threshold (0.0–1.0). Sigmoid outputs above this are positive (default: 0.55).
     #[serde(default = "default_ri_threshold")]
     pub ri_threshold: f32,
 

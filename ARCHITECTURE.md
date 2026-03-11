@@ -10,131 +10,9 @@ Every message, tool result, and file a user shares with an AI agent gets sent to
 
 ## Deployment Models
 
-OpenObscure runs **entirely on the user's device** — no remote servers, no cloud components, no separate infrastructure. It supports two deployment models depending on where the AI agent runs.
+OpenObscure supports two deployment models: **Gateway** (sidecar HTTP proxy for desktop/server) and **Embedded** (native library for mobile/custom apps). Both run entirely on-device with no cloud components.
 
-### Gateway Model (Desktop / Server)
-
-The full-featured deployment. OpenObscure runs as a **sidecar HTTP proxy** on the same host as the AI agent's Gateway. Both layers are active.
-
-```mermaid
-flowchart TB
-    subgraph device ["User's Device"]
-        subgraph gateway ["AI Agent Gateway"]
-            L1["L1 Plugin (in-process)"]
-        end
-        subgraph l0proc ["L0 Proxy (Rust)"]
-        end
-        gateway -- "HTTP (localhost)" --> l0proc
-    end
-    l0proc -- "HTTPS" --> llm(["LLM Providers"])
-
-    style device fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
-    style gateway fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
-    style l0proc fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
-    style L1 fill:#9D7BED,stroke:#232F3E,color:#fff
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
-```
-
-| Component | Process | How it runs |
-|-----------|---------|-------------|
-| **L0** (Rust proxy) | Standalone binary | Separate process, started as sidecar alongside the host agent. |
-| **L1** (TS plugin) | In-process | Loaded into the host agent's runtime (e.g., OpenClaw's Node.js via plugin SDK) or used as a library. |
-
-**Supported platforms:** macOS (Apple Silicon), Linux (x64 + ARM64), Windows (x64).
-
-**Activation:**
-1. **At install time** — The host agent's bundler includes OpenObscure and activates it during setup (if user opts in). OpenClaw supports this via its plugin SDK.
-2. **Post-install** — User enables OpenObscure by configuring the host agent to route API traffic through `127.0.0.1:18790` instead of directly to LLM providers, and installs the L1 plugin into the agent's extensions directory (e.g., OpenClaw's `extensions/`)
-
-When disabled, the host agent operates normally with direct LLM connections — OpenObscure adds zero overhead when not active.
-
-### Embedded Model (Mobile / Library)
-
-For mobile apps and custom integrations, OpenObscure compiles as a **native library** (`.a` for iOS, `.so` for Android) linked directly into the host application. No HTTP server, no sockets — just function calls via UniFFI-generated Swift/Kotlin bindings.
-
-```mermaid
-flowchart TB
-    subgraph mobile ["User Device"]
-        subgraph app ["Host App (Enchanted, RikkaHub, etc.)"]
-            ui["UI Layer (Swift / Kotlin)"]
-            lib["OpenObscure lib (Rust)"]
-            ui -- "sanitizeText() / sanitizeImage()" --> lib
-            lib -- "SanitizeResult (PII encrypted)" --> ui
-            ui -. "restoreText() / scanResponse()" .-> lib
-            lib -. "Original PII / RiReport" .-> ui
-        end
-    end
-
-    app -- "HTTPS (PII already sanitized)" --> llm(["LLM Provider"])
-    llm -- "response" --> app
-
-    style mobile fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
-    style app fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
-    style ui fill:#3b48cc,stroke:#232F3E,color:#fff
-    style lib fill:#545b64,stroke:#232F3E,color:#fff
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
-```
-
-| Component | What | How it runs |
-|-----------|------|-------------|
-| **L0** (Rust library) | `OpenObscureMobile` API | Linked into host app binary. PII scan + FPE encrypt/decrypt + image pipeline + response integrity (cognitive firewall). FPE key provided by host app's native secure storage (iOS Keychain / Android Keystore). |
-
-**Supported platforms:** iOS (aarch64 device + simulator), Android (arm64-v8a, armeabi-v7a, x86_64, x86).
-
-**API surface:**
-
-| Function | What it does |
-|----------|-------------|
-| `OpenObscureMobile::new(config, fpe_key)` | Initialize scanner + FPE engine with host-provided key |
-| `sanitize_text(text)` | Scan for PII, encrypt with FPE, return sanitized text + mapping |
-| `restore_text(text, mapping)` | Decrypt FPE values in response text using saved mapping |
-| `sanitize_image(bytes)` | Face redact + OCR text redact + NSFW redact + EXIF strip (optional, adds ~20MB) |
-| `sanitize_audio_transcript(text)` | Scan speech transcript for PII, return sanitized text + mapping |
-| `check_audio_pii(text)` | Quick PII count in audio transcript (no encryption) |
-| `scan_response(text)` | Scan LLM response for persuasion/manipulation (cognitive firewall, Full/Standard tier) |
-| `rotate_key(new_key)` | Rotate FPE key with 30-second overlap window for in-flight mappings |
-| `stats()` | PII counts, scanner mode, image pipeline status, device tier |
-
-**Third-party integration:** OpenObscure can be embedded into any iOS/macOS/Android chat app. Tested integrations include [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS Ollama client) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android multi-provider LLM client). See [INTEGRATION_GUIDE.md](integration/INTEGRATION_GUIDE.md) for step-by-step instructions.
-
-**Key differences from Gateway Model:**
-- No HTTP server (axum/tokio not compiled in)
-- FPE key passed from host app (no OS keychain access on mobile)
-- Hardware auto-detection (`auto_detect: true` default) profiles device RAM and selects features automatically — phones with 8GB+ RAM get full NER + ensemble + image pipeline + cognitive firewall, matching gateway efficacy
-- `models_base_dir` config field simplifies model path setup — point to a single directory and individual `*_model_dir` fields are auto-resolved from standard subdirectories (`ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw/`, `ri/`)
-- Image pipeline and cognitive firewall default to enabled (`image_enabled: true`, `ri_enabled: true`); device budget gates actual activation — without model files on disk these are no-ops
-- Response integrity (cognitive firewall) available on Full/Standard tier — R1 dictionary always, R2 classifier if model provided; R2 Discover role suppressed (matches gateway behavior)
-- All features tier-gated via `FeatureBudget` — `gazetteer_enabled`, `keywords_enabled`, `ner_pool_size` all budget-gated (not just config defaults)
-- FPE key rotation with 30-second overlap window via `rotate_key()` — matches gateway `KeyManager` semantics
-- Per-match FPE tweaks (byte offset) prevent frequency analysis within a single request
-- Name gazetteer enabled by default (embedded name lists, no model files needed)
-- Screenshot detection via EXIF + resolution heuristics when `screen_guard` budget flag is enabled
-- OCR Tier 2 uses full HybridScanner (NER + regex + keywords) for text in images
-
-### Defense in Depth: Both Models Together
-
-In the OpenClaw architecture, **both models can run simultaneously**. The mobile app sanitizes PII before it reaches the Gateway (Embedded Model), and the Gateway sanitizes again before forwarding to LLM providers (Gateway Model). Double protection for mobile-originated data:
-
-```mermaid
-flowchart LR
-    phone["Mobile App + OpenObscure lib"] -- "WS (PII encrypted)" --> gw["Gateway + L1 Plugin"]
-    gw -- "HTTP" --> proxy["OpenObscure Proxy (FPE encrypt)"]
-    proxy -- "HTTPS (encrypted twice)" --> llm["LLM Provider"]
-
-    style phone fill:#3b48cc,stroke:#232F3E,color:#fff
-    style gw fill:#3b48cc,stroke:#232F3E,color:#fff
-    style proxy fill:#545b64,stroke:#232F3E,color:#fff
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
-```
-
-### API Keys & External Connections
-
-OpenObscure does **not** have its own LLM credentials and does **not** initiate its own API calls.
-
-- **Gateway Model:** Passthrough-first — forwards the host agent's API keys unchanged.
-- **Embedded Model:** No API calls at all — the library sanitizes text/images and returns results. The host app handles all networking.
-
-The only network activity OpenObscure produces (Gateway Model only) is forwarding the host agent's existing LLM requests through the local proxy. No telemetry, no phone-home, no external dependencies at runtime.
+For full details — diagrams, API surface, platform support, comparison table, and defense-in-depth — see [Deployment Models](docs/get-started/deployment-models.md).
 
 ## Two-Layer Defense-in-Depth
 
@@ -199,23 +77,23 @@ flowchart TB
 
 ### L0 — Rust PII Proxy (`openobscure-proxy/`)
 
-The **hard enforcement** layer. Sits between the host agent and LLM providers as an HTTP reverse proxy. Every API request passes through it — there is no bypass path.
+The **hard enforcement** layer. Sits between the host agent and LLM providers as an HTTP reverse proxy. Every API request passes through it when the agent's `base_url` is correctly configured — see [gateway quick start](docs/get-started/gateway-quick-start.md) for verification.
 
 | Aspect | Detail |
 |--------|--------|
 | **What it does** | **Request path:** Scans JSON request bodies for PII via hybrid scanner (regex → keywords → NER/CRF) with ensemble confidence voting, encrypts matches with FF1 FPE. Processes base64-encoded images (face solid-fill redaction, OCR text solid-fill redaction, NSFW solid-fill redaction, EXIF strip). Handles nested/escaped JSON strings and respects markdown code fences. **Response path:** Decrypts FPE ciphertexts in responses (SSE streaming supported). Scans for persuasion/manipulation techniques (response integrity cognitive firewall) and optionally prepends warning labels (EU AI Act Article 5 compliance). |
 | **What it catches** | Structured: credit cards (Luhn), SSNs (range-validated), phones, emails, API keys. Network/device: IPv4 (rejects loopback/broadcast), IPv6 (full + compressed), GPS coordinates (4+ decimal precision), MAC addresses (colon/dash/dot). Multilingual: national IDs (DNI, NIR, CPF, My Number, Citizen ID, RRN) with check-digit validation for 9 languages. Semantic: person names, addresses, orgs (NER/CRF). Health/child keyword dictionary (~700 terms, multilingual). Visual: nudity (ViT-base 5-class classifier, ~83MB INT8), faces in photos — solid-color fill redaction (SCRFD-2.5GF on Full/Standard, Ultra-Light RFB-320 on Lite), text in screenshots/images (PaddleOCR PP-OCRv4 ONNX). Audio: KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8) detects PII trigger phrases and strips matching audio blocks (`voice` feature). |
 | **Auth model** | Passthrough-first — forwards the host agent's API keys unchanged |
-| **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). |
+| **Key management** | FPE master key: `OPENOBSCURE_MASTER_KEY` env var (64 hex chars) or OS keychain via `keyring`. Env var takes priority (headless/Docker/CI). **If using the env var, ensure it is not logged, not in committed `.env` files, and not visible in `ps aux`. Prefer OS keychain for interactive deployments.** |
 | **Content-Type** | Only scans JSON bodies. Binary, text, multipart pass through unchanged |
-| **Fail mode** | Configurable fail-open (default) or fail-closed. Vault unavailable always blocks (503) |
+| **Fail mode** | Configurable fail-open (default) or fail-closed for the **text PII pipeline only**. Image pipeline (NSFW, face, OCR) is always fail-open regardless of `fail_mode`. Vault unavailable always blocks (503). |
 | **Logging** | Unified `oo_*!()` macro API, PII scrub layer, mmap crash buffer, file rotation, platform logging (OSLog/journald) |
 | **Stack** | Rust, axum 0.8, hyper 1, tokio, fpe 0.6 (FF1), ort (ONNX Runtime), image 0.25, whatlang 0.16, keyring 3, clap 4 (CLI) |
 | **CLI** | Subcommands: `serve` (default), `key-rotate`, `passthrough`, `service {install,start,stop,status,uninstall}` |
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
-| **Tests** | 1,723 (765 lib + 958 bin) |
+| **Tests** | 1,677 (742 lib + 935 bin) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
-| **Docs** | [openobscure-proxy/ARCHITECTURE.md](openobscure-proxy/ARCHITECTURE.md) |
+| **Docs** | [L0 Proxy Architecture](docs/architecture/l0-proxy.md) |
 
 ### L1 — Gateway Plugin (`openobscure-plugin/`)
 
@@ -225,13 +103,13 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 |--------|--------|
 | **What it does** | Hooks the host agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`) to scan and redact PII in tool outputs. Three detection paths (auto-selected): **(1)** Native NAPI addon (`@openobscure/scanner-napi`) — 15-type Rust HybridScanner in-process, no L0 needed; **(2)** NER-enhanced via `POST /_openobscure/ner` — semantic NER + regex merge when L0 is healthy; **(3)** JS regex fallback — 5 structured types. Prepared `before_tool_call` handler activates when host agent supports it. Provides L0 heartbeat monitor with auth token validation and unified logging API (`ooInfo`/`ooWarn`/`ooAudit`). |
 | **PII handling** | Native addon (15 types, in-process), NER-enhanced via L0 (when active), or regex-only (`[REDACTED]`) — always redaction, not FPE, since tool results are internal |
-| **Heartbeat** | Pings L0 `/_openobscure/health` every 30s with `X-OpenObscure-Token` auth header. Warns user when L0 is down, logs recovery. |
+| **Heartbeat** | Pings L0 `/_openobscure/health` every 30s with `X-OpenObscure-Token` auth header. Warns user when L0 is down, logs recovery. **When L0 is unreachable and no NAPI addon is installed, L1 falls back to JS regex (5 types) — coverage drops from 15 types to 5. The heartbeat warning does not currently state this reduction explicitly.** |
 | **Hook model** | Synchronous — must not return a Promise. OpenClaw-specific: OpenClaw silently skips async hooks. Prepared `before_tool_call` handler (hard enforcement) activates automatically when wired upstream. |
 | **Logging** | Unified `ooInfo/ooWarn/ooError/ooDebug/ooAudit` API with PII scrubbing, JSON output |
 | **Stack** | TypeScript 5.4, CommonJS |
 | **Resource** | ~25MB RAM (within the host agent's process), ~3MB storage |
 | **Tests** | 112 (22 suites: redactor, heartbeat, state-messages, oo-log, PII scrubbing, audit log, modules, NER-enhanced redaction, before-tool-call, cognitive dictionary, parity, tokenizer, category detection, overlap, offsets, multi-category, severity, warning label, edge cases, severity boundaries, label format, scanPersuasion) |
-| **Docs** | [openobscure-plugin/ARCHITECTURE.md](openobscure-plugin/ARCHITECTURE.md) |
+| **Docs** | [L1 Plugin Architecture](docs/architecture/l1-plugin.md) |
 
 **Process watchdog** (install templates):
 - macOS: launchd plist with `KeepAlive` + `ThrottleInterval`
@@ -239,55 +117,14 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 
 ## How FPE Works
 
-Format-Preserving Encryption transforms plaintext into ciphertext of **identical format**. The LLM sees plausible-looking data instead of `[REDACTED]`, preserving conversational context.
+Format-Preserving Encryption (FF1, NIST SP 800-38G) transforms plaintext into ciphertext of **identical format**. A credit card encrypts to another credit card, a phone number to another phone number — the LLM sees plausible data instead of `[REDACTED]`, preserving conversational context. Ten structured PII types use FF1 encryption; five keyword/NER types use hash-token redaction.
 
-```mermaid
-sequenceDiagram
-    participant U as User / Agent
-    participant P as L0 Proxy
-    participant L as LLM Provider
-
-    U->>P: "Card 4111-1111-1111-1111,<br/>SSN 123-45-6789"
-
-    Note over P: FF1 encrypt each match
-
-    P->>L: "Card 8714-3927-6051-2483,<br/>SSN 847-29-3651"
-
-    Note over L: LLM sees plausible data
-
-    L->>P: "Card ending in 2483..."
-
-    Note over P: FF1 decrypt each match
-
-    P->>U: "Card ending in 1111..."
-```
-
-| PII Type | Radix | Encrypted Part | Preserved |
-|----------|-------|----------------|-----------|
-| Credit Card | 10 | 15-16 digits | Dash positions |
-| SSN | 10 | 9 digits | Dash positions |
-| Phone | 10 | 10+ digits | `+`, parens, spaces, dashes |
-| Email | 36 | Local part | `@` + domain |
-| API Key | 62 | Post-prefix body | Known prefix (`sk-`, `AKIA`...) |
-| IPv4 Address | 10 | Digit octets | Dot positions |
-| IPv6 Address | 16 | Hex groups (lowercase) | Colon positions, `::` structure |
-| GPS Coordinate | 10 | Lat+lon digits together | Signs, dots, comma, space |
-| MAC Address | 16 | 12 hex chars (lowercase) | Colon/dash/dot positions |
-| IBAN | 36 | BBAN (post-country digits+letters) | 2-letter country prefix |
-
-**Algorithm:** FF1 per NIST SP 800-38G. FF3 is **WITHDRAWN** (SP 800-38G Rev 2, Feb 2025) — never used.
-
-**Tweak strategy:** Per-record `request_uuid (16B) || SHA-256(path)[0..16]` — same PII value in different requests produces different ciphertexts, preventing frequency analysis. Gateway uses JSON path (e.g., `$.messages[0].content`); embedded uses match byte offset (e.g., `m:42`).
+For the full FPE reference — per-type behavior table, TOML config options, key generation, key rotation, and fail-open/fail-closed semantics — see [FPE Configuration](docs/configure/fpe-configuration.md).
 
 ## L0 vs L1 — Why Both?
 
-| | L0 (Proxy) | L1 (Plugin) |
-|---|------------|-------------|
-| **Intercept point** | HTTP requests/responses to LLMs | Tool results within the host agent |
-| **PII handling** | FPE encryption (reversible) | Redaction (destructive) |
-| **Catches** | All LLM API traffic | Web scrapes, file reads, API outputs |
-| **Bypass possible?** | No — all traffic must route through proxy | Only if the host agent skips the hook |
-| **Runs in** | Standalone Rust binary | Host agent process (e.g., OpenClaw Node.js) |
+> **Comparison table:** See [L0 vs L1 — When to Use Which](docs/architecture/system-overview.md#two-layer-defense-in-depth) in the
+> System Overview.
 
 Neither layer alone is sufficient:
 - L0 can't see tool results (they're generated inside the host agent, never pass through HTTP)
@@ -498,13 +335,13 @@ L0 detects base64-encoded images in JSON request bodies (Anthropic and OpenAI fo
 
 **Pipeline phases:** NSFW detection (ViT-base 5-class classifier) → face solid-fill (SCRFD or BlazeFace) → OCR text solid-fill (PaddleOCR) → EXIF strip → re-encode. If NSFW detected (P(hentai) + P(porn) + P(sexy) ≥ 0.50), entire image is solid-filled and face/OCR phases are skipped. Models load on-demand and evict after 300s idle.
 
-For visual before/after examples, see [README.md — Visual PII Protection](README.md#visual-pii-protection). For model details, pipeline architecture, and provider format handling, see `openobscure-proxy/ARCHITECTURE.md`.
+For model details, pipeline architecture, and provider format handling, see `openobscure-proxy/ARCHITECTURE.md`.
 
 ---
 
 ## Response Integrity — Cognitive Firewall
 
-OpenObscure scans LLM **responses** for manipulation techniques before they reach users. EU AI Act Article 5 prohibits subliminal/manipulative techniques, but there is no enforcement mechanism at the user's endpoint. The cognitive firewall provides that enforcement.
+OpenObscure scans LLM **responses** for manipulation techniques before they reach users. EU AI Act Article 5 prohibits subliminal/manipulative techniques, but there is no enforcement mechanism at the user's endpoint. The cognitive firewall provides detection-layer defense.
 
 **Two-tier cascade:**
 - **R1** — Pattern-based dictionary (~250 phrases across 7 Cialdini categories: urgency, scarcity, social proof, fear, authority, commercial, flattery). Runs on every response, <1ms.
@@ -512,23 +349,11 @@ OpenObscure scans LLM **responses** for manipulation techniques before they reac
 
 R2 can **confirm**, **suppress** (R1 false positive, single-category only), **upgrade** (add categories), or **discover** (catch paraphrased manipulation R1 missed) R1's findings. Multi-category R1 hits (2+ categories) are strong enough to stand on their own — R2 disagreement is treated as Confirm rather than Suppress.
 
-**Severity tiers:** Notice (1 category) → Warning (2-3 categories) → Caution (4+ categories). Enabled by default at `low` sensitivity in log-only mode. Fail-open on errors.
+**Severity tiers:** Notice (1 category) → Warning (2-3 categories) → Caution (4+ categories). Enabled by default at `low` sensitivity in log-only mode.
+
+**Fail-open conditions:** The cognitive firewall is always advisory — it never blocks responses. It passes through without flagging when: R2 ONNX session fails to initialize or produces an inference error; the response is below the minimum length for R1 scanning; `ri_enabled = false`; or sensitivity is set below the R2 trigger threshold. These conditions are logged at WARN or INFO but do not affect response delivery.
 
 For cascade flow diagrams, R2 model details, performance metrics, and configuration reference, see `openobscure-proxy/ARCHITECTURE.md`.
-
----
-
-## Threat Model
-
-Security follows **Kerckhoffs's principle** — the system is secure even when all source code and algorithms are public. Security depends entirely on the secrecy of keys.
-
-**Protects against:** PII leaking to LLM providers (FF1 FPE), visual PII in images (face/OCR/NSFW solid fill, EXIF strip), manipulative LLM responses (cognitive firewall), PII in tool transcripts (L1 redaction), frequency analysis (per-record tweaks), API key exposure (passthrough-first).
-
-**Does NOT protect against:** compromised OS/root access, side-channel attacks on FPE (mitigated by AES-NI).
-
-**Secrets:** FPE master key (32 bytes, OS keychain or `OPENOBSCURE_MASTER_KEY` env var) and L0/L1 auth token (32 bytes, `~/.openobscure/.auth-token` or `OPENOBSCURE_AUTH_TOKEN` env var). Both generated with `OsRng`.
-
-**Attack surface reduction:** Localhost-only binding, auth-gated health endpoint, no telemetry, no default credentials, memory-safe language (Rust), minimal dependencies.
 
 ---
 

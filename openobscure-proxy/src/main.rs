@@ -1328,6 +1328,7 @@ fn build_scanner(config: &AppConfig, budget: &device_profile::FeatureBudget) -> 
         0.0
     };
     scanner.set_confidence_params(config.scanner.min_confidence, effective_bonus);
+    scanner.set_enabled_languages(config.scanner.enabled_languages.clone());
     scanner
 }
 

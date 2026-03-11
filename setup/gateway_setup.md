@@ -931,7 +931,7 @@ Then try the command again. If this keeps happening every time you open a new Te
 
 ### "FPE key not found" error
 
-Run the key generation again:
+See [FPE Configuration](../docs/configure/fpe-configuration.md) for key generation, storage, and rotation details. Quick fix — run the key generation again:
 
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-proxy

@@ -125,7 +125,7 @@ The embedded API is minimal — six functions cover all use cases:
 
 For detailed integration instructions — Xcode project setup (SPM), Gradle configuration, OkHttp interceptor wiring, and working example diffs from tested third-party apps:
 
-**[Integration Guide](../integration/INTEGRATION_GUIDE.md)** — covers:
+**[Integration Guide](../docs/integrate/embedding/INTEGRATION_GUIDE.md)** — covers:
 - Bundling all models (~75 MB) with dynamic tier-based loading (Part 6a)
 - Setting up a local SPM package for Xcode (iOS/macOS)
 - Gradle + JNA + ProGuard configuration (Android)

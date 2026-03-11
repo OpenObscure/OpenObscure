@@ -1,6 +1,6 @@
 # OpenObscure NAPI Scanner — Architecture
 
-> Native Node.js addon wrapping the Rust HybridScanner via [napi-rs](https://napi.rs/).
+> Native Node.js addon wrapping the Rust HybridScanner via [napi-rs](https://napi.rs/). For system context, see [System Overview](../docs/architecture/system-overview.md).
 
 ---
 

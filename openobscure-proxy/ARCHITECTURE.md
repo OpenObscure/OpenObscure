@@ -110,7 +110,7 @@ src/
 ├── image_fetch.rs       URL image fetch: download remote images for inline processing
 ├── image_pipeline.rs    ImageModelManager orchestrator: decode → resize → NSFW → classifier → face → OCR → encode
 ├── face_detector.rs     SCRFD-2.5GF (Full/Standard, 640x640) + Ultra-Light RFB-320 (Lite, 320x240) + BlazeFace (128x128, fallback) face detection
-├── nsfw_detector.rs     [DEPRECATED] Legacy NudeNet detector, retained for fallback reference
+├── nsfw_detector.rs     [DEPRECATED] Legacy NudeNet detector (retained for reference only, not used in pipeline)
 ├── nsfw_classifier.rs   NSFW classifier (ViT-base 5-class, LukeJacob2023/nsfw-image-detector)
 ├── ocr_engine.rs        PaddleOCR PP-OCRv4 det+rec ONNX (text region detection, CTC decode)
 ├── image_redact.rs      Solid-color fill for face and text regions (irreversible redaction)
@@ -184,6 +184,7 @@ src/
    │   f. Code fences: mask content inside ``` and ` blocks before scanning
    │   - Skip configured fields (model, temperature, etc.)
    │   - Return Vec<PiiMatch> with byte offsets + JSON paths
+   │   See: Detection Engine Configuration (../docs/configure/detection-engine-configuration.md)
    │
 7. For each PiiMatch:
    │   a. extract_encryptable() — split prefix/domain from encryptable part
@@ -218,36 +219,11 @@ src/
 
 ## FPE (Format-Preserving Encryption)
 
-**Algorithm:** FF1 per NIST SP 800-38G. FF3 is WITHDRAWN — never used.
+FF1 (NIST SP 800-38G) encrypts 10 structured PII types into ciphertext of identical format — a credit card encrypts to another credit card. Five keyword/NER types use hash-token redaction instead. Per-record tweaks prevent frequency analysis.
 
-**How it works:** Transforms plaintext to ciphertext of **identical format**. The LLM sees plausible-looking data instead of `[REDACTED]`, preserving conversational context.
+For the full reference — per-type radix/alphabet table, TOML config options, key generation, key rotation, fail-open/fail-closed behavior, and domain size safety — see [FPE Configuration](../docs/configure/fpe-configuration.md).
 
-| PII Type | Radix | What Gets Encrypted | What's Preserved | Example |
-|----------|-------|---------------------|------------------|---------|
-| Credit Card | 10 | 15-16 digits | Dash positions | `4111-1111-1111-1111` → `8714-3927-6051-2483` |
-| SSN | 10 | 9 digits | Dash positions | `123-45-6789` → `847-29-3651` |
-| Phone | 10 | 10+ digits | `+`, parens, spaces, dashes | `+1 (555) 123-4567` → `+1 (847) 293-6510` |
-| Email | 36 | Local part (lowercase) | `@` + domain | `john.doe@gmail.com` → `q7k2m91@gmail.com` |
-| API Key | 62 | Post-prefix body | Known prefix (`sk-`, `AKIA`...) | `sk-abc123def456` → `sk-x9q2w7m4k8p1` |
-| IPv4 Address | 10 | Digit octets | Dot positions | `192.168.1.42` → `847.293.6.51` |
-| IPv6 Address | 16 | Hex groups (lowercase) | Colon positions, `::` structure | `2001:db8:85a3::7334` → `a4f1:c92:3e7b::d810` |
-| GPS Coordinate | 10 | Lat+lon digits together | Signs, dots, comma, space | `45.5231, -122.6765` → `82.9371, -405.6128` |
-| MAC Address | 16 | 12 hex chars (lowercase) | Colon/dash/dot positions | `00:1a:2b:3c:4d:5e` → `a4:f1:c9:2e:3b:78` |
-| IBAN | 36 | BBAN (post-country digits+letters) | 2-letter country prefix | `ES9121000418450200051332` → `ESa4f1c92e3b78d810k2m9` |
-
-**Hash-token types** (not FPE-encrypted — formats too varied or semantically opaque for format-preserving encryption):
-
-| PII Type | Redaction Style | Example |
-|----------|----------------|---------|
-| Person | `PER_a7f2` | Names detected by NER |
-| Location | `LOC_b3e1` | Addresses detected by NER |
-| Organization | `ORG_c8d4` | Org names detected by NER |
-| Health Keyword | `HLT_d9f6` | Health terms from keyword dictionary |
-| Child Keyword | `CHD_e2a5` | Child-related terms from keyword dictionary |
-
-**Tweak strategy:** Per-record tweak = `request_uuid (16B) || SHA-256(json_path)[0..16]`. Same PII value in different requests produces different ciphertexts (prevents frequency analysis).
-
-**Domain size safety:** FF1 requires radix^len ≥ 1,000,000. Values shorter than the minimum length for their radix fall back to hash-token redaction (logged, forwarded with token replacement).
+**Implementation:** `fpe_engine.rs` (FF1 encrypt/decrypt), `key_manager.rs` (versioned keys, 30s overlap rotation), `vault.rs` (OS keychain + env var bridge), `pii_types.rs` (per-type radix and eligibility), `body.rs` (fail-mode handling).
 
 ## Authentication & Key Management
 
@@ -282,14 +258,7 @@ All original request headers are forwarded except:
 
 ### FPE Key Management
 
-FPE master key resolution (priority order):
-
-1. **`OPENOBSCURE_MASTER_KEY` env var** (64 hex chars → 32 bytes) — for Docker, VPS, CI, headless environments
-2. **OS keychain** via `keyring` crate — for desktop environments (macOS Keychain, Linux keyutils, Windows Credential Store)
-3. **Fail with error** listing both options
-
-- Generated once with `--init-key` using `OsRng` (cryptographically secure)
-- When `OPENOBSCURE_HEADLESS=1` is set, `--init-key` also prints the key as hex to stdout for capture
+Key generation, storage resolution order (env var → OS keychain), and zero-downtime rotation are covered in [FPE Configuration](../docs/configure/fpe-configuration.md).
 
 ### Health Endpoint Auth Token
 
@@ -377,7 +346,7 @@ On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 | Binary size | <8MB | **2.7MB** (release, stripped, LTO) |
 | Dependencies | Minimal | ~35 direct + 1 dev (wiremock) |
 | Latency overhead | <5ms (regex), <15ms (NER), <80ms (image) | TBD |
-| Test count | — | **1,683** (745 lib + 938 bin) |
+| Test count | — | **1,677** (742 lib + 935 bin) |
 
 ## Technology Stack
 
@@ -519,3 +488,9 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 - **Protection status header** — Inject `X-OpenObscure-Protection` response header (e.g. `pii=on; ri=on; image=on`) so upstream clients/UIs can display a "Privacy Protection ON" indicator
 - **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path (Phase 9D, deferred)
 - **DeBERTa-v3-small NER** — potential TinyBERT upgrade for better domain-specific recall (if fine-tuned TinyBERT plateaus)
+
+## Related
+
+- [Dependency License Audit](LICENSE_AUDIT.md)
+- [Process Watchdog Installation](install/README.md)
+- [Architecture in docs/](../docs/architecture/l0-proxy.md)

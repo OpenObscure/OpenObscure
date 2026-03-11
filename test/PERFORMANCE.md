@@ -4,7 +4,7 @@
 > Apple Silicon MacBook. All numbers reflect real-world pipeline execution including
 > ONNX model inference, not isolated micro-benchmarks.
 >
-> **Last updated:** 2026-02-25
+> **Last updated:** 2026-03-10
 
 ---
 
@@ -38,7 +38,7 @@
 | Proxy port | 18790 |
 | Sample count | 105 files (47 visual + 13 audio + 45 text gateway) |
 | NER model | TinyBERT 4L-312D INT8 (13.7 MB, 11 labels) |
-| Image models | FP32 — NudeNet (11.6 MB), PaddleOCR det/rec (2.3+7.3 MB), SCRFD (3.1 MB), BlazeFace (0.4 MB) |
+| Image models | FP32 — ViT-base 5-class NSFW (~83 MB INT8), PaddleOCR det/rec (2.3+7.3 MB), SCRFD (3.1 MB), BlazeFace (0.4 MB) |
 | KWS models | INT8 — sherpa-onnx Zipformer encoder/decoder/joiner (~5 MB total) |
 | Collection date | 2026-02-25 |
 
@@ -129,7 +129,7 @@ deployments, not just test configurations. To measure actual production latency:
 
 | Model | Purpose | Median | Average | Min | Max | Unit |
 |---|---|---|---|---|---|---|
-| **NudeNet 320n** | NSFW detection | 4 | 18 | 3 | 680 | ms |
+| **ViT-base 5-class** | NSFW detection | 4 | 18 | 3 | 680 | ms |
 | **SCRFD-2.5GF** | Face detection | 9 | 15 | 7 | 322 | ms |
 | **PaddleOCR v4** | Text detection + recognition | 106 | 338 | 50 | 1,668 | ms |
 | **Image total** | All phases combined | 342 | 587 | 251 | 2,738 | ms |
@@ -414,7 +414,7 @@ Runtime compiles CoreML models lazily:
 
 | Model | Cold Start | Warm Steady-State | Delta |
 |---|---|---|---|
-| **NSFW (NudeNet)** | 680 ms | 3–5 ms | ~150x |
+| **NSFW (ViT-base)** | 680 ms | 3–5 ms | ~150x |
 | **Face (SCRFD)** | 322 ms | 8–9 ms | ~35x |
 | **OCR (PaddleOCR v4)** | 1,534 ms | 55–85 ms | ~20x |
 
@@ -576,7 +576,7 @@ Real gateway test results with all 45 text files (proxy-internal `x-oo-scan-us`)
 
 ### Image Model Quantization Results (2026-02-25)
 
-All 4 image pipeline models (NudeNet, PaddleOCR det/rec, SCRFD) were quantized
+All 4 image pipeline models (NSFW classifier, PaddleOCR det/rec, SCRFD) were quantized
 from FP32 to INT8 using ONNX Runtime dynamic quantization (`quantize_dynamic`,
 `QUInt8`). The quantization achieved significant size reduction but caused a
 **latency regression** on Apple Silicon.
@@ -585,7 +585,7 @@ from FP32 to INT8 using ONNX Runtime dynamic quantization (`quantize_dynamic`,
 
 | Model | FP32 Size | INT8 Size | Reduction |
 |---|---|---|---|
-| NudeNet 320n | 11.6 MB | 3.1 MB | 73.4% |
+| NSFW classifier (was NudeNet, now ViT-base) | 11.6 MB | 3.1 MB | 73.4% |
 | PaddleOCR rec v4 | 7.3 MB | 2.0 MB | 72.6% |
 | SCRFD-2.5GF | 3.1 MB | 0.8 MB | 73.1% |
 | PaddleOCR det v4 | 2.3 MB | 0.8 MB | 67.3% |
@@ -600,7 +600,7 @@ quantized ops fell back to CPU, causing significant regression:
 
 | Model | FP32 Median | INT8 Median | Regression |
 |---|---|---|---|
-| **NSFW (NudeNet)** | 4 ms | 23 ms | 5.75x slower |
+| **NSFW (ViT-base)** | 4 ms | 23 ms | 5.75x slower |
 | **Face (SCRFD)** | 9 ms | 54 ms | 6x slower |
 | **OCR (PaddleOCR)** | 106 ms | 238 ms | 2.2x slower |
 | **Pipeline total** | 342 ms | 541 ms | 1.6x slower |

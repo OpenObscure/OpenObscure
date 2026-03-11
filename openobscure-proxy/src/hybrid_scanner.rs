@@ -54,6 +54,7 @@ enum SemanticBackend {
 /// 1. Regex scanner (fast, deterministic) → structured PII (CC, SSN, phone, email, API key)
 /// 2. Keyword dictionary (O(1) lookup) → health/child terms
 /// 3. Semantic backend (NER or CRF) → person names, locations, organizations
+/// 4. Multilingual patterns (language-specific national IDs, phones, IBANs)
 ///
 /// Overlapping spans are resolved via confidence-weighted voting with agreement bonus.
 pub struct HybridScanner {
@@ -65,6 +66,9 @@ pub struct HybridScanner {
     respect_code_fences: bool,
     min_confidence: f32,
     agreement_bonus: f32,
+    /// ISO 639-1 codes of languages eligible for the multilingual scan pass.
+    /// Empty = all supported languages are eligible (default).
+    enabled_languages: HashSet<String>,
 }
 
 impl HybridScanner {
@@ -83,6 +87,7 @@ impl HybridScanner {
             respect_code_fences: true,
             min_confidence: 0.5,
             agreement_bonus: 0.15,
+            enabled_languages: HashSet::new(),
         }
     }
 
@@ -101,6 +106,7 @@ impl HybridScanner {
             respect_code_fences: true,
             min_confidence: 0.5,
             agreement_bonus: 0.15,
+            enabled_languages: HashSet::new(),
         }
     }
 
@@ -115,7 +121,16 @@ impl HybridScanner {
             respect_code_fences: true,
             min_confidence: 0.5,
             agreement_bonus: 0.15,
+            enabled_languages: HashSet::new(),
         }
+    }
+
+    /// Restrict the multilingual scan pass to the given ISO 639-1 language codes.
+    ///
+    /// An empty slice (the default) enables all supported languages.
+    /// Codes that do not correspond to a supported language are silently ignored.
+    pub fn set_enabled_languages(&mut self, langs: Vec<String>) {
+        self.enabled_languages = langs.into_iter().collect();
     }
 
     /// Set confidence voting parameters.
@@ -220,11 +235,18 @@ impl HybridScanner {
         // Run detected language first; if non-English detected, also try closely
         // related languages (e.g., Portuguese ↔ Spanish) since whatlang can
         // confuse them on short texts. Validation functions prevent FPs.
+        // If enabled_languages is non-empty, only languages whose ISO 639-1 code
+        // appears in that set are scanned.
         let t = std::time::Instant::now();
         {
             let detected = lang_detect::detect_language(&effective_text);
             let langs = multilingual::languages_to_scan(detected.as_ref());
             for lang in langs {
+                if !self.enabled_languages.is_empty()
+                    && !self.enabled_languages.contains(lang.code())
+                {
+                    continue;
+                }
                 for m in multilingual::scan_with_lang(&effective_text, lang) {
                     tagged.push(TaggedMatch {
                         pii_match: m,

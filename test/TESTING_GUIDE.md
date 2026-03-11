@@ -20,6 +20,7 @@
 11. [Infrastructure Testing](#infrastructure-testing)
 12. [Managing Test Data & Validation](#managing-test-data--validation)
 13. [Troubleshooting](#troubleshooting)
+14. [Performance Observations](PERFORMANCE.md) — latency benchmarks for every pipeline stage
 
 ---
 
@@ -63,6 +64,7 @@ for testing is how PII is redacted in the output files:
 > **FPE** = Format-Preserving Encryption (FF1-AES256). The encrypted value has the
 > same character set and length as the original — a 16-digit card number encrypts
 > to another 16-digit number. This is reversible with the key.
+> See [FPE Configuration](../docs/configure/fpe-configuration.md) for the full reference.
 >
 > **Labels** = Fixed replacement tags. Not reversible.
 

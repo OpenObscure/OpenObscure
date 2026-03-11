@@ -2,6 +2,7 @@
 
 > Hands-on walkthrough of every Gateway (L0 proxy) feature.
 > Each section includes runnable commands you can copy-paste.
+> For FPE configuration details (per-type behavior, key rotation, fail modes), see [FPE Configuration](../docs/configure/fpe-configuration.md).
 
 ---
 
@@ -315,9 +316,9 @@ curl -s -X POST http://127.0.0.1:18790/anthropic/v1/messages \
 1. Detect base64 image in JSON
 2. Decode to DynamicImage (EXIF metadata auto-stripped)
 3. Resize if exceeds `max_dimension` (default: 960px)
-4. Face redaction — SCRFD-2.5GF (Full/Standard) or Ultra-Light RFB-320 (Lite) detects faces, applies solid-color fill
-5. OCR redaction — PaddleOCR ONNX detects text regions, applies solid-color fill
-6. NSFW check — NudeNet ONNX confidence score
+4. NSFW check — ViT-base 5-class classifier (NSFW score ≥ 0.50 → solid fill entire image, skip remaining phases)
+5. Face redaction — SCRFD-2.5GF (Full/Standard) or Ultra-Light RFB-320 (Lite) detects faces, applies solid-color fill
+6. OCR redaction — PaddleOCR ONNX detects text regions, applies solid-color fill
 7. Screenshot detection — heuristics (solid color bars, pixel patterns)
 8. Re-encode to base64, substitute back into JSON
 

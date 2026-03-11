@@ -217,7 +217,7 @@ pub struct MobileStatsFFI {
     pub total_images_processed: u64,
     pub scanner_mode: String,
     pub image_pipeline_available: bool,
-    /// Device capability tier ("full", "standard", "lite", or "manual").
+    /// Device capability tier: "full", "standard", or "lite".
     pub device_tier: String,
 }
 

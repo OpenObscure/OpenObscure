@@ -80,7 +80,7 @@ Three independent layers (L0-L2) ensure that a failure in one layer does not exp
 
 OpenObscure supports multiple secret storage backends to accommodate both desktop and headless (Docker, CI, VPS) environments. The priority chain for each secret is:
 
-**FPE master key** (32 bytes, AES-256):
+**FPE master key** (32 bytes, AES-256) — see [FPE Configuration](docs/configure/fpe-configuration.md) for full setup and rotation:
 1. `OPENOBSCURE_MASTER_KEY` environment variable (64 hex chars) — for headless/Docker/CI
 2. OS keychain (macOS Keychain, Windows Credential Store, Linux keyutils/Secret Service) — for desktop
 3. Encrypted file (`~/.openobscure/master.key.enc`) — fallback for environments without keychain or env vars
@@ -105,7 +105,7 @@ The FPE key and transcript passphrase are independent — compromising one does 
 
 - All dependencies are audited for license and security before inclusion (see `LICENSE_AUDIT.md` in each component)
 - Rust dependencies use `cargo audit` for known vulnerability scanning
-- L1 plugin uses `better-sqlite3` as its only runtime dependency (native module for consent storage). All other Node.js dependencies are dev-only (build/test).
+- L1 plugin has one optional runtime dependency (`@openobscure/scanner-napi` for native PII scanning). All other Node.js dependencies are dev-only (build/test).
 - ONNX models (Phase 2+) are sourced from HuggingFace with checksum verification
 
 ### Code
@@ -133,6 +133,7 @@ The image pipeline introduces additional attack surfaces that are actively mitig
 | **ONNX model substitution** (replacing `.onnx` files with malicious models) | Models verified by SHA256 checksum against trusted manifest. Model paths are admin-configured, not user-supplied. |
 | **Resource exhaustion** (large images causing OOM or CPU spin) | 960px resize cap, sequential model loading (never both face + OCR in RAM), 224MB hard ceiling. |
 | **EXIF-based attacks** (crafted EXIF metadata) | EXIF read via `kamadak-exif` for screenshot detection only; EXIF is stripped by re-encoding (pixels only). |
+| **SSRF via URL image fetch** (`url_allow_localhost_http = true`) | Attacker-injected `image_url` values pointing to `http://127.0.0.1:*` cause the proxy to make GET requests to any loopback-bound service. Default is `true` for testing only. **Set `url_allow_localhost_http = false` in production.** Residual risk: hostnames bypass numeric-IP SSRF check and are resolved at connection time — use `url_fetch_enabled = false` or network-level egress controls in high-security environments. See [Config Reference — image.url_allow_localhost_http](docs/configure/config-reference.md#image). |
 
 ### Response Integrity Attack Surface (Phase 12)
 
@@ -145,9 +146,36 @@ The R2 cognitive firewall introduces a TinyBERT ONNX classifier for persuasion d
 | **R2 model extraction** (extracting model weights from ONNX file) | Model weights are readable from the ONNX file. Not a security concern — the model detects manipulation patterns, it does not contain user data. |
 | **R2 denial of service** (triggering expensive inference repeatedly) | First-window early exit (128 tokens) limits inference cost for clean text. Model evicted after idle timeout (default 300s). Sensitivity tier controls R2 invocation rate. |
 
-## Threat Model
+## Deployment Hardening
 
-For the full threat model including what OpenObscure protects against, what it does not, and the complete secrets inventory, see the [Threat Model section in ARCHITECTURE.md](ARCHITECTURE.md#threat-model).
+### Health Endpoint
+
+The `/_openobscure/health` and `/_openobscure/ner` endpoints require the `X-OpenObscure-Token` header (32-byte hex, stored at `~/.openobscure/.auth-token` with 0600 permissions). If you run L0 behind a reverse proxy (Nginx, Caddy, Traefik), ensure `/_openobscure/*` routes are not exposed externally — they should only be reachable from localhost or the L1 plugin process.
+
+### Crash Buffer for Forensics
+
+The crash buffer (`crash_buffer = true` in `[logging]`) is disabled by default. Without it, forensic log data is permanently lost after an OOM kill or SIGKILL. For production deployments where forensic completeness matters (HIPAA, PCI-DSS incident response), enable the crash buffer:
+
+```toml
+[logging]
+crash_buffer = true
+crash_buffer_size = 4194304  # 4MB
+```
+
+See [Crash Recovery](docs/operate/crash-recovery.md) for forensic workflow details.
+
+### Uninstall and Cleanup
+
+The following files under `~/.openobscure/` contain security-relevant data. Remove them when uninstalling OpenObscure:
+
+| File | Contents |
+|------|----------|
+| `.auth-token` | 32-byte L0/L1 auth secret |
+| `request_journal.buf` | Request metadata (UUIDs, timestamps, PII span counts — no plaintext PII) |
+| `crash.buf` | Buffered log lines (PII-scrubbed, but contains request IDs) |
+| `.crashed` | Panic marker (contains panic message and stack location) |
+
+The FPE master key is stored in the OS keychain — remove it separately using `keyring delete openobscure fpe-master-key` or your platform's keychain manager.
 
 ## Audit Status
 

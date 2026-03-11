@@ -151,6 +151,13 @@ pub struct MobileConfig {
     /// Higher values allow concurrent inference but use more memory.
     #[serde(default = "default_ner_pool_size")]
     pub ner_pool_size: usize,
+
+    /// Restrict multilingual scanning to specific languages (ISO 639-1 codes).
+    ///
+    /// Empty (default) enables all 8 non-English languages: es, fr, de, pt, ja, zh, ko, ar.
+    /// Example: `["es", "fr"]` to scan only Spanish and French patterns.
+    #[serde(default)]
+    pub enabled_languages: Vec<String>,
 }
 
 fn default_true() -> bool {
@@ -271,6 +278,7 @@ impl Default for MobileConfig {
             ort_dylib_path: None,
             gazetteer_enabled: true,
             ner_pool_size: 1,
+            enabled_languages: Vec::new(),
         }
     }
 }
@@ -300,7 +308,7 @@ pub struct MobileStats {
     pub scanner_mode: String,
     /// Whether image pipeline is available.
     pub image_pipeline_available: bool,
-    /// Device capability tier ("full", "standard", "lite", or "manual").
+    /// Device capability tier: "full", "standard", or "lite".
     pub device_tier: String,
 }
 
@@ -457,7 +465,7 @@ impl OpenObscureMobile {
         };
 
         // Determine scanner and tier via auto-detection or explicit mode
-        let (scanner, effective_mode, device_tier) = if config.auto_detect
+        let (mut scanner, effective_mode, device_tier) = if config.auto_detect
             && config.scanner_mode == "auto"
         {
             let (mut scan, mode) = Self::build_scanner_from_budget(
@@ -508,6 +516,7 @@ impl OpenObscureMobile {
             };
             (scanner, config.scanner_mode.clone(), tier.to_string())
         };
+        scanner.set_enabled_languages(config.enabled_languages.clone());
 
         // Build image pipeline if enabled and budget allows
         let image_manager = if config.image_enabled && budget.image_pipeline_enabled {
