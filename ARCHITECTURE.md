@@ -86,11 +86,141 @@ The **second line of defense**. Runs in-process with the host agent. Catches PII
 - macOS: launchd plist with `KeepAlive` + `ThrottleInterval`
 - Linux: systemd unit with `Restart=on-failure` + `MemoryMax=275M`
 
-## How FPE Works
+## Features
 
-Format-Preserving Encryption (FF1, NIST SP 800-38G) transforms plaintext into ciphertext of **identical format**. A credit card encrypts to another credit card, a phone number to another phone number — the LLM sees plausible data instead of `[REDACTED]`, preserving conversational context. Ten structured PII types use FF1 encryption; five keyword/NER types use hash-token redaction.
+| Feature | What it protects | Availability |
+|---------|-----------------|-------------|
+| **Format-Preserving Encryption** | Outbound PII in text — 10 structured types encrypted to same-format ciphertext | All tiers |
+| **Hybrid PII Scanner** | 15 PII types via 4-engine ensemble (regex → keywords → NER/CRF) | All tiers (model depth varies) |
+| **Image Pipeline** | Faces, NSFW content, OCR text, and EXIF metadata in base64-encoded images | All tiers |
+| **Voice PII Detection** | Audio blocks containing PII trigger phrases — strips matches, passes clean audio | All tiers (`voice` feature) |
+| **Response Integrity** | LLM responses for manipulation and prohibited AI techniques | Full/Standard tiers |
 
-For the full FPE reference — per-type behavior table, TOML config options, key generation, key rotation, and fail-open/fail-closed semantics — see [FPE Configuration](docs/configure/fpe-configuration.md).
+## How Features Work
+
+### Format-Preserving Encryption (FPE)
+
+FF1 (NIST SP 800-38G) transforms plaintext into ciphertext of **identical format** — a credit card encrypts to another valid-looking card number, a phone to another phone. The LLM sees plausible data instead of `[REDACTED]`, preserving conversational context.
+
+```
+Input:   "My card is 4111 1111 1111 1111, call me at 555-867-5309"
+Output:  "My card is 7392 4851 2947 3821, call me at 555-294-1847"
+```
+
+Ten structured PII types use FF1 encryption. Five keyword/NER types (names, orgs, health terms) use hash-token redaction since they have no fixed format to preserve.
+
+For per-type behavior, TOML config, key generation, rotation, and fail-open semantics → [FPE Configuration](docs/configure/fpe-configuration.md).
+
+### Hybrid PII Scanner
+
+Detection runs a 4-engine cascade in order, merging results with confidence voting:
+
+1. **Regex** — 10 structured types with post-validation (Luhn for cards, range checks for SSNs, loopback rejection for IPs)
+2. **Keyword dictionary** — ~700 health and child-safety terms, multilingual
+3. **NER/CRF** — TinyBERT 4L (Standard/Lite) or DistilBERT (Full) for names, addresses, organisations
+4. **Gazetteer** — national IDs with country-specific check-digit validation (9 languages: es/fr/de/pt/ja/zh/ko/ar + en)
+
+Overlapping spans are merged using cluster-based voting — higher-confidence engines win conflicts.
+
+### Image Pipeline
+
+L0 detects base64-encoded images in JSON request bodies and runs a sequential pipeline: NSFW classification → face redaction → OCR text redaction → EXIF strip → re-encode. All redaction uses **solid fill** — original pixels are destroyed and cannot be recovered.
+
+**Child face — privacy protection**
+
+| Before | After |
+|--------|-------|
+| <img src="docs/examples/images/child-original.jpg" width="200"> | <img src="docs/examples/images/child-redacted.jpg" width="200"> |
+
+SCRFD-2.5GF detects the face bounding box and applies a solid fill, protecting children's identities before the image reaches any LLM provider.
+
+**Multiple faces**
+
+| Before | After |
+|--------|-------|
+| <img src="docs/examples/images/group-original.jpg" width="340" height="240"> | <img src="docs/examples/images/group-redacted.jpg" width="340" height="240"> |
+
+Each detected face is filled independently. The person facing away is correctly left unmodified — no face region detected, no fill applied.
+
+**NSFW detection — full-image redaction**
+
+ViT-base 5-class classifier (neutral / drawings / hentai / porn / sexy). When any explicit class exceeds threshold, the **entire image** is replaced with a solid fill — no partial redaction:
+
+```json
+// Request body before pipeline — base64 image with explicit content
+{ "messages": [{ "content": [{ "type": "image_url",
+    "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQSk..." } }] }] }
+
+// After pipeline — same dimensions, uniform solid fill, no original pixels remain
+{ "messages": [{ "content": [{ "type": "image_url",
+    "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQSk..." } }] }] }
+```
+
+The re-encoded base64 looks structurally identical to the LLM — it's a valid JPEG of the same dimensions, just solid grey.
+
+**EXIF stripping**
+
+Every re-encoded image has its EXIF metadata stripped. A typical unstripped photo exposes:
+
+```
+GPS:      lat=37.7749, lon=-122.4194   ← precise home or work location
+Device:   iPhone 16 Pro, iOS 18.3      ← device fingerprint
+Date:     2025-03-11T08:42:13+00:00    ← exact timestamp
+Software: Photos 9.0
+```
+
+After the pipeline the re-encoded image contains no EXIF at all — no coordinates, no device info, no timestamp.
+
+**Screenshot with structured PII**
+
+| Before | After |
+|--------|-------|
+| <img src="docs/examples/images/screenshot-original.png" width="340" height="260"> | <img src="docs/examples/images/screenshot-redacted.png" width="340" height="260"> |
+
+PaddleOCR v4 detects text regions in the screenshot. Name, SSN, phone, email, address, credit card, diagnosis, and provider name are all filled. Non-PII structure (section headers, field labels) is preserved.
+
+**Printed form with mixed PII**
+
+| Before | After |
+|--------|-------|
+| <img src="docs/examples/images/text-original.jpg" width="340" height="340"> | <img src="docs/examples/images/text-redacted.jpg" width="340" height="340"> |
+
+Surgical redaction: name, date of birth, address, phone, email, SSN, and card number are filled. Non-PII rows (account type, plan, status, billing cycle, last payment amount) remain intact.
+
+For pipeline flow, model details, threshold configuration, and provider format handling → [Image Pipeline](docs/architecture/image-pipeline.md).
+
+### Voice PII Detection
+
+The `voice` feature adds keyword spotting via sherpa-onnx Zipformer (~5MB INT8). L0 monitors audio streams for PII trigger phrases (name, address, credit card, SSN, and others) and strips audio blocks containing matches before forwarding. Clean audio passes through unmodified — no buffering or storage of non-matching segments.
+
+The model runs entirely on-device. No audio leaves the device unscreened.
+
+### Response Integrity — Cognitive Firewall
+
+Every LLM response is scanned for manipulation before it reaches the user. The two-tier cascade:
+
+- **R1 dictionary** — ~250 phrases across 7 Cialdini persuasion categories, <1ms
+- **R2 TinyBERT classifier** — 4 EU AI Act Article 5 prohibited technique categories, ~30ms (triggered only when R1 fires)
+
+When manipulation is detected, a warning label is prepended to the response:
+
+```
+⚠️  OpenObscure — Manipulation Detected
+
+  Category:  Authority Claim  [High]
+  Technique: "As a medical professional, I strongly recommend..."
+  EU AI Act: Article 5(1)(a) — Prohibited subliminal technique
+
+──────────────────────────────────────────────────────────────
+[original LLM response follows]
+──────────────────────────────────────────────────────────────
+
+As a medical professional, I strongly recommend you act on this immediately...
+```
+
+Always advisory — the cognitive firewall never blocks responses, only labels them. The full response reaches the user with the warning prepended.
+
+For R1/R2 cascade flow, severity tiers, EU AI Act mapping, and configuration → [Response Integrity](docs/architecture/response-integrity.md).
 
 ## Data Flow
 
@@ -249,54 +379,6 @@ OpenObscure must be **invisible when working, clear when not**.
 ## Logging
 
 Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/`ooWarn` in TypeScript). All log output is PII-scrubbed by default. Supports stderr, file rotation, JSONL audit trail, and crash buffer (mmap ring). See component-level `ARCHITECTURE.md` files for details.
-
----
-
-## Image Pipeline
-
-L0 detects base64-encoded images in JSON request bodies and runs them through a sequential pipeline before text scanning: NSFW classification (ViT-base 5-class) → face solid-fill redaction (SCRFD/BlazeFace) → OCR text solid-fill (PaddleOCR v4) → EXIF strip → re-encode. All redaction uses solid fill — original pixel data is destroyed and cannot be recovered.
-
-**Child face — privacy protection**
-
-| Before | After |
-|--------|-------|
-| <img src="docs/examples/images/child-original.jpg" width="200"> | <img src="docs/examples/images/child-redacted.jpg" width="200"> |
-
-SCRFD-2.5GF detects the face bounding box and applies a solid fill, protecting children's identities before the image reaches any LLM provider.
-
-**Multiple faces**
-
-| Before | After |
-|--------|-------|
-| <img src="docs/examples/images/group-original.jpg" width="340" height="240"> | <img src="docs/examples/images/group-redacted.jpg" width="340" height="240"> |
-
-Each detected face is filled independently. The person facing away is correctly left unmodified — no face region detected, no fill applied.
-
-**Screenshot with structured PII**
-
-| Before | After |
-|--------|-------|
-| <img src="docs/examples/images/screenshot-original.png" width="340" height="260"> | <img src="docs/examples/images/screenshot-redacted.png" width="340" height="260"> |
-
-PaddleOCR v4 detects text regions in the rendered screenshot. Name, SSN, phone, email, address, credit card, diagnosis, and provider name are all filled. Non-PII structure (section headers, field labels) is preserved.
-
-**Printed form with mixed PII**
-
-| Before | After |
-|--------|-------|
-| <img src="docs/examples/images/text-original.jpg" width="340" height="340"> | <img src="docs/examples/images/text-redacted.jpg" width="340" height="340"> |
-
-Surgical redaction: name, date of birth, address, phone, email, SSN, and card number are filled. Non-PII rows (account type, plan, status, billing cycle, last payment amount, notes text) remain intact — OCR distinguishes PII values from surrounding context.
-
-For pipeline flow, model details, threshold configuration, and provider format handling, see [Image Pipeline](docs/architecture/image-pipeline.md).
-
----
-
-## Response Integrity — Cognitive Firewall
-
-OpenObscure scans every LLM response for manipulation techniques before they reach the user. The two-tier cascade: R1 dictionary (~250 phrases, 7 Cialdini categories, <1ms) triggers R2 TinyBERT ONNX classifier (4 EU AI Act Article 5 categories, ~30ms). Always advisory — the cognitive firewall labels and logs, never blocks responses.
-
-For the R1/R2 cascade flow, severity tiers, EU AI Act mapping, configuration, and performance data, see [Response Integrity](docs/architecture/response-integrity.md).
 
 ---
 
