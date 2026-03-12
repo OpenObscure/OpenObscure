@@ -959,7 +959,10 @@ mod tests {
     }
 
     #[test]
-    fn test_keyword_confidence_always_one() {
+    fn test_keyword_confidence_calibrated() {
+        // Solo keyword hits fire at 0.70 — lower than regex (1.0) so regex wins
+        // overlapping conflicts, but specific medical terms still pass solo.
+        // Agreement bonus raises corroborated hits to 0.85.
         let scanner = HybridScanner::new(true, None, None);
         let matches = scanner.scan_text("I have diabetes and asthma");
         let health: Vec<_> = matches
@@ -969,8 +972,8 @@ mod tests {
         assert!(health.len() >= 2);
         for m in &health {
             assert_eq!(
-                m.confidence, 1.0,
-                "keyword match should have confidence 1.0"
+                m.confidence, 0.70,
+                "solo keyword match should have confidence 0.70"
             );
         }
     }
