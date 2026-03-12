@@ -260,7 +260,7 @@ L0 detects base64-encoded images in JSON request bodies and runs them through a 
 
 | Before | After |
 |--------|-------|
-| <img src="docs/examples/images/child-original.jpg" width="340" height="340"> | <img src="docs/examples/images/child-redacted.jpg" width="340" height="340"> |
+| <img src="docs/examples/images/child-original.jpg" width="200"> | <img src="docs/examples/images/child-redacted.jpg" width="200"> |
 
 SCRFD-2.5GF detects the face bounding box and applies a solid fill, protecting children's identities before the image reaches any LLM provider.
 
