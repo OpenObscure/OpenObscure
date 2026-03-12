@@ -10,18 +10,18 @@ Every message, tool result, and file a user shares with an AI agent gets sent to
 
 ## Deployment Models
 
-OpenObscure supports two deployment models: **Gateway** (sidecar HTTP proxy for desktop/server) and **Embedded** (native library for mobile/custom apps). Both run entirely on-device with no cloud components.
+OpenObscure shares the same L0 core across both deployment models — same detection engines, same FPE, same image pipeline, same cognitive firewall. The difference is how the host application integrates it.
 
-For full details — diagrams, API surface, platform support, comparison table, and defense-in-depth — see [Deployment Models](docs/get-started/deployment-models.md).
+### Gateway Model (macOS / Linux / Windows)
 
-## Two-Layer Defense-in-Depth
+L0 runs as a **sidecar HTTP proxy** on the same host as the AI agent. L1 runs in-process with the agent to catch PII in tool results that never pass through HTTP. Both layers are active.
 
 ```mermaid
 flowchart TB
     tools["Agent Tools"]
 
-    subgraph gateway ["AI Agent Gateway"]
-        subgraph l1box ["L1 Plugin"]
+    subgraph gateway ["AI Agent Gateway (e.g. OpenClaw)"]
+        subgraph l1box ["L1 Plugin (in-process)"]
             redact["PII Redactor"]
             heartbeat["Heartbeat Monitor"]
         end
@@ -44,7 +44,7 @@ flowchart TB
     gateway -- "HTTP" --> reqpath
     ff1 -- "sanitized HTTPS" --> llm
     llm -- "response" --> decrypt
-    ri -- "labeled" --> gateway
+    ri -- "labeled response" --> gateway
 
     style gateway fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
     style l1box fill:#f0ebfa,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
@@ -62,6 +62,49 @@ flowchart TB
     style decrypt fill:#545b64,stroke:#232F3E,color:#fff
     style ri fill:#545b64,stroke:#232F3E,color:#fff
 ```
+
+### Embedded Model (iOS / Android)
+
+L0 compiles as a **native library** (`.a` for iOS, `.so` for Android) linked directly into the host app. No HTTP server, no sockets — the app calls `sanitizeText()` and `sanitizeImage()` directly via UniFFI-generated Swift/Kotlin bindings. L1 is not used.
+
+```mermaid
+flowchart TB
+    subgraph app ["Host App (Enchanted / RikkaHub / custom)"]
+        ui["App UI (Swift / Kotlin)"]
+        subgraph lib ["OpenObscure lib (Rust — same L0 core)"]
+            scanner["Hybrid Scanner"]
+            fpe["FPE Encrypt / Decrypt"]
+            imgpipe2["Image Pipeline"]
+            ri2["Response Integrity"]
+        end
+        ui -- "sanitizeText() / sanitizeImage()" --> lib
+        lib -- "SanitizeResult (PII encrypted)" --> ui
+        ui -. "restoreText() / scanResponse()" .-> lib
+        lib -. "restored text / RiReport" .-> ui
+    end
+
+    app -- "HTTPS (PII already encrypted)" --> llm(["LLM Provider"])
+    llm -- "response" --> app
+
+    style app fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
+    style lib fill:#f0ebfa,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
+    style ui fill:#3b48cc,stroke:#232F3E,color:#fff
+    style scanner fill:#545b64,stroke:#232F3E,color:#fff
+    style fpe fill:#545b64,stroke:#232F3E,color:#fff
+    style imgpipe2 fill:#545b64,stroke:#232F3E,color:#fff
+    style ri2 fill:#545b64,stroke:#232F3E,color:#fff
+    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+```
+
+### Why the Gateway model uses two layers
+
+Neither L0 nor L1 alone is sufficient in the Gateway deployment:
+- **L0** can't see tool results — they're generated inside the host agent and never pass through HTTP
+- **L1** can't intercept before the LLM sees data — it hooks tool result persistence, not outbound requests
+
+The Embedded model doesn't need L1 — the app calls `sanitizeText()` directly before making any LLM request, so all data is encrypted before it leaves the app.
+
+For full comparison — API surface, build artifacts, platform support, and running both models simultaneously → [Deployment Models](docs/get-started/deployment-models.md).
 
 ## Language Choices
 
@@ -121,16 +164,9 @@ Format-Preserving Encryption (FF1, NIST SP 800-38G) transforms plaintext into ci
 
 For the full FPE reference — per-type behavior table, TOML config options, key generation, key rotation, and fail-open/fail-closed semantics — see [FPE Configuration](docs/configure/fpe-configuration.md).
 
-## L0 vs L1 — Why Both?
-
-> **Comparison table:** See [L0 vs L1 — When to Use Which](docs/architecture/system-overview.md#two-layer-defense-in-depth) in the
-> System Overview.
-
-Neither layer alone is sufficient:
-- L0 can't see tool results (they're generated inside the host agent, never pass through HTTP)
-- L1 can't intercept before LLM sees data (in OpenClaw, only `tool_result_persist` is wired, not `before_tool_call`)
-
 ## Data Flow
+
+> **Gateway model** — the flows below show the Gateway deployment. For Embedded, the app calls `sanitizeText()` directly before sending to the LLM; there is no proxy hop.
 
 ### Outbound (user → LLM)
 
