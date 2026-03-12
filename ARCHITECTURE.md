@@ -290,7 +290,7 @@ L0 detects base64-encoded images in JSON request bodies and runs them through a 
 
 | Before | After |
 |--------|-------|
-| ![Person with hat, face visible](docs/examples/images/face-original.jpg) | ![Same person, face replaced with solid fill](docs/examples/images/face-redacted.jpg) |
+| <img src="docs/examples/images/face-original.jpg" width="340" height="340"> | <img src="docs/examples/images/face-redacted.jpg" width="340" height="340"> |
 
 SCRFD-2.5GF detects the face bounding box; a solid fill is applied before the image is re-encoded and forwarded.
 
@@ -298,7 +298,7 @@ SCRFD-2.5GF detects the face bounding box; a solid fill is applied before the im
 
 | Before | After |
 |--------|-------|
-| ![Group of four people at a table](docs/examples/images/group-original.jpg) | ![Same group, three visible faces solid-filled; turned head left unmodified](docs/examples/images/group-redacted.jpg) |
+| <img src="docs/examples/images/group-original.jpg" width="340" height="240"> | <img src="docs/examples/images/group-redacted.jpg" width="340" height="240"> |
 
 Each detected face is filled independently. The person facing away is correctly left unmodified — no face region detected, no fill applied.
 
@@ -306,7 +306,7 @@ Each detected face is filled independently. The person facing away is correctly 
 
 | Before | After |
 |--------|-------|
-| ![EHR patient record with name, SSN, credit card, diagnosis, medications visible](docs/examples/images/screenshot-original.png) | ![Same record with all PII text regions solid-filled](docs/examples/images/screenshot-redacted.png) |
+| <img src="docs/examples/images/screenshot-original.png" width="340" height="260"> | <img src="docs/examples/images/screenshot-redacted.png" width="340" height="260"> |
 
 PaddleOCR v4 detects text regions in the rendered screenshot. Name, SSN, phone, email, address, credit card, diagnosis, and provider name are all filled. Non-PII structure (section headers, field labels) is preserved.
 
@@ -314,7 +314,7 @@ PaddleOCR v4 detects text regions in the rendered screenshot. Name, SSN, phone, 
 
 | Before | After |
 |--------|-------|
-| ![Customer information form with personal details and payment info](docs/examples/images/text-original.jpg) | ![Same form with PII fields selectively solid-filled](docs/examples/images/text-redacted.jpg) |
+| <img src="docs/examples/images/text-original.jpg" width="340" height="340"> | <img src="docs/examples/images/text-redacted.jpg" width="340" height="340"> |
 
 Surgical redaction: name, date of birth, address, phone, email, SSN, and card number are filled. Non-PII rows (account type, plan, status, billing cycle, last payment amount, notes text) remain intact — OCR distinguishes PII values from surrounding context.
 
