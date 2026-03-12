@@ -16,67 +16,13 @@ OpenObscure shares the same L0 core across both deployment models — same detec
 
 L0 runs as a **sidecar HTTP proxy** on the same host as the AI agent. L1 runs in-process with the agent to catch PII in tool results that never pass through HTTP. Both layers are active.
 
-```mermaid
-flowchart TB
-    tools["Agent Tools"]
-
-    subgraph gateway ["AI Agent Gateway (e.g. OpenClaw)"]
-        subgraph l1box ["L1 Plugin"]
-            redact["PII Redactor"]
-            heartbeat["Heartbeat Monitor"]
-        end
-    end
-
-    subgraph l0box ["L0 Proxy — 127.0.0.1:18790"]
-        req["Scan + Image Pipeline + FPE Encrypt"]
-        resp["FPE Decrypt + Response Integrity"]
-    end
-
-    llm(["LLM Providers"])
-
-    tools -- "tool results" --> gateway
-    gateway -- "HTTP" --> req
-    req -- "sanitized HTTPS" --> llm
-    llm -- "response" --> resp
-    resp -- "labeled" --> gateway
-
-    style gateway fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
-    style l1box fill:#f0ebfa,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
-    style l0box fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
-    style tools fill:#3F4756,stroke:#545b64,color:#fff
-    style redact fill:#9D7BED,stroke:#232F3E,color:#fff
-    style heartbeat fill:#9D7BED,stroke:#232F3E,color:#fff
-    style req fill:#545b64,stroke:#232F3E,color:#fff
-    style resp fill:#545b64,stroke:#232F3E,color:#fff
-```
+<img src="docs/diagrams/gateway-model.svg" alt="Gateway Model diagram" width="600">
 
 ### Embedded Model (iOS / Android)
 
 L0 compiles as a **native library** (`.a` for iOS, `.so` for Android) linked directly into the host app. No HTTP server, no sockets — the app calls `sanitizeText()` and `sanitizeImage()` directly via UniFFI-generated Swift/Kotlin bindings. L1 is not used.
 
-```mermaid
-flowchart TB
-    subgraph app ["Host App (Enchanted / RikkaHub / custom)"]
-        ui["App UI (Swift / Kotlin)"]
-        subgraph lib ["OpenObscure lib (Rust — same L0 core)"]
-            enc["Scan + Image Pipeline + FPE Encrypt"]
-            dec["FPE Decrypt + Cognitive Firewall"]
-        end
-        ui -- "sanitizeText() / sanitizeImage()" --> enc
-        dec -- "restored text + risk report" --> ui
-    end
-
-    app -- "HTTPS (PII encrypted)" --> llm(["LLM Provider"])
-    llm -- "response" --> app
-
-    style app fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
-    style lib fill:#f0ebfa,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
-    style ui fill:#3b48cc,stroke:#232F3E,color:#fff
-    style enc fill:#545b64,stroke:#232F3E,color:#fff
-    style dec fill:#545b64,stroke:#232F3E,color:#fff
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
-```
+<img src="docs/diagrams/embedded-model.svg" alt="Embedded Model diagram" width="560">
 
 ### Why the Gateway model uses two layers
 
@@ -148,56 +94,80 @@ For the full FPE reference — per-type behavior table, TOML config options, key
 
 ## Data Flow
 
-> **Gateway model** — the flows below show the Gateway deployment. For Embedded, the app calls `sanitizeText()` directly before sending to the LLM; there is no proxy hop.
-
-### Outbound (user → LLM)
+### Gateway Model
 
 ```mermaid
-flowchart LR
-    user["User"] --> agent["Agent"]
-    agent --> l0["L0 Proxy FPE encrypt"]
-    l0 --> llm["LLM Provider"]
+sequenceDiagram
+    autonumber
 
-    style user fill:#232F3E,stroke:#545b64,color:#fff
-    style agent fill:#3b48cc,stroke:#232F3E,color:#fff
-    style l0 fill:#545b64,stroke:#232F3E,color:#fff
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
+    participant T as Agent Tools
+    participant G as AI Agent Gateway
+    participant P as L0 Proxy (127.0.0.1)
+    participant L as LLM Providers
+
+    rect rgb(230, 243, 247)
+        T->>G: tool results
+        Note over G: L1 Plugin scans tool results<br/>for PII — redacts before persistence
+    end
+
+    rect rgb(230, 243, 247)
+        G->>P: HTTP (outbound request)
+        Note right of P: Hybrid scan + image pipeline<br/>+ FPE encrypt matched PII
+        P->>L: sanitized HTTPS
+    end
+
+    rect rgb(230, 243, 247)
+        L-->>P: response
+        Note right of P: FPE decrypt ciphertexts<br/>+ cognitive firewall scan
+        P-->>G: labeled response (HTTP)
+    end
 ```
 
-### Inbound (LLM → user)
+| Step | What happens |
+|------|-------------|
+| **1** | Agent tool results (web scrapes, file reads, API responses) enter the Gateway. L1 Plugin intercepts synchronously — scans and redacts PII before the result is stored in the transcript. |
+| **2** | Gateway forwards the outbound LLM request to L0 Proxy over local HTTP. L0 runs the hybrid scanner (regex → keywords → NER/CRF), processes any base64-encoded images (NSFW → face → OCR → EXIF strip), and FF1-encrypts all matched PII. |
+| **3** | L0 forwards the sanitized request to the LLM provider over HTTPS — no plaintext PII leaves the device. |
+| **4** | LLM response returns to L0. FPE ciphertexts are decrypted back to original values. Response is scanned by the cognitive firewall (R1 dictionary + R2 TinyBERT) for manipulation patterns. |
+| **5** | L0 returns the labeled response to the Gateway. If the cognitive firewall flagged anything, a warning label is prepended per EU AI Act Article 5. |
+
+### Embedded Model
 
 ```mermaid
-flowchart RL
-    llm["LLM Provider"] --> proxy["L0 Proxy FPE decrypt"]
-    proxy --> ri["Response Integrity scan"]
-    ri --> agent["Host Agent"]
-    agent --> user["User"]
+sequenceDiagram
+    autonumber
 
-    style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
-    style proxy fill:#545b64,stroke:#232F3E,color:#fff
-    style ri fill:#545b64,stroke:#232F3E,color:#fff
-    style agent fill:#3b48cc,stroke:#232F3E,color:#fff
-    style user fill:#232F3E,stroke:#545b64,color:#fff
+    participant A as App UI (Swift / Kotlin)
+    participant L as OpenObscure Lib (L0)
+    participant P as LLM Provider
+
+    rect rgb(230, 243, 247)
+        A->>L: sanitizeText() / sanitizeImage()
+        Note right of L: Hybrid scan + image pipeline<br/>+ FPE encrypt matched PII
+        L-->>A: encrypted payload
+    end
+
+    rect rgb(230, 243, 247)
+        A->>P: HTTPS (PII encrypted)
+        P-->>A: response
+    end
+
+    rect rgb(230, 243, 247)
+        A->>L: restoreText(response)
+        Note right of L: FPE decrypt ciphertexts<br/>+ cognitive firewall scan
+        L-->>A: restored text + risk report
+    end
 ```
 
-### Tool Results (agent tools → persistence)
+| Step | What happens |
+|------|-------------|
+| **1** | App calls `sanitizeText()` or `sanitizeImage()` before sending anything to the LLM. L0 lib runs the full hybrid scanner and image pipeline in-process — same detection engines as the Gateway model. |
+| **2** | Matched PII is FF1-encrypted. The encrypted payload is returned to the app — ciphertext preserves the original format (a credit card encrypts to a plausible credit card number). |
+| **3** | App sends the sanitized request directly to the LLM provider over HTTPS. No proxy hop, no local HTTP server — the lib is a function call. |
+| **4** | LLM response is returned directly to the app. |
+| **5** | App calls `restoreText()` on the response. L0 lib decrypts FPE ciphertexts and runs the cognitive firewall scan. Returns restored text and a risk report (manipulation flags, if any). |
 
-```mermaid
-flowchart LR
-    tool["Agent Tool"]
-    tool --> result["Tool result"]
-    result --> hook["L1 hook (synchronous)"]
-    hook --> redact["PII Redactor"]
-    redact --> persist[("Transcript (redacted)")]
-
-    style tool fill:#3F4756,stroke:#545b64,color:#fff
-    style result fill:#3F4756,stroke:#545b64,color:#fff
-    style hook fill:#9D7BED,stroke:#232F3E,color:#fff
-    style redact fill:#9D7BED,stroke:#232F3E,color:#fff
-    style persist fill:#e8dff5,stroke:#9D7BED,color:#232F3E
-```
-
-**Important:** OpenObscure never reads local files itself. The agent's tools perform all file I/O and produce text results. OpenObscure only sees the resulting text *after* the agent has already read and extracted it. L1 operates on text strings from tool outputs, not on files directly.
+> **Note:** OpenObscure never reads local files itself. The agent's tools perform all file I/O and produce text results. OpenObscure only sees the resulting text *after* the agent has already read and extracted it. L1 operates on text strings from tool outputs, not on files directly.
 
 ## Authentication Model
 
