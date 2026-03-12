@@ -214,34 +214,7 @@ Embedded budgets scale proportionally (20% of device RAM, clamped to [12MB, 275M
 
 ## Roadmap
 
-### Current Capabilities
-
-| Category | What's Detected / Protected | Tier |
-|----------|----------------------------|------|
-| **Structured PII** | Credit cards (Luhn), SSNs (range-validated), phone numbers, emails, API keys (`sk-`, `AKIA`, etc.), IBANs | All |
-| **Network / Device** | IPv4, IPv6 (full + compressed), GPS coordinates (4+ decimal), MAC addresses | All |
-| **Semantic PII** | Person names, addresses, organizations (NER/CRF), name gazetteer | All |
-| **Health / Child** | ~700 keyword terms (multilingual) | All |
-| **Multilingual** | 9 languages (es/fr/de/pt/ja/zh/ko/ar) + national ID check-digit validation (DNI, NIR, CPF, My Number, etc.) | All |
-| **Visual — Faces** | SCRFD-2.5GF solid-fill redaction | Full / Standard |
-| **Visual — Faces** | Ultra-Light RFB-320 solid-fill redaction | Lite |
-| **Visual — Text** | PaddleOCR PP-OCRv4 solid-fill redaction in screenshots/images | All (with models) |
-| **Visual — NSFW** | ViT-base 5-class classifier (LukeJacob2023/nsfw-image-detector, ~83MB INT8, 224x224 NCHW) — NSFW score = P(hentai) + P(porn) + P(sexy) threshold 0.50, solid-fill entire image | All (with models) |
-| **Visual — Metadata** | EXIF strip, screenshot detection (heuristics) | All |
-| **Voice** | KWS keyword spotting (sherpa-onnx Zipformer, ~5MB INT8) — PII trigger phrase detection + audio transcript sanitization | All (`voice` feature) |
-| **FPE Encryption** | FF1 (NIST SP 800-38G) — format-preserving, per-record tweaks, key rotation with 30s overlap | All |
-| **Ensemble Voting** | Cluster-based overlap resolution + agreement bonus across scanner types | Full |
-| **Cognitive Firewall** | R1 dictionary (~250 phrases, 7 Cialdini categories) + R2 TinyBERT classifier (4 EU AI Act Article 5 categories), R1→R2 cascade | Full / Standard |
-| **SSE Streaming** | Frame accumulation buffer for cross-frame PII/FPE reassembly | All |
-| **Platforms** | macOS, Linux (x64 + ARM64), Windows (x64), iOS (device + simulator), Android (arm64-v8a, x86_64) | All |
-
-**Recall:** 99.7% (regex scanner), 100% precision. Hybrid scanner 99.7% overall across ~400-sample benchmark corpus.
-
-### Planned
-
-- **Protection status header** — `X-OpenObscure-Protection` response header so UI clients can display a privacy indicator
-- **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path
-- **Streaming redaction** — Incremental redaction for large tool results (blocked by OpenClaw's synchronous hook API)
+See [docs/reference/roadmap.md](docs/reference/roadmap.md) — current capability matrix (all 15 PII types, all platforms, all tiers) and planned features.
 
 ## Project Layout
 
@@ -264,49 +237,11 @@ Each component folder contains its own `ARCHITECTURE.md` with module-level detai
 
 ## Key Design Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| FF1 only, never FF3 | FF3 withdrawn by NIST (SP 800-38G Rev 2, Feb 2025) |
-| Fail-open default | Proxy must never block AI functionality due to FPE edge cases |
-| Vault unavailable → 503 | No privacy guarantees without FPE key — blocking is correct |
-| Passthrough-first auth | No duplicate key management; OpenObscure is transparent to the host agent |
-| Per-record FPE tweaks | Prevents frequency analysis across requests |
-| L1 redacts, not encrypts | Tool results are internal — redaction is simpler and guarantees removal |
-| Synchronous hooks only | OpenClaw-specific: OpenClaw silently skips async hook returns |
-| INT8 quantization for NER | FP32 TinyBERT NER = ~200MB; INT8 = ~50MB — difference between fitting and OOM. R2 uses FP32 (see below) |
-| FP32 for R2, not INT8 | INT8 dynamic quantization produced 7.45 max logit error — too much accuracy loss for multi-label classification. FP32 is accurate (0.000013 max diff) at 54.9 MB |
-| R1→R2 cascade | R1 is <1ms (dictionary). R2 is ~30ms (ONNX). Cascade avoids R2 overhead on clean responses at low/medium sensitivity |
-| Interior mutability for R2 (`Mutex<Option<RiModel>>`) | R2 ONNX session needs `&mut self`. Mutex allows `scan(&self)` on Arc-shared scanner across async request handlers |
-| Solid-fill redaction (all regions) | Gaussian blur is partially reversible by AI deblurring models; solid color fill destroys original pixels completely, compresses better in base64, and clearly signals intentional redaction. Applied to faces, OCR text, and NSFW images. |
-| On-demand model loading | Face + OCR models load/evict per image, saving ~43MB between images |
-| Sequential model loading | Face model loaded/used/dropped before OCR model loaded — never both in RAM |
-| Two-pass body processing | Images processed first (replaces base64 strings), then text PII (replaces substrings by offset) |
-| EXIF strip via decode/encode | `image` crate loads pixels only, discarding all EXIF metadata — no explicit strip step |
-| 960px image cap | A 12MP ARGB bitmap = 48MB; resizing before load prevents OOM |
+See [docs/architecture/design-decisions.md](docs/architecture/design-decisions.md) — rationale for FF1-only, fail-open, per-record tweaks, solid-fill redaction, sequential model loading, and all other core choices.
 
 ## Host Agent Constraints (OpenClaw Reference)
 
-Three critical OpenClaw-specific constraints that shaped OpenObscure's architecture. Other host agents may have different constraints:
-
-1. **Only `tool_result_persist` is wired** — of OpenClaw's 14 defined hooks, only 3 have invocation sites. `before_tool_call`, `message_sending`, etc. are defined in TypeScript types but never called. This is why L0 (HTTP proxy) exists — it's the only way to intercept data *before* the LLM sees it.
-
-2. **`tool_result_persist` is synchronous** — returning a Promise causes OpenClaw to silently skip the hook. All L1 processing must be synchronous.
-
-3. **OpenClaw updates constantly** — 40+ security patches per release. OpenObscure modules touching internal APIs may break. Pin to known-good OpenClaw versions.
-
-## Running
-
-```bash
-# Generate FPE key (first time only)
-cd openobscure-proxy && cargo run -- --init-key
-
-# Start proxy
-cargo run -- -c config/openobscure.toml
-
-# Run all tests
-cd openobscure-proxy && cargo test
-cd openobscure-plugin && npm test
-```
+See [docs/architecture/system-overview.md — Host Agent Constraints](docs/architecture/system-overview.md#host-agent-constraints) — the three OpenClaw-specific constraints that shaped L0/L1 architecture.
 
 ## Health Monitoring & User Experience
 

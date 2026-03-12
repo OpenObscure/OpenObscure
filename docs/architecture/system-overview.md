@@ -212,9 +212,21 @@ Full details → [ARCHITECTURE.md — Authentication](../../ARCHITECTURE.md#auth
 
 ## Key Design Decisions
 
-Design decisions (FF1-only, fail-open, per-record tweaks, voice KWS) are documented with rationale in the Architecture reference.
+Design decisions (FF1-only, fail-open, per-record tweaks, solid-fill redaction, sequential model loading) are documented with rationale in a dedicated reference.
 
-Full details → [ARCHITECTURE.md — Key Design Decisions](../../ARCHITECTURE.md#key-design-decisions)
+Full details → [Key Design Decisions](design-decisions.md)
+
+---
+
+## Host Agent Constraints (OpenClaw Reference)
+
+Three OpenClaw-specific constraints that shaped OpenObscure's architecture. Other host agents may have different constraints:
+
+1. **Only `tool_result_persist` is wired** — of OpenClaw's 14 defined hooks, only 3 have invocation sites. `before_tool_call`, `message_sending`, etc. are defined in TypeScript types but never called. This is why L0 (HTTP proxy) exists — it's the only way to intercept data *before* the LLM sees it.
+
+2. **`tool_result_persist` is synchronous** — returning a Promise causes OpenClaw to silently skip the hook. All L1 processing must be synchronous.
+
+3. **OpenClaw updates constantly** — 40+ security patches per release. OpenObscure modules touching internal APIs may break. Pin to known-good OpenClaw versions.
 
 ---
 
@@ -241,5 +253,7 @@ The proxy intercepts data-in-transit to LLM providers but does not protect data 
 | Image pipeline (NSFW, face, OCR, screenshots) | [Image Pipeline](image-pipeline.md) |
 | Cognitive firewall (R1 + R2 cascade) | [Response Integrity](response-integrity.md) |
 | NAPI native scanner addon | [NAPI Scanner](napi-scanner.md) |
+| Core architectural choices with rationale | [Design Decisions](design-decisions.md) |
+| Current capability matrix and planned features | [Roadmap](../reference/roadmap.md) |
 | L2 Encrypted Storage | [openobscure-crypto/ARCHITECTURE.md](../../enterprise/openobscure-crypto/ARCHITECTURE.md) |
 | Export control (cryptography) | [EXPORT_CONTROL_NOTICE.md](../../EXPORT_CONTROL_NOTICE.md) |
