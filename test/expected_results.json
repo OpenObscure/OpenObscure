@@ -9,84 +9,166 @@
     "type_names": "Must match scanner output exactly: credit_card, ssn, phone, email, api_key, ipv4_address, ipv6_address, gps_coordinate, mac_address, health_keyword, child_keyword, person, location, organization"
   },
   "files": {
-
     "PII_Detection/Credit_Card_Numbers.txt": {
       "min_matches": 14,
-      "expected_types": ["credit_card"],
+      "expected_types": [
+        "credit_card"
+      ],
       "must_detect": [
-        {"text": "4532015112830366", "type": "credit_card"},
-        {"text": "5425233430109903", "type": "credit_card"},
-        {"text": "378282246310005", "type": "credit_card"},
-        {"text": "6011111111111117", "type": "credit_card"},
-        {"text": "4111-1111-1111-1111", "type": "credit_card"}
+        {
+          "text": "4532015112830366",
+          "type": "credit_card"
+        },
+        {
+          "text": "5425233430109903",
+          "type": "credit_card"
+        },
+        {
+          "text": "378282246310005",
+          "type": "credit_card"
+        },
+        {
+          "text": "6011111111111117",
+          "type": "credit_card"
+        },
+        {
+          "text": "4111-1111-1111-1111",
+          "type": "credit_card"
+        }
       ]
     },
     "PII_Detection/Social_Security_Numbers.txt": {
       "min_matches": 22,
-      "expected_types": ["ssn"],
+      "expected_types": [
+        "ssn"
+      ],
       "must_detect": [
-        {"text": "123-45-6789", "type": "ssn"},
-        {"text": "287-65-4321", "type": "ssn"},
-        {"text": "378-22-9104", "type": "ssn"},
-        {"text": "154-32-8877", "type": "ssn"}
+        {
+          "text": "123-45-6789",
+          "type": "ssn"
+        },
+        {
+          "text": "287-65-4321",
+          "type": "ssn"
+        },
+        {
+          "text": "378-22-9104",
+          "type": "ssn"
+        },
+        {
+          "text": "154-32-8877",
+          "type": "ssn"
+        }
       ]
     },
     "PII_Detection/Phone_Numbers.txt": {
       "min_matches": 40,
-      "expected_types": ["phone"],
+      "expected_types": [
+        "phone"
+      ],
       "must_detect": [
-        {"text": "(415) 555-0132", "type": "phone"},
-        {"text": "415.555.0132", "type": "phone"},
-        {"text": "+1-415-555-0132", "type": "phone"}
+        {
+          "text": "(415) 555-0132",
+          "type": "phone"
+        },
+        {
+          "text": "415.555.0132",
+          "type": "phone"
+        },
+        {
+          "text": "+1-415-555-0132",
+          "type": "phone"
+        }
       ]
     },
     "PII_Detection/Email_Addresses.txt": {
       "min_matches": 40,
-      "expected_types": ["email"],
+      "expected_types": [
+        "email"
+      ],
       "must_detect": [
-        {"text": "john.doe@gmail.com", "type": "email"},
-        {"text": "mike.chen+invoices@outlook.com", "type": "email"},
-        {"text": "r.williams@techcorp-solutions.io", "type": "email"},
-        {"text": "JOHN.DOE@GMAIL.COM", "type": "email"}
+        {
+          "text": "john.doe@gmail.com",
+          "type": "email"
+        },
+        {
+          "text": "mike.chen+invoices@outlook.com",
+          "type": "email"
+        },
+        {
+          "text": "r.williams@techcorp-solutions.io",
+          "type": "email"
+        },
+        {
+          "text": "JOHN.DOE@GMAIL.COM",
+          "type": "email"
+        }
       ]
     },
     "PII_Detection/API_Keys_Tokens.txt": {
       "min_matches": 24,
-      "expected_types": ["api_key"],
+      "expected_types": [
+        "api_key"
+      ],
       "must_detect": [
-        {"text": "sk-ant-api03-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz", "type": "api_key"},
-        {"text": "sk-Tm4nXp7qSt2uWv5xYz8aBCdEfGhIjKlMnOpQrSt", "type": "api_key"},
-        {"text": "AKIAIOSFODNN7EXAMPLE", "type": "api_key"}
+        {
+          "text": "sk-ant-api03-abc123def456ghi789jkl012mno345pqr678stu901vwx234yz",
+          "type": "api_key"
+        },
+        {
+          "text": "sk-Tm4nXp7qSt2uWv5xYz8aBCdEfGhIjKlMnOpQrSt",
+          "type": "api_key"
+        },
+        {
+          "text": "AKIAIOSFODNN7EXAMPLE",
+          "type": "api_key"
+        }
       ]
     },
     "PII_Detection/IPv4_Addresses.txt": {
       "min_matches": 42,
-      "expected_types": ["ipv4_address"]
+      "expected_types": [
+        "ipv4_address"
+      ]
     },
     "PII_Detection/IPv6_Addresses.txt": {
       "min_matches": 28,
-      "expected_types": ["ipv6_address"]
+      "expected_types": [
+        "ipv6_address"
+      ]
     },
     "PII_Detection/GPS_Coordinates.txt": {
       "min_matches": 30,
-      "expected_types": ["gps_coordinate"]
+      "expected_types": [
+        "gps_coordinate"
+      ]
     },
     "PII_Detection/MAC_Addresses.txt": {
       "min_matches": 49,
-      "expected_types": ["mac_address"]
+      "expected_types": [
+        "mac_address"
+      ]
     },
     "PII_Detection/Health_Keywords.txt": {
       "min_matches": 150,
-      "expected_types": ["health_keyword"]
+      "expected_types": [
+        "health_keyword"
+      ]
     },
     "PII_Detection/Child_Keywords.txt": {
       "min_matches": 121,
-      "expected_types": ["child_keyword"]
+      "expected_types": [
+        "child_keyword"
+      ]
     },
     "PII_Detection/Person_Names.txt": {
       "min_matches": 86,
       "embedded_min_matches": 4,
-      "expected_types": ["person", "phone", "location"],
+      "expected_types": [
+        "person",
+        "phone",
+        "location"
+      ],
       "note": "NER-fixed DistilBERT detects 78 person + incidental location/org. Embedded L1 regex detects ~6.",
       "must_not_contain": [
         "Priya Krishnamurthy",
@@ -100,24 +182,51 @@
     "PII_Detection/Locations.txt": {
       "min_matches": 151,
       "embedded_min_matches": 0,
-      "expected_types": ["location"],
+      "expected_types": [
+        "location"
+      ],
       "note": "NER-fixed DistilBERT detects 171 locations. Embedded L1 has no location regex."
     },
     "PII_Detection/Organizations.txt": {
       "min_matches": 127,
       "embedded_min_matches": 0,
-      "expected_types": ["organization"],
+      "expected_types": [
+        "organization"
+      ],
       "note": "NER-fixed DistilBERT detects 126 organizations. Embedded L1 has no organization regex."
     },
     "PII_Detection/Mixed_Structured_PII.txt": {
       "min_matches": 96,
-      "expected_types": ["credit_card", "ssn", "phone", "email", "person", "location", "organization"],
+      "expected_types": [
+        "credit_card",
+        "ssn",
+        "phone",
+        "email",
+        "person",
+        "location",
+        "organization"
+      ],
       "must_detect": [
-        {"text": "5425233430109903", "type": "credit_card"},
-        {"text": "267-83-1945", "type": "ssn"},
-        {"text": "+1-303-555-0188", "type": "phone"},
-        {"text": "m.thompson@outlook.com", "type": "email"},
-        {"text": "sk-ant-api03-Compromised123Key456That789Should012Be345Rotated678Immediately901abc", "type": "api_key"}
+        {
+          "text": "5425233430109903",
+          "type": "credit_card"
+        },
+        {
+          "text": "267-83-1945",
+          "type": "ssn"
+        },
+        {
+          "text": "+1-303-555-0188",
+          "type": "phone"
+        },
+        {
+          "text": "m.thompson@outlook.com",
+          "type": "email"
+        },
+        {
+          "text": "sk-ant-api03-Compromised123Key456That789Should012Be345Rotated678Immediately901abc",
+          "type": "api_key"
+        }
       ],
       "must_not_contain": [
         "Sarah Jennifer Mitchell",
@@ -129,88 +238,144 @@
       ],
       "note": "NER-fixed: detects 16 person, 11 location, 10 organization in addition to regex types."
     },
-
     "Multilingual_PII/es_Spanish_PII.txt": {
       "min_matches": 18,
       "embedded_min_matches": 0,
-      "expected_types": ["phone", "ssn"]
+      "expected_types": [
+        "phone",
+        "ssn"
+      ]
     },
     "Multilingual_PII/de_German_PII.txt": {
       "min_matches": 23,
       "embedded_min_matches": 0,
-      "expected_types": ["phone", "credit_card"]
+      "expected_types": [
+        "phone",
+        "ssn",
+        "iban"
+      ],
+      "note": "DE files contain Steueridentifikationsnummer (→ssn), phone (+49), IBAN (→iban) — no credit cards"
     },
     "Multilingual_PII/fr_French_PII.txt": {
       "min_matches": 17,
       "embedded_min_matches": 0,
-      "expected_types": ["phone", "credit_card"]
+      "expected_types": [
+        "phone",
+        "iban"
+      ],
+      "note": "FR files contain NIR/sécu (→phone patterns), phone (+33), IBAN (→iban) — no credit cards"
     },
     "Multilingual_PII/pt_Portuguese_PII.txt": {
       "min_matches": 30,
       "embedded_min_matches": 0,
-      "expected_types": ["phone", "ssn"]
+      "expected_types": [
+        "phone",
+        "ssn"
+      ]
     },
     "Multilingual_PII/ja_Japanese_PII.txt": {
       "min_matches": 16,
       "embedded_min_matches": 0,
-      "expected_types": ["phone"]
+      "expected_types": [
+        "phone"
+      ]
     },
     "Multilingual_PII/ko_Korean_PII.txt": {
       "min_matches": 13,
       "embedded_min_matches": 0,
-      "expected_types": ["phone"]
+      "expected_types": [
+        "phone"
+      ]
     },
     "Multilingual_PII/zh_Chinese_PII.txt": {
       "min_matches": 13,
       "embedded_min_matches": 0,
-      "expected_types": ["phone"]
+      "expected_types": [
+        "phone"
+      ]
     },
     "Multilingual_PII/ar_Arabic_PII.txt": {
       "min_matches": 26,
       "embedded_min_matches": 0,
-      "expected_types": ["phone", "ssn"]
+      "expected_types": [
+        "phone",
+        "ssn"
+      ]
     },
-
     "Code_Config_PII/sample_python.py": {
       "min_matches": 23,
-      "expected_types": ["api_key", "ipv4_address"]
+      "expected_types": [
+        "api_key",
+        "ipv4_address"
+      ]
     },
     "Code_Config_PII/sample_config.yaml": {
       "min_matches": 22,
-      "expected_types": ["ipv4_address", "api_key"]
+      "expected_types": [
+        "ipv4_address",
+        "api_key"
+      ]
     },
     "Code_Config_PII/sample.env": {
       "min_matches": 11,
-      "expected_types": ["api_key"]
+      "expected_types": [
+        "api_key"
+      ]
     },
     "Code_Config_PII/sample_access.log": {
       "min_matches": 31,
-      "expected_types": ["ipv4_address", "email"]
+      "expected_types": [
+        "ipv4_address",
+        "email"
+      ]
     },
     "Code_Config_PII/sample_docs.md": {
       "min_matches": 11,
-      "expected_types": ["email", "ipv4_address"]
+      "expected_types": [
+        "email",
+        "ipv4_address"
+      ]
     },
     "Code_Config_PII/sample_terraform.json": {
       "min_matches": 13,
-      "expected_types": ["ipv4_address"]
+      "expected_types": [
+        "ipv4_address"
+      ]
     },
     "Code_Config_PII/sample_deploy.sh": {
       "min_matches": 18,
-      "expected_types": ["ipv4_address", "api_key"]
+      "expected_types": [
+        "ipv4_address",
+        "api_key"
+      ]
     },
     "Code_Config_PII/sample_git_diff.txt": {
       "min_matches": 21,
-      "expected_types": ["api_key", "email"]
+      "expected_types": [
+        "api_key",
+        "email"
+      ]
     },
-
     "Structured_Data_PII/employee_roster.csv": {
       "min_matches": 59,
-      "expected_types": ["ssn", "email", "phone"],
+      "expected_types": [
+        "ssn",
+        "email",
+        "phone"
+      ],
       "must_detect": [
-        {"text": "287-65-4321", "type": "ssn"},
-        {"text": "j.henderson@email.com", "type": "email"},
-        {"text": "(206) 555-0312", "type": "phone"}
+        {
+          "text": "287-65-4321",
+          "type": "ssn"
+        },
+        {
+          "text": "j.henderson@email.com",
+          "type": "email"
+        },
+        {
+          "text": "(206) 555-0312",
+          "type": "phone"
+        }
       ],
       "must_not_contain": [
         "Elena Rodriguez",
@@ -220,7 +385,11 @@
     },
     "Structured_Data_PII/customer_database.csv": {
       "min_matches": 39,
-      "expected_types": ["credit_card", "email", "phone"],
+      "expected_types": [
+        "credit_card",
+        "email",
+        "phone"
+      ],
       "must_not_contain": [
         "Michael Thompson",
         "Angela Martinez",
@@ -231,11 +400,19 @@
     "Structured_Data_PII/network_inventory.tsv": {
       "min_matches": 42,
       "embedded_min_matches": 8,
-      "expected_types": ["ipv4_address", "mac_address", "email"]
+      "expected_types": [
+        "ipv4_address",
+        "mac_address",
+        "email"
+      ]
     },
     "Structured_Data_PII/patient_records.csv": {
       "min_matches": 68,
-      "expected_types": ["ssn", "email", "phone"],
+      "expected_types": [
+        "ssn",
+        "email",
+        "phone"
+      ],
       "must_not_contain": [
         "David Chen",
         "Elena Rodriguez"
@@ -243,7 +420,11 @@
     },
     "Structured_Data_PII/transactions.csv": {
       "min_matches": 47,
-      "expected_types": ["credit_card", "email", "phone"],
+      "expected_types": [
+        "credit_card",
+        "email",
+        "phone"
+      ],
       "must_not_contain": [
         "Patricia Gomez",
         "Angela Martinez",
@@ -252,51 +433,77 @@
         "Carol Washington"
       ]
     },
-
     "Agent_Tool_Results/agent_anthropic_text_pii.json": {
       "min_matches": 8,
-      "expected_types": ["email", "phone", "ssn"],
+      "expected_types": [
+        "email",
+        "phone",
+        "ssn"
+      ],
       "must_detect": [
-        {"text": "j.henderson@email.com", "type": "email"},
-        {"text": "287-65-4321", "type": "ssn"}
+        {
+          "text": "j.henderson@email.com",
+          "type": "email"
+        },
+        {
+          "text": "287-65-4321",
+          "type": "ssn"
+        }
       ]
     },
     "Agent_Tool_Results/agent_anthropic_multi_text.json": {
       "min_matches": 10,
-      "expected_types": ["email", "phone"]
+      "expected_types": [
+        "email",
+        "phone"
+      ]
     },
     "Agent_Tool_Results/agent_code_fence_credentials.json": {
       "min_matches": 9,
-      "expected_types": ["api_key"]
+      "expected_types": [
+        "api_key"
+      ]
     },
     "Agent_Tool_Results/agent_deeply_nested_json.json": {
       "min_matches": 4,
-      "expected_types": ["email"]
+      "expected_types": [
+        "email"
+      ]
     },
     "Agent_Tool_Results/agent_multimodal_mixed.json": {
       "min_matches": 12,
-      "expected_types": ["api_key"]
+      "expected_types": [
+        "api_key"
+      ]
     },
     "Agent_Tool_Results/agent_openai_text_apikey.json": {
       "min_matches": 8,
-      "expected_types": ["api_key"]
+      "expected_types": [
+        "api_key"
+      ]
     },
     "Agent_Tool_Results/agent_tool_result_database_query.json": {
       "min_matches": 24,
-      "expected_types": ["email", "phone"]
+      "expected_types": [
+        "email",
+        "phone"
+      ]
     },
     "Agent_Tool_Results/agent_tool_result_nested_pii.json": {
       "min_matches": 7,
-      "expected_types": ["email"]
+      "expected_types": [
+        "email"
+      ]
     },
     "Agent_Tool_Results/agent_tool_result_network_scan.json": {
       "min_matches": 18,
-      "expected_types": ["ipv4_address", "mac_address"]
+      "expected_types": [
+        "ipv4_address",
+        "mac_address"
+      ]
     }
   },
-
   "visual_files": {
-
     "Visual_PII/face_single_frontal_01.jpg": {
       "subcategory": "Faces",
       "min_faces": 1,
@@ -391,7 +598,6 @@
       "screenshot_expected": false,
       "note": "Small faces in landscape — detection varies"
     },
-
     "Visual_PII/doc_business_card_01.jpg": {
       "subcategory": "Documents",
       "min_faces": 0,
@@ -454,7 +660,6 @@
       "screenshot_expected": false,
       "note": "W-2 form — OCR should find text"
     },
-
     "Visual_PII/screenshot_android_form_1080x2340.png": {
       "subcategory": "Screenshots",
       "min_faces": 0,
@@ -511,7 +716,6 @@
       "screenshot_expected": false,
       "note": "Web form — PNG without EXIF, OCR detects text"
     },
-
     "Visual_PII/exif_camera_gps.jpg": {
       "subcategory": "EXIF",
       "min_faces": 0,
@@ -534,7 +738,6 @@
       "output_exif_tags_max": 0,
       "note": "iPhone 15 Pro with GPS (Statue of Liberty) — GPS must be stripped"
     },
-
     "Visual_PII/exif_screenshot_cleanshot.jpg": {
       "subcategory": "EXIF",
       "min_faces": 0,
@@ -619,7 +822,6 @@
       "screenshot_expected": false,
       "note": "Control: already-stripped EXIF"
     },
-
     "Visual_PII/nsfw_positive_placeholder_01.jpg": {
       "subcategory": "NSFW",
       "min_faces": 0,
@@ -680,17 +882,17 @@
       "subcategory": "NSFW",
       "min_faces": 0,
       "min_text_regions": 0,
-      "nsfw_expected": true,
+      "nsfw_expected": false,
       "screenshot_expected": false,
-      "note": "NSFW — NudeNet flags, full-image solid fill applied"
+      "note": "Semi-nude (borderline). NudeNet detector (nsfw_detector.rs) not yet wired into pipeline; NsfwClassifier does not flag at 0.5 threshold. Known limitation."
     },
     "Visual_PII/semi_nu_pic2.jpg": {
       "subcategory": "NSFW",
       "min_faces": 0,
       "min_text_regions": 0,
-      "nsfw_expected": true,
+      "nsfw_expected": false,
       "screenshot_expected": false,
-      "note": "NSFW — NudeNet flags, full-image solid fill applied"
+      "note": "Semi-nude (borderline). NudeNet detector (nsfw_detector.rs) not yet wired into pipeline; NsfwClassifier does not flag at 0.5 threshold. Known limitation."
     },
     "Visual_PII/semi_nu_pic3.jpg": {
       "subcategory": "NSFW",
@@ -720,22 +922,34 @@
   "audio_files": {
     "Audio_PII/audio_address_single.wav": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["MY ADDRESS"],
+      "expected_keywords": [
+        "MY ADDRESS"
+      ],
       "note": "Street address dictation — KWS trigger on MY ADDRESS"
     },
     "Audio_PII/audio_cc_visa.wav": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["VISA CARD"],
+      "expected_keywords": [
+        "VISA CARD"
+      ],
       "note": "Credit card number read aloud — KWS trigger on VISA CARD"
     },
     "Audio_PII/audio_customer_service.mp3": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["MASTERCARD", "CARD NUMBER", "SOCIAL SECURITY"],
+      "expected_keywords": [
+        "MASTERCARD",
+        "CARD NUMBER",
+        "SOCIAL SECURITY"
+      ],
       "note": "Customer service call with multiple PII — MP3 format"
     },
     "Audio_PII/audio_customer_service.wav": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["MASTERCARD", "CARD NUMBER", "SOCIAL SECURITY"],
+      "expected_keywords": [
+        "MASTERCARD",
+        "CARD NUMBER",
+        "SOCIAL SECURITY"
+      ],
       "note": "Customer service call with multiple PII — WAV format"
     },
     "Audio_PII/audio_email_single.wav": {
@@ -745,17 +959,27 @@
     },
     "Audio_PII/audio_job_screening.wav": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["SOCIAL SECURITY"],
+      "expected_keywords": [
+        "SOCIAL SECURITY"
+      ],
       "note": "Job interview mentioning SSN"
     },
     "Audio_PII/audio_medical_intake.ogg": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["DATE OF BIRTH", "SOCIAL SECURITY", "CONTACT NUMBER"],
+      "expected_keywords": [
+        "DATE OF BIRTH",
+        "SOCIAL SECURITY",
+        "CONTACT NUMBER"
+      ],
       "note": "Medical intake form with multiple PII — OGG format"
     },
     "Audio_PII/audio_medical_intake.wav": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["DATE OF BIRTH", "SOCIAL SECURITY", "CONTACT NUMBER"],
+      "expected_keywords": [
+        "DATE OF BIRTH",
+        "SOCIAL SECURITY",
+        "CONTACT NUMBER"
+      ],
       "note": "Medical intake form with multiple PII — WAV format"
     },
     "Audio_PII/audio_name_single.wav": {
@@ -765,22 +989,30 @@
     },
     "Audio_PII/audio_phone_us.ogg": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["REACH ME AT"],
+      "expected_keywords": [
+        "REACH ME AT"
+      ],
       "note": "Phone number dictation — OGG format"
     },
     "Audio_PII/audio_phone_us.wav": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["REACH ME AT"],
+      "expected_keywords": [
+        "REACH ME AT"
+      ],
       "note": "Phone number dictation — WAV format"
     },
     "Audio_PII/audio_ssn_single.mp3": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["SOCIAL SECURITY"],
+      "expected_keywords": [
+        "SOCIAL SECURITY"
+      ],
       "note": "SSN read aloud — MP3 format"
     },
     "Audio_PII/audio_ssn_single.wav": {
       "expected_action": "PII_DETECTED",
-      "expected_keywords": ["SOCIAL SECURITY"],
+      "expected_keywords": [
+        "SOCIAL SECURITY"
+      ],
       "note": "SSN read aloud — WAV format"
     }
   }

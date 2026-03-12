@@ -178,10 +178,10 @@ fn softmax(logits: &[f32]) -> Vec<f32> {
 /// Find a classifier model file in the given directory.
 fn find_model_file(model_dir: &Path) -> Result<std::path::PathBuf, ImageError> {
     let candidates = [
-        "nsfw_5class_int8.onnx",
-        "nsfw_5class.onnx",
         "nsfw_classifier.onnx",
+        "nsfw_5class.onnx",
         "model.onnx",
+        "nsfw_5class_int8.onnx",
     ];
     for name in &candidates {
         let path = model_dir.join(name);

@@ -34,7 +34,7 @@ face_model_dir = "openobscure-core/models/blazeface"
 ocr_enabled = true
 ocr_model_dir = "openobscure-core/models/paddleocr"
 nsfw_detection = true
-nsfw_model_dir = "openobscure-core/models/nudenet"
+nsfw_model_dir = "openobscure-core/models/nsfw_classifier"
 screen_guard = true
 exif_strip = true
 
