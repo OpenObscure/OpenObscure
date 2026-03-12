@@ -286,6 +286,38 @@ Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/
 
 L0 detects base64-encoded images in JSON request bodies and runs them through a sequential pipeline before text scanning: NSFW classification (ViT-base 5-class) → face solid-fill redaction (SCRFD/BlazeFace) → OCR text solid-fill (PaddleOCR v4) → EXIF strip → re-encode. All redaction uses solid fill — original pixel data is destroyed and cannot be recovered.
 
+**Single face**
+
+| Before | After |
+|--------|-------|
+| ![Person with hat, face visible](docs/examples/images/face-original.jpg) | ![Same person, face replaced with solid fill](docs/examples/images/face-redacted.jpg) |
+
+SCRFD-2.5GF detects the face bounding box; a solid fill is applied before the image is re-encoded and forwarded.
+
+**Multiple faces**
+
+| Before | After |
+|--------|-------|
+| ![Group of four people at a table](docs/examples/images/group-original.jpg) | ![Same group, three visible faces solid-filled; turned head left unmodified](docs/examples/images/group-redacted.jpg) |
+
+Each detected face is filled independently. The person facing away is correctly left unmodified — no face region detected, no fill applied.
+
+**Screenshot with structured PII**
+
+| Before | After |
+|--------|-------|
+| ![EHR patient record with name, SSN, credit card, diagnosis, medications visible](docs/examples/images/screenshot-original.png) | ![Same record with all PII text regions solid-filled](docs/examples/images/screenshot-redacted.png) |
+
+PaddleOCR v4 detects text regions in the rendered screenshot. Name, SSN, phone, email, address, credit card, diagnosis, and provider name are all filled. Non-PII structure (section headers, field labels) is preserved.
+
+**Printed form with mixed PII**
+
+| Before | After |
+|--------|-------|
+| ![Customer information form with personal details and payment info](docs/examples/images/text-original.jpg) | ![Same form with PII fields selectively solid-filled](docs/examples/images/text-redacted.jpg) |
+
+Surgical redaction: name, date of birth, address, phone, email, SSN, and card number are filled. Non-PII rows (account type, plan, status, billing cycle, last payment amount, notes text) remain intact — OCR distinguishes PII values from surrounding context.
+
 For pipeline flow, model details, threshold configuration, and provider format handling, see [Image Pipeline](docs/architecture/image-pipeline.md).
 
 ---
