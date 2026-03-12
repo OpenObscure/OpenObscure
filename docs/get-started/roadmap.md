@@ -23,8 +23,28 @@
 
 **Recall:** 99.7% (regex scanner), 100% precision. Hybrid scanner 99.7% overall across ~400-sample benchmark corpus.
 
-## Planned
+## Next Up (0.2.0)
 
-- **Protection status header** — `X-OpenObscure-Protection` response header so UI clients can display a privacy indicator
-- **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path
+- **Protection status header** — `X-OpenObscure-Protection` response header so UI clients can display a real-time privacy indicator
+- **Real-time breach monitoring** — Rolling window anomaly detection in the live proxy path
 - **Streaming redaction** — Incremental redaction for large tool results (requires asynchronous hook support in the host agent)
+- **Docker image** — Official container image for sidecar proxy deployments; includes a docker-compose example for common agent setups
+- **Pre-built binaries** — GitHub Releases artifacts for macOS (arm64/x86_64), Linux (x64/ARM64), and Windows (x64); no Rust toolchain required to run
+- **Homebrew / cargo-binstall support** — One-command install for macOS and Linux users
+
+## On the Horizon (0.3.0+)
+
+- **Document classification** — Detect financial, medical, and legal document types and apply sensitivity-tiered encryption policies automatically
+- **Post-quantum FPE migration path** — Tooling to re-encrypt existing vaults as NIST PQC standards for symmetric encryption mature
+- **Plugin SDK for custom detectors** — Allow teams to register their own regex patterns, NER models, or validation logic without forking the proxy
+- **Protection metrics dashboard** — Local web UI showing per-session PII detection counts, type breakdown, and cognitive firewall trigger history
+- **MCP server integration** — Expose OpenObscure as a Model Context Protocol server so agents using the MCP standard can route through it without proxy configuration
+
+## Community Driven
+
+Contributions welcome in any of these areas — no large architectural changes required:
+
+- **Additional NER language models** — Fine-tuned TinyBERT variants for languages beyond the current 9 (es/fr/de/pt/ja/zh/ko/ar)
+- **National ID validators** — Check-digit and format validators for additional countries (currently 12 implemented)
+- **Agent framework integration guides** — Step-by-step guides for wiring L1 into LangChain, AutoGen, CrewAI, Semantic Kernel, and other frameworks
+- **ARM / embedded platform benchmarks** — Performance data for Raspberry Pi, NVIDIA Jetson, and other edge devices running the Gateway model

@@ -278,58 +278,27 @@ OpenObscure must be **invisible when working, clear when not**.
 
 ## Logging
 
-Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/`ooWarn` in TypeScript). All log output is PII-scrubbed by default — no direct `tracing::*!()` or `console.*` calls outside the logging module. Supports stderr, file rotation, JSONL audit trail, and crash buffer (mmap ring). See component-level ARCHITECTURE.md files for details.
+Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/`ooWarn` in TypeScript). All log output is PII-scrubbed by default. Supports stderr, file rotation, JSONL audit trail, and crash buffer (mmap ring). See component-level `ARCHITECTURE.md` files for details.
 
 ---
 
 ## Image Pipeline
 
-L0 detects base64-encoded images in JSON request bodies (Anthropic and OpenAI formats) and processes them **before** text PII scanning. All redaction uses solid fill — original pixel data is destroyed and cannot be recovered by AI deblurring.
+L0 detects base64-encoded images in JSON request bodies and runs them through a sequential pipeline before text scanning: NSFW classification (ViT-base 5-class) → face solid-fill redaction (SCRFD/BlazeFace) → OCR text solid-fill (PaddleOCR v4) → EXIF strip → re-encode. All redaction uses solid fill — original pixel data is destroyed and cannot be recovered.
 
-**Pipeline phases:** NSFW detection (ViT-base 5-class classifier) → face solid-fill (SCRFD or BlazeFace) → OCR text solid-fill (PaddleOCR) → EXIF strip → re-encode. If NSFW detected (P(hentai) + P(porn) + P(sexy) ≥ 0.50), entire image is solid-filled and face/OCR phases are skipped. Models load on-demand and evict after 300s idle.
-
-For model details, pipeline architecture, and provider format handling, see `openobscure-proxy/ARCHITECTURE.md`.
+For pipeline flow, model details, threshold configuration, and provider format handling, see [Image Pipeline](docs/architecture/image-pipeline.md).
 
 ---
 
 ## Response Integrity — Cognitive Firewall
 
-OpenObscure scans LLM **responses** for manipulation techniques before they reach users. EU AI Act Article 5 prohibits subliminal/manipulative techniques, but there is no enforcement mechanism at the user's endpoint. The cognitive firewall provides detection-layer defense.
+OpenObscure scans every LLM response for manipulation techniques before they reach the user. The two-tier cascade: R1 dictionary (~250 phrases, 7 Cialdini categories, <1ms) triggers R2 TinyBERT ONNX classifier (4 EU AI Act Article 5 categories, ~30ms). Always advisory — the cognitive firewall labels and logs, never blocks responses.
 
-**Two-tier cascade:**
-- **R1** — Pattern-based dictionary (~250 phrases across 7 Cialdini categories: urgency, scarcity, social proof, fear, authority, commercial, flattery). Runs on every response, <1ms.
-- **R2** — TinyBERT ONNX multi-label classifier (4 EU AI Act Article 5 categories). Runs conditionally based on sensitivity level and R1 results (~30ms when triggered).
-
-R2 can **confirm**, **suppress** (R1 false positive, single-category only), **upgrade** (add categories), or **discover** (catch paraphrased manipulation R1 missed) R1's findings. Multi-category R1 hits (2+ categories) are strong enough to stand on their own — R2 disagreement is treated as Confirm rather than Suppress.
-
-**Severity tiers:** Notice (1 category) → Warning (2-3 categories) → Caution (4+ categories). Enabled by default at `low` sensitivity in log-only mode.
-
-**Fail-open conditions:** The cognitive firewall is always advisory — it never blocks responses. It passes through without flagging when: R2 ONNX session fails to initialize or produces an inference error; the response is below the minimum length for R1 scanning; `ri_enabled = false`; or sensitivity is set below the R2 trigger threshold. These conditions are logged at WARN or INFO but do not affect response delivery.
-
-For cascade flow diagrams, R2 model details, performance metrics, and configuration reference, see `openobscure-proxy/ARCHITECTURE.md`.
+For the R1/R2 cascade flow, severity tiers, EU AI Act mapping, configuration, and performance data, see [Response Integrity](docs/architecture/response-integrity.md).
 
 ---
 
 ## FAQ
 
-**Does OpenObscure read local files to scan for PII?**
-No. OpenObscure never performs file I/O. The agent's tools (file_read, web_fetch, etc.) read files and produce text results. OpenObscure's L1 plugin only sees the resulting text after the agent has extracted it, via the tool result persistence hook.
-
-**Does OpenObscure need its own API keys?**
-No. By default, OpenObscure forwards the host agent's existing API keys unchanged (passthrough-first). It never provisions, generates, or requires separate LLM credentials.
-
-**Does OpenObscure phone home or contact external servers?**
-No. The only network traffic OpenObscure produces is forwarding the host agent's existing LLM API requests through the local proxy. No telemetry, no update checks, no external dependencies at runtime. Everything runs locally on the user's device.
-
-**Is L0 (proxy) a separate server I need to host?**
-No. L0 runs as a lightweight sidecar process on the same device as the host agent, listening on `127.0.0.1:18790` (localhost only). It's started alongside the agent — either automatically during installation or manually when the user enables OpenObscure. It's not exposed to the network.
-
-**Does OpenObscure intercept data *before* the LLM sees it?**
-L0 (proxy) does — it sits in the HTTP path and encrypts PII before the request reaches the LLM provider. L1 (plugin) hooks the agent's tool result persistence (e.g., OpenClaw's `tool_result_persist`), which fires *after* tool execution. L1 prevents PII from being persisted to transcripts, but cannot prevent it from being sent to the LLM via tool results.
-
-**How much RAM does OpenObscure actually use?**
-It depends on the device's capability tier. OpenObscure detects hardware at startup and selects features automatically. Lite tier (NER/CRF, no ensemble): ~12–80MB. Standard tier (NER + images): ~67–200MB. Full tier (NER + ensemble + images): up to 224MB peak. The 275MB ceiling is the hard limit. On mobile, the budget is 20% of device RAM (capped at 275MB), so a 12GB phone gets the same features as a desktop server.
-
-**What happens if OpenObscure is disabled or crashes?**
-If L0 is not running, the host agent can't reach LLM providers (traffic is configured to route through the proxy). If L1 crashes, the agent continues normally but tool results won't be redacted. If OpenObscure is fully disabled via configuration, the agent operates with direct LLM connections — zero overhead.
+Common questions about file access, API keys, network behavior, RAM usage, and failure modes: [FAQ](docs/get-started/faq.md).
 
