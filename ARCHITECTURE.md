@@ -249,7 +249,7 @@ Embedded budgets scale proportionally (20% of device RAM, clamped to [12MB, 275M
 OpenObscure/
 ├── ARCHITECTURE.md              ← this file (system-level architecture)
 ├── setup/                       Setup guides (gateway proxy, embedded library, example config)
-├── integration/                 Embedding in third-party apps (guide, diffs, templates)
+├── docs/integrate/embedding/    Embedding in third-party apps (guide, examples, templates)
 ├── build/                       Build scripts (iOS, Android, NAPI, model downloads, bindings)
 ├── test/                        Test apps (iOS/Android), PII corpus, test runners
 ├── openobscure-proxy/           L0: Rust PII proxy + embedded mobile library (see ARCHITECTURE.md inside)

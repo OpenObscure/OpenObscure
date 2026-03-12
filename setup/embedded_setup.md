@@ -132,4 +132,4 @@ For detailed integration instructions — Xcode project setup (SPM), Gradle conf
 - `OpenObscureManager` singleton pattern (key storage, sanitize/restore convenience methods)
 - OkHttp interceptor for automatic request sanitization
 - Tested integrations with [Enchanted](https://github.com/AugustDev/enchanted) and [RikkaHub](https://github.com/rikkahub/rikkahub)
-- [Example diffs](../integration/examples/) and [reusable templates](../integration/templates/)
+- [Example diffs](../docs/integrate/embedding/examples/) and [reusable templates](../docs/integrate/embedding/templates/)
