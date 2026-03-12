@@ -55,7 +55,7 @@ Critical vulnerabilities (key extraction, proxy bypass, plaintext PII leaks) wil
 
 - Attacks requiring root/admin access to the host OS (see Threat Model — this is explicitly out of scope)
 - Attacks requiring a compromised host agent process
-- PII types not yet covered by the current phase (e.g., names in Phase 1 — known limitation, tracked in roadmap)
+- PII types not yet covered (tracked in roadmap)
 - Regex evasion using obfuscated/unusual PII formats (report these as feature requests, not vulnerabilities)
 - Vulnerabilities in LLM providers, the host agent itself, or upstream dependencies without a demonstrated exploit path through OpenObscure
 
@@ -106,7 +106,7 @@ The FPE key and transcript passphrase are independent — compromising one does 
 - All dependencies are audited for license and security before inclusion (see `LICENSE_AUDIT.md` in each component)
 - Rust dependencies use `cargo audit` for known vulnerability scanning
 - L1 plugin has one optional runtime dependency (`@openobscure/scanner-napi` for native PII scanning). All other Node.js dependencies are dev-only (build/test).
-- ONNX models (Phase 2+) are sourced from HuggingFace with checksum verification
+- ONNX models are sourced from HuggingFace with checksum verification
 
 ### Code
 
@@ -121,7 +121,7 @@ The FPE key and transcript passphrase are independent — compromising one does 
 - No debug symbols in release builds
 - Binary verifiability is a goal — see [open_source_strategy.md](review-notes/open_source_strategy.md) for the build verification approach
 
-### Image Processing Attack Surface (Phase 3)
+### Image Processing Attack Surface
 
 The image pipeline introduces additional attack surfaces that are actively mitigated:
 
@@ -135,7 +135,7 @@ The image pipeline introduces additional attack surfaces that are actively mitig
 | **EXIF-based attacks** (crafted EXIF metadata) | EXIF read via `kamadak-exif` for screenshot detection only; EXIF is stripped by re-encoding (pixels only). |
 | **SSRF via URL image fetch** (`url_allow_localhost_http = true`) | Attacker-injected `image_url` values pointing to `http://127.0.0.1:*` cause the proxy to make GET requests to any loopback-bound service. Default is `true` for testing only. **Set `url_allow_localhost_http = false` in production.** Residual risk: hostnames bypass numeric-IP SSRF check and are resolved at connection time — use `url_fetch_enabled = false` or network-level egress controls in high-security environments. See [Config Reference — image.url_allow_localhost_http](docs/configure/config-reference.md#image). |
 
-### Response Integrity Attack Surface (Phase 12)
+### Response Integrity Attack Surface
 
 The R2 cognitive firewall introduces a TinyBERT ONNX classifier for persuasion detection:
 

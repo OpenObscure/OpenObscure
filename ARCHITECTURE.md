@@ -328,10 +328,12 @@ sequenceDiagram
     participant P as OpenObscure Proxy
     participant L as LLM Provider
 
-    A->>P: Authorization: sk-... (all headers)
-    Note over P: Headers pass through unmodified
-    P->>L: Authorization: sk-... (identical)
-    Note over L: Provider sees original keys
+    rect rgb(230, 243, 247)
+        A->>P: Authorization: sk-... (all headers)
+        Note over P: Headers pass through unmodified
+        P->>L: Authorization: sk-... (identical)
+        Note over L: Provider sees original keys
+    end
 ```
 
 | Step | What happens |

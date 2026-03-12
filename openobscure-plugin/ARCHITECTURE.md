@@ -222,9 +222,9 @@ via the default entry point (`openobscure-plugin`).
 
 - **Native scanner auto-detection:** `redactPii()` auto-upgrades to NAPI addon (15-type Rust HybridScanner) when `@openobscure/scanner-napi` is installed — DONE
 - **NER-enhanced redaction:** When L0 is healthy, redactor calls `POST /_openobscure/ner` for semantic PII spans (names, addresses, orgs) merged with regex results — DONE
-- **`before_tool_call` handler:** Prepared handler that auto-activates when OpenClaw wires the hook, upgrading from soft to hard enforcement — DONE (Phase 10F)
+- **`before_tool_call` handler:** Prepared handler that auto-activates when OpenClaw wires the hook, upgrading from soft to hard enforcement — DONE
 - **Agent-agnostic API (`core.ts`):** Exports core functions without framework wiring for non-OpenClaw integrations — DONE
-- **Cognitive Firewall (`cognitive.ts`):** Embedded JS persuasion dictionary (248 phrases, 7 categories), severity computation, warning labels — mirrors Rust R1 logic exactly. NAPI `scan_persuasion()` bridge for native speed. Tier 1-4 test coverage (59 tests). — DONE (Phase 13F)
+- **Cognitive Firewall (`cognitive.ts`):** Embedded JS persuasion dictionary (248 phrases, 7 categories), severity computation, warning labels — mirrors Rust R1 logic exactly. NAPI `scan_persuasion()` bridge for native speed. Tier 1-4 test coverage (59 tests). — DONE
 
 ## Future Work
 
