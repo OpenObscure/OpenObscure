@@ -172,10 +172,10 @@ ViT-base 5-class classifier (neutral / drawings / hentai / porn / sexy). When an
 
 // After — same dimensions, uniform grey fill, original pixels destroyed
 { "messages": [{ "content": [{ "type": "image_url",
-    "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD..." } }] }] }
+    "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAAAAAAAAAPAAAAAA..." } }] }] }
 ```
 
-The LLM receives a valid JPEG of the same dimensions — but every pixel is solid grey. No original image content remains.
+The LLM receives a valid JPEG of the same dimensions — but every pixel is solid grey. No original image content remains. The base64 payload diverges immediately after the JFIF header: uniform grey compresses to near-zero entropy, producing long runs of repeated bytes (`AAAA...`) unlike the high-entropy original.
 
 **EXIF stripping**
 
@@ -322,6 +322,8 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
+    autonumber
+
     participant A as Host Agent
     participant P as OpenObscure Proxy
     participant L as LLM Provider
@@ -332,12 +334,18 @@ sequenceDiagram
     Note over L: Provider sees original keys
 ```
 
-- All original request headers forwarded (except hop-by-hop per RFC 7230)
-- FPE master key is separate — 32-byte AES-256 via `OPENOBSCURE_MASTER_KEY` env var (headless) or OS keychain (desktop), generated with `--init-key`
+| Step | What happens |
+|------|-------------|
+| **1** | Host agent sends its LLM request to the proxy, including all original headers — Authorization, API keys, and any provider-specific headers. |
+| **2** | Proxy forwards headers unchanged to the LLM provider (excluding hop-by-hop headers per RFC 7230). OpenObscure never stores, logs, or inspects credential values. |
+
+- FPE master key is separate from LLM credentials — 32-byte AES-256 via `OPENOBSCURE_MASTER_KEY` env var (headless/Docker) or OS keychain (desktop), generated with `--init-key`
 
 ## Resource Budget
 
-OpenObscure uses **hardware capability detection** (`device_profile` module) to select features at startup. It detects RAM, classifies a tier, and derives a feature budget.
+OpenObscure uses **hardware capability detection** (`device_profile` module) to select features at startup. It detects RAM, classifies a tier, and derives a feature budget. Budgets differ by deployment model.
+
+### Gateway Model (proxy process)
 
 | Device RAM | Tier | Key Features | Max RAM |
 |------------|------|-------------|---------|
@@ -345,7 +353,11 @@ OpenObscure uses **hardware capability detection** (`device_profile` module) to 
 | 4–8GB | **Standard** | NER + CRF + image + cognitive firewall (R1 only) | 200MB |
 | <4GB | **Lite** | NER + CRF + image (shorter timeouts) | 80MB |
 
-Embedded budgets scale proportionally (20% of device RAM, clamped to [12MB, 275MB]). See `openobscure-proxy/src/device_profile.rs` for full tier logic and per-component breakdown.
+### Embedded Model (in-process library)
+
+Budget is **20% of device RAM, clamped to [12MB, 275MB]**. The same tier thresholds apply — a phone with 6GB RAM runs Standard tier at a ~200MB ceiling; a phone with 3GB RAM runs Lite at ~80MB. No separate proxy process — the library shares the host app's memory space.
+
+See `openobscure-proxy/src/device_profile.rs` for full tier logic and per-component breakdown.
 
 ## Roadmap
 
