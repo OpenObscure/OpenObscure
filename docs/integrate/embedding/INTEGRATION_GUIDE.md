@@ -18,8 +18,8 @@ A step-by-step guide for integrating OpenObscure as a **native library** (embedd
 ---
 
 > **Build steps live in one place.**
-> See [Embedded Setup — Build the Native Library](../../../setup/embedded_setup.md#build-the-native-library)
-> and [Generate UniFFI Bindings](../../../setup/embedded_setup.md#generate-uniffi-bindings)
+> See [Embedded Quick Start — Build the library](../../get-started/embedded-quick-start.md#1-build-the-library)
+> and [Generate bindings](../../get-started/embedded-quick-start.md#2-generate-bindings)
 > for the canonical build commands. The steps below assume you
 > have completed that setup.
 

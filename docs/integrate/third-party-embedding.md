@@ -12,8 +12,8 @@ The full step-by-step guide covers everything from building the native library t
 
 | Part | Topic | What it covers |
 |------|-------|---------------|
-| [Part 1](../../setup/embedded_setup.md#build-the-native-library) | Build the Native Library | iOS, macOS, and Android build commands and output artifacts |
-| [Part 2](../../setup/embedded_setup.md#generate-uniffi-bindings) | Generate Bindings | UniFFI Swift and Kotlin binding generation |
+| [Part 1](../get-started/embedded-quick-start.md#1-build-the-library) | Build the Native Library | iOS, macOS, and Android build commands and output artifacts |
+| [Part 2](../get-started/embedded-quick-start.md#2-generate-bindings) | Generate Bindings | UniFFI Swift and Kotlin binding generation |
 | [Part 3](embedding/INTEGRATION_GUIDE.md#part-3-api-reference-all-platforms) | API Reference | Full function signatures: `createOpenobscure`, `sanitizeText`, `restoreText`, `sanitizeImage`, etc. |
 | [Part 4](embedding/INTEGRATION_GUIDE.md#part-4-iosmacos-integration-swift) | iOS/macOS Integration | Xcode project setup, SPM package, Swift intercept points, speech transcript handling |
 | [Part 5](embedding/INTEGRATION_GUIDE.md#part-5-android-integration-kotlin) | Android Integration | Gradle setup, OkHttp interceptor, JNA dependency, ProGuard rules |
