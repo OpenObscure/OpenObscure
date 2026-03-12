@@ -1522,7 +1522,7 @@ data class MobileStatsFfi (
     var `scannerMode`: kotlin.String, 
     var `imagePipelineAvailable`: kotlin.Boolean, 
     /**
-     * Device capability tier ("full", "standard", "lite", or "manual").
+     * Device capability tier: "full", "standard", or "lite".
      */
     var `deviceTier`: kotlin.String
 ) {

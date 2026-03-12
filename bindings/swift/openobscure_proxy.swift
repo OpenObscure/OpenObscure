@@ -647,7 +647,7 @@ public struct MobileStatsFfi {
     public var scannerMode: String
     public var imagePipelineAvailable: Bool
     /**
-     * Device capability tier ("full", "standard", "lite", or "manual").
+     * Device capability tier: "full", "standard", or "lite".
      */
     public var deviceTier: String
 
@@ -655,7 +655,7 @@ public struct MobileStatsFfi {
     // declare one manually.
     public init(totalPiiFound: UInt64, totalImagesProcessed: UInt64, scannerMode: String, imagePipelineAvailable: Bool, 
         /**
-         * Device capability tier ("full", "standard", "lite", or "manual").
+         * Device capability tier: "full", "standard", or "lite".
          */deviceTier: String) {
         self.totalPiiFound = totalPiiFound
         self.totalImagesProcessed = totalImagesProcessed
