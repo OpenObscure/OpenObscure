@@ -13,7 +13,7 @@
 # Prerequisites:
 #   - Proxy built and running with echo upstream:
 #       OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
-#         ./target/release/openobscure-proxy --config test/config/test_fpe.toml serve
+#         ./target/release/openobscure-core --config test/config/test_fpe.toml serve
 #
 # Environment:
 #   PROXY_URL       — Proxy base URL (default: http://127.0.0.1:18790)
@@ -101,7 +101,7 @@ if [[ -z "$HEALTH" ]]; then
   echo ""
   echo "Start the proxy with echo upstream:"
   echo "  OPENOBSCURE_MASTER_KEY=\$(openssl rand -hex 32) \\"
-  echo "    ./target/release/openobscure-proxy --config test/config/test_fpe.toml serve"
+  echo "    ./target/release/openobscure-core --config test/config/test_fpe.toml serve"
   exit 1
 fi
 

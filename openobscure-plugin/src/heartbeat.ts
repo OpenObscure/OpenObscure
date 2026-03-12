@@ -47,7 +47,7 @@ export const STATE_MESSAGES: Record<ProxyState, string> = {
   passthrough:
     "OpenObscure proxy is in passthrough mode — PII protection is regex-only",
   degraded:
-    "OpenObscure proxy is not responding — LLM requests will fail. Start the proxy: cd openobscure-proxy && cargo run --release -- -c config/openobscure.toml",
+    "OpenObscure proxy is not responding — LLM requests will fail. Start the proxy: cd openobscure-core && cargo run --release -- -c config/openobscure.toml",
   recovering: "OpenObscure proxy recovered — PII protection is active",
   disabled:
     "OpenObscure is not enabled. PII will be sent in plaintext.",

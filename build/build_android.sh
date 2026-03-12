@@ -17,7 +17,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/.."
-PROXY_DIR="$PROJECT_DIR/openobscure-proxy"
+PROXY_DIR="$PROJECT_DIR/openobscure-core"
 PROFILE="debug"
 BUILD_FLAG=""
 ALL_ABIS=false
@@ -59,7 +59,7 @@ for target in "${TARGETS[@]}"; do
     fi
 done
 
-# Build for each target (cd into proxy dir — cargo-ndk needs Cargo.toml in cwd)
+# Build for each target (cd into core dir — cargo-ndk needs Cargo.toml in cwd)
 for target in "${TARGETS[@]}"; do
     echo ""
     echo "--- Building for $target ---"
@@ -81,7 +81,7 @@ for target in "${TARGETS[@]}"; do
         i686-linux-android)      abi="x86" ;;
         *)                       abi="$target" ;;
     esac
-    lib="$PROXY_DIR/target/$target/$PROFILE/libopenobscure_proxy.so"
+    lib="$PROXY_DIR/target/$target/$PROFILE/libopenobscure_core.so"
     if [ -f "$lib" ]; then
         echo "$abi: $(du -h "$lib" | cut -f1)  ($lib)"
     else
@@ -91,4 +91,4 @@ done
 
 echo ""
 echo "To use in an Android project, copy .so files to:"
-echo "  app/src/main/jniLibs/<abi>/libopenobscure_proxy.so"
+echo "  app/src/main/jniLibs/<abi>/libopenobscure_core.so"

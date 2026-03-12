@@ -1,0 +1,154 @@
+[package]
+name = "openobscure-core"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "OpenObscure L0 Core — Rust PII detection and encryption layer (gateway proxy + embedded library)"
+license = "MIT OR Apache-2.0"
+
+[lib]
+name = "openobscure_core"
+path = "src/lib.rs"
+# lib = Rust tests/benchmarks, staticlib = iOS (.a), cdylib = Android (.so)
+crate-type = ["lib", "staticlib", "cdylib"]
+
+[[bin]]
+name = "openobscure"
+path = "src/main.rs"
+required-features = ["server"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
+[features]
+default = ["server", "voice"]
+server = ["axum", "hyper", "hyper-util", "http-body-util", "tower", "tower-http", "hyper-rustls", "rustls"]
+mobile = ["uniffi"]
+# Voice PII detection (KWS keyword spotting + audio decoding)
+voice = ["sherpa-rs", "sherpa-rs-sys", "symphonia", "symphonia-format-ogg", "symphonia-codec-vorbis"]
+# Enable CLI for uniffi-bindgen binary (not needed for the library itself)
+bindgen = ["mobile", "uniffi/cli"]
+
+[dependencies]
+# HTTP stack (behind `server` feature — not needed for mobile library)
+axum = { version = "0.8", features = ["json", "macros"], optional = true }
+hyper = { version = "1", features = ["full"], optional = true }
+hyper-util = { version = "0.1", features = ["client-legacy", "http1", "http2", "tokio"], optional = true }
+http-body-util = { version = "0.1", optional = true }
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["util", "timeout"], optional = true }
+tower-http = { version = "0.6", features = ["trace", "timeout"], optional = true }
+
+# TLS for upstream HTTPS (behind `server` feature)
+hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "ring", "tls12", "native-tokio", "webpki-tokio"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"], optional = true }
+
+# FPE (FF1 only — FF3 is NIST-withdrawn)
+fpe = "0.6"
+aes = "0.8"
+
+# PII scanning
+regex = "1"
+whatlang = "0.16"
+rayon = "1"
+
+# NER (ONNX Runtime for TinyBERT inference)
+ort = { version = "=2.0.0-rc.11", features = ["download-binaries"] }
+ndarray = "0.17"
+
+# Config + serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# OS keychain
+keyring = { version = "3", features = ["apple-native"] }
+
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tracing-appender = "0.2"
+memmap2 = "0.9"
+
+# System info (device profiler for CRF/NER selection)
+libc = "0.2"
+
+# Image processing (Phase 3 — visual PII)
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }
+base64 = "0.22"
+kamadak-exif = "0.5"
+
+# SSE streaming
+futures-util = "0.3"
+
+# Audio PII detection — keyword spotting via sherpa-onnx (behind `voice` feature)
+sherpa-rs = { version = "0.6.8", optional = true, default-features = false, features = ["download-binaries"] }
+sherpa-rs-sys = { version = "0.6.8", optional = true, default-features = false, features = ["download-binaries"] }
+
+# Audio format decoding — WAV/MP3/OGG → PCM (behind `voice` feature)
+symphonia = { version = "0.5", optional = true, features = ["wav", "mp3", "pcm"] }
+symphonia-format-ogg = { version = "0.5", optional = true }
+symphonia-codec-vorbis = { version = "0.5", optional = true }
+
+# Mobile FFI bindings (optional — enabled by `mobile` feature)
+uniffi = { version = "0.29", optional = true }
+
+# Utilities
+bytes = "1"
+uuid = { version = "1", features = ["v4"] }
+rand = "0.8"
+thiserror = "2"
+anyhow = "1"
+sha2 = "0.10"
+hex = "0.4"
+
+# Platform-specific logging
+[target.'cfg(target_os = "macos")'.dependencies]
+tracing-oslog = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+tracing-journald = "0.3"
+dirs-next = "2"
+
+# Mobile ONNX Runtime execution providers (hardware acceleration)
+[target.'cfg(target_vendor = "apple")'.dependencies]
+ort = { version = "=2.0.0-rc.11", features = ["coreml"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+ort = { version = "=2.0.0-rc.11", features = ["load-dynamic"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = ["Win32_System_SystemInformation"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3"
+wiremock = "0.6"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "scanner_bench"
+harness = false
+
+[[bench]]
+name = "fpe_bench"
+harness = false
+
+[[bench]]
+name = "image_bench"
+harness = false
+
+[[example]]
+name = "demo_image_pipeline"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

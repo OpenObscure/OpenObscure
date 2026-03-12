@@ -21,7 +21,7 @@ FF1 operates on a configurable alphabet (digits, hex, alphanumeric) with AES-256
 
 ```bash
 # Store a 256-bit AES key in your OS keychain
-./target/release/openobscure-proxy --init-key
+./target/release/openobscure --init-key
 ```
 
 ### Headless / Docker / CI
@@ -64,7 +64,7 @@ Zero-downtime key rotation with a 30-second overlap window:
 ### Gateway
 
 ```bash
-openobscure-proxy key-rotate
+openobscure key-rotate
 ```
 
 This generates a new random 32-byte key, stores it in the vault (env var or keychain), and restarts the FPE engine. During the 30-second overlap window, the previous key remains available for decrypting in-flight responses that were encrypted with the old key.

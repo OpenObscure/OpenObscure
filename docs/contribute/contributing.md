@@ -19,16 +19,16 @@ You need Rust (stable), Node.js 20+, and a working build of the proxy. If you ha
    ```
 3. **Build** the proxy to confirm your environment works:
    ```bash
-   cd openobscure-proxy && cargo build
+   cd openobscure-core && cargo build
    ```
 4. **Make your changes.** Keep commits focused — one logical change per commit.
 5. **Run the tests** for every component you touched:
    ```bash
-   # L0 proxy — lib tests (unit + integration)
+   # L0 Core proxy — lib tests (unit + integration)
    cargo test --lib --all-features
 
-   # L0 proxy — binary tests
-   cargo test --bin openobscure-proxy
+   # L0 Core proxy — binary tests
+   cargo test --bin openobscure
 
    # L1 plugin
    cd openobscure-plugin && npm test
@@ -92,7 +92,7 @@ Test commands are listed in step 5 above. For the full testing guide — includi
 ## Project Structure
 
 ```
-openobscure-proxy/          L0: Rust PII proxy (core detection + encryption)
+openobscure-core/          L0: Rust PII proxy (core detection + encryption)
 openobscure-plugin/         L1: TypeScript gateway plugin
 openobscure-napi/           NAPI addon (L1 native bridge)
 openobscure-ner/            NER training pipeline (Python, dev-only)

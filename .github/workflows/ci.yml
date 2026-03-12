@@ -37,7 +37,7 @@ jobs:
         run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: openobscure-proxy
+          workspaces: openobscure-core
 
       # Cache native library downloads (onnxruntime, sherpa-onnx).
       # Swatinem/rust-cache caches target/ but not these external download dirs.
@@ -46,16 +46,16 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ matrix.native-cache-path }}
-          key: native-libs-${{ runner.os }}-${{ hashFiles('openobscure-proxy/Cargo.lock') }}
+          key: native-libs-${{ runner.os }}-${{ hashFiles('openobscure-core/Cargo.lock') }}
 
       # Force build scripts to re-run so they re-emit cargo:rustc-link-search
       # pointing to the (now cached) native library directories.
       - name: Invalidate build script cache
         shell: bash
-        run: rm -rf openobscure-proxy/target/debug/build/ort-sys-* openobscure-proxy/target/debug/build/sherpa-rs-sys-*
+        run: rm -rf openobscure-core/target/debug/build/ort-sys-* openobscure-core/target/debug/build/sherpa-rs-sys-*
 
       - name: Test (default features)
-        run: cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --bin openobscure-proxy --tests
+        run: cargo test --manifest-path openobscure-core/Cargo.toml --lib --bin openobscure --tests
 
   proxy-cross-arm64:
     name: Cross-check aarch64-linux
@@ -69,7 +69,7 @@ jobs:
           rustup target add aarch64-unknown-linux-gnu
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: openobscure-proxy
+          workspaces: openobscure-core
 
       - name: Install cross-compilation toolchain
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
@@ -77,7 +77,7 @@ jobs:
       - name: Check (aarch64-linux)
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-        run: cargo check --manifest-path openobscure-proxy/Cargo.toml --target aarch64-unknown-linux-gnu
+        run: cargo check --manifest-path openobscure-core/Cargo.toml --target aarch64-unknown-linux-gnu
 
   mobile-build:
     name: Mobile Build (iOS)
@@ -91,13 +91,13 @@ jobs:
           rustup target add aarch64-apple-ios aarch64-apple-ios-sim
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: openobscure-proxy
+          workspaces: openobscure-core
 
       - name: Build iOS device (aarch64-apple-ios)
-        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --target aarch64-apple-ios --lib --no-default-features --features mobile
+        run: cargo build --manifest-path openobscure-core/Cargo.toml --target aarch64-apple-ios --lib --no-default-features --features mobile
 
       - name: Build iOS simulator (aarch64-apple-ios-sim)
-        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --target aarch64-apple-ios-sim --lib --no-default-features --features mobile
+        run: cargo build --manifest-path openobscure-core/Cargo.toml --target aarch64-apple-ios-sim --lib --no-default-features --features mobile
 
   plugin-test:
     name: Plugin Tests (TypeScript)
@@ -127,11 +127,11 @@ jobs:
         run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: openobscure-proxy
+          workspaces: openobscure-core
       - uses: actions/cache@v4
         with:
           path: ~/Library/Caches/ort.pyke.io
-          key: ort-native-macos-${{ hashFiles('openobscure-proxy/Cargo.lock') }}
+          key: ort-native-macos-${{ hashFiles('openobscure-core/Cargo.lock') }}
 
       - name: Regenerate bindings
         run: ./build/generate_bindings.sh
@@ -150,14 +150,14 @@ jobs:
         run: |
           echo "Checking Swift bindings for required API surface..."
           for fn in sanitizeAudioTranscript checkAudioPii sanitizeText restoreText getStats sanitizeImage createOpenobscure scanResponse getDebugLog; do
-            if ! grep -q "$fn" bindings/swift/openobscure_proxy.swift; then
+            if ! grep -q "$fn" bindings/swift/openobscure_core.swift; then
               echo "ERROR: Missing function '$fn' in Swift bindings"
               exit 1
             fi
           done
           echo "Checking Kotlin bindings for required API surface..."
           for fn in sanitizeAudioTranscript checkAudioPii sanitizeText restoreText getStats sanitizeImage createOpenobscure scanResponse getDebugLog; do
-            if ! grep -q "$fn" bindings/kotlin/uniffi/openobscure_proxy/openobscure_proxy.kt; then
+            if ! grep -q "$fn" bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt; then
               echo "ERROR: Missing function '$fn' in Kotlin bindings"
               exit 1
             fi
@@ -177,7 +177,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Format check (proxy)
-        run: cargo fmt --manifest-path openobscure-proxy/Cargo.toml -- --check
+        run: cargo fmt --manifest-path openobscure-core/Cargo.toml -- --check
 
       - name: Clippy (proxy, default)
-        run: cargo clippy --manifest-path openobscure-proxy/Cargo.toml -- -D warnings
+        run: cargo clippy --manifest-path openobscure-core/Cargo.toml -- -D warnings

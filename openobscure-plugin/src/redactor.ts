@@ -51,7 +51,7 @@ let _nativeInstance: InstanceType<NativeScannerClass> | null = null;
 
 /**
  * Auto-detect NER model directory relative to the addon's location.
- * Looks for models at `../openobscure-proxy/models/ner` from the addon dir.
+ * Looks for models at `../openobscure-core/models/ner` from the addon dir.
  * Returns the path if model files exist, undefined otherwise.
  */
 function autoDetectNerModelDir(): string | undefined {
@@ -59,7 +59,7 @@ function autoDetectNerModelDir(): string | undefined {
     const addonDir = dirname(
       require.resolve("@openobscure/scanner-napi/package.json"),
     );
-    const candidate = resolve(addonDir, "..", "openobscure-proxy", "models", "ner");
+    const candidate = resolve(addonDir, "..", "openobscure-core", "models", "ner");
     if (
       existsSync(resolve(candidate, "model_int8.onnx")) ||
       existsSync(resolve(candidate, "model.onnx"))

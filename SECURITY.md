@@ -18,7 +18,7 @@ If you discover a security vulnerability in OpenObscure, **please report it resp
 2. Include:
    - Description of the vulnerability
    - Steps to reproduce
-   - Affected component(s) (L0 proxy, L1 plugin, L2 crypto)
+   - Affected component(s) (L0 Core proxy, L1 plugin, L2 crypto)
    - Potential impact assessment
    - Suggested fix (if any)
 
@@ -40,7 +40,7 @@ Critical vulnerabilities (key extraction, proxy bypass, plaintext PII leaks) wil
 - Bypass of PII detection (input that should be caught but isn't)
 - FPE key extraction without OS keychain access
 - Transcript decryption without the passphrase
-- L0 proxy bypass (traffic reaching LLM without passing through proxy)
+- L0 Core proxy bypass (traffic reaching LLM without passing through proxy)
 - File Access Guard bypass (reading denied paths)
 - Memory leaks of plaintext PII
 - Denial of service against the proxy

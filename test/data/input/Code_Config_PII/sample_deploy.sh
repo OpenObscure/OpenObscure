@@ -29,7 +29,7 @@ ssh admin@${SERVER_IP} "hostname && uptime"
 
 # Deploy application
 ssh admin@${SERVER_IP} << 'REMOTE_SCRIPT'
-    systemctl stop openobscure-proxy
+    systemctl stop openobscure
     cd /opt/openobscure
 
     # Pull latest
@@ -50,7 +50,7 @@ ssh admin@${SERVER_IP} << 'REMOTE_SCRIPT'
     phone = "415-555-0132"
     EOF
 
-    systemctl start openobscure-proxy
+    systemctl start openobscure
 REMOTE_SCRIPT
 
 # Verify deployment

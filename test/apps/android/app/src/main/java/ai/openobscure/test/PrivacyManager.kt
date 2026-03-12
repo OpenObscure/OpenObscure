@@ -1,14 +1,14 @@
 package ai.openobscure.test
 
-import uniffi.openobscure_proxy.OpenObscureMobile
-import uniffi.openobscure_proxy.SanitizeResultFfi
-import uniffi.openobscure_proxy.MobileStatsFfi
-import uniffi.openobscure_proxy.MobileBindingException
-import uniffi.openobscure_proxy.createOpenobscure
-import uniffi.openobscure_proxy.sanitizeText
-import uniffi.openobscure_proxy.restoreText
-import uniffi.openobscure_proxy.sanitizeImage
-import uniffi.openobscure_proxy.getStats
+import uniffi.openobscure_core.OpenObscureMobile
+import uniffi.openobscure_core.SanitizeResultFfi
+import uniffi.openobscure_core.MobileStatsFfi
+import uniffi.openobscure_core.MobileBindingException
+import uniffi.openobscure_core.createOpenobscure
+import uniffi.openobscure_core.sanitizeText
+import uniffi.openobscure_core.restoreText
+import uniffi.openobscure_core.sanitizeImage
+import uniffi.openobscure_core.getStats
 
 /**
  * High-level wrapper around UniFFI-generated OpenObscure bindings.

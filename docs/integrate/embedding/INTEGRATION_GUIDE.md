@@ -139,7 +139,7 @@ Credit card (Luhn), SSN (range-validated), phone, email, API key, IPv4, IPv6, GP
 
 Create a local Swift package alongside the app project. This approach was verified with Enchanted (macOS BUILD SUCCEEDED).
 
-> **Important:** The C target name **must** match the `module` name in the `.modulemap` file. UniFFI generates `module openobscure_proxyFFI`, so the target must be named `openobscure_proxyFFI`.
+> **Important:** The C target name **must** match the `module` name in the `.modulemap` file. UniFFI generates `module openobscure_coreFFI`, so the target must be named `openobscure_coreFFI`.
 
 1. **Create the local package directory:**
 
@@ -149,12 +149,12 @@ OpenObscureLib/
 ├── Sources/
 │   ├── COpenObscure/
 │   │   └── include/
-│   │       ├── openobscure_proxyFFI.h         ← from bindings/swift/
-│   │       └── openobscure_proxyFFI.modulemap ← from bindings/swift/
+│   │       ├── openobscure_coreFFI.h         ← from bindings/swift/
+│   │       └── openobscure_coreFFI.modulemap ← from bindings/swift/
 │   └── OpenObscureLib/
-│       └── openobscure_proxy.swift            ← from bindings/swift/
+│       └── openobscure_core.swift            ← from bindings/swift/
 └── lib/
-    └── libopenobscure_proxy.a                 ← from build output
+    └── libopenobscure_core.a                 ← from build output
 ```
 
 2. **Package.swift:**
@@ -171,17 +171,17 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "openobscure_proxyFFI",  // MUST match modulemap module name
+            name: "openobscure_coreFFI",  // MUST match modulemap module name
             path: "Sources/COpenObscure",
             publicHeadersPath: "include"
         ),
         .target(
             name: "OpenObscureLib",
-            dependencies: ["openobscure_proxyFFI"],
+            dependencies: ["openobscure_coreFFI"],
             path: "Sources/OpenObscureLib",
             linkerSettings: [
                 .unsafeFlags(["-L\(Context.packageDirectory)/../lib"]),
-                .linkedLibrary("openobscure_proxy"),
+                .linkedLibrary("openobscure_core"),
                 .linkedLibrary("resolv"),
                 .linkedFramework("Security"),
                 .linkedFramework("SystemConfiguration"),
@@ -197,7 +197,7 @@ let package = Package(
    - `import OpenObscureLib` in Swift files that use OpenObscure
 
 4. **For Xcode projects without SPM**, add these Build Settings:
-   - Other Linker Flags: `-lopenobscure_proxy -lresolv`
+   - Other Linker Flags: `-lopenobscure_core -lresolv`
    - Library Search Paths: `$(PROJECT_DIR)/lib`
    - Header Search Paths: `$(PROJECT_DIR)/COpenObscure/include`
    - Linked Frameworks: Security, SystemConfiguration
@@ -362,16 +362,16 @@ if let image = image?.render() {
 ```
 app/src/main/jniLibs/
 ├── arm64-v8a/
-│   └── libopenobscure_proxy.so
+│   └── libopenobscure_core.so
 └── x86_64/
-    └── libopenobscure_proxy.so
+    └── libopenobscure_core.so
 ```
 
 2. **Copy Kotlin bindings:**
 
 ```
-app/src/main/java/uniffi/openobscure_proxy/
-└── openobscure_proxy.kt
+app/src/main/java/uniffi/openobscure_core/
+└── openobscure_core.kt
 ```
 
 3. **Add JNA dependency** in `app/build.gradle.kts`:
@@ -385,7 +385,7 @@ dependencies {
 4. **Add ProGuard keep rules** in `proguard-rules.pro`:
 
 ```
--keep class uniffi.openobscure_proxy.** { *; }
+-keep class uniffi.openobscure_core.** { *; }
 -keep class com.sun.jna.** { *; }
 -dontwarn com.sun.jna.**
 ```
@@ -409,7 +409,7 @@ See full template at [templates/OpenObscureManager.kt](templates/OpenObscureMana
 
 ```kotlin
 import android.util.Log
-import uniffi.openobscure_proxy.*
+import uniffi.openobscure_core.*
 
 object OpenObscureManager {
     private var _handle: OpenObscureHandle? = null
@@ -443,7 +443,7 @@ object OpenObscureManager {
     }
 
     fun scanResponse(text: String): RiReportFfi? {
-        return uniffi.openobscure_proxy.scanResponse(handle, text)
+        return uniffi.openobscure_core.scanResponse(handle, text)
     }
 
     fun resetMappings() { accumulatedMappings.clear() }
@@ -468,7 +468,7 @@ import okhttp3.Interceptor
 import okhttp3.Response
 import okhttp3.RequestBody.Companion.toRequestBody
 import okio.Buffer
-import uniffi.openobscure_proxy.*
+import uniffi.openobscure_core.*
 import kotlinx.serialization.json.*
 
 class OpenObscureInterceptor : Interceptor {
@@ -587,7 +587,7 @@ Use the bundling script to copy models with correct directory naming:
 
 The script maps dev repo directory names to the standard names expected by `models_base_dir` auto-resolution (e.g., `paddleocr` → `ocr`, `ner-lite` → `ner_lite`). It verifies all expected subdirectories exist after copying.
 
-Alternatively, copy the `models/` directory manually from `openobscure-proxy/models/` into your app resources:
+Alternatively, copy the `models/` directory manually from `openobscure-core/models/` into your app resources:
 
 ```
 models/
@@ -740,7 +740,7 @@ app/src/main/assets/
     └── label_map.json       (+ config.json, tokenizer.json)
 ```
 
-The model files ship with OpenObscure under `openobscure-proxy/models/ner/` (DistilBERT) and `openobscure-proxy/models/ner-lite/` (TinyBERT). Copy the appropriate directory into your app.
+The model files ship with OpenObscure under `openobscure-core/models/ner/` (DistilBERT) and `openobscure-core/models/ner-lite/` (TinyBERT). Copy the appropriate directory into your app.
 
 ### Step 2: Update Config JSON
 
@@ -1056,7 +1056,7 @@ cd test/apps/ios && swift test
 cd test/apps/android && ./gradlew connectedAndroidTest
 
 # Proxy unit tests (1,677 tests including mobile API)
-cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
+cargo test --manifest-path openobscure-core/Cargo.toml --lib --all-features
 ```
 
 ---
@@ -1066,8 +1066,8 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | `MobileBindingError` on init | Invalid FPE key (must be exactly 64 hex chars = 32 bytes) | Check key length and hex format |
-| Linker error: `_openobscure_proxy_*` | Library not linked | Add `-lopenobscure_proxy` to Other Linker Flags |
-| `UnsatisfiedLinkError` on Android | `.so` not in correct ABI folder | Verify `jniLibs/<abi>/libopenobscure_proxy.so` path |
+| Linker error: `_openobscure_core_*` | Library not linked | Add `-lopenobscure_core` to Other Linker Flags |
+| `UnsatisfiedLinkError` on Android | `.so` not in correct ABI folder | Verify `jniLibs/<abi>/libopenobscure_core.so` path |
 | JNA not found on Android | Missing dependency | Add `implementation("net.java.dev.jna:jna:5.15.0@aar")` |
 | Image sanitization fails | No model files on disk | Provide face/OCR model paths in config (or use `models_base_dir`). EXIF is still stripped even without models. |
 | GPS/EXIF leaks in LLM response | Models dir missing or not in app bundle | Verify `models/` is added as a **folder reference** (blue icon) in Xcode, not a group (yellow icon). Check debug log for `models_dir:` path. EXIF stripping is always active — if GPS leaks, `sanitizeImage()` may be failing silently (check for catch blocks using original image). |
@@ -1103,7 +1103,7 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 |----------|-------------------|-------------------|
 | Fork location | `/Users/admin/Test/enchanted-openobscure/` | `/Users/admin/Test/rikkahub-openobscure/` |
 | Native library | 158MB static `.a` (macOS) / 160MB (iOS) | 24MB `.so` (arm64-v8a) |
-| Bindings | `openobscure_proxy.swift` + FFI header + modulemap | `openobscure_proxy.kt` (UniFFI) |
+| Bindings | `openobscure_core.swift` + FFI header + modulemap | `openobscure_core.kt` (UniFFI) |
 | Key storage | iOS Keychain | Android SharedPreferences |
 | Intercept pattern | Direct API calls in ConversationStore | OkHttp Interceptor on request JSON |
 | Build output | Xcode build (CODE_SIGNING_ALLOWED=NO) | `app-arm64-v8a-debug.apk` (76MB) |
@@ -1119,4 +1119,4 @@ cargo test --manifest-path openobscure-proxy/Cargo.toml --lib --all-features
 | `build/build_napi.sh` | Node.js native addon | `scanner.node` |
 | `build/generate_bindings.sh` | UniFFI Swift + Kotlin bindings | `bindings/swift/`, `bindings/kotlin/` |
 | `build/bundle_models.sh` | Copy & rename models for embedded apps | `<output_dir>/{ner,ner_lite,scrfd,blazeface,ocr,nsfw,nsfw_classifier,ri}/` |
-| `build/download_models.sh` | ONNX model files | `openobscure-proxy/models/` |
+| `build/download_models.sh` | ONNX model files | `openobscure-core/models/` |

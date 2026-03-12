@@ -36,6 +36,6 @@ These diffs are provided as reference — adapt the patterns to your own app.
 **Not included in the diff** (must be set up separately):
 - `OpenObscureManager.kt` — see [templates/](../templates/OpenObscureManager.kt) (includes accumulated mappings, `scanResponse()`, `resetMappings()`, recursive `copyAssetsDir()`, and `getDebugLog()` diagnostics)
 - `OpenObscureInterceptor.kt` — see [templates/](../templates/OpenObscureInterceptor.kt)
-- UniFFI Kotlin bindings (`uniffi/openobscure_proxy/openobscure_proxy.kt`)
+- UniFFI Kotlin bindings (`uniffi/openobscure_core/openobscure_core.kt`)
 - Native `.so` library in `jniLibs/arm64-v8a/`
 - Model files in `assets/models/` — use `build/bundle_models.sh` to prepare, see [Integration Guide Part 6a](../INTEGRATION_GUIDE.md#part-6a-bundling-all-models-recommended)

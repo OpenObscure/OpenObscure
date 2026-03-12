@@ -6,11 +6,11 @@ Fork the repo, create a branch, make your change, run tests, open a PR against `
 
 1. Fork and clone the repository
 2. Create a branch: `git checkout -b fix/your-change`
-3. Build to confirm your environment works: `cd openobscure-proxy && cargo build`
+3. Build to confirm your environment works: `cd openobscure-core && cargo build`
 4. Make your change. Keep commits focused — one logical change per commit.
 5. Run tests for what you touched:
    ```bash
-   cargo test --lib --all-features   # L0 proxy (expect 700+ passing)
+   cargo test --lib --all-features   # L0 Core proxy (expect 700+ passing)
    cd openobscure-plugin && npm test  # L1 plugin
    ```
 6. Check formatting and lints:

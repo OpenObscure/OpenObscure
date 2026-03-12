@@ -9,7 +9,7 @@
 #
 #   # Terminal 2: Start proxy with this config
 #   OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
-#     ./target/release/openobscure-proxy --config test/config/test_sse.toml serve
+#     ./target/release/openobscure-core --config test/config/test_sse.toml serve
 #
 #   # Terminal 3: Run tests
 #   ./test/scripts/test_sse_streaming.sh
@@ -28,7 +28,7 @@ keychain_user = "fpe-master-key"
 
 [scanner]
 enabled = true
-ner_model_dir = "openobscure-proxy/models/ner"
+ner_model_dir = "openobscure-core/models/ner"
 skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
 
 [image]

@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Added
 
-#### L0 Proxy (Rust)
+#### L0 Core (Rust)
 
 - FF1 Format-Preserving Encryption for 15 PII types: structured (SSN, credit card, phone, email, address), network/device (IP, MAC, UUID, IBAN, routing number), semantic (person names, organizations, locations via NER), multilingual national IDs (9 languages: es/fr/de/pt/ja/zh/ko/ar), and health/child identifiers
 - 4-engine detection ensemble: regex with post-validation (Luhn algorithm, SSN range checks), CRF context scoring, TinyBERT NER (4L-312D, 13.7MB INT8, 0.8ms p50 latency), and keyword/gazetteer dictionary
@@ -45,7 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### Testing
 
-- 1,801 tests across L0 proxy (1,667), L1 plugin (112), NAPI addon (6), and L2 crypto (16)
+- 1,801 tests across L0 Core proxy (1,667), L1 plugin (112), NAPI addon (6), and L2 crypto (16)
 - 99.7% recall on PII benchmark corpus (~400 labeled samples)
 - Model-gated accuracy tests for NER (TinyBERT F1: 85.6%), image pipeline, and voice pipeline
 - Detection validation framework: 40 pure-logic validator tests covering bbox sanity, OCR region validity, NSFW consistency, and precision/recall metrics

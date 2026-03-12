@@ -38,7 +38,7 @@ Everything runs locally. No cloud components, no telemetry, no external dependen
                                │
                                ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│  L0 Proxy (standalone Rust binary — 127.0.0.1:18790)            │
+│  L0 Core (standalone Rust binary — 127.0.0.1:18790)            │
 │                                                                  │
 │  REQUEST PATH                        RESPONSE PATH               │
 │  ─────────────                       ──────────────              │
@@ -98,7 +98,7 @@ User input                "My SSN is 123-45-6789"
 Agent formats request     { messages: [{ content: "My SSN is 123-45-6789" }] }
     │
     ▼
-L0 Proxy scans            Regex finds SSN at offset 10..21
+L0 Core scans            Regex finds SSN at offset 10..21
     │
     ▼
 L0 FPE encrypts           "My SSN is 847-29-3156"   ← same format, different digits
@@ -259,7 +259,7 @@ The proxy intercepts data-in-transit to LLM providers but does not protect data 
 | Full TOML config reference | [Config Reference](../configure/config-reference.md) |
 | LLM provider integration (SDK examples) | [Integration Reference](../integrate/integration-reference.md) |
 | Embedding in third-party apps | [Third-Party Embedding](../integrate/third-party-embedding.md) |
-| L0 Proxy internals (module map, request flow) | [L0 Proxy Architecture](l0-proxy.md) |
+| L0 Core internals (module map, request flow) | [L0 Core Architecture](l0-core.md) |
 | L1 Plugin internals (hooks, detection paths) | [L1 Plugin Architecture](l1-plugin.md) |
 | Semantic PII detection (regex, NER, CRF, voting) | [Semantic PII Detection](semantic-pii-detection.md) |
 | Image pipeline (NSFW, face, OCR, screenshots) | [Image Pipeline](image-pipeline.md) |

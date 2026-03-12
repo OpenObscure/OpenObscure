@@ -2,7 +2,7 @@
 
 > **Role in OpenObscure:** The image pipeline is the **visual PII detection core** of L0. It processes base64-encoded images through a phased pipeline — NSFW classification, face detection, OCR text detection, and EXIF stripping — solid-filling sensitive regions before the image leaves the device. For the full system context, see [System Overview](system-overview.md).
 >
-> **Implementation:** `openobscure-proxy/src/image_pipeline.rs` and related modules. For module-level details, see [L0 Proxy Architecture](l0-proxy.md).
+> **Implementation:** `openobscure-core/src/image_pipeline.rs` and related modules. For module-level details, see [L0 Core Architecture](l0-core.md).
 
 ---
 

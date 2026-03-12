@@ -15,7 +15,7 @@ let package = Package(
             publicHeadersPath: "include",
             linkerSettings: [
                 .unsafeFlags(["-L", "lib"]),
-                .linkedLibrary("openobscure_proxy"),
+                .linkedLibrary("openobscure_core"),
                 .linkedLibrary("c++"),
             ]
         ),

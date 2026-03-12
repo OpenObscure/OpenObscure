@@ -9,9 +9,9 @@
 package ai.openobscure.test
 
 import android.content.Context
-import uniffi.openobscure_proxy.OpenObscureHandle
-import uniffi.openobscure_proxy.checkAudioPii
-import uniffi.openobscure_proxy.sanitizeAudioTranscript
+import uniffi.openobscure_core.OpenObscureHandle
+import uniffi.openobscure_core.checkAudioPii
+import uniffi.openobscure_core.sanitizeAudioTranscript
 
 /**
  * Result of processing an audio block through the voice pipeline.

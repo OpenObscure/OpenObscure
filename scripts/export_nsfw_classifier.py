@@ -31,7 +31,7 @@ def main():
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="openobscure-proxy/models/nsfw_classifier",
+        default="openobscure-core/models/nsfw_classifier",
         help="Output directory for the ONNX model",
     )
     parser.add_argument(

@@ -1,6 +1,6 @@
 # OpenObscure PII Privacy Proxy — Example Configuration
 #
-# Copy this file to openobscure-proxy/config/openobscure.toml and adjust as needed.
+# Copy this file to openobscure-core/config/openobscure.toml and adjust as needed.
 # This is the gateway/proxy configuration. For embedded (mobile) usage, configuration
 # is passed via the createOpenobscure() API call instead of a TOML file.
 

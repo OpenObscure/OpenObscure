@@ -21,7 +21,7 @@ Sanitize PII directly in your iOS, macOS, or Android app — no proxy, no HTTP s
 
 | Tool | Minimum version | Required for |
 |------|----------------|--------------|
-| Rust | **1.75** | All targets. MSRV set in `openobscure-proxy/Cargo.toml`. Install via [rustup.rs](https://rustup.rs). |
+| Rust | **1.75** | All targets. MSRV set in `openobscure-core/Cargo.toml`. Install via [rustup.rs](https://rustup.rs). |
 | Cargo | ships with Rust | All targets. Bundled with the Rust toolchain. No separate minimum. |
 | Xcode | — | iOS and macOS builds. No minimum version pinned; CI runs on macOS 14. Must include command-line tools (`xcode-select --install`). |
 | Android NDK | — | Android builds only. No minimum version pinned in `build_android.sh`. Install via Android Studio SDK Manager or `sdkmanager`. |
@@ -36,12 +36,12 @@ Node.js and npm are **not** required for the embedded library. They are only nee
 
 ## 1. Build the library
 
-> All commands in this guide assume the working directory is the repository root (the directory containing `openobscure-proxy/` and `build/`).
+> All commands in this guide assume the working directory is the repository root (the directory containing `openobscure-core/` and `build/`).
 
 ### macOS
 
 ```bash
-cargo build --manifest-path openobscure-proxy/Cargo.toml \
+cargo build --manifest-path openobscure-core/Cargo.toml \
   --lib --no-default-features --features mobile --release
 ```
 
@@ -49,8 +49,8 @@ cargo build --manifest-path openobscure-proxy/Cargo.toml \
 
 > **You should see:**
 > ```
-> openobscure-proxy/target/release/libopenobscure_proxy.dylib   (~5–10 MB)
-> openobscure-proxy/target/release/libopenobscure_proxy.a       (~150 MB, includes ORT static lib)
+> openobscure-core/target/release/libopenobscure_core.dylib   (~5–10 MB)
+> openobscure-core/target/release/libopenobscure_core.a       (~150 MB, includes ORT static lib)
 > ```
 > The `.dylib` (cdylib) is used for macOS app integration. The `.a` (staticlib) is available for static linking. ORT is loaded dynamically on macOS, so the dylib contains only the Rust code.
 
@@ -65,14 +65,14 @@ cargo build --manifest-path openobscure-proxy/Cargo.toml \
 
 > **You should see:**
 > ```
-> openobscure-proxy/target/aarch64-apple-ios/release/libopenobscure_proxy.a      (~150 MB)
-> openobscure-proxy/target/aarch64-apple-ios-sim/release/libopenobscure_proxy.a  (~150 MB)
+> openobscure-core/target/aarch64-apple-ios/release/libopenobscure_core.a      (~150 MB)
+> openobscure-core/target/aarch64-apple-ios-sim/release/libopenobscure_core.a  (~150 MB)
 > ```
 > Each `.a` is large because it includes the ORT static library — iOS does not permit third-party dynamic libraries, so ORT is linked in at build time. The build script prints the exact sizes at completion.
 >
 > With `--xcframework`, the two slices are combined into:
 > ```
-> openobscure-proxy/target/OpenObscure.xcframework/
+> openobscure-core/target/OpenObscure.xcframework/
 > ```
 > Use the XCFramework when distributing via Swift Package Manager or adding to an Xcode project directly.
 
@@ -88,19 +88,19 @@ cargo build --manifest-path openobscure-proxy/Cargo.toml \
 
 > **You should see:**
 > ```
-> openobscure-proxy/target/aarch64-linux-android/release/libopenobscure_proxy.so  (~5–10 MB)
+> openobscure-core/target/aarch64-linux-android/release/libopenobscure_core.so  (~5–10 MB)
 > ```
 > With `--all-abis`, one `.so` is produced per ABI:
 > ```
-> openobscure-proxy/target/aarch64-linux-android/release/libopenobscure_proxy.so    (arm64-v8a)
-> openobscure-proxy/target/armv7-linux-androideabi/release/libopenobscure_proxy.so  (armeabi-v7a)
-> openobscure-proxy/target/x86_64-linux-android/release/libopenobscure_proxy.so     (x86_64)
+> openobscure-core/target/aarch64-linux-android/release/libopenobscure_core.so    (arm64-v8a)
+> openobscure-core/target/armv7-linux-androideabi/release/libopenobscure_core.so  (armeabi-v7a)
+> openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so     (x86_64)
 > ```
 > The `.so` files are small because ORT is loaded dynamically at runtime on Android (`load-dynamic` feature). Copy each into your Android project under the matching ABI directory:
 > ```
-> app/src/main/jniLibs/arm64-v8a/libopenobscure_proxy.so
-> app/src/main/jniLibs/armeabi-v7a/libopenobscure_proxy.so
-> app/src/main/jniLibs/x86_64/libopenobscure_proxy.so
+> app/src/main/jniLibs/arm64-v8a/libopenobscure_core.so
+> app/src/main/jniLibs/armeabi-v7a/libopenobscure_core.so
+> app/src/main/jniLibs/x86_64/libopenobscure_core.so
 > ```
 
 ## 2. Generate bindings
@@ -112,7 +112,7 @@ cargo build --manifest-path openobscure-proxy/Cargo.toml \
 
 > **You should see:**
 > ```
-> bindings/swift/openobscure_proxy.swift
+> bindings/swift/openobscure_core.swift
 > bindings/swift/openobscureProxy.modulemap
 > ```
 > Drag both files into your Xcode project. The `.swift` file contains the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
@@ -124,9 +124,9 @@ cargo build --manifest-path openobscure-proxy/Cargo.toml \
 
 > **You should see:**
 > ```
-> bindings/kotlin/uniffi/openobscure_proxy/openobscure_proxy.kt
+> bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt
 > ```
-> Add the file to your Android source set (e.g. `app/src/main/java/` or a dedicated `uniffi/` source directory). It must be compiled alongside `libopenobscure_proxy.so`.
+> Add the file to your Android source set (e.g. `app/src/main/java/` or a dedicated `uniffi/` source directory). It must be compiled alongside `libopenobscure_core.so`.
 
 ## 3. Download models
 
@@ -154,7 +154,7 @@ Models enable NER, image pipeline, and cognitive firewall. Without them, OpenObs
 ./build/download_models.sh
 ```
 
-> **You should see** the following directories created under `openobscure-proxy/models/`:
+> **You should see** the following directories created under `openobscure-core/models/`:
 > ```
 > models/blazeface/          — all tiers      (BlazeFace face detection, ~408 KB)
 > models/paddleocr/          — all tiers      (PaddleOCR det + rec + dict, ~10 MB)
@@ -189,7 +189,7 @@ Bundle the `models/` directory into your app's resources (iOS) or assets (Androi
 ### Swift (iOS / macOS)
 
 ```swift
-import openobscure_proxy
+import openobscure_core
 
 // Replace with output of: openssl rand -hex 32
 // Store in iOS Keychain — never hard-code in source.
@@ -222,7 +222,7 @@ let restored = try restoreText(
 ### Kotlin (Android)
 
 ```kotlin
-import uniffi.openobscure_proxy.*
+import uniffi.openobscure_core.*
 
 // Replace with output of: openssl rand -hex 32
 // Store in Android Keystore — never hard-code in source.

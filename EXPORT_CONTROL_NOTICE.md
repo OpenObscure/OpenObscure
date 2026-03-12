@@ -8,7 +8,7 @@
 
 This software utilizes strong encryption to protect PII in transit. The following algorithms are implemented in the core (non-enterprise) codebase:
 
-* **Format-Preserving Encryption (PII in transit):** FF1 (NIST SP 800-38G) for PII obfuscation. Used in both Gateway (L0 proxy) and Embedded (mobile library) deployment models.
+* **Format-Preserving Encryption (PII in transit):** FF1 (NIST SP 800-38G) for PII obfuscation. Used in both Gateway (L0 Core proxy) and Embedded (mobile library) deployment models.
     * *Note: FF3 is explicitly excluded/withdrawn per NIST SP 800-38G Rev 2*.
 * **Transport Security (Gateway only):** TLS 1.2/1.3 via standard Rust libraries (`hyper`, `rustls`) for communication with upstream LLM providers. Not used in the Embedded model (the host app handles networking).
 

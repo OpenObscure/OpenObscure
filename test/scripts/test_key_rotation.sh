@@ -3,7 +3,7 @@
 #
 # Test cases:
 #   1. Record current fpe_key_version from health endpoint
-#   2. Run `openobscure-proxy key-rotate` → exit 0
+#   2. Run `openobscure-core key-rotate` → exit 0
 #   3. Verify the CLI reports success
 #   4. FPE encrypt/decrypt works after rotation (send PII, verify FPE-encrypted output)
 #
@@ -31,7 +31,7 @@ OUTPUT_DIR="$TEST_DIR/data/output/key_rotation"
 mkdir -p "$OUTPUT_DIR"
 
 # Defaults
-BINARY="${PROJECT_ROOT}/target/release/openobscure-proxy"
+BINARY="${PROJECT_ROOT}/target/release/openobscure-core"
 CONFIG="test/config/test_fpe.toml"
 
 # Parse args
@@ -100,7 +100,7 @@ echo ""
 # Check binary exists
 if [[ ! -x "$BINARY" ]]; then
   echo "Error: Binary not found or not executable: $BINARY"
-  echo "Build first: cargo build --release --manifest-path openobscure-proxy/Cargo.toml"
+  echo "Build first: cargo build --release --manifest-path openobscure-core/Cargo.toml"
   exit 1
 fi
 

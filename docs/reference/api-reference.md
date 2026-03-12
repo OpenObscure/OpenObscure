@@ -2,7 +2,7 @@
 
 Complete type and function reference for the OpenObscure embedded (mobile) API. These types are exposed to Swift and Kotlin via [UniFFI](https://mozilla.github.io/uniffi-rs/) bindings.
 
-Source: [uniffi_bindings.rs](../../openobscure-proxy/src/uniffi_bindings.rs), [lib_mobile.rs](../../openobscure-proxy/src/lib_mobile.rs)
+Source: [uniffi_bindings.rs](../../openobscure-core/src/uniffi_bindings.rs), [lib_mobile.rs](../../openobscure-core/src/lib_mobile.rs)
 
 ---
 

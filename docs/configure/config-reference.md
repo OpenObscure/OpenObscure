@@ -86,7 +86,7 @@ See [FPE Configuration](fpe-configuration.md) for per-type radix, alphabet, and 
 | `ner_pool_size` | int | `4` | Concurrent NER sessions (~14MB each for TinyBERT, ~64MB for DistilBERT) |
 | `ner_confidence_threshold` | float | `0.60` | Per-token NER confidence cutoff |
 | `crf_model_dir` | string? | (none) | Path to CRF model directory (containing `crf_model.json`) |
-| `ram_threshold_mb` | int | `200` | **Deprecated — has no runtime effect.** Accepted and deserialized for backward compatibility with existing config files but is never read by any dispatch or fallback logic. The NER→CRF selection it originally controlled was replaced by the `CapabilityTier` / `FeatureBudget` system (see [`device_profile.rs`](../../openobscure-proxy/src/device_profile.rs)). Setting this to any value has no observable effect. Safe to remove from new configs. |
+| `ram_threshold_mb` | int | `200` | **Deprecated — has no runtime effect.** Accepted and deserialized for backward compatibility with existing config files but is never read by any dispatch or fallback logic. The NER→CRF selection it originally controlled was replaced by the `CapabilityTier` / `FeatureBudget` system (see [`device_profile.rs`](../../openobscure-core/src/device_profile.rs)). Setting this to any value has no observable effect. Safe to remove from new configs. |
 | `respect_code_fences` | bool | `true` | Skip scanning inside markdown code fences and inline code |
 | `min_confidence` | float | `0.5` | Ensemble voting minimum confidence threshold |
 | `agreement_bonus` | float | `0.15` | Confidence bonus when 2+ scanners agree on overlapping span |

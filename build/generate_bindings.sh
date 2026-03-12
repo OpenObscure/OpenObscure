@@ -12,7 +12,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/.."
-PROXY_DIR="$PROJECT_DIR/openobscure-proxy"
+PROXY_DIR="$PROJECT_DIR/openobscure-core"
 BINDINGS_DIR="$PROJECT_DIR/bindings"
 
 GENERATE_SWIFT=true
@@ -39,20 +39,20 @@ echo "--- Building library with bindgen features ---"
 cargo build --manifest-path "$PROXY_DIR/Cargo.toml" --no-default-features --features bindgen --lib
 
 # Find the built library
-LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_proxy.dylib"
+LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_core.dylib"
 if [ ! -f "$LIB_PATH" ]; then
-    LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_proxy.so"
+    LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_core.so"
 fi
 if [ ! -f "$LIB_PATH" ]; then
     echo "Error: Could not find built library. Expected at:"
-    echo "  $PROXY_DIR/target/debug/libopenobscure_proxy.{dylib,so}"
+    echo "  $PROXY_DIR/target/debug/libopenobscure_core.{dylib,so}"
     exit 1
 fi
 
 echo "Using library: $LIB_PATH"
 
 # uniffi-bindgen needs cargo metadata, which requires running from a directory
-# with a Cargo.toml. Run from within the proxy directory.
+# with a Cargo.toml. Run from within the core directory.
 BINDGEN_BIN="$PROXY_DIR/target/debug/uniffi-bindgen"
 
 # Build the uniffi-bindgen binary

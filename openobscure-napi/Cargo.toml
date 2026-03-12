@@ -11,7 +11,7 @@ crate-type = ["cdylib", "lib"]
 [dependencies]
 napi = { version = "2", default-features = false, features = ["napi4"] }
 napi-derive = "2"
-openobscure-proxy = { path = "../openobscure-proxy" }
+openobscure-core = { path = "../openobscure-core" }
 
 [build-dependencies]
 napi-build = "2"

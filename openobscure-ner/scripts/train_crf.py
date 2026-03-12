@@ -3,7 +3,7 @@
 Train a linear-chain CRF for NER on OpenObscure's custom label schema.
 
 Produces a `crf_model.json` file compatible with the Rust CRF scanner
-(openobscure-proxy/src/crf_scanner.rs). The model uses hand-crafted features
+(openobscure-core/src/crf_scanner.rs). The model uses hand-crafted features
 (word shape, prefix/suffix, capitalization, gazetteers, context window)
 and learns state feature weights + transition weights via L-BFGS.
 

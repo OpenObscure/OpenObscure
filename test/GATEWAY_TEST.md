@@ -1,6 +1,6 @@
 # OpenObscure Gateway Test Guide
 
-> Hands-on walkthrough of every Gateway (L0 proxy) feature.
+> Hands-on walkthrough of every Gateway (L0 Core proxy) feature.
 > Each section includes runnable commands you can copy-paste.
 > For FPE configuration details (per-type behavior, key rotation, fail modes), see [FPE Configuration](../docs/configure/fpe-configuration.md).
 
@@ -16,20 +16,20 @@
 
 ```bash
 # Build the proxy
-cargo build --release --manifest-path openobscure-proxy/Cargo.toml
+cargo build --release --manifest-path openobscure-core/Cargo.toml
 
 # First run: generate FPE key in OS keychain
-./target/release/openobscure-proxy --init-key
+./target/release/openobscure --init-key
 
 # Start the proxy (default: 127.0.0.1:18790)
-./target/release/openobscure-proxy serve
+./target/release/openobscure serve
 ```
 
 **Headless / Docker alternative** (no keychain required):
 
 ```bash
 export OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32)
-./target/release/openobscure-proxy serve
+./target/release/openobscure serve
 ```
 
 The proxy reads `config/openobscure.toml` by default. Override with `--config /path/to/file.toml` or `OPENOBSCURE_CONFIG`.
@@ -415,7 +415,7 @@ route_prefix = "/anthropic"
 
 ### Full Config Reference
 
-See [config/openobscure.toml](../openobscure-proxy/config/openobscure.toml) for all options with comments.
+See [config/openobscure.toml](../openobscure-core/config/openobscure.toml) for all options with comments.
 
 ---
 

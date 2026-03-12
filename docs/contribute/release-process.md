@@ -25,12 +25,12 @@ Before tagging a release:
 1. **All CI checks pass** — `cargo test --lib --all-features`, `clippy`, `fmt --check`, `npm test` all green on `main`
 2. **CHANGELOG updated** — Add a dated entry for the new version. Move items from `[Unreleased]` to the version section.
 3. **Version bumped** in:
-   - `openobscure-proxy/Cargo.toml` (`version = "x.y.z"`)
+   - `openobscure-core/Cargo.toml` (`version = "x.y.z"`)
    - `openobscure-plugin/package.json` (`"version": "x.y.z"`)
    - `openobscure-napi/package.json` (`"version": "x.y.z"`)
 4. **Commit** the version bump and CHANGELOG update:
    ```bash
-   git add CHANGELOG.md openobscure-proxy/Cargo.toml openobscure-plugin/package.json openobscure-napi/package.json
+   git add CHANGELOG.md openobscure-core/Cargo.toml openobscure-plugin/package.json openobscure-napi/package.json
    git commit -m "Release vX.Y.Z"
    ```
 5. **Tag** the release:

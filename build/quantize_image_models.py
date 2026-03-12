@@ -31,7 +31,7 @@ from onnxruntime.quantization import QuantType, quantize_dynamic
 
 MODELS_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    "openobscure-proxy", "models",
+    "openobscure-core", "models",
 )
 
 TARGETS = [

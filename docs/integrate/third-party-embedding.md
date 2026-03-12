@@ -38,7 +38,7 @@ The full step-by-step guide covers everything from building the native library t
 | Artifact | Enchanted (macOS) | RikkaHub (Android) |
 |----------|-------------------|-------------------|
 | Native library | 158MB static `.a` (macOS) / 160MB (iOS) | 24MB `.so` (arm64-v8a) |
-| Bindings | `openobscure_proxy.swift` + FFI header + modulemap | `openobscure_proxy.kt` (UniFFI) |
+| Bindings | `openobscure_core.swift` + FFI header + modulemap | `openobscure_core.kt` (UniFFI) |
 | Key storage | iOS Keychain | Android SharedPreferences ⚠ see note |
 | Intercept pattern | Direct API calls in ConversationStore | OkHttp Interceptor on request JSON |
 
@@ -54,7 +54,7 @@ The full step-by-step guide covers everything from building the native library t
 | `build/build_android.sh` | Android shared libs | `.so` per ABI |
 | `build/generate_bindings.sh` | UniFFI Swift + Kotlin bindings | `bindings/swift/`, `bindings/kotlin/` |
 | `build/bundle_models.sh` | Copy & rename models for embedded apps | `<output_dir>/{ner,scrfd,ocr,nsfw,...}/` |
-| `build/download_models.sh` | ONNX model files | `openobscure-proxy/models/` |
+| `build/download_models.sh` | ONNX model files | `openobscure-core/models/` |
 
 ---
 

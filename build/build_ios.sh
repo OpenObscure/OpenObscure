@@ -12,7 +12,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/.."
-PROXY_DIR="$PROJECT_DIR/openobscure-proxy"
+PROXY_DIR="$PROJECT_DIR/openobscure-core"
 PROFILE="debug"
 BUILD_FLAG=""
 CREATE_XCFRAMEWORK=false
@@ -52,8 +52,8 @@ echo "--- Building for iOS Simulator (aarch64-apple-ios-sim) ---"
 cargo build --manifest-path "$PROXY_DIR/Cargo.toml" \
     --target aarch64-apple-ios-sim $BUILD_FLAG --lib --no-default-features --features mobile
 
-DEVICE_LIB="$PROXY_DIR/target/aarch64-apple-ios/$PROFILE/libopenobscure_proxy.a"
-SIM_LIB="$PROXY_DIR/target/aarch64-apple-ios-sim/$PROFILE/libopenobscure_proxy.a"
+DEVICE_LIB="$PROXY_DIR/target/aarch64-apple-ios/$PROFILE/libopenobscure_core.a"
+SIM_LIB="$PROXY_DIR/target/aarch64-apple-ios-sim/$PROFILE/libopenobscure_core.a"
 
 echo ""
 echo "=== Build Complete ==="

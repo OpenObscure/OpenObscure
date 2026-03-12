@@ -2,7 +2,7 @@
 
 Every PII type OpenObscure detects, how it is detected, and how it is protected.
 
-Source: [pii_types.rs](../../openobscure-proxy/src/pii_types.rs), [scanner.rs](../../openobscure-proxy/src/scanner.rs), [multilingual/](../../openobscure-proxy/src/multilingual/)
+Source: [pii_types.rs](../../openobscure-core/src/pii_types.rs), [scanner.rs](../../openobscure-core/src/scanner.rs), [multilingual/](../../openobscure-core/src/multilingual/)
 
 ---
 
@@ -121,7 +121,7 @@ Activated by `whatlang` language detection (confidence threshold 0.15, minimum 2
 
 ### Dispatch Parameters
 
-These values are **hardcoded** in [`lang_detect.rs`](../../openobscure-proxy/src/lang_detect.rs) and are not exposed in any TOML config key or `MobileConfig` field.
+These values are **hardcoded** in [`lang_detect.rs`](../../openobscure-core/src/lang_detect.rs) and are not exposed in any TOML config key or `MobileConfig` field.
 
 | Parameter | Value | Source location | Rationale |
 |-----------|-------|-----------------|-----------|

@@ -21,22 +21,22 @@ Add custom providers in `config/openobscure.toml` under `[providers.<name>]`. Fo
 
 | Command | Description |
 |---------|-------------|
-| `openobscure-proxy serve` | Start the proxy (default if no subcommand given) |
-| `openobscure-proxy key-rotate` | Rotate the FPE encryption key (zero-downtime, 30s overlap window) |
-| `openobscure-proxy passthrough` | Run in passthrough mode (no PII scanning or encryption) |
-| `openobscure-proxy service install` | Install as a background service (launchd on macOS, systemd on Linux) |
-| `openobscure-proxy service start` | Start the installed background service |
-| `openobscure-proxy service stop` | Stop the background service |
-| `openobscure-proxy service stop --passthrough` | Stop the managed service and immediately start passthrough |
-| `openobscure-proxy service status` | Check background service status |
-| `openobscure-proxy service uninstall` | Remove the background service |
+| `openobscure serve` | Start the proxy (default if no subcommand given) |
+| `openobscure key-rotate` | Rotate the FPE encryption key (zero-downtime, 30s overlap window) |
+| `openobscure passthrough` | Run in passthrough mode (no PII scanning or encryption) |
+| `openobscure service install` | Install as a background service (launchd on macOS, systemd on Linux) |
+| `openobscure service start` | Start the installed background service |
+| `openobscure service stop` | Stop the background service |
+| `openobscure service stop --passthrough` | Stop the managed service and immediately start passthrough |
+| `openobscure service status` | Check background service status |
+| `openobscure service uninstall` | Remove the background service |
 
 ---
 
 ## Passthrough Mode
 
 ```bash
-openobscure-proxy passthrough
+openobscure passthrough
 ```
 
 Starts a lightweight HTTP relay on the same port that forwards requests directly to upstream providers — **every PII protection feature is disabled:**
@@ -189,7 +189,7 @@ L0 protects its health endpoint with a shared secret. L1 uses this secret for he
 
 ```bash
 TOKEN=$(openssl rand -hex 32)
-OPENOBSCURE_AUTH_TOKEN=$TOKEN ./openobscure-proxy serve
+OPENOBSCURE_AUTH_TOKEN=$TOKEN ./openobscure serve
 
 mkdir -p ~/.openobscure
 echo -n "$TOKEN" > ~/.openobscure/.auth-token

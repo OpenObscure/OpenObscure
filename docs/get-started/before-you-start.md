@@ -214,7 +214,7 @@ The plugin's `register(api)` function registers two hooks:
 
 Both hooks **must be invoked synchronously** by the host agent. The handler receives a value, modifies it, and returns the modified value. The framework is expected to use the returned value — not the original — for the next step in its pipeline.
 
-This synchronous contract is not incidental. `redactPiiWithNer()`, the NER-enhanced redaction path, calls the L0 proxy's `/ner` endpoint via `execFileSync("curl", ...)`. A synchronous I/O call inside an async handler would return a `Promise` instead of a `ToolResult`, and any framework that does not explicitly `await` that return value would silently discard the redacted result.
+This synchronous contract is not incidental. `redactPiiWithNer()`, the NER-enhanced redaction path, calls the L0 Core proxy's `/ner` endpoint via `execFileSync("curl", ...)`. A synchronous I/O call inside an async handler would return a `Promise` instead of a `ToolResult`, and any framework that does not explicitly `await` that return value would silently discard the redacted result.
 
 ### `tool_result_persist`: what breaks if the hook is async-only
 

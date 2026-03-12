@@ -19,28 +19,28 @@ jobs:
         include:
           - os: macos-14
             target: aarch64-apple-darwin
-            artifact: openobscure-proxy
+            artifact: openobscure
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: openobscure-proxy
+            artifact: openobscure
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: openobscure-proxy.exe
+            artifact: openobscure.exe
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: openobscure-proxy
+          workspaces: openobscure-core
 
       - name: Build release binary
-        run: cargo build --manifest-path openobscure-proxy/Cargo.toml --release
+        run: cargo build --manifest-path openobscure-core/Cargo.toml --release
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.target }}
-          path: openobscure-proxy/target/release/${{ matrix.artifact }}
+          path: openobscure-core/target/release/${{ matrix.artifact }}
 
   build-ios:
     name: Build iOS XCFramework
@@ -52,7 +52,7 @@ jobs:
           targets: aarch64-apple-ios,aarch64-apple-ios-sim
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: openobscure-proxy
+          workspaces: openobscure-core
 
       - name: Build iOS XCFramework
         run: ./build/build_ios.sh --release --xcframework
@@ -61,7 +61,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ios-xcframework
-          path: openobscure-proxy/target/OpenObscure.xcframework
+          path: openobscure-core/target/OpenObscure.xcframework
 
   generate-bindings:
     name: Generate UniFFI Bindings
@@ -71,7 +71,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: openobscure-proxy
+          workspaces: openobscure-core
 
       - name: Generate bindings
         run: ./build/generate_bindings.sh

@@ -2,7 +2,7 @@
 
 > **Role in OpenObscure:** The cognitive firewall scans LLM **responses** for manipulation techniques before they reach users, providing client-side enforcement of EU AI Act Article 5 prohibitions on subliminal/manipulative techniques. For the full system context, see [System Overview](system-overview.md).
 >
-> **Implementation:** `openobscure-proxy/src/response_integrity.rs` and related modules. For configuration, see [Config Reference](../configure/config-reference.md#response_integrity).
+> **Implementation:** `openobscure-core/src/response_integrity.rs` and related modules. For configuration, see [Config Reference](../configure/config-reference.md#response_integrity).
 
 ---
 

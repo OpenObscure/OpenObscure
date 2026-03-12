@@ -56,12 +56,12 @@ Scans tool result text for PII and replaces matches with `[REDACTED-*]` labels. 
 | Engine | When Used | PII Types | Latency |
 |--------|-----------|-----------|---------|
 | **Native addon** (`@openobscure/scanner-napi`) | Addon installed | 15 (regex + keywords + NER) | <5ms |
-| **L0 NER endpoint** (`POST /_openobscure/ner`) | L0 proxy running, no addon | 15 (semantic NER + regex merge) | ~15ms (HTTP) |
+| **L0 NER endpoint** (`POST /_openobscure/ner`) | L0 Core proxy running, no addon | 15 (semantic NER + regex merge) | ~15ms (HTTP) |
 | **JS regex** fallback | Neither available | 5 (CC, SSN, phone, email, API key) | ~0ms |
 
 The native addon wraps the same Rust HybridScanner that powers L0. Auto-detection happens once at module load via `require("@openobscure/scanner-napi")`. If the require fails, falls back silently.
 
-**NER model auto-discovery:** When the native addon is loaded, the redactor looks for NER model files at `../openobscure-proxy/models/ner/` relative to the addon's install location. If found, enables NER (person, location, org detection) for 15-type coverage.
+**NER model auto-discovery:** When the native addon is loaded, the redactor looks for NER model files at `../openobscure-core/models/ner/` relative to the addon's install location. If found, enables NER (person, location, org detection) for 15-type coverage.
 
 **JS Regex Fallback (5 types):**
 
@@ -113,7 +113,7 @@ All logging goes through a unified facade — no direct `console.*` calls outsid
 
 ### Cognitive Firewall (cognitive.ts)
 
-Embedded JS persuasion/manipulation scanner mirroring the L0 Rust `persuasion_dict.rs` + `response_integrity.rs` logic. Provides L1-level response integrity scanning without requiring the L0 proxy.
+Embedded JS persuasion/manipulation scanner mirroring the L0 Rust `persuasion_dict.rs` + `response_integrity.rs` logic. Provides L1-level response integrity scanning without requiring the L0 Core proxy.
 
 | Aspect | Detail |
 |--------|--------|

@@ -19,7 +19,7 @@ ONNX Runtime is auto-downloaded at build time — no manual installation require
 ## 1. Build the proxy
 
 ```bash
-cd openobscure-proxy
+cd openobscure-core
 cargo build --release
 ```
 
@@ -27,7 +27,7 @@ cargo build --release
 
 ```bash
 # Store a 256-bit AES key in your OS keychain
-./target/release/openobscure-proxy --init-key
+./target/release/openobscure --init-key
 ```
 
 **Headless / Docker alternative** (no keychain required):
@@ -53,7 +53,7 @@ git lfs pull
 ## 4. Start the proxy
 
 ```bash
-./target/release/openobscure-proxy serve
+./target/release/openobscure serve
 ```
 
 Listens on `127.0.0.1:18790` by default. Override config with `--config /path/to/file.toml`.

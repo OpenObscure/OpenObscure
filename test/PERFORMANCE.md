@@ -318,7 +318,7 @@ of magnitude (0ms vs ~164ms median) rather than the previous ~4 orders.
 
 ### L1 with NER Bridge (estimated)
 
-When `redactPiiWithNer()` calls the L0 proxy's NER endpoint:
+When `redactPiiWithNer()` calls the L0 Core proxy's NER endpoint:
 
 | Component | Estimated Latency | Notes |
 |---|---|---|

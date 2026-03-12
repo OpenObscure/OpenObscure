@@ -21,7 +21,7 @@ flowchart TB
         subgraph gateway ["AI Agent Gateway"]
             L1["L1 Plugin (in-process)"]
         end
-        subgraph l0proc ["L0 Proxy (Rust)"]
+        subgraph l0proc ["L0 Core (Rust)"]
         end
         gateway -- "HTTP (localhost)" --> l0proc
     end
@@ -53,8 +53,8 @@ When disabled, the host agent operates normally with direct LLM connections — 
 
 | Output | Cargo Target | Use Case |
 |--------|-------------|----------|
-| `openobscure-proxy` | `[[bin]]` | Standalone HTTP proxy |
-| `libopenobscure_proxy` | `[lib]` lib | Rust integration crate |
+| `openobscure-core` | `[[bin]]` | Standalone HTTP proxy |
+| `libopenobscure_core` | `[lib]` lib | Rust integration crate |
 
 ---
 
@@ -116,8 +116,8 @@ flowchart TB
 
 | Output | Cargo Target | Use Case |
 |--------|-------------|----------|
-| `libopenobscure_proxy.a` | `[lib]` staticlib | iOS static library |
-| `libopenobscure_proxy.so` | `[lib]` cdylib | Android shared library |
+| `libopenobscure_core.a` | `[lib]` staticlib | iOS static library |
+| `libopenobscure_core.so` | `[lib]` cdylib | Android shared library |
 
 The `mobile` feature flag enables UniFFI bindings. The binary target always compiles the full server; the library target can exclude server deps via feature flags.
 

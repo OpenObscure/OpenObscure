@@ -35,7 +35,7 @@ case "$TIER" in
        ;;
 esac
 
-PROXY_DIR="$(cd "$(dirname "$0")/../openobscure-proxy" && pwd)"
+PROXY_DIR="$(cd "$(dirname "$0")/../openobscure-core" && pwd)"
 MODELS_DIR="$PROXY_DIR/models"
 
 BLAZEFACE_DIR="$MODELS_DIR/blazeface"

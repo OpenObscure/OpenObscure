@@ -22,7 +22,7 @@ index 33fbee7c..60cad710 100644
  -keep class com.auth0.jwt.** { *; }
 +
 +# OpenObscure UniFFI bindings + JNA
-+-keep class uniffi.openobscure_proxy.** { *; }
++-keep class uniffi.openobscure_core.** { *; }
 +-keep class com.sun.jna.** { *; }
 diff --git a/app/src/main/java/me/rerere/rikkahub/RikkaHubApp.kt b/app/src/main/java/me/rerere/rikkahub/RikkaHubApp.kt
 index 88e97f95..ba05112e 100644

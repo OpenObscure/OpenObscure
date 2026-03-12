@@ -10,7 +10,7 @@ For tier definitions and hardware detection, see [Deployment Tiers](../get-start
 
 ## Adding a New Feature (Checklist)
 
-1. Add `<feature>_enabled: bool` field to `FeatureBudget` struct in `openobscure-proxy/src/device_profile.rs`
+1. Add `<feature>_enabled: bool` field to `FeatureBudget` struct in `openobscure-core/src/device_profile.rs`
 2. Set it per-tier in all **6 budget arms**: 3 in `budget_for_gateway()` + 3 in `budget_for_embedded()`
 3. Gate initialization in `main.rs` using: `if config.<feature>.enabled && budget.<feature>_enabled { ... }`
 4. Add the field name to `GATED_FEATURES` in `test_feature_gate_registry_parity` (same file)

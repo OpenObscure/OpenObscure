@@ -5,7 +5,7 @@ package your.app.package
 
 import android.content.Context
 import android.util.Log
-import uniffi.openobscure_proxy.*
+import uniffi.openobscure_core.*
 import java.io.File
 
 object OpenObscureManager {
@@ -58,7 +58,7 @@ object OpenObscureManager {
 
     /** Scan LLM response for persuasion/manipulation (cognitive firewall). */
     fun scanResponse(text: String): RiReportFfi? {
-        return uniffi.openobscure_proxy.scanResponse(handle, text)
+        return uniffi.openobscure_core.scanResponse(handle, text)
     }
 
     /** Reset mappings when starting a new conversation. */

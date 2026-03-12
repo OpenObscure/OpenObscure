@@ -28,9 +28,9 @@
   <rect x="320" y="132" width="200" height="40" rx="4" fill="#9D7BED" stroke="#232F3E" stroke-width="1"/>
   <text x="420" y="157" font-size="12" fill="#fff" text-anchor="middle">Heartbeat Monitor</text>
 
-  <!-- L0 Proxy subgraph  (top=240, bottom=326) -->
+  <!-- L0 Core proxy subgraph  (top=240, bottom=326) -->
   <rect x="30" y="240" width="540" height="86" rx="6" fill="#e6f3f7" stroke="#545b64" stroke-width="1.5" stroke-dasharray="6,4"/>
-  <text x="300" y="258" font-size="11" fill="#232F3E" text-anchor="middle" font-weight="600">L0 Proxy — 127.0.0.1:18790</text>
+  <text x="300" y="258" font-size="11" fill="#232F3E" text-anchor="middle" font-weight="600">L0 Core proxy — 127.0.0.1:18790</text>
 
   <!-- Scan + Image Pipeline + FPE Encrypt  (top=268, bottom=316) -->
   <rect x="48" y="268" width="235" height="48" rx="4" fill="#545b64" stroke="#232F3E" stroke-width="1"/>

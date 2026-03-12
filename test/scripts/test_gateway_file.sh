@@ -70,7 +70,7 @@ else
 fi
 if [[ -z "$HEALTH" ]]; then
   echo "Error: Proxy not reachable at $PROXY_URL"
-  echo "Start the proxy: OPENOBSCURE_MASTER_KEY=\$(openssl rand -hex 32) ./target/release/openobscure-proxy --config test/config/test_fpe.toml serve"
+  echo "Start the proxy: OPENOBSCURE_MASTER_KEY=\$(openssl rand -hex 32) ./target/release/openobscure-core --config test/config/test_fpe.toml serve"
   exit 1
 fi
 

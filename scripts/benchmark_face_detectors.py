@@ -10,7 +10,7 @@ Neither model is modified. This script is evaluation-only.
 
 Usage:
     python scripts/benchmark_face_detectors.py \
-        --blazeface-model openobscure-proxy/models/blazeface/blazeface.onnx \
+        --blazeface-model openobscure-core/models/blazeface/blazeface.onnx \
         --ultralight-model path/to/ultra_light_320.onnx \
         --images-dir docs/examples/images/
 
@@ -308,8 +308,8 @@ def main():
     )
     parser.add_argument(
         "--blazeface-model",
-        default="openobscure-proxy/models/blazeface/blazeface.onnx",
-        help="Path to BlazeFace ONNX model (default: openobscure-proxy/models/blazeface/blazeface.onnx)",
+        default="openobscure-core/models/blazeface/blazeface.onnx",
+        help="Path to BlazeFace ONNX model (default: openobscure-core/models/blazeface/blazeface.onnx)",
     )
     parser.add_argument(
         "--ultralight-model",

@@ -16,7 +16,7 @@
         "instance_type": "t3.medium",
         "private_ip": "10.0.0.55",
         "tags": {
-          "Name": "openobscure-proxy",
+          "Name": "openobscure-core",
           "Admin": "admin@meridian-tech.com",
           "AdminPhone": "415-555-0132"
         },
@@ -38,7 +38,7 @@
     },
     "aws_security_group": {
       "proxy_sg": {
-        "name": "openobscure-proxy-sg",
+        "name": "openobscure-core-sg",
         "ingress": [
           {
             "from_port": 443,

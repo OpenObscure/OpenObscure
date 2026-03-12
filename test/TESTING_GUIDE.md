@@ -29,7 +29,7 @@
 OpenObscure supports two deployment models for PII detection. The key difference
 for testing is how PII is redacted in the output files:
 
-| Aspect | Gateway (L0 Proxy) | Embedded (L1 Plugin) |
+| Aspect | Gateway (L0 Core) | Embedded (L1 Plugin) |
 |--------|-------------------|---------------------|
 | **Runtime** | Standalone Rust binary | In-process TypeScript/Node.js |
 | **Default Port** | `127.0.0.1:18790` | N/A (library call) |
@@ -104,7 +104,7 @@ the encrypted request body before the proxy can decrypt it.
                                   │    through       │
                                   ▼                  ▼
                          ┌────────────────────────────────────────┐
-                         │         L0 Proxy (port 18790)          │
+                         │         L0 Core (port 18790)          │
                          │                                        │
                          │  Scanner: regex + keywords + NER/CRF   │
                          │  FPE: FF1-AES256 encrypt on outbound   │
@@ -175,7 +175,7 @@ This preserves the original JSON structure with PII values encrypted in-place.
 ### Build the Proxy
 
 ```bash
-cargo build --release --manifest-path openobscure-proxy/Cargo.toml
+cargo build --release --manifest-path openobscure-core/Cargo.toml
 ```
 
 ### Build the Plugin
@@ -205,7 +205,7 @@ node test/scripts/echo_server.mjs
 
 # Terminal 2: Proxy — uses test config routing to echo server
 OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
-  ./target/release/openobscure-proxy --config test/config/test_fpe.toml serve
+  ./target/release/openobscure --config test/config/test_fpe.toml serve
 # Output: Listening on 127.0.0.1:18790
 
 # Terminal 3: Run test scripts
@@ -441,7 +441,7 @@ console.log(result.text.substring(0, 500));
 ### Embedded: With NER Bridge
 
 ```javascript
-// Requires L0 proxy running for NER endpoint
+// Requires L0 Core proxy running for NER endpoint
 import { redactPiiWithNer } from "openobscure-plugin/core";
 import { readFileSync } from "fs";
 
@@ -962,7 +962,7 @@ sourcing and formatting test data for each category.
 ```bash
 # Start proxy + echo server if not running
 OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
-  ./target/release/openobscure-proxy --config test/config/test_fpe.toml serve &
+  ./target/release/openobscure --config test/config/test_fpe.toml serve &
 node test/scripts/echo_server.mjs &
 
 # Run gateway tests (processes all input files)
@@ -1278,7 +1278,7 @@ have dedicated scripts). No script changes needed.
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
-| `Connection refused` on 18790 | Proxy not running | `OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) ./target/release/openobscure-proxy --config test/config/test_fpe.toml serve` |
+| `Connection refused` on 18790 | Proxy not running | `OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) ./target/release/openobscure --config test/config/test_fpe.toml serve` |
 | `Connection refused` on 18791 | Echo server not running | `node test/scripts/echo_server.mjs` (or let `test_gateway_all.sh` auto-start it) |
 | `401 Unauthorized` | Auth token mismatch | Add `-H "X-OpenObscure-Token: $(cat ~/.openobscure/.auth-token)"` or set `AUTH_TOKEN` env var |
 | `413 Payload Too Large` | Text exceeds 64KB | Scripts auto-truncate; for manual tests, split large files |

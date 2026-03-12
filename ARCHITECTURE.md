@@ -57,7 +57,7 @@ For full comparison — API surface, build artifacts, platform support, and runn
 
 | Layer | Language | Why |
 |-------|----------|-----|
-| **L0 Proxy** | Rust | Sits in the hot path of every LLM request — low latency and predictable memory are non-negotiable. Rust's ownership model enforces the 275MB RAM ceiling without GC pauses. ONNX model inference (face detection, OCR, NER) and audio keyword spotting require efficient memory management with multiple models loaded simultaneously. Cross-compiles to mobile targets (iOS/Android) via UniFFI-generated Swift/Kotlin bindings. |
+| **L0 Core** | Rust | Sits in the hot path of every LLM request — low latency and predictable memory are non-negotiable. Rust's ownership model enforces the 275MB RAM ceiling without GC pauses. ONNX model inference (face detection, OCR, NER) and audio keyword spotting require efficient memory management with multiple models loaded simultaneously. Cross-compiles to mobile targets (iOS/Android) via UniFFI-generated Swift/Kotlin bindings. |
 | **L1 Plugin** | TypeScript | Runs in-process inside the host agent's runtime. OpenClaw (primary integration) is Node.js/TypeScript — same language means direct hook access (`tool_result_persist`, `before_tool_call`) with no FFI or IPC overhead. When `@openobscure/scanner-napi` is installed, auto-upgrades to the Rust HybridScanner for 15-type detection without requiring L0. Falls back to regex-only otherwise. |
 | **L2 Storage** | Rust | Shares the L0 crate ecosystem. AES-256-GCM encryption and Argon2id KDF benefit from Rust's constant-time cryptography crates. |
 
@@ -65,9 +65,9 @@ For full comparison — API surface, build artifacts, platform support, and runn
 
 ## Layer Details
 
-### L0 — Rust PII Proxy (`openobscure-proxy/`)
+### L0 — Rust Core (`openobscure-core/`)
 
-The **hard enforcement** layer. Sits between the host agent and LLM providers as an HTTP reverse proxy. Every API request passes through it when the agent's `base_url` is correctly configured — see [gateway quick start](docs/get-started/gateway-quick-start.md) for verification.
+The **hard enforcement** layer. In the **Gateway model**, sits between the host agent and LLM providers as an HTTP reverse proxy — every API request passes through it when the agent's `base_url` is correctly configured (see [gateway quick start](docs/get-started/gateway-quick-start.md)). In the **Embedded model**, the same Rust core compiles as a native library (`.a` for iOS, `.so` for Android) and is called directly via UniFFI-generated Swift/Kotlin bindings — no HTTP server, no sockets, same detection engines.
 
 | Aspect | Detail |
 |--------|--------|
@@ -83,7 +83,7 @@ The **hard enforcement** layer. Sits between the host agent and LLM providers as
 | **Resource** | Tier-dependent: ~12MB (Lite/regex-only), ~67MB (Standard/NER), ~224MB peak (Full/image processing); 2.7MB binary |
 | **Tests** | 1,677 (742 lib + 935 bin) |
 | **Deployment** | Gateway Model: standalone binary. Embedded Model: static/shared library with UniFFI bindings (Swift/Kotlin). |
-| **Docs** | [L0 Proxy Architecture](docs/architecture/l0-proxy.md) |
+| **Docs** | [L0 Core Architecture](docs/architecture/l0-core.md) |
 
 ### L1 — Gateway Plugin (`openobscure-plugin/`)
 
@@ -249,7 +249,7 @@ sequenceDiagram
 
     participant T as Agent Tools
     participant G as AI Agent Gateway
-    participant P as L0 Proxy (127.0.0.1)
+    participant P as L0 Core proxy (127.0.0.1)
     participant L as LLM Providers
 
     rect rgb(230, 243, 247)
@@ -273,7 +273,7 @@ sequenceDiagram
 | Step | What happens |
 |------|-------------|
 | **1** | Agent tool results (web scrapes, file reads, API responses) enter the Gateway. L1 Plugin intercepts synchronously — scans and redacts PII before the result is stored in the transcript. |
-| **2** | Gateway forwards the outbound LLM request to L0 Proxy over local HTTP. L0 runs the hybrid scanner (regex → keywords → NER/CRF), processes any base64-encoded images (NSFW → face → OCR → EXIF strip), and FF1-encrypts all matched PII. |
+| **2** | Gateway forwards the outbound LLM request to the L0 Core proxy over local HTTP. L0 Core runs the hybrid scanner (regex → keywords → NER/CRF), processes any base64-encoded images (NSFW → face → OCR → EXIF strip), and FF1-encrypts all matched PII. |
 | **3** | L0 forwards the sanitized request to the LLM provider over HTTPS — no plaintext PII leaves the device. |
 | **4** | LLM response returns to L0. FPE ciphertexts are decrypted back to original values. Response is scanned by the cognitive firewall (R1 dictionary + R2 TinyBERT) for manipulation patterns. |
 | **5** | L0 returns the labeled response to the Gateway. If the cognitive firewall flagged anything, a warning label is attached per EU AI Act Article 5 — prepended for non-streaming, appended for SSE streaming. |
@@ -359,7 +359,7 @@ OpenObscure uses **hardware capability detection** (`device_profile` module) to 
 
 Budget is **20% of device RAM, clamped to [12MB, 275MB]**. The same tier thresholds apply — a phone with 6GB RAM runs Standard tier at a ~200MB ceiling; a phone with 3GB RAM runs Lite at ~80MB. No separate proxy process — the library shares the host app's memory space.
 
-See `openobscure-proxy/src/device_profile.rs` for full tier logic and per-component breakdown.
+See `openobscure-core/src/device_profile.rs` for full tier logic and per-component breakdown.
 
 ## Roadmap
 
@@ -374,7 +374,7 @@ OpenObscure/
 ├── docs/integrate/embedding/    Embedding in third-party apps (guide, examples, templates)
 ├── build/                       Build scripts (iOS, Android, NAPI, model downloads, bindings)
 ├── test/                        Test apps (iOS/Android), PII corpus, test runners
-├── openobscure-proxy/           L0: Rust PII proxy + embedded mobile library (see ARCHITECTURE.md inside)
+├── openobscure-core/           L0: Rust PII proxy + embedded mobile library (see ARCHITECTURE.md inside)
 ├── openobscure-plugin/          L1: Gateway plugin (TypeScript, see ARCHITECTURE.md inside)
 ├── openobscure-crypto/          L2: Encrypted storage (AES-256-GCM + Argon2id)
 ├── openobscure-napi/            NAPI native scanner addon (Rust via napi-rs)
@@ -405,7 +405,7 @@ OpenObscure must be **invisible when working, clear when not**.
 
 **Design principle:** Warn, don't block. L1's role is explanation, not enforcement — L0 being down already blocks LLM requests since traffic routes through the proxy.
 
-**Auth:** L0 generates a 32-byte hex token at `~/.openobscure/.auth-token` (0600). L1 sends it via `X-OpenObscure-Token` header on every heartbeat. See `openobscure-proxy/ARCHITECTURE.md` for monitoring architecture details.
+**Auth:** L0 generates a 32-byte hex token at `~/.openobscure/.auth-token` (0600). L1 sends it via `X-OpenObscure-Token` header on every heartbeat. See `openobscure-core/ARCHITECTURE.md` for monitoring architecture details.
 
 ## Logging
 

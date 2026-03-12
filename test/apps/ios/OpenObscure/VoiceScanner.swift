@@ -10,7 +10,7 @@ import Foundation
 import Speech
 
 /// PII trigger phrases to bias speech recognition toward.
-/// Matches the keyword set from `openobscure-proxy/models/kws/keywords.txt`.
+/// Matches the keyword set from `openobscure-core/models/kws/keywords.txt`.
 let piiContextualStrings: [String] = [
     "social security", "social security number",
     "credit card", "credit card number", "card number",

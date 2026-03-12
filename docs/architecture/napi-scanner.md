@@ -1,6 +1,6 @@
 # NAPI Scanner Architecture
 
-> **Role in OpenObscure:** The NAPI addon is an **optional accelerator** for the L1 TypeScript plugin. When `@openobscure/scanner-napi` is installed, `redactPii()` automatically upgrades from JS regex (5 types) to the Rust HybridScanner (15 types) — the same engine that powers the L0 proxy. For the full system context, see [System Overview](system-overview.md).
+> **Role in OpenObscure:** The NAPI addon is an **optional accelerator** for the L1 TypeScript plugin. When `@openobscure/scanner-napi` is installed, `redactPii()` automatically upgrades from JS regex (5 types) to the Rust HybridScanner (15 types) — the same engine that powers the L0 Core proxy. For the full system context, see [System Overview](system-overview.md).
 
 ---
 
@@ -87,15 +87,15 @@ NativeScanner = mod.OpenObscureScanner;
 
 If the require succeeds, all `redactPii()` calls use the native scanner. If it fails (addon not installed), falls back silently to JS regex. No configuration needed.
 
-NER model auto-discovery: the plugin looks for model files at `../openobscure-proxy/models/ner/` relative to the addon's install path.
+NER model auto-discovery: the plugin looks for model files at `../openobscure-core/models/ner/` relative to the addon's install path.
 
 ## Technology Stack
 
 | Component | Choice | Why |
 |-----------|--------|-----|
 | Bridge | napi-rs 2.x | Zero-copy Node.js ↔ Rust, auto-generates TS type definitions |
-| Scanner | openobscure-proxy (path dependency) | Shares exact same HybridScanner as L0 proxy |
-| NER | ort 2.0 (ONNX Runtime) via openobscure-proxy | TinyBERT INT8, loaded on demand |
+| Scanner | openobscure-core (path dependency) | Shares exact same HybridScanner as L0 Core proxy |
+| NER | ort 2.0 (ONNX Runtime) via openobscure-core | TinyBERT INT8, loaded on demand |
 | Release profile | `opt-level = "s"`, LTO, strip | Minimal binary size |
 
 ## Supported Platforms

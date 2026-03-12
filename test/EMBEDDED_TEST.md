@@ -32,7 +32,7 @@
 
 ```bash
 # Build with mobile feature
-cargo build --manifest-path openobscure-proxy/Cargo.toml \
+cargo build --manifest-path openobscure-core/Cargo.toml \
   --lib --features mobile --release
 ```
 
@@ -41,7 +41,7 @@ cargo build --manifest-path openobscure-proxy/Cargo.toml \
 ## 1. Text PII Sanitization & Restore
 
 ```rust
-use openobscure_proxy::lib_mobile::{MobileConfig, OpenObscureMobile};
+use openobscure_core::lib_mobile::{MobileConfig, OpenObscureMobile};
 
 // In production: load key from iOS Keychain / Android Keystore
 let fpe_key = [0x42u8; 32];
@@ -252,7 +252,7 @@ MobileBindingError
 
 ## 6. NAPI Native Addon (Node.js Embedded Alternative)
 
-For Node.js/TypeScript agents, the NAPI addon provides embedded-style PII scanning without a running proxy. It wraps the same Rust HybridScanner as the L0 proxy, giving 15-type detection in-process.
+For Node.js/TypeScript agents, the NAPI addon provides embedded-style PII scanning without a running proxy. It wraps the same Rust HybridScanner as the L0 Core proxy, giving 15-type detection in-process.
 
 ### Build
 

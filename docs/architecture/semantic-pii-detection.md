@@ -2,7 +2,7 @@
 
 > **Role in OpenObscure:** The HybridScanner is the **text PII detection core** of L0. It orchestrates four detection engines — regex, keywords, NER, and CRF — in sequence, merges their results with confidence voting, and produces a unified match list for FPE encryption. For the full system context, see [System Overview](system-overview.md).
 >
-> **Implementation:** `openobscure-proxy/src/hybrid_scanner.rs` and related modules. For module-level details, see [L0 Proxy Architecture](l0-proxy.md).
+> **Implementation:** `openobscure-core/src/hybrid_scanner.rs` and related modules. For module-level details, see [L0 Core Architecture](l0-core.md).
 
 ---
 

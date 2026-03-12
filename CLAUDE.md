@@ -7,11 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Test Commands
 
 ```bash
-# L0 Proxy (Rust) — the core component
-cd openobscure-proxy
+# L0 Core (Rust) — the core component
+cd openobscure-core
 cargo build --release                        # Build release binary
 cargo test --lib --all-features              # Unit + integration tests (lib target)
-cargo test --bin openobscure-proxy           # Binary tests (server-dependent)
+cargo test --bin openobscure                 # Binary tests (server-dependent)
 cargo test --lib --all-features -- test_name # Run a single test
 cargo fmt --check                            # Format check
 cargo clippy --all-features -- -D warnings   # Lint
@@ -28,15 +28,15 @@ cd openobscure-crypto && cargo test
 # NAPI addon (native bridge for L1)
 cd openobscure-napi && npm run build
 
-# Run the proxy
-./openobscure-proxy/target/release/openobscure-proxy serve
+# Run the gateway
+./openobscure-core/target/release/openobscure serve
 ```
 
 ## Architecture
 
 On-device privacy firewall for AI agents. Three layers, two deployment models:
 
-- **L0 — `openobscure-proxy/`** (Rust): HTTP reverse proxy that intercepts LLM traffic. Detects PII with 4-engine ensemble (regex → keywords → NER/CRF → gazetteer), encrypts with FF1 FPE, processes images (NSFW/face/OCR), scans responses for manipulation. This is the bulk of the codebase.
+- **L0 — `openobscure-core/`** (Rust): PII detection and encryption layer. In Gateway mode acts as HTTP reverse proxy intercepting LLM traffic; in Embedded mode compiles as a native library. Detects PII with 4-engine ensemble (regex → keywords → NER/CRF → gazetteer), encrypts with FF1 FPE, processes images (NSFW/face/OCR), scans responses for manipulation. This is the bulk of the codebase.
 - **L1 — `openobscure-plugin/`** (TypeScript): In-process plugin for the host agent. Catches PII in tool results (web scrapes, file reads) that bypass the proxy. Optional NAPI addon (`openobscure-napi/`) upgrades JS regex (5 types) to Rust HybridScanner (15 types).
 - **L2 — `enterprise/openobscure-crypto/`** (Rust): AES-256-GCM encrypted storage with Argon2id KDF. Enterprise-only.
 

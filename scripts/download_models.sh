@@ -16,7 +16,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
-MODELS_DIR="$ROOT_DIR/openobscure-proxy/models"
+MODELS_DIR="$ROOT_DIR/openobscure-core/models"
 
 # ── Main ─────────────────────────────────────────────────────────────────────
 

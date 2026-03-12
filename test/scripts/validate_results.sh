@@ -526,7 +526,7 @@ if [[ "$RUN_TESTS" == "true" ]]; then
     echo ""
     echo "Start the proxy first:"
     echo "  OPENOBSCURE_CONFIG=test/config/test_fpe.toml \\"
-    echo "    ./openobscure-proxy/target/debug/openobscure-proxy serve"
+    echo "    ./openobscure-core/target/debug/openobscure-core serve"
     exit 1
   fi
 

@@ -4,13 +4,13 @@ Get the proxy running in under 2 minutes.
 
 ```bash
 # 1. Build
-cd openobscure-proxy && cargo build --release
+cd openobscure-core && cargo build --release
 
 # 2. Generate an FPE key — stored in your OS keychain (first time only)
-./target/release/openobscure-proxy --init-key
+./target/release/openobscure-core --init-key
 
 # 3. Start
-./target/release/openobscure-proxy serve
+./target/release/openobscure-core serve
 
 # 4. Point your agent at the proxy — change one line:
 #    base_url = "http://127.0.0.1:18790/openai"   # was: https://api.openai.com

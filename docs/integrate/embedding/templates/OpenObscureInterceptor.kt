@@ -9,7 +9,7 @@ import okhttp3.Interceptor
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okio.Buffer
-import uniffi.openobscure_proxy.*
+import uniffi.openobscure_core.*
 
 class OpenObscureInterceptor : Interceptor {
 

@@ -97,7 +97,7 @@ assert(p2.text.includes("[REDACTED-EMAIL]"), "Email redacted");
 assert(p2.text.includes("[REDACTED-CC]"), "CC redacted");
 
 // ── Test 3: NER auto-detection ───────────────────────────────────────
-const nerDir = resolve(ROOT, "openobscure-proxy/models/ner");
+const nerDir = resolve(ROOT, "openobscure-core/models/ner");
 if (existsSync(resolve(nerDir, "model_int8.onnx")) || existsSync(resolve(nerDir, "model.onnx"))) {
   console.log("\n▶ NER auto-detection");
 

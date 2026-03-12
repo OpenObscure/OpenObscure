@@ -1,6 +1,6 @@
 # OpenObscure — Semantic PII Detection Architecture
 
-> NER/CRF subsystem within the L0 Rust proxy. See [ARCHITECTURE.md](../openobscure-proxy/ARCHITECTURE.md) for the full proxy architecture.
+> NER/CRF subsystem within the L0 Rust Core. See [ARCHITECTURE.md](../openobscure-core/ARCHITECTURE.md) for the full proxy architecture.
 
 ---
 

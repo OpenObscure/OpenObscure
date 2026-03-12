@@ -265,10 +265,10 @@ dmesg | grep -i "out of memory\|oom_kill\|openobscure"
 journalctl -u openobscure --since "1 hour ago" | grep -i "kill\|oom\|signal"
 
 # macOS — check unified log
-log show --predicate 'process == "openobscure-proxy"' --last 1h | grep -i "kill\|crash"
+log show --predicate 'process == "openobscure"' --last 1h | grep -i "kill\|crash"
 ```
 
-An OOM kill shows as `Killed process <pid> (openobscure-proxy) total-vm:...` in dmesg.
+An OOM kill shows as `Killed process <pid> (openobscure) total-vm:...` in dmesg.
 
 ### Step 3: Read the startup warning for incomplete journal entries
 
@@ -380,7 +380,7 @@ rm -f ~/.openobscure/crash.buf
 Restart the proxy and confirm startup succeeds without incomplete-entry warnings:
 
 ```bash
-openobscure-proxy serve 2>&1 | grep -i "incomplete\|crash\|recovered"
+openobscure serve 2>&1 | grep -i "incomplete\|crash\|recovered"
 ```
 
 No output from this grep means the journal is clean.

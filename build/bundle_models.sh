@@ -11,7 +11,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-MODELS_SRC="$SCRIPT_DIR/../openobscure-proxy/models"
+MODELS_SRC="$SCRIPT_DIR/../openobscure-core/models"
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <output_dir>"

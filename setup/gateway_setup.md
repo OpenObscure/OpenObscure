@@ -55,11 +55,11 @@ In addition to the [common prerequisites](README.md):
 This compiles OpenObscure from source. It will take a few minutes on the first build.
 
 ```bash
-cd ~/Desktop/OpenObscure/openobscure-proxy
+cd ~/Desktop/OpenObscure/openobscure-core
 cargo build --release
 ```
 
-When it finishes without errors, the proxy is ready. The compiled program is at `target/release/openobscure-proxy`.
+When it finishes without errors, the proxy is ready. The compiled program is at `target/release/openobscure-core`.
 
 ### Step 2 — Generate Your Encryption Key
 
@@ -147,16 +147,16 @@ Discord ──► OpenClaw ──► OpenObscure (:18790) ──► Ollama (:114
 ### Step 4 — Start the Privacy Proxy
 
 ```bash
-cd ~/Desktop/OpenObscure/openobscure-proxy
+cd ~/Desktop/OpenObscure/openobscure-core
 cargo run --release -- -c config/openobscure.toml
 ```
 
 You should see output like:
 
 ```
-INFO openobscure_proxy: Listening on 127.0.0.1:18790
-INFO openobscure_proxy: Device tier: full
-INFO openobscure_proxy: FPE engine ready
+INFO openobscure_core: Listening on 127.0.0.1:18790
+INFO openobscure_core: Device tier: full
+INFO openobscure_core: FPE engine ready
 ```
 
 **Leave this Terminal window open.** The proxy needs to keep running.
@@ -934,7 +934,7 @@ Then try the command again. If this keeps happening every time you open a new Te
 See [FPE Configuration](../docs/configure/fpe-configuration.md) for key generation, storage, and rotation details. Quick fix — run the key generation again:
 
 ```bash
-cd ~/Desktop/OpenObscure/openobscure-proxy
+cd ~/Desktop/OpenObscure/openobscure-core
 cargo run --release -- --init-key
 ```
 
@@ -1203,7 +1203,7 @@ ollama serve
 
 **Terminal 2 — Start the proxy:**
 ```bash
-cd ~/Desktop/OpenObscure/openobscure-proxy
+cd ~/Desktop/OpenObscure/openobscure-core
 cargo run --release -- -c config/openobscure.toml
 ```
 
@@ -1217,7 +1217,7 @@ pnpm openclaw gateway
 
 **Terminal 1 — Start the proxy:**
 ```bash
-cd ~/Desktop/OpenObscure/openobscure-proxy
+cd ~/Desktop/OpenObscure/openobscure-core
 cargo run --release -- -c config/openobscure.toml
 ```
 

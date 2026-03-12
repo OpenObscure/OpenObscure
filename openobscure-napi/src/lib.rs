@@ -24,9 +24,9 @@ use std::sync::Mutex;
 
 use napi_derive::napi;
 
-use openobscure_proxy::hybrid_scanner::HybridScanner;
-use openobscure_proxy::ner_scanner::{NerPool, NerScanner};
-use openobscure_proxy::persuasion_dict::PersuasionDict;
+use openobscure_core::hybrid_scanner::HybridScanner;
+use openobscure_core::ner_scanner::{NerPool, NerScanner};
+use openobscure_core::persuasion_dict::PersuasionDict;
 
 /// Default NER confidence threshold (matches proxy default).
 const NER_CONFIDENCE_THRESHOLD: f32 = 0.5;

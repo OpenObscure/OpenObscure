@@ -11,7 +11,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$SCRIPT_DIR/../../.."
-PROXY_DIR="$PROJECT_DIR/openobscure-proxy"
+PROXY_DIR="$PROJECT_DIR/openobscure-core"
 BINDINGS_DIR="$PROJECT_DIR/bindings/swift"
 
 TARGET="simulator"
@@ -28,13 +28,13 @@ echo "=== Setting up iOS test package (target: $TARGET) ==="
 if [ "$TARGET" = "simulator" ]; then
     # For running tests on macOS host (swift test) or iOS Simulator
     # Use the macOS debug build (same architecture, runs natively)
-    LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_proxy.a"
+    LIB_PATH="$PROXY_DIR/target/debug/libopenobscure_core.a"
     if [ ! -f "$LIB_PATH" ]; then
         # Try simulator target
-        LIB_PATH="$PROXY_DIR/target/aarch64-apple-ios-sim/debug/libopenobscure_proxy.a"
+        LIB_PATH="$PROXY_DIR/target/aarch64-apple-ios-sim/debug/libopenobscure_core.a"
     fi
 else
-    LIB_PATH="$PROXY_DIR/target/aarch64-apple-ios/release/libopenobscure_proxy.a"
+    LIB_PATH="$PROXY_DIR/target/aarch64-apple-ios/release/libopenobscure_core.a"
 fi
 
 if [ ! -f "$LIB_PATH" ]; then
@@ -44,24 +44,24 @@ if [ ! -f "$LIB_PATH" ]; then
 fi
 
 # Check bindings exist
-if [ ! -f "$BINDINGS_DIR/openobscure_proxy.swift" ]; then
+if [ ! -f "$BINDINGS_DIR/openobscure_core.swift" ]; then
     echo "Error: Swift bindings not found at $BINDINGS_DIR/"
     echo "Run: build/generate_bindings.sh --swift-only first"
     exit 1
 fi
 
 # Copy FFI header to COpenObscure
-cp "$BINDINGS_DIR/openobscure_proxyFFI.h" "$SCRIPT_DIR/COpenObscure/"
+cp "$BINDINGS_DIR/openobscure_coreFFI.h" "$SCRIPT_DIR/COpenObscure/"
 echo "Copied FFI header"
 
 # Copy Swift bindings to OpenObscure target
-cp "$BINDINGS_DIR/openobscure_proxy.swift" "$SCRIPT_DIR/OpenObscure/"
+cp "$BINDINGS_DIR/openobscure_core.swift" "$SCRIPT_DIR/OpenObscure/"
 echo "Copied Swift bindings"
 
 # Copy static library to a known location for linking
 mkdir -p "$SCRIPT_DIR/lib"
-cp "$LIB_PATH" "$SCRIPT_DIR/lib/libopenobscure_proxy.a"
-echo "Copied static library ($(du -h "$SCRIPT_DIR/lib/libopenobscure_proxy.a" | cut -f1))"
+cp "$LIB_PATH" "$SCRIPT_DIR/lib/libopenobscure_core.a"
+echo "Copied static library ($(du -h "$SCRIPT_DIR/lib/libopenobscure_core.a" | cut -f1))"
 
 echo ""
 echo "=== Setup complete ==="

@@ -6,7 +6,7 @@
 #
 # Usage:
 #   OPENOBSCURE_MASTER_KEY=$(openssl rand -hex 32) \
-#     ./target/release/openobscure-proxy --config test/config/test_fail_closed.toml serve
+#     ./target/release/openobscure-core --config test/config/test_fail_closed.toml serve
 
 [proxy]
 listen_addr = "127.0.0.1"
@@ -22,26 +22,26 @@ keychain_user = "fpe-master-key"
 
 [scanner]
 enabled = true
-ner_model_dir = "openobscure-proxy/models/ner"
+ner_model_dir = "openobscure-core/models/ner"
 skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
 
 [image]
 enabled = true
 face_detection = true
 face_model = "scrfd"
-face_model_dir_scrfd = "openobscure-proxy/models/scrfd"
-face_model_dir = "openobscure-proxy/models/blazeface"
+face_model_dir_scrfd = "openobscure-core/models/scrfd"
+face_model_dir = "openobscure-core/models/blazeface"
 ocr_enabled = true
-ocr_model_dir = "openobscure-proxy/models/paddleocr"
+ocr_model_dir = "openobscure-core/models/paddleocr"
 nsfw_detection = true
-nsfw_model_dir = "openobscure-proxy/models/nudenet"
+nsfw_model_dir = "openobscure-core/models/nudenet"
 screen_guard = true
 exif_strip = true
 
 [voice]
 enabled = true
-kws_model_dir = "openobscure-proxy/models/kws"
-kws_keywords_file = "openobscure-proxy/models/kws/keywords.txt"
+kws_model_dir = "openobscure-core/models/kws"
+kws_keywords_file = "openobscure-core/models/kws/keywords.txt"
 
 [logging]
 level = "info"
