@@ -256,13 +256,13 @@ Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/
 
 L0 detects base64-encoded images in JSON request bodies and runs them through a sequential pipeline before text scanning: NSFW classification (ViT-base 5-class) → face solid-fill redaction (SCRFD/BlazeFace) → OCR text solid-fill (PaddleOCR v4) → EXIF strip → re-encode. All redaction uses solid fill — original pixel data is destroyed and cannot be recovered.
 
-**Single face**
+**Child face — privacy protection**
 
 | Before | After |
 |--------|-------|
-| <img src="docs/examples/images/face-original.jpg" width="340" height="340"> | <img src="docs/examples/images/face-redacted.jpg" width="340" height="340"> |
+| <img src="docs/examples/images/child-original.jpg" width="340" height="340"> | <img src="docs/examples/images/child-redacted.jpg" width="340" height="340"> |
 
-SCRFD-2.5GF detects the face bounding box; a solid fill is applied before the image is re-encoded and forwarded.
+SCRFD-2.5GF detects the face bounding box and applies a solid fill, protecting children's identities before the image reaches any LLM provider.
 
 **Multiple faces**
 
