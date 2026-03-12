@@ -5,3 +5,4 @@
 - [Deployment Tiers](deployment-tiers.md) — Full, Standard, Lite — hardware auto-detection and feature gating
 - [Gateway Quick Start](gateway-quick-start.md) — build, run, and verify the proxy in 5 minutes
 - [Embedded Quick Start](embedded-quick-start.md) — build the native library, generate bindings, integrate
+- [Roadmap](roadmap.md) — current capability matrix and planned features

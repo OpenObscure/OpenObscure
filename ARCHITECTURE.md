@@ -250,7 +250,7 @@ Embedded budgets scale proportionally (20% of device RAM, clamped to [12MB, 275M
 
 ## Roadmap
 
-See [docs/reference/roadmap.md](docs/reference/roadmap.md) — current capability matrix (all 15 PII types, all platforms, all tiers) and planned features.
+See [docs/get-started/roadmap.md](docs/get-started/roadmap.md) — current capability matrix (all 15 PII types, all platforms, all tiers) and planned features.
 
 ## Project Layout
 

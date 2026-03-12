@@ -5,4 +5,6 @@
 - [Integrate](integrate/) — LLM provider setup, third-party app embedding
 - [Architecture](architecture/) — system overview, component internals
 - [Reference](reference/) — API types, PII coverage, config keys
+- [Operate](operate/) — crash recovery and operational diagnostics
+- [Test](test/) — accuracy tests, gateway/embedded verification, performance
 - [Contribute](contribute/) — dev workflow, feature gating protocol

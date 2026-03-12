@@ -13,7 +13,8 @@ OpenObscure is an open-source, on-device privacy firewall that intercepts AI age
 
 | I want to... | Start here |
 |--------------|------------|
-| **Try it now** | [Get Started](docs/get-started/) — build, run, and verify in 5 minutes |
+| **Install as an end user** | [Setup](setup/) — install OpenObscure with OpenClaw (Gateway) or as a mobile library (Embedded) |
+| **Try it as a developer** | [Get Started](docs/get-started/) — build, run, and verify in 5 minutes |
 | **Understand the architecture** | [Architecture](docs/architecture/system-overview.md) — system overview, data flow, design decisions |
 | **Configure** | [Configure](docs/configure/) — FPE, detection engines, full config reference |
 | **Integrate with my app** | [Integrate](docs/integrate/) — LLM providers, third-party embedding |
