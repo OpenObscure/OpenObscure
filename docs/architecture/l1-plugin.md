@@ -23,6 +23,17 @@ graph TD
     style Redactor fill:#9D7BED,stroke:#232F3E,color:#fff
 ```
 
+**Contents**
+
+- [Module Map](#module-map)
+- [Components](#components)
+- [Hook Design: tool_result_persist](#hook-design-tool_result_persist)
+- [Error Handling](#error-handling)
+- [Resource Budget](#resource-budget)
+- [Technology Stack](#technology-stack)
+- [Relationship to L0 (Rust Proxy)](#relationship-to-l0-rust-proxy)
+- [Generic Usage (without OpenClaw)](#generic-usage-without-openclaw)
+
 ## Module Map
 
 ```

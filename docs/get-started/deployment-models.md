@@ -4,6 +4,13 @@ OpenObscure runs **entirely on the user's device** — no remote servers, no clo
 
 ---
 
+**Contents**
+
+- [Gateway Model (Desktop / Server)](#gateway-model-desktop--server)
+- [Embedded Model (Mobile / Library)](#embedded-model-mobile--library)
+- [Comparison](#comparison)
+- [Next Steps](#next-steps)
+
 ## Gateway Model (Desktop / Server)
 
 The full-featured deployment. OpenObscure runs as a **sidecar HTTP proxy** on the same host as the AI agent's Gateway. Both layers are active.

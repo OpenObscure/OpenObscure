@@ -6,6 +6,21 @@ OpenObscure works with any AI agent or tool that makes HTTP requests to an LLM p
 
 ---
 
+**Contents**
+
+- [Supported Providers](#supported-providers)
+- [OpenAI](#openai)
+- [Anthropic](#anthropic)
+- [Google Gemini (via OpenRouter)](#google-gemini-via-openrouter)
+- [LangChain](#langchain)
+- [Environment Variable (Cursor, Aider, Continue, etc.)](#environment-variable-cursor-aider-continue-etc)
+- [curl](#curl)
+- [Ollama (Local LLMs)](#ollama-local-llms)
+- [Adding a Custom Provider](#adding-a-custom-provider)
+- [Common Patterns](#common-patterns)
+- [Wiring before_tool_call in Custom Agents](#wiring-before_tool_call-in-custom-agents)
+- [Next Steps](#next-steps)
+
 ## Supported Providers
 
 | Route Prefix | Upstream | Request Format | Response Format |

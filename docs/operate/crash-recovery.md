@@ -4,6 +4,19 @@ OpenObscure writes three crash artifacts that survive SIGKILL, OOM kills, and Ru
 
 ---
 
+**Contents**
+
+- [Artifacts Overview](#artifacts-overview)
+- [Enabling the Crash Buffer](#enabling-the-crash-buffer)
+- [Crash Buffer File Format](#crash-buffer-file-format)
+- [Request Journal File Format](#request-journal-file-format)
+- [Interpreting Incomplete Journal Entries](#interpreting-incomplete-journal-entries)
+- [Startup Warning Messages](#startup-warning-messages)
+- [False Positives: Ring Wrap](#false-positives-ring-wrap)
+- [Panic Marker](#panic-marker)
+- [Step-by-Step Diagnostic Workflow](#step-by-step-diagnostic-workflow)
+- [Summary of File Locations](#summary-of-file-locations)
+
 ## Artifacts Overview
 
 | Artifact | Path | Always present | Survives SIGKILL/OOM |

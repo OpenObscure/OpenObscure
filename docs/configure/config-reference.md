@@ -9,6 +9,19 @@ Complete reference for every key in `config/openobscure.toml`. All keys are opti
 
 ---
 
+**Contents**
+
+- [`[proxy]`](#proxy)
+- [`[fpe]`](#fpe)
+- [`[scanner]`](#scanner)
+- [`[image]`](#image)
+- [`[response_integrity]`](#response_integrity)
+- [`[voice]`](#voice)
+- [`[logging]`](#logging)
+- [`[providers.<name>]`](#providersname)
+- [Config Validation Failures](#config-validation-failures)
+- [Environment Variables](#environment-variables)
+
 ## `[proxy]`
 
 | Key | Type | Default | Description |

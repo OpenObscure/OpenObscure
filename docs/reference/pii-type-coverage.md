@@ -6,6 +6,14 @@ Source: [pii_types.rs](../../openobscure-proxy/src/pii_types.rs), [scanner.rs](.
 
 ---
 
+**Contents**
+
+- [Core PII Types](#core-pii-types)
+- [Multilingual PII Types](#multilingual-pii-types)
+- [Language Detection & Dispatch](#language-detection--dispatch)
+- [Protection Methods](#protection-methods)
+- [Detection Engine Summary](#detection-engine-summary)
+
 ## Core PII Types
 
 Detected in all languages. Defined in `PiiType` enum.

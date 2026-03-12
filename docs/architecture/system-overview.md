@@ -6,6 +6,18 @@ Everything runs locally. No cloud components, no telemetry, no external dependen
 
 ---
 
+**Contents**
+
+- [Two-Layer Defense-in-Depth](#two-layer-defense-in-depth)
+- [Data Flow](#data-flow)
+- [Detection Engines](#detection-engines)
+- [Resource Budget](#resource-budget)
+- [Authentication Model](#authentication-model)
+- [Key Design Decisions](#key-design-decisions)
+- [Host Agent Constraints (OpenClaw Reference)](#host-agent-constraints-openclaw-reference)
+- [Threat Model](#threat-model)
+- [Further Reading](#further-reading)
+
 ## Two-Layer Defense-in-Depth
 
 ```

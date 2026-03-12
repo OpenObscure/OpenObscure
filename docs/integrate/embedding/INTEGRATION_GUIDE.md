@@ -6,6 +6,21 @@ A step-by-step guide for integrating OpenObscure as a **native library** (embedd
 
 ---
 
+**Contents**
+
+- [Prerequisites](#prerequisites)
+- [Part 3: API Reference (All Platforms)](#part-3-api-reference-all-platforms)
+- [Part 4: iOS/macOS Integration (Swift)](#part-4-iosmacos-integration-swift)
+- [Part 5: Android Integration (Kotlin)](#part-5-android-integration-kotlin)
+- [Part 6: Feature Coverage](#part-6-feature-coverage)
+- [Part 6a: Bundling All Models (Recommended)](#part-6a-bundling-all-models-recommended)
+- [Part 6b: Adding NER Only (Minimal)](#part-6b-adding-ner-only-minimal)
+- [Part 6c: Cognitive Firewall (Response Integrity)](#part-6c-cognitive-firewall-response-integrity)
+- [Part 7: Testing Your Integration](#part-7-testing-your-integration)
+- [Part 8: Troubleshooting](#part-8-troubleshooting)
+- [Reference: Tested Third-Party Apps](#reference-tested-third-party-apps)
+- [Reference: Build Scripts](#reference-build-scripts)
+
 ## Prerequisites
 
 | Tool | iOS/macOS | Android |

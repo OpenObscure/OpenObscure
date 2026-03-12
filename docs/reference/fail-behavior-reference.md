@@ -6,6 +6,13 @@ Source files: `body.rs`, `proxy.rs`, `fpe_engine.rs`, `vault.rs`, `hybrid_scanne
 
 ---
 
+**Contents**
+
+- [Quick Reference Table](#quick-reference-table)
+- [Detailed Entries](#detailed-entries)
+- [L1 Plugin (TypeScript)](#l1-plugin-typescript)
+- [Health Endpoint Observable Counters](#health-endpoint-observable-counters)
+
 ## Quick Reference Table
 
 | Subsystem | Failure condition | Mode | HTTP status | Health stat incremented |

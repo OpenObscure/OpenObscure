@@ -63,6 +63,21 @@ flowchart LR
     linkStyle 2 stroke:#ff9900,stroke-width:3px
 ```
 
+**Contents**
+
+- [Module Map](#module-map)
+- [Request Flow](#request-flow)
+- [FPE (Format-Preserving Encryption)](#fpe-format-preserving-encryption)
+- [Authentication & Key Management](#authentication--key-management)
+- [Content-Type Handling](#content-type-handling)
+- [PII Statistics Logging](#pii-statistics-logging)
+- [Error Handling & Fail Mode](#error-handling--fail-mode)
+- [Provider Routing](#provider-routing)
+- [Resource Budget](#resource-budget)
+- [Memory Budget Enforcement](#memory-budget-enforcement)
+- [Technology Stack](#technology-stack)
+- [Deployment Modes](#deployment-modes)
+
 ## Module Map
 
 ```
@@ -88,7 +103,7 @@ src/
 ├── body.rs              Three-pass body processing: images → voice → text PII scanning
 ├── passthrough.rs       Lightweight passthrough proxy (no scanning, for benchmarking/testing)
 │
-│   ── Multilingual PII (Phase 10C) ──
+│   ── Multilingual PII ──
 ├── lang_detect.rs       Language detection via whatlang (9 languages, fallback to English)
 ├── multilingual/
 │   ├── mod.rs           Per-language pattern registry + scan dispatch
@@ -101,7 +116,7 @@ src/
 │   ├── ko.rs            Korean: RRN, phone (weighted mod 11)
 │   └── ar.rs            Arabic: national ID patterns, Gulf/Egypt phone formats
 │
-│   ── Visual PII (Phase 3) ──
+│   ── Visual PII ──
 ├── image_detect.rs      Base64 image detection in JSON (Anthropic + OpenAI formats)
 ├── image_fetch.rs       URL image fetch: download remote images for inline processing
 ├── image_pipeline.rs    ImageModelManager orchestrator: decode → resize → NSFW → classifier → face → OCR → encode
@@ -114,13 +129,13 @@ src/
 ├── detection_meta.rs    BboxMeta, NsfwMeta, ScreenshotMeta detection metadata types
 ├── detection_validators.rs  Detection verification framework (bbox sanity, NSFW consistency)
 │
-│   ── Voice PII (Phase 10D, `voice` feature) ──
+│   ── Voice PII ──
 ├── voice_detect.rs      Base64 audio detection in JSON (WAV/MP3/OGG/WebM MIME detection)
 ├── audio_decode.rs      Audio format decoding: WAV/MP3/OGG → PCM 16kHz mono (symphonia)
 ├── kws_engine.rs        KWS keyword spotting via sherpa-onnx Zipformer (~5MB INT8, PII trigger phrases)
 ├── voice_pipeline.rs    KWS-gated selective audio strip: detect PII trigger phrases → strip matching blocks
 │
-│   ── Response Integrity (Cognitive Firewall, Phases R1 + 12) ──
+│   ── Response Integrity (Cognitive Firewall) ──
 ├── persuasion_dict.rs    R1 dictionary (~250 phrases, 7 Cialdini categories, HashSet O(1) lookup)
 ├── response_integrity.rs R1→R2 cascade: sensitivity tiers, R2Role dispatch, severity computation
 ├── ri_model.rs           R2 TinyBERT FP32 ONNX multi-label classifier (4 EU AI Act Article 5 categories)
@@ -138,7 +153,7 @@ src/
 ├── error.rs             Unified error types
 ├── integration_tests.rs E2E tests (wiremock + tower::oneshot)
 │
-│   ── Mobile Library (Phase 7+, Embedded Model) ──
+│   ── Mobile Library (Embedded Model) ──
 ├── lib_mobile.rs        Mobile API surface: OpenObscureMobile (sanitize, restore, image, stats, sanitize_audio_transcript, check_audio_pii, scan_response)
 └── uniffi_bindings.rs   UniFFI interface definitions for Swift/Kotlin (feature-gated: "mobile")
 ```
@@ -158,8 +173,8 @@ src/
    │   a. Walk JSON tree for base64 image content blocks
    │      (Anthropic: type="image" + source.data, OpenAI: type="image_url" + data: URI)
    │   b. For each image: decode base64 → screen guard check → resize (960px max)
-   │   c. Phase 0: NSFW check — ViT-base 5-class classifier (LukeJacob2023/nsfw-image-detector) → if NSFW detected, full-image solid fill, skip face/OCR
-   │   d. Phase 1: Face detection — SCRFD-2.5GF (Full/Standard) or Ultra-Light RFB-320 (Lite, with tiling heuristic) → NMS → solid-fill face regions
+   │   c. NSFW check — ViT-base 5-class classifier (LukeJacob2023/nsfw-image-detector) → if NSFW detected, full-image solid fill, skip face/OCR
+   │   d. Face detection — SCRFD-2.5GF (Full/Standard) or Ultra-Light RFB-320 (Lite, with tiling heuristic) → NMS → solid-fill face regions
    │   e. OCR: PaddleOCR PP-OCRv4 det → text regions → solid fill (Tier 1) or recognize+scan (Tier 2)
    │   f. Encode processed image → replace base64 in JSON
    │   g. Sequential model loading: face model dropped before OCR loaded

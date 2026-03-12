@@ -6,6 +6,14 @@ Source: [uniffi_bindings.rs](../../openobscure-proxy/src/uniffi_bindings.rs), [l
 
 ---
 
+**Contents**
+
+- [Functions](#functions)
+- [Types](#types)
+- [PII Category Strings](#pii-category-strings)
+- [FPE Error Conditions](#fpe-error-conditions)
+- [FF1 Radix and Domain Constraints](#ff1-radix-and-domain-constraints)
+
 ## Functions
 
 ### create_openobscure

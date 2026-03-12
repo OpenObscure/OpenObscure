@@ -4,6 +4,14 @@ This document covers decisions and constraints that affect security posture and 
 
 ---
 
+**Contents**
+
+- [Compliance Considerations Before First Deployment](#compliance-considerations-before-first-deployment)
+- [Host Agent Compatibility Requirements](#host-agent-compatibility-requirements)
+- [What OpenObscure Does Not Guarantee](#what-openobscure-does-not-guarantee)
+- [Pre-Deployment Checklist](#pre-deployment-checklist)
+- [Next Steps](#next-steps)
+
 ## Compliance Considerations Before First Deployment
 
 ### What OpenObscure is and is not

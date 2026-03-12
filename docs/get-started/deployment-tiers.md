@@ -4,6 +4,15 @@ OpenObscure detects device hardware at startup and automatically selects which f
 
 ---
 
+**Contents**
+
+- [How Tiers Are Determined](#how-tiers-are-determined)
+- [Feature Matrix by Tier](#feature-matrix-by-tier)
+- [Features Available on All Tiers](#features-available-on-all-tiers)
+- [Overriding Auto-Detection](#overriding-auto-detection)
+- [How Tier Gating Works](#how-tier-gating-works)
+- [Next Steps](#next-steps)
+
 ## How Tiers Are Determined
 
 Tier classification uses **total physical RAM** — a stable device indicator that doesn't fluctuate with app usage.

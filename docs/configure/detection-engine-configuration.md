@@ -6,6 +6,19 @@ This page answers: **which engine runs when, and how do I change it?**
 
 ---
 
+**Contents**
+
+- [Detection Stack](#detection-stack)
+- [Text Detection Engines](#text-detection-engines)
+- [Multilingual Scanner](#multilingual-scanner)
+- [Image Detection Engines](#image-detection-engines)
+- [Runtime Fallback Conditions](#runtime-fallback-conditions)
+- [Forcing a Specific Engine](#forcing-a-specific-engine)
+- [Ensemble Confidence Voting](#ensemble-confidence-voting)
+- [Tier-to-Engine Mapping](#tier-to-engine-mapping)
+- [L1 Plugin Scanner (NAPI)](#l1-plugin-scanner-napi)
+- [Verifying Active Engines](#verifying-active-engines)
+
 ## Detection Stack
 
 ```

@@ -6,6 +6,15 @@ FF1 operates on a configurable alphabet (digits, hex, alphanumeric) with AES-256
 
 ---
 
+**Contents**
+
+- [Key Generation](#key-generation)
+- [Key Rotation](#key-rotation)
+- [TOML Configuration](#toml-configuration)
+- [Per-PII-Type Behavior](#per-pii-type-behavior)
+- [Fail-Open vs Fail-Closed](#fail-open-vs-fail-closed)
+- [Verifying FPE Status](#verifying-fpe-status)
+
 ## Key Generation
 
 ### First-time setup (desktop / server)

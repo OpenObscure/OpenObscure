@@ -4,6 +4,19 @@ Sanitize PII directly in your iOS, macOS, or Android app — no proxy, no HTTP s
 
 ---
 
+**Contents**
+
+- [Prerequisites](#prerequisites)
+- [1. Build the library](#1-build-the-library)
+- [2. Generate bindings](#2-generate-bindings)
+- [3. Download models](#3-download-models)
+- [4. Integrate](#4-integrate)
+- [4b. Verify your first detection](#4b-verify-your-first-detection)
+- [5. Verify](#5-verify)
+- [Full API](#full-api)
+- [What Happens Under the Hood](#what-happens-under-the-hood)
+- [Next Steps](#next-steps)
+
 ## Prerequisites
 
 | Tool | Minimum version | Required for |

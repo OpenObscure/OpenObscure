@@ -4,6 +4,25 @@
 
 ---
 
+**Contents**
+
+- [What OpenObscure Does](#what-openobscure-does)
+- [Deployment Models](#deployment-models)
+- [Language Choices](#language-choices)
+- [Layer Details](#layer-details)
+- [Features](#features)
+- [How Features Work](#how-features-work)
+- [Data Flow](#data-flow)
+- [Authentication Model](#authentication-model)
+- [Resource Budget](#resource-budget)
+- [Roadmap](#roadmap)
+- [Project Layout](#project-layout)
+- [Key Design Decisions](#key-design-decisions)
+- [Host Agent Constraints (OpenClaw Reference)](#host-agent-constraints-openclaw-reference)
+- [Health Monitoring & User Experience](#health-monitoring--user-experience)
+- [Logging](#logging)
+- [FAQ](#faq)
+
 ## What OpenObscure Does
 
 Every message, tool result, and file a user shares with an AI agent gets sent to third-party LLM APIs in plaintext — credit cards, health discussions, API keys, children's information, photos. OpenObscure prevents this by intercepting data at multiple layers, encrypting or redacting PII before it leaves the device.
@@ -147,16 +166,16 @@ Each detected face is filled independently. The person facing away is correctly 
 ViT-base 5-class classifier (neutral / drawings / hentai / porn / sexy). When any explicit class exceeds threshold, the **entire image** is replaced with a solid fill — no partial redaction:
 
 ```json
-// Request body before pipeline — base64 image with explicit content
+// Before — base64 image with explicit content (original pixels)
 { "messages": [{ "content": [{ "type": "image_url",
-    "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQSk..." } }] }] }
+    "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAA..." } }] }] }
 
-// After pipeline — same dimensions, uniform solid fill, no original pixels remain
+// After — same dimensions, uniform grey fill, original pixels destroyed
 { "messages": [{ "content": [{ "type": "image_url",
-    "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQSk..." } }] }] }
+    "image_url": { "url": "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD..." } }] }] }
 ```
 
-The re-encoded base64 looks structurally identical to the LLM — it's a valid JPEG of the same dimensions, just solid grey.
+The LLM receives a valid JPEG of the same dimensions — but every pixel is solid grey. No original image content remains.
 
 **EXIF stripping**
 
@@ -202,7 +221,7 @@ Every LLM response is scanned for manipulation before it reaches the user. The t
 - **R1 dictionary** — ~250 phrases across 7 Cialdini persuasion categories, <1ms
 - **R2 TinyBERT classifier** — 4 EU AI Act Article 5 prohibited technique categories, ~30ms (triggered only when R1 fires)
 
-When manipulation is detected, a warning label is prepended to the response:
+When manipulation is detected, a warning label is attached to the response. For non-streaming responses it is prepended; for SSE streaming responses the full response is accumulated first and the label is appended after the final chunk, since the scan cannot run until the complete text is available:
 
 ```
 ⚠️  OpenObscure — Manipulation Detected
@@ -212,13 +231,11 @@ When manipulation is detected, a warning label is prepended to the response:
   EU AI Act: Article 5(1)(a) — Prohibited subliminal technique
 
 ──────────────────────────────────────────────────────────────
-[original LLM response follows]
-──────────────────────────────────────────────────────────────
-
 As a medical professional, I strongly recommend you act on this immediately...
+──────────────────────────────────────────────────────────────
 ```
 
-Always advisory — the cognitive firewall never blocks responses, only labels them. The full response reaches the user with the warning prepended.
+Always advisory — the cognitive firewall never blocks responses, only labels them. The label position (before vs. after) differs by transport but the content is identical.
 
 For R1/R2 cascade flow, severity tiers, EU AI Act mapping, and configuration → [Response Integrity](docs/architecture/response-integrity.md).
 
@@ -259,7 +276,7 @@ sequenceDiagram
 | **2** | Gateway forwards the outbound LLM request to L0 Proxy over local HTTP. L0 runs the hybrid scanner (regex → keywords → NER/CRF), processes any base64-encoded images (NSFW → face → OCR → EXIF strip), and FF1-encrypts all matched PII. |
 | **3** | L0 forwards the sanitized request to the LLM provider over HTTPS — no plaintext PII leaves the device. |
 | **4** | LLM response returns to L0. FPE ciphertexts are decrypted back to original values. Response is scanned by the cognitive firewall (R1 dictionary + R2 TinyBERT) for manipulation patterns. |
-| **5** | L0 returns the labeled response to the Gateway. If the cognitive firewall flagged anything, a warning label is prepended per EU AI Act Article 5. |
+| **5** | L0 returns the labeled response to the Gateway. If the cognitive firewall flagged anything, a warning label is attached per EU AI Act Article 5 — prepended for non-streaming, appended for SSE streaming. |
 
 ### Embedded Model
 
