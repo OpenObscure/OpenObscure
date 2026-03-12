@@ -33,9 +33,18 @@ You need Rust (stable), Node.js 20+, and a working build of the proxy. If you ha
    # L1 plugin
    cd openobscure-plugin && npm test
 
-   # L2 crypto
-   cd openobscure-crypto && cargo test
+   # NAPI addon
+   cd openobscure-napi && npm test
+
+   # L2 crypto (enterprise only — skip if you don't have enterprise/ in your clone)
+   cd enterprise/openobscure-crypto && cargo test
    ```
+
+   > **What passing looks like:** `cargo test --lib --all-features` should report 700+ passing
+   > tests. If you see significantly fewer, model-gated tests may be skipping silently — run
+   > `./build/download_models.sh` first to enable the image pipeline and NER test coverage.
+   > Tests requiring the `voice` feature are gated separately and skip without KWS models.
+
 6. **Add tests** for new behavior. Bug fixes should include a regression test.
 7. **Check formatting and lints:**
    ```bash
@@ -43,8 +52,14 @@ You need Rust (stable), Node.js 20+, and a working build of the proxy. If you ha
    cargo clippy --all-features -- -D warnings
    ```
 8. **Commit** with a clear message describing *why*, not just *what*.
-9. **Push** your branch and open a Pull Request against `main`.
-10. **Respond to review feedback** — maintainers may request changes before merging.
+9. **Push** your branch and open a Pull Request against `main`. The PR description should
+   explain why the change is needed, not just what changed.
+10. **CI must pass** — the pipeline runs `cargo test --lib --all-features`,
+    `cargo clippy --all-features -- -D warnings`, `cargo fmt --check`, and `npm test`
+    for the plugin. All checks must be green before review begins.
+11. **Respond to review feedback.** Maintainers will review within a few days. Commits are
+    squash-merged — your branch history doesn't need to be clean, but the final commit
+    message should describe the complete change.
 
 ---
 
@@ -56,9 +71,11 @@ Look for issues labeled **`good first issue`** on GitHub. These are scoped, well
 
 ## Feature Gating Protocol
 
-> **Internal process — read before adding features.**
+> **Adding a new capability** (new detection type, new model, new config option)? The Feature
+> Gating Protocol is mandatory — read it before writing any code.
+> **Bug fix or test improvement?** You can skip this section.
 
-Every feature must be tier-gated via `FeatureBudget` in `device_profile.rs`. No exceptions. This ensures OpenObscure runs correctly across Full (8GB+), Standard (4–8GB), and Lite (<4GB) devices.
+Every new capability must be tier-gated via `FeatureBudget` in `device_profile.rs`. This ensures OpenObscure runs correctly across Full (8GB+), Standard (4–8GB), and Lite (<4GB) devices.
 
 The full protocol — including the 6-step checklist, enforcement layers, and code template — lives in [Feature Gating Protocol](feature-gating-protocol.md).
 
@@ -66,22 +83,21 @@ The full protocol — including the 6-step checklist, enforcement layers, and co
 
 ## Test Conventions
 
-Test commands are listed in step 5 above. For the full testing guide — including accuracy benchmarks, model-gated tests, gateway integration tests, and the test repo workflow — see [Testing Guide](../../test/TESTING_GUIDE.md).
+Test commands are listed in step 5 above. For the full testing guide — including accuracy benchmarks, model-gated tests, and gateway integration tests — see [Testing Guide](../../test/TESTING_GUIDE.md).
 
-Key rules:
-- Never modify code in the test repo — commit and push from dev, pull in test.
-- For GPL-licensed models: run the download script instead of committing model files.
+**Key rule:** For GPL-licensed models, run the download script instead of committing model files to the repo.
 
 ---
 
 ## Project Structure
 
 ```
-openobscure-proxy/     L0: Rust PII proxy (core detection + encryption)
-openobscure-plugin/    L1: TypeScript gateway plugin
-openobscure-crypto/    L2: Encrypted storage (AES-256-GCM + Argon2id)
-openobscure-napi/      NAPI addon (L1 native bridge)
-openobscure-ner/       NER training pipeline (Python, dev-only)
+openobscure-proxy/          L0: Rust PII proxy (core detection + encryption)
+openobscure-plugin/         L1: TypeScript gateway plugin
+openobscure-napi/           NAPI addon (L1 native bridge)
+openobscure-ner/            NER training pipeline (Python, dev-only)
+enterprise/
+  openobscure-crypto/       L2: Encrypted storage (enterprise only)
 ```
 
 Each component has a dedicated architecture page under [docs/architecture/](../architecture/system-overview.md).
