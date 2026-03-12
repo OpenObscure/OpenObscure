@@ -191,7 +191,7 @@ For `fail_mode = "closed"`, the same counter tracks destructive redactions (`[RE
 
 ## Host Agent Compatibility Requirements
 
-The L1 TypeScript plugin integrates with the host agent through a hook-based API. Whether the plugin works at all, and how much protection it provides, depends entirely on what that API exposes. OpenClaw is the only agent framework that has been tested. Before deploying L1 with any other framework, verify the following.
+The L1 TypeScript plugin integrates with the host agent through a hook-based API. Whether the plugin works at all, and how much protection it provides, depends entirely on what that API exposes. The reference integration is **OpenClaw** — a separate desktop AI agent project; it is the only framework L1 has been tested against. Before deploying L1 with any other framework, verify the following.
 
 ---
 

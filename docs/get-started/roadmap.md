@@ -27,4 +27,4 @@
 
 - **Protection status header** — `X-OpenObscure-Protection` response header so UI clients can display a privacy indicator
 - **Real-time breach monitoring** — Rolling window anomaly detection in live proxy path
-- **Streaming redaction** — Incremental redaction for large tool results (blocked by OpenClaw's synchronous hook API)
+- **Streaming redaction** — Incremental redaction for large tool results (requires asynchronous hook support in the host agent)

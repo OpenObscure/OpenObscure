@@ -30,13 +30,13 @@ flowchart TB
 | Component | Process | How it runs |
 |-----------|---------|-------------|
 | **L0** (Rust proxy) | Standalone binary | Separate process, started as sidecar alongside the host agent. |
-| **L1** (TS plugin) | In-process | Loaded into the host agent's runtime (e.g., OpenClaw's Node.js via plugin SDK) or used as a library. |
+| **L1** (TS plugin) | In-process | Loaded into the host agent's Node.js runtime via plugin SDK, or used as a library. The reference integration is [OpenClaw](https://github.com/nicholascage-openclaw) — a separate desktop AI agent project. |
 
 **Supported platforms:** macOS (Apple Silicon), Linux (x64 + ARM64), Windows (x64).
 
 **Activation:**
-1. **At install time** — The host agent's bundler includes OpenObscure and activates it during setup (if user opts in). OpenClaw supports this via its plugin SDK.
-2. **Post-install** — User enables OpenObscure by configuring the host agent to route API traffic through `127.0.0.1:18790` instead of directly to LLM providers, and installs the L1 plugin into the agent's extensions directory (e.g., OpenClaw's `extensions/`).
+1. **At install time** — The host agent's bundler includes OpenObscure and activates it during setup (if user opts in). Agents with a plugin SDK can automate this step.
+2. **Post-install** — User enables OpenObscure by configuring the host agent to route API traffic through `127.0.0.1:18790` instead of directly to LLM providers, and installs the L1 plugin into the agent's extensions directory.
 
 When disabled, the host agent operates normally with direct LLM connections — OpenObscure adds zero overhead when not active.
 
@@ -144,7 +144,7 @@ The `mobile` feature flag enables UniFFI bindings. The binary target always comp
 
 ### Defense in Depth: Both Models Together
 
-In architectures like OpenClaw, **both models can run simultaneously**. The mobile app sanitizes PII before it reaches the Gateway (Embedded), and the Gateway sanitizes again before forwarding to LLM providers (Gateway). Double protection for mobile-originated data:
+**Both models can run simultaneously.** The mobile app sanitizes PII before it reaches the Gateway (Embedded), and the Gateway sanitizes again before forwarding to LLM providers (Gateway). Double protection for mobile-originated data:
 
 ```mermaid
 flowchart LR
