@@ -21,46 +21,34 @@ flowchart TB
     tools["Agent Tools"]
 
     subgraph gateway ["AI Agent Gateway (e.g. OpenClaw)"]
-        subgraph l1box ["L1 Plugin (in-process)"]
+        subgraph l1box ["L1 Plugin"]
             redact["PII Redactor"]
             heartbeat["Heartbeat Monitor"]
         end
     end
 
     subgraph l0box ["L0 Proxy — 127.0.0.1:18790"]
-        subgraph reqpath ["Request Path"]
-            nested["Parse JSON + code fences"] --> hybrid["Hybrid Scanner"]
-            hybrid --> imgpipe["Image Pipeline"]
-            imgpipe --> ff1["FPE Encrypt"]
-        end
-        subgraph respath ["Response Path"]
-            decrypt["FPE Decrypt"] --> ri["Response Integrity"]
-        end
+        req["Scan + Image Pipeline + FPE Encrypt"]
+        resp["FPE Decrypt + Response Integrity"]
     end
 
     llm(["LLM Providers"])
 
     tools -- "tool results" --> gateway
-    gateway -- "HTTP" --> reqpath
-    ff1 -- "sanitized HTTPS" --> llm
-    llm -- "response" --> decrypt
-    ri -- "labeled response" --> gateway
+    gateway -- "HTTP" --> req
+    req -- "sanitized HTTPS" --> llm
+    llm -- "response" --> resp
+    resp -- "labeled" --> gateway
 
     style gateway fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
     style l1box fill:#f0ebfa,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
     style l0box fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
-    style reqpath fill:#fff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
-    style respath fill:#fff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
     style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
     style tools fill:#3F4756,stroke:#545b64,color:#fff
     style redact fill:#9D7BED,stroke:#232F3E,color:#fff
     style heartbeat fill:#9D7BED,stroke:#232F3E,color:#fff
-    style nested fill:#545b64,stroke:#232F3E,color:#fff
-    style hybrid fill:#545b64,stroke:#232F3E,color:#fff
-    style imgpipe fill:#545b64,stroke:#232F3E,color:#fff
-    style ff1 fill:#545b64,stroke:#232F3E,color:#fff
-    style decrypt fill:#545b64,stroke:#232F3E,color:#fff
-    style ri fill:#545b64,stroke:#232F3E,color:#fff
+    style req fill:#545b64,stroke:#232F3E,color:#fff
+    style resp fill:#545b64,stroke:#232F3E,color:#fff
 ```
 
 ### Embedded Model (iOS / Android)
@@ -72,27 +60,21 @@ flowchart TB
     subgraph app ["Host App (Enchanted / RikkaHub / custom)"]
         ui["App UI (Swift / Kotlin)"]
         subgraph lib ["OpenObscure lib (Rust — same L0 core)"]
-            scanner["Hybrid Scanner"]
-            fpe["FPE Encrypt / Decrypt"]
-            imgpipe2["Image Pipeline"]
-            ri2["Response Integrity"]
+            enc["Scan + Image Pipeline + FPE Encrypt"]
+            dec["FPE Decrypt + Cognitive Firewall"]
         end
-        ui -- "sanitizeText() / sanitizeImage()" --> lib
-        lib -- "SanitizeResult (PII encrypted)" --> ui
-        ui -. "restoreText() / scanResponse()" .-> lib
-        lib -. "restored text / RiReport" .-> ui
+        ui -- "sanitizeText() / sanitizeImage()" --> enc
+        dec -- "restored text + risk report" --> ui
     end
 
-    app -- "HTTPS (PII already encrypted)" --> llm(["LLM Provider"])
+    app -- "HTTPS (PII encrypted)" --> llm(["LLM Provider"])
     llm -- "response" --> app
 
     style app fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
     style lib fill:#f0ebfa,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
     style ui fill:#3b48cc,stroke:#232F3E,color:#fff
-    style scanner fill:#545b64,stroke:#232F3E,color:#fff
-    style fpe fill:#545b64,stroke:#232F3E,color:#fff
-    style imgpipe2 fill:#545b64,stroke:#232F3E,color:#fff
-    style ri2 fill:#545b64,stroke:#232F3E,color:#fff
+    style enc fill:#545b64,stroke:#232F3E,color:#fff
+    style dec fill:#545b64,stroke:#232F3E,color:#fff
     style llm fill:#ff9900,stroke:#232F3E,stroke-width:2px,color:#fff
 ```
 
