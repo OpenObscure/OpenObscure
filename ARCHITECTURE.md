@@ -390,7 +390,13 @@ See [docs/architecture/design-decisions.md](docs/architecture/design-decisions.m
 
 ## Host Agent Constraints (OpenClaw Reference)
 
-See [docs/architecture/system-overview.md — Host Agent Constraints](docs/architecture/system-overview.md#host-agent-constraints) — the three OpenClaw-specific constraints that shaped L0/L1 architecture.
+Three OpenClaw-specific constraints that shaped OpenObscure's architecture. Other host agents may have different constraints:
+
+1. **Only `tool_result_persist` is wired** — of OpenClaw's 14 defined hooks, only 3 have invocation sites. `before_tool_call`, `message_sending`, etc. are defined in TypeScript types but never called. This is why L0 (HTTP proxy) exists — it's the only way to intercept data *before* the LLM sees it.
+
+2. **`tool_result_persist` is synchronous** — returning a Promise causes OpenClaw to silently skip the hook. All L1 processing must be synchronous.
+
+3. **OpenClaw updates constantly** — 40+ security patches per release. OpenObscure modules touching internal APIs may break. Pin to known-good OpenClaw versions.
 
 ## Health Monitoring & User Experience
 

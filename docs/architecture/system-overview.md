@@ -149,76 +149,21 @@ Full details → [ARCHITECTURE.md — Security Architecture](../../ARCHITECTURE.
 
 ## Detection Engines
 
-Four detection engines work across the two layers:
-
-### Text Detection (L0 — HybridScanner)
-
-| Engine | What it detects | Performance | Activation |
-|--------|----------------|-------------|------------|
-| **Regex** | 10 structured types: CC (Luhn), SSN (range-validated), phone, email, API key, IPv4, IPv6, GPS, MAC, IBAN | <0.1ms, confidence 1.0 | Always on, all tiers |
-| **Keyword dictionary** | ~700 health/child terms, 9 languages | O(1) lookup | Always on, all tiers |
-| **NER** (TinyBERT or DistilBERT) | Person names, locations, organizations, health, child entities | TinyBERT: 0.8ms / DistilBERT: 4.3ms | Full/Standard tiers, or `scanner_mode = "ner"` |
-| **CRF** | Same entity types as NER, lower recall | ~2ms, <10MB RAM | Fallback when NER unavailable, or `scanner_mode = "crf"` |
-
-The HybridScanner runs all enabled engines in sequence, then merges results with confidence voting. (JSON field traversal is parallelized via rayon when multiple fields are present; per-text scanning within each field is sequential.) When 2+ engines agree on the same span, confidence gets a +0.15 agreement bonus (Full tier only). Matches below `min_confidence` (default 0.5) are discarded.
-
-**Overall recall:** 99.7% across ~400-sample benchmark corpus.
-
-### Image Detection (L0 — Image Pipeline)
-
-| Phase | Engine | What it detects | Action |
-|-------|--------|----------------|--------|
-| 0 | **ViT-base NSFW classifier** | Nudity (5-class: drawings/hentai/neutral/porn/sexy) | Full-image solid fill, skip phases 1–2 |
-| 1 | **SCRFD-2.5GF** (Full/Standard) or **Ultra-Light** (Lite) | Faces | Solid-fill face regions (15% bbox expansion) |
-| 2 | **PaddleOCR PP-OCRv4** | Text in images/screenshots | Solid-fill text regions (50% vertical padding) |
-| — | **EXIF strip** | GPS, camera metadata | Strip on decode (automatic) |
-
-Models load on-demand and evict after idle timeout (300s Full, 120s Standard, 60s Lite). Face and OCR models are never in RAM simultaneously.
-
-All redaction uses **solid fill** — original pixels are destroyed and cannot be recovered by AI deblurring.
-
-### L1 Plugin Detection
-
-| Mode | PII types | How it works |
-|------|-----------|-------------|
-| **NAPI addon** (optional) | 15 types | Same Rust HybridScanner as L0, running in-process via napi-rs |
-| **NER-enhanced** | 15 types | JS regex + L0 NER merge via `POST /_openobscure/ner` |
-| **JS regex** (fallback) | 5 types (CC, SSN, phone, email, API key) | Pure TypeScript, always available |
-
-L1 auto-selects the best available mode. The NAPI addon is detected at startup; NER-enhanced mode activates when L0 is reachable.
-
-### Cognitive Firewall (L0 — Response Path)
-
-| Stage | Engine | What it detects | Latency |
-|-------|--------|----------------|---------|
-| **R1** | Dictionary (~250 phrases) | 7 Cialdini categories: urgency, scarcity, social proof, fear, authority, commercial, flattery | <1ms |
-| **R2** | TinyBERT classifier | 4 EU AI Act Article 5 categories | ~30ms (conditional) |
-
-R2 runs only when triggered by R1 findings or by sampling (sensitivity-dependent). R2 can confirm, suppress, upgrade, or discover R1's findings. Severity: Notice (1 category) → Warning (2–3) → Caution (4+).
+Full engine tables with latency numbers, activation tiers, and voting logic → [ARCHITECTURE.md — Features](../../ARCHITECTURE.md#features)
 
 ---
 
 ## Resource Budget
 
-OpenObscure detects hardware at startup, classifies a tier, and selects features automatically.
+Full tier matrix with NER models, image pipeline variants, and RAM ceilings → [ARCHITECTURE.md — Resource Budget](../../ARCHITECTURE.md#resource-budget)
 
-| Device RAM | Tier | NER model | Image pipeline | Cognitive firewall | RAM budget |
-|------------|------|-----------|----------------|-------------------|------------|
-| 8GB+ | **Full** | DistilBERT (64MB) | SCRFD + full OCR + NSFW | R1 + R2 | 275MB |
-| 4–8GB | **Standard** | TinyBERT (14MB) | SCRFD + full OCR + NSFW | R1 + R2 | 200MB |
-| <4GB | **Lite** | TinyBERT (14MB) | Ultra-Light + detect-and-fill OCR | R1 only | 80MB |
-
-Embedded (mobile) budgets: 20% of device RAM, clamped to [12MB, 275MB]. Features activate conditionally based on available budget.
-
-See [Deployment Tiers](../get-started/deployment-tiers.md) for the full feature matrix and override instructions.
+See [Deployment Tiers](../get-started/deployment-tiers.md) for the feature matrix and override instructions.
 
 ---
 
 ## Authentication Model
 
-Auth tokens from the host agent pass through to the upstream LLM unchanged; OpenObscure never holds or validates LLM credentials. OpenObscure adds its own optional health endpoint token (`X-OpenObscure-Token`) for internal access control, kept separate from any LLM API key.
-
-Full details → [ARCHITECTURE.md — Authentication](../../ARCHITECTURE.md#authentication-model)
+Auth tokens from the host agent pass through to the upstream LLM unchanged. Full details → [ARCHITECTURE.md — Authentication Model](../../ARCHITECTURE.md#authentication-model)
 
 ---
 
@@ -267,5 +212,5 @@ The proxy intercepts data-in-transit to LLM providers but does not protect data 
 | NAPI native scanner addon | [NAPI Scanner](napi-scanner.md) |
 | Core architectural choices with rationale | [Design Decisions](design-decisions.md) |
 | Current capability matrix and planned features | [Roadmap](../reference/roadmap.md) |
-| L2 Encrypted Storage | [openobscure-crypto/ARCHITECTURE.md](../../enterprise/openobscure-crypto/ARCHITECTURE.md) |
+| L2 Encrypted Storage | [openobscure-crypto/ARCHITECTURE.md](../../openobscure-crypto/ARCHITECTURE.md) |
 | Export control (cryptography) | [EXPORT_CONTROL_NOTICE.md](../../EXPORT_CONTROL_NOTICE.md) |
