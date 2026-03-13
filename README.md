@@ -31,7 +31,7 @@ After the LLM responds, values are automatically decrypted before reaching your 
 - **Cognitive firewall** — scans every LLM response for persuasion techniques across 7 categories using a 250-phrase dictionary + TinyBERT cascade (EU AI Act Article 5 alignment)
 - **Runs anywhere** — Gateway sidecar proxy (macOS/Linux/Windows) or native library embedded in iOS/Android apps via UniFFI Swift/Kotlin bindings, with automatic hardware tier detection (Full/Standard/Lite)
 
-## Try It
+## Try It in a Few Minutes
 
 ```bash
 # 0. Clone
