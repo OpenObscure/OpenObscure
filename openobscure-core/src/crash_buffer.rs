@@ -6,7 +6,8 @@
 //!
 //! File format:
 //! - Bytes 0..8: write offset (u64 LE) — position of next write in ring
-//! - Bytes 8..SIZE: ring buffer data (UTF-8 log lines, newest overwrites oldest)
+//! - Bytes 8..SIZE: ring buffer payload — UTF-8 log lines written at `offset`,
+//!   wrapping around when the end of the file is reached (oldest data overwritten)
 
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};

@@ -22,7 +22,10 @@ fn validate_tax_id(s: &str) -> bool {
     if clean.starts_with('0') {
         return false;
     }
-    // At least one digit appears exactly 2 or 3 times, none more than 3
+    // Steuer-ID structural rule: the 10 meaningful digits must not all be distinct
+    // (random 10-digit numbers rarely satisfy this), and no single digit may appear
+    // more than 3 times. This heuristic eliminates most false positives from phone
+    // number fragments and other long digit strings that pass the length check.
     let mut counts = [0u8; 10];
     for &b in &clean.as_bytes()[..10] {
         counts[(b - b'0') as usize] += 1;

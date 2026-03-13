@@ -23,13 +23,15 @@ pub enum SseFormat {
     Generic,
 }
 
-/// Accumulation buffer for cross-SSE-frame PII token detection.
+/// Cross-frame accumulator for FPE ciphertext restoration in SSE streams.
 ///
-/// When a new frame arrives:
-/// 1. Prepend the buffer to the new frame data
-/// 2. Scan the combined text for ciphertext matches
-/// 3. Emit the "confirmed clean" prefix (everything before the last potential match boundary)
-/// 4. Retain the trailing bytes as the new buffer contents
+/// An FPE token (e.g., `PER_a7f2`) may be split across two consecutive SSE `data:`
+/// frames. Emitting each frame immediately would output a partial token that the
+/// response-path scanner cannot match. Instead:
+/// 1. Prepend the retained buffer to the new frame data
+/// 2. Scan the combined text for ciphertext token boundaries
+/// 3. Emit the confirmed-clean prefix (everything before the last open boundary)
+/// 4. Retain the trailing bytes as the new buffer for the next frame
 pub struct SseAccumulator {
     /// Pending bytes not yet emitted (potential partial token at the end).
     buffer: Vec<u8>,

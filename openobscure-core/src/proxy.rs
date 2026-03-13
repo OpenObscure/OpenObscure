@@ -24,7 +24,12 @@ use crate::vault::Vault;
 type HttpsConnector =
     hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>;
 
-/// Headers that must not be forwarded to upstream (hop-by-hop per RFC 7230).
+/// Headers that must not be forwarded to upstream (hop-by-hop per RFC 7230 §6.1).
+///
+/// These headers are meaningful only for a single transport hop and must be
+/// stripped before relaying. Forwarding them to the upstream LLM provider
+/// would corrupt the connection (e.g., `transfer-encoding: chunked` on an
+/// already-buffered body) or leak proxy topology (`via`, `proxy-*`).
 const HOP_BY_HOP_HEADERS: &[&str] = &[
     "connection",
     "keep-alive",
@@ -319,6 +324,9 @@ pub async fn proxy_handler(
     let (parts, resp_body) = upstream_resp.into_parts();
     let is_sse = is_event_stream(&parts.headers);
 
+    // SSE path: FPE ciphertext spans can be split across frames, so we accumulate
+    // each `data:` line until a complete token boundary is found before decrypting.
+    // Non-SSE responses are fully buffered in step 8 below.
     if is_sse && (has_mappings || state.response_integrity.is_some()) {
         // 7a. SSE streaming path: content-level FPE decryption + RI scanning
         let mappings = state.mapping_store.get(&request_id).await;
@@ -745,7 +753,8 @@ pub(crate) fn resolve_provider<'a>(
     uri: &Uri,
 ) -> Option<(String, &'a ProviderConfig)> {
     let path = uri.path();
-    // Try longest prefix first for specificity
+    // Longest-prefix match: sort candidates descending by route_prefix length so
+    // `/openrouter/v1` beats `/openrouter` when both prefixes match the path.
     let mut candidates: Vec<_> = config
         .providers
         .iter()
@@ -800,6 +809,9 @@ fn build_upstream_request(
         .map_err(|e| format!("Failed to build request: {}", e))?;
 
     // --- Header forwarding (passthrough-first) ---
+    // `base_url` in the provider config must include any path prefix required by
+    // the upstream API (e.g., `/v1` for OpenAI-compatible endpoints). Without it,
+    // the reconstructed upstream URI will be wrong and the provider returns 404.
     // Forward all original headers from the host agent, skipping hop-by-hop
     // and any provider-specific strip_headers.
     let headers = req.headers_mut();

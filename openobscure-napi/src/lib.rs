@@ -28,7 +28,9 @@ use openobscure_core::hybrid_scanner::HybridScanner;
 use openobscure_core::ner_scanner::{NerPool, NerScanner};
 use openobscure_core::persuasion_dict::PersuasionDict;
 
-/// Default NER confidence threshold (matches proxy default).
+/// Minimum per-token confidence for a NER span to be reported.
+/// 0.5 matches the L0 proxy default so that the NAPI addon and the gateway
+/// produce identical results when both are available.
 const NER_CONFIDENCE_THRESHOLD: f32 = 0.5;
 
 /// A single PII match returned by `scanText()`.

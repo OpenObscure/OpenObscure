@@ -15,7 +15,7 @@
 //!   - Confirm: R2 agrees with R1 → report stands
 //!   - Suppress: R2 disagrees (all scores below threshold) → R1 was false positive, drop report
 //!   - Upgrade: R2 finds additional Article 5 categories → severity may increase
-//!   - Discover: R1 missed it, R2 found it → new report created
+//!   - Discover: R1 clean, R2 flags independently → new report (sample-rate path only)
 //!
 //! Operates on the response path only (after FPE decryption).
 
@@ -30,7 +30,7 @@ use crate::ri_model::{RiModel, RiModelError, RiPrediction};
 /// Scanner sensitivity level (parsed from config string).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Sensitivity {
-    /// Scanner disabled at scan level (even if enabled=true in config).
+    /// No scanning at all — R1 and R2 are both skipped even if `enabled = true`.
     Off,
     /// Only report WARNING/CAUTION severity (skip NOTICE). R2 only on R1 flags.
     Low,

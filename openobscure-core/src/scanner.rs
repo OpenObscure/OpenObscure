@@ -192,7 +192,7 @@ impl PiiScanner {
                     self.scan_json_recursive(val, &child_path, skip_fields, matches);
                 }
             }
-            _ => {} // Skip numbers, bools, nulls
+            _ => {} // Numbers, booleans, and nulls carry no PII — skip without recursing.
         }
     }
 
@@ -207,7 +207,10 @@ impl PiiScanner {
     }
 }
 
-/// Luhn algorithm check for credit card numbers.
+/// Luhn algorithm check — validates that a matched digit string is a plausible credit card number.
+///
+/// Eliminates the majority of regex false positives: random 16-digit strings
+/// almost never pass Luhn, so precision improves dramatically with negligible cost.
 fn luhn_check(raw: &str) -> bool {
     let digits: Vec<u32> = raw
         .chars()
@@ -245,7 +248,8 @@ fn validate_ssn(raw: &str) -> bool {
     let group: u32 = digits[3..5].parse().unwrap_or(0);
     let serial: u32 = digits[5..9].parse().unwrap_or(0);
 
-    // Invalid areas: 000, 666, 900-999
+    // SSA has never issued area 000 or 666, and 900-999 are reserved (ITINs).
+    // Group 00 and serial 0000 are also unissued sentinel values.
     if area == 0 || area == 666 || area >= 900 {
         return false;
     }

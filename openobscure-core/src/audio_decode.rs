@@ -130,8 +130,9 @@ fn decode_bytes_to_pcm(
             continue;
         }
 
-        // copy_interleaved_ref can panic on malformed OGG/Vorbis audio
-        // (symphonia bug: "range start index N out of range for slice of length 0")
+        // Guard against a symphonia panic on malformed OGG/Vorbis packets.
+        // `copy_interleaved_ref` can trigger "range start index N out of range for
+        // slice of length 0" on corrupt audio — catch the unwind and skip the packet.
         let mut sample_buf = SampleBuffer::<f32>::new(num_frames as u64, spec);
         let copy_ok = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             sample_buf.copy_interleaved_ref(decoded);
@@ -161,10 +162,11 @@ fn decode_bytes_to_pcm(
     Ok((samples, sample_rate))
 }
 
-/// Resample audio using linear interpolation.
+/// Resample audio to a target sample rate using linear interpolation.
 ///
-/// Currently unused (sherpa-onnx resamples internally), but kept for
-/// potential future use with other audio consumers.
+/// Not called by the current pipeline — sherpa-onnx performs its own internal
+/// resampling to 16 kHz before running the Zipformer KWS model. Retained as a
+/// utility for future audio consumers that require a specific sample rate.
 #[cfg(feature = "voice")]
 #[allow(dead_code)]
 fn resample_linear(

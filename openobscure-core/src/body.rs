@@ -43,14 +43,18 @@ pub struct BodyProcessingResult {
     pub fpe_unprotected_count: u64,
 }
 
-/// Process a request body: scan for PII, FPE-encrypt or redact matches, return modified body + mappings.
+/// Process a request body: detect PII, FPE-encrypt or hash-token-redact matches,
+/// return the modified body together with the ciphertext→plaintext mappings needed
+/// for response decryption.
 ///
-/// Multi-pass processing:
-/// 1. Image pass (sync): find base64 images → process; collect URL image refs
-/// 2. URL fetch pass (async): fetch all URL images concurrently, process, replace with base64
-/// 3. Text pass: scan JSON string values for PII, FPE-encrypt or redact
+/// Multi-pass processing order:
+/// 1. Image pass (sync): find base64 images → NSFW/face/OCR pipeline; collect URL refs
+/// 2. Voice pass (sync): find base64 audio blocks → KWS keyword spotting → strip if PII
+/// 3. URL fetch pass (async): fetch URL images concurrently, run pipeline, replace inline
+/// 4. Text pass: walk JSON string values → HybridScanner → FPE-encrypt or hash-token
 ///
-/// Images are processed FIRST so that byte offsets in the text pass remain correct.
+/// Images and audio are processed BEFORE the text pass so their base64 replacements
+/// do not shift the byte offsets used by the JSON text scanner.
 #[allow(clippy::too_many_arguments)]
 pub async fn process_request_body(
     body: &Bytes,
@@ -103,6 +107,8 @@ pub async fn process_request_body(
             result.kws_ms as u64 * 1000,
         )
     } else {
+        // KWS engine not configured (voice feature disabled or model not loaded) —
+        // audio blocks pass through unmodified without keyword scanning.
         (false, 0, 0, 0)
     };
 
@@ -224,7 +230,10 @@ pub async fn process_request_body(
                                 });
                                 fpe_unprotected -= 1; // Not actually unprotected
                             } else {
-                                // Other FPE errors: skip match, original plaintext remains
+                                // Other FPE errors (invalid character, unsupported radix, etc.):
+                                // fail-open — skip this match so the agent request is never blocked.
+                                // The plaintext value will reach the upstream provider unencrypted;
+                                // fpe_unprotected_count is incremented to surface this in metrics.
                                 oo_warn!(crate::oo_log::modules::BODY,
                                     "FPE encryption failed, plaintext PII forwarded (fail-open)",
                                     pii_type = ?m.pii_type,

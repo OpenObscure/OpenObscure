@@ -69,10 +69,13 @@ impl WordPieceTokenizer {
             .get("[PAD]")
             .ok_or(WordPieceError::MissingToken("[PAD]"))?;
 
-        // Auto-detect: if vocab contains multi-char tokens starting with ASCII uppercase
-        // (e.g. "The", "Robert"), it's a cased vocab → don't lowercase.
-        // Uses is_ascii_uppercase() to avoid false positives from Unicode math symbols
-        // like ℝ (U+211D, DOUBLE-STRUCK CAPITAL R) present in standard uncased vocabs.
+        // Cased vocab detection: look for multi-character tokens whose first byte is an
+        // ASCII uppercase letter (e.g. "The", "Robert" in bert-base-cased).
+        // We use `is_ascii_uppercase()` rather than `char::is_uppercase()` to avoid a
+        // false positive from ℝ (U+211D, DOUBLE-STRUCK CAPITAL R), which appears in
+        // bert-base-uncased vocabs and satisfies `is_uppercase()` but is not ASCII —
+        // mistakenly treating uncased models as cased suppresses all lowercasing and
+        // causes every token to be [UNK], collapsing NER recall to near zero.
         let is_cased = vocab.keys().any(|k| {
             k.len() > 1
                 && !k.starts_with('[')

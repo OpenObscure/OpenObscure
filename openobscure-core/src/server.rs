@@ -11,6 +11,11 @@ use crate::health::{FeatureBudgetSummary, HealthState, ReadinessState};
 use crate::ner_endpoint::NerState;
 use crate::proxy::AppState;
 
+/// Start the axum HTTP server and block until a shutdown signal is received.
+///
+/// Binds to `config.proxy.host:config.proxy.port`, registers all routes,
+/// and drives the tokio runtime until SIGTERM or Ctrl-C. On return, all
+/// in-flight requests have been drained (graceful shutdown via `with_graceful_shutdown`).
 pub async fn run(
     state: AppState,
     auth_token: Option<String>,
@@ -117,6 +122,8 @@ pub async fn run(
 }
 
 async fn shutdown_signal() {
+    // Wait for either Ctrl-C (all platforms) or SIGTERM (Unix daemons / launchd).
+    // tokio::select! resolves as soon as either signal fires.
     let ctrl_c = tokio::signal::ctrl_c();
 
     #[cfg(unix)]

@@ -13,6 +13,11 @@ use crate::pii_types::PiiType;
 use crate::scanner::{PiiMatch, PiiScanner};
 
 /// Maximum depth for recursive JSON-in-string parsing.
+///
+/// Some LLM payloads double-encode JSON (e.g., a tool result that itself contains
+/// a JSON string). We parse up to this many levels deep so that PII inside nested
+/// strings is still detected. Beyond depth 2 the cost grows exponentially and
+/// genuine payloads rarely exceed one level of nesting.
 const MAX_NESTED_JSON_DEPTH: usize = 2;
 
 /// Per-scanner timing breakdown from a scan_text call.
@@ -42,7 +47,12 @@ struct TaggedMatch {
     source: ScannerSource,
 }
 
-/// The semantic scanner backend: NER (pooled sessions) or CRF (lightweight fallback).
+/// The semantic scanner backend: NER (pooled ONNX sessions) or CRF (lightweight fallback).
+///
+/// - `Ner`: Full/Standard tiers — TinyBERT (Standard) or DistilBERT (Full).
+///   Pooled so multiple JSON fields can be scanned concurrently; each session
+///   holds its own ONNX `Session` (ORT `run` requires `&mut self`).
+/// - `Crf`: Lite tier (<4 GB RAM) — hand-crafted linear-chain CRF, <10 MB, ~2 ms.
 enum SemanticBackend {
     Ner(NerPool),
     Crf(CrfScanner),
@@ -515,6 +525,12 @@ fn cluster_overlapping(tagged: &[TaggedMatch]) -> Vec<Vec<usize>> {
 
 /// Resolve a cluster of overlapping matches via confidence voting.
 ///
+/// Agreement bonus: when ≥2 independent scanners (regex, keyword, NER, gazetteer)
+/// all flag the same span for the same PII type, we add `agreement_bonus` to that
+/// type's confidence before picking a winner. This rewards cross-engine consensus
+/// and reduces false positives from any single scanner firing in isolation.
+///
+/// Steps:
 /// 1. Group matches by pii_type
 /// 2. For each type, find the highest confidence match
 /// 3. If ≥2 distinct scanner sources detected that type, add agreement_bonus (cap 1.0)

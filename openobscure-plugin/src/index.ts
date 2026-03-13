@@ -119,10 +119,11 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
     });
   }
 
-  // 3. Try to register before_tool_call hook (hard enforcement)
-  //    This hook is defined in the PluginAPI type but NOT YET WIRED
-  //    in OpenClaw. When it becomes available, we get pre-execution
-  //    PII redaction — tool arguments are sanitized BEFORE the tool runs.
+  // 3. Register before_tool_call hook for pre-execution PII enforcement.
+  //    This provides hard enforcement: tool arguments are sanitised BEFORE the
+  //    tool runs, so PII never reaches file-write, HTTP, or shell tool calls.
+  //    The hook is defined in PluginAPI but not yet wired in the host agent;
+  //    the `if (api.hooks.before_tool_call)` guard makes this a no-op until wired.
   if (cfg.redactToolResults && api.hooks.before_tool_call) {
     try {
       const proxyUrlBtc = cfg.proxyUrl;

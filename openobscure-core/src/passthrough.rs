@@ -1,8 +1,9 @@
-//! Lightweight passthrough proxy — forwards requests to upstream providers
-//! without any PII scanning, FPE encryption, or model loading.
+//! Lightweight passthrough proxy — no PII scanning, no FPE, no model loading.
 //!
-//! Used as a graceful fallback when the full proxy is intentionally stopped
-//! but the agent should keep working (without privacy protection).
+//! Activated by `openobscure service stop --passthrough` when the user wants
+//! the agent to remain operational after stopping the full privacy proxy.
+//! Exposes the same `/_openobscure/health` endpoint with `status: "passthrough"`
+//! so the L1 plugin's heartbeat monitor can detect and warn the user.
 
 use std::net::SocketAddr;
 use std::sync::Arc;

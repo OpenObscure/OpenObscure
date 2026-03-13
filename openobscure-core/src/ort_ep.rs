@@ -47,9 +47,9 @@ pub fn platform_eps() -> Vec<ExecutionProviderDispatch> {
         eps.push(ort::ep::CoreML::default().build());
     }
 
-    // Android uses `alternative-backend` (runtime-loaded ORT) which doesn't
-    // support NNAPI EP. CPU-only execution via the dynamically loaded library.
-    // NNAPI was removed because it requires direct symbol linking at compile time.
+    // Android: we ship ORT as a runtime-loaded `.so` via the `alternative-backend`
+    // mechanism, which does not support NNAPI. NNAPI also requires direct symbol
+    // linking at compile time — incompatible with dynamic loading. CPU-only.
 
     eps
 }
@@ -69,9 +69,11 @@ pub fn build_session(model_path: &Path) -> ort::Result<Session> {
     builder.commit_from_file(model_path)
 }
 
-/// Build an ONNX Runtime session with CPU-only execution (no hardware accelerators).
+/// Build an ONNX Runtime session pinned to CPU-only execution.
 ///
-/// Use this for models where CoreML/NNAPI produce incorrect results.
+/// Use for models where CoreML or NNAPI produce numerically incorrect results
+/// (e.g., some quantised INT8 graphs that rely on CPU-specific op implementations).
+/// Prefer `build_session()` for all other models.
 pub fn build_session_cpu(model_path: &Path) -> ort::Result<Session> {
     Session::builder()?
         .with_intra_threads(1)?

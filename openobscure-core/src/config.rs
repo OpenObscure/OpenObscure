@@ -39,6 +39,10 @@ impl<'de> Deserialize<'de> for FailMode {
     }
 }
 
+/// Root configuration loaded from `openobscure.toml`.
+///
+/// Every field has a `#[serde(default)]` so the proxy starts with sensible
+/// defaults even when the TOML file omits entire sections.
 #[derive(Debug, Deserialize, Clone)]
 pub struct AppConfig {
     pub proxy: ProxyConfig,
@@ -537,7 +541,9 @@ pub struct ResponseIntegrityConfig {
     pub ri_idle_evict_secs: u64,
 
     /// Fraction of responses to scan with R2 when R1 did not flag (0.0–1.0, default: 0.10).
-    /// Only applies at sensitivity=medium. At high, all responses are scanned.
+    /// Only applies at sensitivity=medium; at high, all responses are scanned regardless.
+    /// Purpose: discover manipulation patterns that the R1 dictionary does not yet cover,
+    /// without paying full R2 inference cost on every clean response.
     #[serde(default = "default_ri_sample_rate")]
     pub ri_sample_rate: f32,
 

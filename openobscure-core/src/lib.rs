@@ -1,7 +1,10 @@
 // Library target — exposes modules needed by criterion benchmarks and integration tests.
 // The main binary crate is in main.rs and owns all modules independently.
 
-// UniFFI scaffolding — must precede any module using UniFFI derive macros
+// UniFFI scaffolding — must be the first UniFFI call in the crate.
+// Generates the FFI glue (`uniffi_bindgen` reads the resulting UDL at build
+// time). All modules that use `#[derive(uniffi::Object)]` or similar must
+// appear AFTER this macro expansion.
 #[cfg(feature = "mobile")]
 uniffi::setup_scaffolding!();
 
@@ -18,7 +21,9 @@ pub mod pii_types;
 pub mod scanner;
 pub mod wordpiece;
 
-// Multilingual PII detection
+// Multilingual PII detection — whatlang language identification feeds
+// language-specific scanners (es, fr, de, pt, ja, zh, ko, ar) with
+// check-digit validation for national IDs, IBANs, and phone numbers.
 pub mod lang_detect;
 pub mod multilingual;
 

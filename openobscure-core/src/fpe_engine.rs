@@ -8,7 +8,11 @@ use uuid::Uuid;
 use crate::pii_types::{AlphabetMapper, FormatTemplate, PiiType};
 use crate::scanner::PiiMatch;
 
-/// The core FPE engine. Holds pre-built FF1 instances per radix.
+/// Format-preserving encryption engine backed by FF1/AES-256 (NIST SP 800-38G).
+///
+/// One `FF1` cipher instance is pre-built per radix at construction time so that
+/// key schedule computation is paid only once. Radix selection is driven by each
+/// `PiiType`'s alphabet: decimal (10), hex (16), alphanumeric (36), or base-62 (62).
 pub struct FpeEngine {
     ff1_radix10: FF1<Aes256>,
     ff1_radix16: FF1<Aes256>,
@@ -49,9 +53,9 @@ impl FpeEngine {
         let (encryptable, prefix, suffix) =
             extract_encryptable(&pii_match.raw_value, &pii_match.pii_type);
 
-        // Lowercase before FormatTemplate for case-insensitive types so that
-        // uppercase hex chars (e.g., 'A' in MAC "00-1A-2B-...") are recognized
-        // as alphabet characters rather than treated as separators.
+        // Normalise to lowercase before template stripping so that uppercase hex
+        // digits (e.g., 'A' in MAC "00-1A-2B-...") map to alphabet characters
+        // rather than being rejected as unknown separators by FormatTemplate.
         let encryptable = if matches!(
             pii_match.pii_type,
             PiiType::Email | PiiType::Ipv6Address | PiiType::MacAddress | PiiType::Iban
@@ -159,9 +163,12 @@ impl FpeEngine {
 }
 
 /// Extract the encryptable portion of a PII value, returning (encryptable, prefix, suffix).
-/// - Email: encrypt local part only, preserve @domain
-/// - ApiKey: encrypt entire key (no prefix preservation — prevents leaking key provider)
-/// - Others: encrypt the whole value
+///
+/// - Email: encrypt local part only; `@domain` is preserved as suffix (domain is not PII)
+/// - IBAN: preserve 2-letter country code as prefix; encrypt the numeric check + BBAN
+/// - ApiKey: encrypt the entire key string — no prefix preservation, because keeping
+///   `sk-ant-` or `AKIA` would reveal the key provider to the upstream model
+/// - Others: encrypt the whole value with empty prefix/suffix
 fn extract_encryptable(raw: &str, pii_type: &PiiType) -> (String, String, String) {
     match pii_type {
         PiiType::Email => {

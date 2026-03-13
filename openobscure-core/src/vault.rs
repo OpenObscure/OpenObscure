@@ -1,6 +1,15 @@
 use keyring::Entry;
 use rand::RngCore;
 
+/// Secure key storage backed by the OS keychain (via `keyring`) with an env-var override.
+///
+/// Resolution order for `get_fpe_key()`:
+/// 1. `OPENOBSCURE_MASTER_KEY` env var (64 hex chars → 32 bytes) — Docker/CI/headless
+/// 2. OS keychain entry keyed by `service` name — desktop/laptop interactive use
+///
+/// Use `init_fpe_key()` to generate and store a new random key. In headless mode
+/// (`OPENOBSCURE_HEADLESS=1`) the hex-encoded key is also printed to stdout so it
+/// can be captured and stored in an environment variable or secrets manager.
 pub struct Vault {
     service: String,
 }
@@ -88,7 +97,7 @@ impl Vault {
 
         let entry = Entry::new(&self.service, "fpe-master-key").map_err(VaultError::Keyring)?;
         entry.set_secret(&key).map_err(VaultError::Keyring)?;
-        key.fill(0);
+        key.fill(0); // Zero the stack copy; the keychain holds the only live reference.
         oo_debug!(
             crate::oo_log::modules::VAULT,
             "FPE master key initialized in OS keychain"

@@ -1,3 +1,9 @@
+//! OpenObscure gateway binary — PII detection, FPE encryption, and image sanitization proxy.
+//!
+//! Entry point for `cargo run` / the installed `openobscure` binary.
+//! Parses CLI flags, loads config, initializes all subsystems, then dispatches
+//! to `server::run` (proxy), `passthrough::run`, or a CLI subcommand.
+
 // Many modules export pub items for the library API, benchmarks, and tests
 // that are not used directly by the server binary.
 #![allow(dead_code)]
@@ -569,7 +575,9 @@ async fn run_key_rotate(config: AppConfig) -> anyhow::Result<()> {
         FpeEngine::new(&old_key).map_err(|e| anyhow::anyhow!("Current key is invalid: {}", e))?;
     drop(old_engine);
 
-    // Generate and store new key
+    // Generate and store new key.
+    // The running proxy keeps the old engine in a 30-second overlap window so
+    // in-flight requests encrypted with the previous key can still be decrypted.
     vault
         .init_fpe_key()
         .map_err(|e| anyhow::anyhow!("Failed to store new key: {}", e))?;
@@ -1000,6 +1008,9 @@ fn init_tracing(
 
     use crate::pii_scrub_layer::PiiScrubMakeWriter;
 
+    // Defense-in-depth: scrub any PII that leaks into log lines before they
+    // reach stderr or the log file. PiiScrubMakeWriter wraps the underlying
+    // writer and applies regex redaction to each completed log line on write.
     // Stderr layer: 4 combinations (json × pii_scrub). Only one is Some at a time.
     let (stderr_js, stderr_jp, stderr_ps, stderr_pp) =
         match (log_cfg.json_output, log_cfg.pii_scrub) {

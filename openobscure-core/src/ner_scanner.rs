@@ -37,8 +37,11 @@ pub struct NerScanner {
     confidence_threshold: f32,
     num_labels: usize,
     label_map: Vec<LabelInfo>,
-    /// Whether the model accepts a `token_type_ids` input.
-    /// TinyBERT requires it; DistilBERT does not.
+    /// Whether the ONNX model graph includes a `token_type_ids` input node.
+    /// TinyBERT 4L-312D requires it (segment embeddings are part of the architecture).
+    /// DistilBERT omits it (no segment embeddings). Detected at load time by inspecting
+    /// the session's input names; passing the tensor to a model that doesn't expect it
+    /// causes ORT to return an "unexpected input" error.
     has_token_type_ids: bool,
 }
 
@@ -678,9 +681,11 @@ pub enum NerError {
 
 // ─── NER Session Pool ──────────────────────────────────────────────────────
 //
-// Maintains N independent NerScanner sessions for concurrent inference.
-// Each `acquire()` call returns an RAII guard that auto-returns the session
-// to the pool on drop. Uses Condvar to block when all sessions are busy.
+// ORT `Session::run` requires `&mut self`, so sessions cannot be shared across
+// threads. NerPool maintains N independent sessions; `acquire()` returns an RAII
+// guard that gives exclusive access to one session and returns it on drop.
+// When all N sessions are busy, the caller blocks on a Condvar rather than
+// spawning a new session (which would exceed the RAM budget).
 
 /// Pool of NER scanner sessions for parallel inference across JSON fields.
 pub struct NerPool {

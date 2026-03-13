@@ -46,7 +46,10 @@ pub fn languages_to_scan(detection: Option<&crate::lang_detect::DetectionResult>
     }
 
     let mut langs = vec![detected];
-    // Add confusable languages
+    // Also scan with closely related languages that share character sets and
+    // PII formats — e.g., Spanish/Portuguese IBANs are structurally identical.
+    // Adding the confusable language avoids missed detections when whatlang
+    // picks the wrong Romance language due to short or PII-heavy input.
     match detected {
         Language::Spanish => langs.push(Language::Portuguese),
         Language::Portuguese => langs.push(Language::Spanish),
@@ -89,9 +92,12 @@ pub fn scan_with_lang(text: &str, lang: Language) -> Vec<PiiMatch> {
         for m in pat.regex.find_iter(text) {
             let raw = m.as_str().to_string();
 
-            // Digit-boundary check: reject partial matches inside longer digit runs.
-            // Rust regex `\b` doesn't fire between digit and CJK/Hangul/Hiragana
-            // (all are Unicode \w), so we check explicitly.
+            // Manual digit-boundary check: Rust's `\b` assertion fires between a word
+            // character (\w) and a non-word character, but CJK, Hangul, and Hiragana
+            // characters are all classified as \w in Unicode mode — so `\b` does NOT
+            // fire at a digit–CJK boundary. We check the surrounding characters explicitly
+            // to reject substrings of longer digit runs (e.g., 9-digit substring of a
+            // 12-digit account number).
             if raw.starts_with(|c: char| c.is_ascii_digit()) {
                 if let Some(prev) = text[..m.start()].chars().last() {
                     if prev.is_ascii_digit() {

@@ -108,8 +108,11 @@ impl PiiType {
                 alphabet: "0123456789abcdefghijklmnopqrstuvwxyz",
                 min_length: 6, // 36^6 >> 1,000,000
             },
-            // Keyword and NER types are redacted, not FPE-encrypted.
-            // Returning a dummy config — callers should check is_fpe_eligible() first.
+            // Semantic types (person, location, org, health/child keywords) are replaced
+            // with hash-based tokens rather than FPE-encrypted, because their variable
+            // length and character set make FF1 domain constraints impractical.
+            // Callers must check `is_fpe_eligible()` before calling `config()`; this
+            // dummy config is returned only as a fallback to avoid panicking.
             PiiType::HealthKeyword
             | PiiType::ChildKeyword
             | PiiType::Person

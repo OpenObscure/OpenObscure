@@ -1,7 +1,8 @@
-//! Detection metadata structs for verification.
+//! Detection metadata collected during inference for post-hoc verification.
 //!
-//! Collected during inference (+10-20ms overhead) to enable blazing-fast
-//! pure-logic validation in tests without re-running models.
+//! Attaching `PipelineMeta` to each processed image costs +10–20 ms but allows
+//! the test suite to run pure-logic validator assertions (bbox sanity, area ratios,
+//! NSFW consistency) in microseconds — without reloading ONNX models in every test.
 
 /// Metadata for any bounding-box detection (face, text region, NSFW region).
 #[derive(Debug, Clone)]

@@ -11,9 +11,11 @@
 //! The FPE key is provided by the host app's native secure storage (iOS Keychain
 //! or Android Keystore).
 
-// Android bionic libc does not export `__libc_single_threaded` (a glibc symbol),
-// but the ONNX Runtime prebuilt binary references it. Provide a stub that signals
-// "multi-threaded" (0) so ORT always uses its thread-safe code paths.
+// Android's Bionic libc does not export `__libc_single_threaded` — a glibc-specific
+// symbol that ORT's prebuilt `.so` references to choose between single-threaded and
+// multi-threaded code paths. Without the stub the dynamic linker fails at load time.
+// Value 0 = "multi-threaded" — safe even on single-core devices; ORT's lock-free
+// paths work correctly when this flag is false (multi-threaded assumed).
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub static __libc_single_threaded: u8 = 0;
@@ -106,7 +108,9 @@ pub struct MobileConfig {
     #[serde(default)]
     pub nsfw_model_dir: Option<String>,
 
-    /// Legacy field — ignored. Use `nsfw_model_dir` instead.
+    /// Deprecated: field accepted for backwards compatibility but ignored at runtime.
+    /// The NSFW model directory is now read from `nsfw_model_dir`. Any value set here
+    /// has no effect; callers should migrate to `nsfw_model_dir`.
     #[serde(default)]
     pub nsfw_classifier_model_dir: Option<String>,
 

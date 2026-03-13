@@ -125,8 +125,11 @@ impl KeyManager {
         Ok(new_version)
     }
 
-    /// Get the previous engine if still within the overlap window.
+    /// Return the previous FPE engine if it is still within the overlap window.
     ///
+    /// During key rotation, responses encrypted with the old key may still be in-flight.
+    /// The proxy tries the current engine first; if decryption fails, it falls back to
+    /// `previous()`. After `overlap_duration` (default 30 s) the old engine is dropped.
     /// Returns `None` if no previous engine exists or the overlap window has expired.
     pub async fn previous(&self) -> Option<Arc<VersionedEngine>> {
         let mut prev = self.previous.write().await;

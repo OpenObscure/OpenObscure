@@ -96,7 +96,10 @@ export class HeartbeatMonitor {
   start(): void {
     if (this.timer) return; // Already running
 
-    this._state = "active"; // Assume active until proven otherwise
+    // Optimistically assume the proxy is reachable. The immediate `tick()` call
+    // below will transition to "degraded" within timeoutMs if it is not running,
+    // giving the user a fast startup warning instead of waiting for the first interval.
+    this._state = "active";
     // Immediate first check — detects proxy-down at startup before any
     // LLM requests fail with cryptic "Connection error" messages.
     this.tick();

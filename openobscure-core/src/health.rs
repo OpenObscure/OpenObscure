@@ -101,6 +101,8 @@ impl LatencyHistogram {
         for (i, bucket) in self.buckets.iter().enumerate() {
             cumulative += bucket.load(Ordering::Relaxed);
             if cumulative >= target {
+                // First bucket whose cumulative count reaches the target rank —
+                // return its upper bound as the percentile estimate.
                 return BUCKET_BOUNDS_US[i];
             }
         }

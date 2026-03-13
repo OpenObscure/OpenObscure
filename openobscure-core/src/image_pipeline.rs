@@ -3,8 +3,9 @@
 //! Coordinates the full image sanitization flow:
 //! decode → EXIF strip → resize → NSFW check → face redact → OCR redact → encode.
 //!
-//! All operations are sequential to stay within the 224MB RAM ceiling.
-//! Face and OCR models are loaded on-demand and evicted after idle timeout.
+//! All operations run sequentially on a single image at a time to stay within
+//! the 224 MB RAM ceiling. Models are loaded on first use and evicted after an
+//! idle timeout; only one model (face or OCR) is resident in memory at once.
 
 use std::io::Cursor;
 use std::path::Path;
@@ -19,8 +20,6 @@ use crate::face_detector::{nms, FaceDetection, FaceDetector, ScrfdDetector, Ultr
 use crate::hybrid_scanner::HybridScanner;
 use crate::image_redact;
 use crate::keyword_dict::KeywordDict;
-// NudeNet detector removed — replaced by single 5-class ViT-base classifier.
-// See nsfw_classifier.rs for details.
 use crate::ocr_engine::{OcrDetector, OcrRecognizer, OcrTier};
 use crate::scanner::PiiScanner;
 
@@ -450,6 +449,10 @@ impl ImageModelManager {
                     let face_w = face.x_max - face.x_min;
                     let face_h = face.y_max - face.y_min;
                     let face_area = face_w * face_h;
+                    // 80% threshold: if the face fills most of the frame (portrait /
+                    // close-up shot), a selective bbox redaction would still leave the
+                    // subject identifiable from hair, chin, or ears — so we fill the
+                    // entire image instead. Below 80% we use expand_bbox (15% padding).
                     if face_area / img_area > 0.8 {
                         // Face dominates frame — redact entire image
                         image_redact::solid_fill_region(

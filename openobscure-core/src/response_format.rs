@@ -77,7 +77,10 @@ pub fn detect(content_type: Option<&str>, body: &[u8]) -> ResponseFormat {
     let json: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(_) => {
-            // Not valid JSON — could be plain text with no content-type
+            // Not valid JSON. If there is no Content-Type header and the bytes are valid
+            // UTF-8, treat the body as plain text so the text-pass scanner can still
+            // redact PII. With a Content-Type present, the provider should have sent
+            // parseable JSON — return Opaque to avoid garbling a binary payload.
             if content_type.is_none() && std::str::from_utf8(body).is_ok() {
                 return ResponseFormat::PlainText;
             }

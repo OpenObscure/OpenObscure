@@ -87,7 +87,10 @@ impl<W: Write> Write for PiiScrubWriter<W> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        // Flush is a no-op; real flush happens on drop
+        // Line-buffered: PII scrubbing happens on complete lines only.
+        // A partial line (no trailing newline) must stay in the buffer until
+        // the next write completes it or Drop fires — flushing early would
+        // emit an unscanned fragment. The underlying writer is flushed on Drop.
         Ok(())
     }
 }

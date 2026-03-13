@@ -291,8 +291,9 @@ const NER_TYPE_LABELS: Record<string, string> = {
 /**
  * Call L0 proxy /ner endpoint synchronously.
  *
- * Uses `curl` via `execFileSync` (no shell, safe from injection).
- * Returns null on any error (timeout, connection refused, etc.).
+ * Uses `execFileSync("curl", [...])` — no shell expansion, so the text payload
+ * cannot inject shell metacharacters. Falls back gracefully (returns null) on
+ * any error: timeout, connection refused, non-200 status, or JSON parse failure.
  */
 export function callNerEndpoint(
   text: string,
@@ -381,6 +382,7 @@ export function redactPiiWithNer(
   }
 
   // Collect NER matches for the output
+  // TODO: deduplicate the semanticTypes set (defined above and repeated here).
   const collectedNerMatches: RedactionMatch[] = [];
   if (nerMatches && nerMatches.length > 0) {
     const semanticTypes = new Set([

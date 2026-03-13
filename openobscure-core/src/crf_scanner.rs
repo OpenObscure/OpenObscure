@@ -22,11 +22,12 @@ const LABEL_I_CHILD: usize = 10;
 #[allow(dead_code)] // Used in tests; documents model schema
 const NUM_LABELS: usize = 11;
 
-/// CRF-based NER scanner — lightweight fallback for <200MB RAM devices.
+/// CRF-based NER scanner — Lite-tier fallback when RAM is too constrained for ONNX NER.
 ///
-/// Uses a linear-chain CRF with hand-crafted features:
-/// word shape, prefix/suffix, capitalization, gazetteer membership, context window.
-/// Inference via Viterbi decoding (~2ms, <10MB RAM).
+/// Linear-chain CRF with hand-crafted features: word shape, prefix/suffix bigrams,
+/// capitalization flags, gazetteer membership, and a ±2 token context window.
+/// Viterbi decoding is O(n · L²) where L=11 labels — typically ~2 ms, <10 MB RAM.
+/// Accuracy is lower than TinyBERT but sufficient for high-recall structured PII.
 pub struct CrfScanner {
     model: CrfModel,
     gazetteer_health: std::collections::HashSet<String>,

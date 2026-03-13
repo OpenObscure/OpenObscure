@@ -79,9 +79,10 @@ pub fn detect_language(text: &str) -> Option<DetectionResult> {
 
     let info = detect(text)?;
     let confidence = info.confidence();
-    // Low threshold: texts with embedded digits/PII reduce confidence.
-    // Language-specific patterns have validation (check digits, IBAN mod 97)
-    // that prevents false positives, so a loose detection is safe.
+    // 0.15 is intentionally permissive: PII-heavy text (SSNs, IBANs, phone numbers)
+    // dilutes the language signal and pushes whatlang confidence below typical thresholds.
+    // False positives from loose detection are safe because every language-specific
+    // pattern has its own check-digit or structural validation (mod-97 IBAN, Luhn, etc.).
     if confidence < 0.15 {
         return None;
     }

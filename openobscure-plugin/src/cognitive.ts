@@ -223,6 +223,9 @@ export function scanDictionary(text: string): PersuasionMatch[] {
   const lower = text.toLowerCase();
   const tokens = tokenize(lower);
 
+  // Scan in descending window size (3→2→1) so longer phrases take priority.
+  // Shorter overlapping matches are suppressed by `overlapsAny()` on passes 2 and 3,
+  // ensuring "trust but verify" is matched as a 3-gram rather than two separate 2-grams.
   // 3-word phrases (longest match priority)
   for (let i = 0; i + 2 < tokens.length; i++) {
     const phrase = `${tokens[i].text} ${tokens[i + 1].text} ${tokens[i + 2].text}`;

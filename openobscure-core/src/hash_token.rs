@@ -1,9 +1,11 @@
-//! Hash-based token generation for non-FPE PII redaction.
+//! Deterministic hash tokens for non-FPE PII types (person, location, org, keywords).
 //!
-//! Replaces indexed bracket labels like `[PERSON_0]` with short, deterministic
-//! tokens like `PER_a7f2` that LLMs treat as opaque identifiers and echo
-//! back verbatim.  The token is derived from SHA-256(request_id || plaintext)
-//! so identical plaintext within a request always maps to the same token.
+//! FPE requires a minimum plaintext domain (radix^len ≥ 1,000,000) and a fixed
+//! character set — constraints that semantic PII (names, places) cannot satisfy.
+//! Instead, each match is replaced with a short token like `PER_a7f2` derived from
+//! SHA-256(request_id ‖ plaintext). Identical plaintext within one request always
+//! produces the same token, so the LLM can refer back to it and we can restore
+//! the original on the response path.
 
 use std::collections::HashMap;
 

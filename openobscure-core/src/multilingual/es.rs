@@ -78,7 +78,9 @@ fn validate_iban_mod97(iban: &str) -> bool {
             num_str.push_str(&val.to_string());
         }
     }
-    // Compute mod 97 using chunked arithmetic (avoid u128)
+    // Process the numeric string in 9-digit chunks to stay within u64 range
+    // (max 9 decimal digits = 999,999,999 < u64::MAX). A full IBAN numeric string
+    // can be 30+ digits — too large for u64 or even u128 in one shot.
     let mut remainder: u64 = 0;
     for chunk in num_str.as_bytes().chunks(9) {
         let s: String = std::str::from_utf8(chunk).unwrap().to_string();
@@ -91,7 +93,11 @@ fn validate_iban_mod97(iban: &str) -> bool {
 pub fn patterns() -> Vec<LangPattern> {
     vec![
         LangPattern {
-            pii_type: PiiType::Ssn, // Reuse SSN type for national IDs
+            // PiiType::Ssn is reused for national ID numbers (DNI/NIE/NIF).
+            // These are functionally equivalent: government-issued personal identifiers
+            // that must be redacted. A dedicated PiiType would add enum variants without
+            // changing downstream handling — FPE config and redaction are identical.
+            pii_type: PiiType::Ssn,
             regex: Regex::new(r"\b[0-9]{8}-?[A-Za-z]\b").unwrap(),
             validate: Some(validate_dni),
             label: "Spanish DNI",

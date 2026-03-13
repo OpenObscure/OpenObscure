@@ -31,11 +31,11 @@ pub struct DeviceProfile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CapabilityTier {
-    /// ≥8 GB — full feature parity with gateway.
+    /// ≥8 GB RAM — full feature set: NER (DistilBERT), SCRFD face, PP-OCRv4, NSFW, ensemble voting.
     Full,
-    /// 4–8 GB — NER + image pipeline, shorter idle timeouts.
+    /// 4–8 GB RAM — NER (TinyBERT), BlazeFace, PP-OCRv4 lite, NSFW; shorter idle eviction.
     Standard,
-    /// <4 GB — CRF/regex only, conservative resource usage.
+    /// <4 GB RAM — CRF + regex only; no image pipeline; conservative memory budget.
     Lite,
 }
 
@@ -52,6 +52,9 @@ impl fmt::Display for CapabilityTier {
 /// Feature budget derived from capability tier + device profile.
 ///
 /// Determines which scanners, image pipeline, and ensemble voting are enabled.
+/// Intentionally has no `Default` impl — every field must be explicitly set by
+/// `FeatureBudget::for_tier()` so that adding a new feature triggers a compile
+/// error until the caller decides whether to enable it per tier.
 #[derive(Debug, Clone, Serialize)]
 pub struct FeatureBudget {
     /// Capability tier that produced this budget.
