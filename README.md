@@ -116,13 +116,13 @@ Add providers in `config/openobscure.toml`. See [Integration Reference](docs/int
 
 | I want to... | Start here |
 |---|---|
-| **Install as an end user** | [Setup](setup/) — install with OpenClaw (Gateway) or as a mobile library (Embedded) |
-| **Try it as a developer** | [Get Started](docs/get-started/) — build, run, and verify in 5 minutes |
+| **Install as an end user** | [Setup](setup/README.md) — install with OpenClaw (Gateway) or as a mobile library (Embedded) |
+| **Try it as a developer** | [Gateway Quick Start](docs/get-started/gateway-quick-start.md) — build, run, and verify in 5 minutes |
 | **Understand the architecture** | [Architecture](docs/architecture/system-overview.md) — system overview, data flow, design decisions |
-| **Configure detection or encryption** | [Configure](docs/configure/) — FPE, detection engines, full config reference |
-| **Integrate with my app** | [Integrate](docs/integrate/) — LLM providers, third-party embedding |
-| **Look up API types** | [Reference](docs/reference/) — FFI types, PII coverage, config keys |
-| **Contribute** | [Contribute](docs/contribute/) — dev setup, conventions, testing |
+| **Configure detection or encryption** | [Config Reference](docs/configure/config-reference.md) — every TOML key, FPE, detection engines |
+| **Integrate with my app** | [Integration Reference](docs/integrate/integration-reference.md) — LLM providers, third-party embedding |
+| **Look up API types** | [API Reference](docs/reference/api-reference.md) — FFI types, PII coverage, fail behavior |
+| **Contribute** | [Contributing](docs/contribute/contributing.md) — dev setup, conventions, testing |
 
 ## Prerequisites
 
