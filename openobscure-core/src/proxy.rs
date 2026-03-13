@@ -1,3 +1,10 @@
+//! Core proxy request handler: provider routing, body processing, upstream forwarding.
+//!
+//! Resolves the target provider from the request path (longest-prefix match),
+//! strips hop-by-hop headers, delegates body processing to `body.rs`, forwards
+//! the sanitised request to the upstream LLM, and pipes the response back
+//! through FPE decryption and the cognitive firewall.
+
 use std::sync::Arc;
 
 use axum::{

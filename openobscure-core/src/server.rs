@@ -1,3 +1,10 @@
+//! Axum HTTP server setup and route registration.
+//!
+//! Registers `/_openobscure/health`, `/_openobscure/ner`, and the catch-all
+//! proxy handler. Starts the mapping-eviction background task and optionally
+//! pre-warms the NER model. Blocks until SIGTERM or SIGINT, then shuts down
+//! gracefully.
+
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;

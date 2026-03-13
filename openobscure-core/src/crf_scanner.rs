@@ -1,3 +1,10 @@
+//! CRF-based named-entity scanner — Lite-tier fallback.
+//!
+//! Hand-crafted Conditional Random Field features for person, location, and
+//! organisation detection. Requires no ONNX Runtime and no model files; all
+//! weights are code-embedded. Used when the device has insufficient RAM for
+//! TinyBERT or DistilBERT (below the Standard tier threshold).
+
 use std::collections::HashMap;
 use std::path::Path;
 

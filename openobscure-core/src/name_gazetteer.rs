@@ -1,3 +1,10 @@
+//! Name gazetteer for person-name detection.
+//!
+//! Case-sensitive `HashSet` lookup across ~600 common first names and ~560
+//! surnames. Used as a low-cost signal in the ensemble: a gazetteer hit on a
+//! capitalised token raises the person-name confidence even when NER is
+//! uncertain. False-positive rate is suppressed by requiring capitalisation.
+
 use std::collections::HashSet;
 
 use crate::pii_types::PiiType;

@@ -1,3 +1,11 @@
+//! Hybrid PII scanner — orchestrates all detection engines.
+//!
+//! Runs regex, keyword, NER/CRF, and gazetteer scanners in parallel (via
+//! rayon), then merges results with confidence-weighted ensemble voting.
+//! Overlapping spans from different engines are resolved by cluster: the
+//! highest-confidence match wins, with an agreement bonus when multiple
+//! engines corroborate the same span.
+
 use std::collections::{HashMap, HashSet};
 
 use rayon::prelude::*;

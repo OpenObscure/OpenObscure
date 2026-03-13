@@ -1,3 +1,11 @@
+//! Minimal WordPiece tokenizer for BERT-style NER inference.
+//!
+//! Implements: optional lowercasing → whitespace/punctuation pre-tokenisation
+//! → greedy longest-match subword segmentation. Produces token IDs, a
+//! token-to-word-index alignment map, and a `[CLS]`/`[SEP]`-padded sequence
+//! for direct use as ONNX `input_ids`. Vocabulary casing is auto-detected at
+//! load time using `is_ascii_uppercase()`.
+
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;

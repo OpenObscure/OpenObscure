@@ -1,3 +1,10 @@
+//! ONNX-based Named Entity Recognition scanner (TinyBERT / DistilBERT).
+//!
+//! Loads a BERT-style NER model (11-label BIO schema: PER, LOC, ORG, HEALTH,
+//! CHILD) and runs inference via a `Condvar`-based session pool to serialise
+//! concurrent requests. TinyBERT (13.7 MB INT8) is used on Standard tier;
+//! DistilBERT (63 MB INT8, 91.2% F1) on Full tier.
+
 use std::path::Path;
 use std::sync::{Condvar, Mutex};
 

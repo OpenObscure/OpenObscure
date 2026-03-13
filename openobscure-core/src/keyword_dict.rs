@@ -1,3 +1,9 @@
+//! Keyword dictionary scanner for health and child-safety PII.
+//!
+//! Two `HashSet<String>` instances (one per category) provide O(1) word-level
+//! lookup after whitespace tokenisation. Matches are returned as `PiiMatch`
+//! with `confidence = 1.0` when a token exactly matches a dictionary entry.
+
 use std::collections::HashSet;
 
 use crate::pii_types::PiiType;

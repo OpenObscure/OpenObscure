@@ -1,3 +1,10 @@
+//! Health endpoint and runtime statistics.
+//!
+//! Exposes `GET /_openobscure/health` returning JSON with proxy status,
+//! per-type PII counts, image pipeline counters, and a fixed-bucket latency
+//! histogram. Protected by `X-OpenObscure-Token`. Also owns the
+//! `ReadinessState` machine used during model pre-warming.
+
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::time::Instant;

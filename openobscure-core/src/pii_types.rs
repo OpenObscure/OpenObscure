@@ -1,3 +1,11 @@
+//! PII type taxonomy, FPE configuration, and format templates.
+//!
+//! Defines `PiiType` (15 types), `AlphabetMapper` (character set ↔ numeral
+//! conversion for FF1), and `FormatTemplate` (separator-preserving encryption
+//! that keeps dashes, spaces, and prefixes in place). Also provides
+//! `FpeConfig` per type (radix, min length, alphabet) and the
+//! `is_fpe_eligible()` predicate used by `body.rs` before calling the engine.
+
 use std::collections::HashMap;
 use std::fmt;
 

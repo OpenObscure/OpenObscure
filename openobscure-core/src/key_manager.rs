@@ -1,3 +1,10 @@
+//! FPE key lifecycle management: active key + 30-second rotation overlap.
+//!
+//! `KeyManager` holds the current `FpeEngine` under an `RwLock`. On rotation,
+//! the previous engine is retained as `PreviousEngine` for 30 seconds so that
+//! in-flight requests encrypted with the old key can still be decrypted.
+//! After the overlap window expires, the previous engine is evicted.
+
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 

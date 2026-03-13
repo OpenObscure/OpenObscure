@@ -1,3 +1,9 @@
+//! Proxy-level error types and their HTTP response mappings.
+//!
+//! `ProxyError` variants are returned from handler functions and converted to
+//! `StatusCode` responses via `IntoResponse`. Errors that indicate upstream
+//! failure use 5xx codes; configuration or client errors use 4xx.
+
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},

@@ -1,3 +1,9 @@
+//! Configuration structs deserialized from `config/openobscure.toml`.
+//!
+//! All fields have `serde` defaults so a minimal TOML file (or an empty one)
+//! is valid. `FeatureBudget` is not stored here — it is derived at startup
+//! from `DeviceProfile` and intentionally has no `Default` impl.
+
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fmt;

@@ -1,5 +1,9 @@
-// Library target — exposes modules needed by criterion benchmarks and integration tests.
-// The main binary crate is in main.rs and owns all modules independently.
+//! Library target for OpenObscure Core.
+//!
+//! Re-exports the modules needed by criterion benchmarks, integration tests,
+//! and the mobile UniFFI API. The binary entry point (`main.rs`) owns all
+//! module declarations independently and is never compiled as part of this
+//! library target.
 
 // UniFFI scaffolding — must be the first UniFFI call in the crate.
 // Generates the FFI glue (`uniffi_bindgen` reads the resulting UDL at build

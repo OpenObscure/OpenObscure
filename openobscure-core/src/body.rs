@@ -1,3 +1,10 @@
+//! Request and response body processing pipeline.
+//!
+//! Coordinates two-pass scanning on outbound requests: the image sanitization
+//! pass (base64 detection → NSFW/face/OCR/EXIF) runs before text PII scanning
+//! so that base64-encoded blobs cannot produce false regex matches. Inbound
+//! responses are FPE-decrypted and then scanned by the cognitive firewall.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 

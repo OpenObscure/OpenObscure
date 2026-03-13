@@ -1,3 +1,11 @@
+//! Format-Preserving Encryption engine using FF1/AES-256.
+//!
+//! Encrypts detected PII spans so the ciphertext has the same character set
+//! and length as the original (e.g., an SSN stays `\d{3}-\d{2}-\d{4}`).
+//! One `FF1` instance is pre-built per radix at startup to amortise the key
+//! schedule cost. Decryption reverses the mapping using the stored per-request
+//! `PiiMapping`.
+
 use std::collections::HashMap;
 
 use aes::Aes256;

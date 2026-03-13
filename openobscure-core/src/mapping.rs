@@ -1,3 +1,10 @@
+//! Per-request PII mapping store: plaintext ↔ ciphertext round-trip.
+//!
+//! Each outbound request gets a `PiiMapping` keyed by `request_id`. Encrypted
+//! spans are stored so the inbound response handler can locate and restore them.
+//! Mappings are written to a WAL journal before forwarding and evicted after the
+//! response is processed (or after a timeout for abandoned requests).
+
 use std::collections::HashMap;
 use std::sync::Arc;
 

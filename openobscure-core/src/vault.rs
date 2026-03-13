@@ -1,3 +1,10 @@
+//! FPE master key storage: OS keychain with env-var and file fallbacks.
+//!
+//! `Vault` resolves the 32-byte AES-256 key used by `FpeEngine` through a
+//! priority chain: `OPENOBSCURE_MASTER_KEY` env var → OS keychain. The
+//! `--init-key` CLI subcommand calls `init_fpe_key()` to generate a random
+//! key and store it in the keychain on first run.
+
 use keyring::Entry;
 use rand::RngCore;
 

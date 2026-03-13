@@ -1,3 +1,11 @@
+//! Regex-based PII scanner for 10 structured PII types.
+//!
+//! Each pattern is compiled into a `RegexSet` for a single-pass scan.
+//! Matches are post-validated where format alone is insufficient: Luhn check
+//! for credit cards, area/group/serial constraints for SSNs. Also provides
+//! recursive JSON-in-string scanning for tool results that embed serialised
+//! JSON payloads.
+
 use regex::{Regex, RegexSet};
 use serde_json::Value;
 
