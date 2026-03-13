@@ -120,7 +120,7 @@ All logging goes through a unified facade — no direct `console.*` calls outsid
 
 ### Cognitive Firewall (cognitive.ts)
 
-Embedded JS persuasion/manipulation scanner mirroring the L0 Rust `persuasion_dict.rs` + `response_integrity.rs` logic. Provides L1-level response integrity scanning without requiring the L0 Core proxy.
+L1 Plugin JS persuasion/manipulation scanner mirroring the L0 Rust `persuasion_dict.rs` + `response_integrity.rs` logic. Provides response integrity scanning without requiring the L0 Core proxy.
 
 | Aspect | Detail |
 |--------|--------|

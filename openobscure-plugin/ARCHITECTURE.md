@@ -113,7 +113,7 @@ All logging goes through a unified facade — no direct `console.*` calls outsid
 
 ### Cognitive Firewall (cognitive.ts)
 
-Embedded JS persuasion/manipulation scanner mirroring the L0 Rust `persuasion_dict.rs` + `response_integrity.rs` logic. Provides L1-level response integrity scanning without requiring the L0 Core proxy.
+L1 Plugin JS persuasion/manipulation scanner mirroring the L0 Rust `persuasion_dict.rs` + `response_integrity.rs` logic. Provides response integrity scanning without requiring the L0 Core proxy.
 
 | Aspect | Detail |
 |--------|--------|
@@ -224,7 +224,7 @@ via the default entry point (`openobscure-plugin`).
 - **NER-enhanced redaction:** When L0 is healthy, redactor calls `POST /_openobscure/ner` for semantic PII spans (names, addresses, orgs) merged with regex results — DONE
 - **`before_tool_call` handler:** Prepared handler that auto-activates when OpenClaw wires the hook, upgrading from soft to hard enforcement — DONE
 - **Agent-agnostic API (`core.ts`):** Exports core functions without framework wiring for non-OpenClaw integrations — DONE
-- **Cognitive Firewall (`cognitive.ts`):** Embedded JS persuasion dictionary (248 phrases, 7 categories), severity computation, warning labels — mirrors Rust R1 logic exactly. NAPI `scan_persuasion()` bridge for native speed. Tier 1-4 test coverage (59 tests). — DONE
+- **Cognitive Firewall (`cognitive.ts`):** L1 Plugin JS persuasion dictionary (248 phrases, 7 categories), severity computation, warning labels — mirrors Rust R1 logic exactly. NAPI `scan_persuasion()` bridge for native speed. Tier 1-4 test coverage (59 tests). — DONE
 
 ## Future Work
 

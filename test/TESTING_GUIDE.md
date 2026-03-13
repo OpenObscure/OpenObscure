@@ -11,7 +11,7 @@
 2. [FPE Testing Architecture](#fpe-testing-architecture)
 3. [Prerequisites](#prerequisites)
 4. [Test Data Inventory](#test-data-inventory)
-5. [Gateway vs Embedded Comparison](#gateway-vs-embedded-comparison)
+5. [Gateway vs L1 Plugin Comparison](#gateway-vs-l1-plugin-comparison)
 6. [Manual Testing](#manual-testing)
 7. [Automated Testing](#automated-testing)
 8. [Test Scripts Reference](#test-scripts-reference)
@@ -29,8 +29,8 @@
 OpenObscure supports two deployment models for PII detection. The key difference
 for testing is how PII is redacted in the output files:
 
-| Aspect | Gateway (L0 Core) | Embedded (L1 Plugin) |
-|--------|-------------------|---------------------|
+| Aspect | Gateway (L0 Core) | L1 Plugin (in-process) |
+|--------|-------------------|------------------------|
 | **Runtime** | Standalone Rust binary | In-process TypeScript/Node.js |
 | **Default Port** | `127.0.0.1:18790` | N/A (library call) |
 | **Detection Entry** | `POST /_openobscure/ner` | `redactPii()` / `redactPiiWithNer()` |
@@ -44,8 +44,8 @@ for testing is how PII is redacted in the output files:
 
 ### Detection Coverage by Architecture
 
-| PII Type | Gateway Redacted Output | Embedded Redacted Output |
-|----------|------------------------|--------------------------|
+| PII Type | Gateway Redacted Output | L1 Plugin Redacted Output |
+|----------|------------------------|---------------------------|
 | Credit Card | `4732-8294-5617-3048` (FPE, same format) | `[REDACTED-CC]` |
 | SSN | `234-56-7891` (FPE, same format) | `[REDACTED-SSN]` |
 | Phone | `+1-555-392-7104` (FPE, same format) | `[REDACTED-PHONE]` |
@@ -227,9 +227,9 @@ route_prefix = "/anthropic"
 
 All other settings (scanner, FPE, logging) match the default `openobscure.toml`.
 
-### Embedded Tests (No Echo Server)
+### L1 Plugin Tests (No Echo Server)
 
-Embedded tests call `redactPii()` directly — no proxy or echo server needed:
+L1 Plugin tests call `redactPii()` directly — no proxy or echo server needed:
 
 ```bash
 node test/scripts/test_embedded_all.mjs
@@ -338,24 +338,24 @@ have `json/` and `redacted/` subfolders for each category.
 
 ---
 
-## Gateway vs Embedded Comparison
+## Gateway vs L1 Plugin Comparison
 
 ### When to Use Each
 
 | Scenario | Recommended | Why |
 |----------|:-----------:|-----|
 | Cloud-hosted AI agent | Gateway | Proxy intercepts all API calls transparently |
-| Mobile app with on-device LLM | Embedded | No network hop, direct library call |
+| Mobile app with on-device LLM | L0 Embedded | No network hop, direct native library call |
 | Multi-agent system | Gateway | Single proxy protects all agents |
-| Low-latency edge device | Embedded | No HTTP overhead |
-| Need FPE (reversible encryption) | Gateway | Embedded uses label redaction only |
-| Need NER/Ensemble detection | Gateway (or Embedded+NER bridge) | Full scanner stack on L0 |
+| Low-latency edge device | L0 Embedded | No HTTP overhead |
+| Need FPE (reversible encryption) | Gateway | L1 Plugin uses label redaction only |
+| Need NER/Ensemble detection | Gateway (or L1 Plugin + NER bridge) | Full scanner stack on L0 |
 | Testing regex-only detection | Either | Both support 5 core regex types |
 
 ### API Comparison
 
-| Operation | Gateway (curl) | Embedded (Node.js) |
-|-----------|---------------|-------------------|
+| Operation | Gateway (curl) | L1 Plugin (Node.js) |
+|-----------|---------------|---------------------|
 | **Detect PII** | `POST /_openobscure/ner` with `{"text":"..."}` | `redactPii(text)` |
 | **Detect + NER** | Same endpoint (auto-enables NER) | `redactPiiWithNer(text, proxyUrl)` |
 | **Detect + FPE redact** | `POST /anthropic/v1/messages` (pass-through) | N/A (label redaction only) |
@@ -421,7 +421,7 @@ curl -s -X POST http://127.0.0.1:18790/anthropic/v1/messages \
 jq -r '.messages[0].content' /tmp/oo_echo_captures/manual_agent_1.json | jq .
 ```
 
-### Embedded: Label Redaction
+### L1 Plugin: Label Redaction
 
 ```javascript
 // Save as test_file.mjs and run: node test_file.mjs
@@ -438,7 +438,7 @@ console.log(result.text.substring(0, 500));
 // Output: "... [REDACTED-CC] ... [REDACTED-CC] ..."
 ```
 
-### Embedded: With NER Bridge
+### L1 Plugin: With NER Bridge
 
 ```javascript
 // Requires L0 Core proxy running for NER endpoint
@@ -481,7 +481,7 @@ node test/scripts/test_embedded_all.mjs
 ./test/scripts/test_agent_json.sh                                               # Agent JSON files
 ./test/scripts/test_visual.sh                                                   # Visual PII images
 
-# ── Embedded (Labels) ──
+# ── L1 Plugin (Labels) ──
 node test/scripts/test_embedded_all.mjs                                         # All 5 text categories
 node test/scripts/test_embedded_category.mjs PII_Detection                      # One category
 node test/scripts/test_embedded_file.mjs <file> <output_dir>                    # One file
@@ -651,7 +651,7 @@ test/data/output/
 }
 ```
 
-### Embedded JSON Metadata (`json/*_embedded.json`)
+### L1 Plugin JSON Metadata (`json/*_embedded.json`)
 
 ```json
 {
@@ -672,7 +672,7 @@ Previous transaction used 5891-0237-4615-9820.
 ```
 (Original numbers replaced with different digits, same format)
 
-**Embedded Labels** (`redacted/Credit_Card_Numbers.txt`):
+**L1 Plugin Labels** (`redacted/Credit_Card_Numbers.txt`):
 ```
 The customer paid with card [REDACTED-CC] on file.
 Previous transaction used [REDACTED-CC].
@@ -798,7 +798,7 @@ To regenerate the snapshot after scanner changes:
 
 Additional checks (both modes):
 - **FPE HTTP status**: warns (non-blocking) if `fpe_http_status != 200` in gateway JSON
-- **Embedded validation**: if embedded results exist, checks `total_matches >= 30%` of gateway threshold
+- **L1 Plugin validation**: if L1 Plugin results exist, checks `total_matches >= 30%` of gateway threshold
 - **Coverage check**: warns if any input file has no manifest entry
 
 **Redacted content checks** (`--check-redacted`):
@@ -1287,7 +1287,7 @@ have dedicated scripts). No script changes needed.
 | `502 Bad Gateway` | Echo server unreachable | Check echo server is running on the port configured in `test_fpe.toml` |
 | Validator passes but tests actually failed | Stale results from previous run | Batch scripts auto-purge; if running single-file scripts, manually delete old outputs first |
 
-### Embedded Plugin
+### L1 Plugin
 
 | Issue | Cause | Fix |
 |-------|-------|-----|
