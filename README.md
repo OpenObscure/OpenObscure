@@ -47,7 +47,36 @@ cd openobscure-core && cargo build --release
 #    base_url = "http://127.0.0.1:18790/openai"   # was: "https://api.openai.com"
 
 # 5. Verify
-curl http://127.0.0.1:18790/health
+curl http://127.0.0.1:18790/_openobscure/health | jq .status
+```
+
+**Test FPE encryption** — scan text for PII (no upstream required):
+```bash
+curl -s -X POST http://127.0.0.1:18790/_openobscure/ner \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Call me at 555-867-5309, my SSN is 123-45-6789"}' | jq .
+# [{"start":11,"end":23,"type":"Phone","confidence":1.0},
+#  {"start":34,"end":45,"type":"SocialSecurityNumber","confidence":1.0}]
+#
+# When the same text flows through the proxy to an LLM, matched values are
+# FF1-encrypted before leaving your machine: "123-45-6789" → "847-29-3156"
+```
+
+**Test face redaction** — solid-fill faces before the image reaches the LLM
+(requires models and an echo upstream: `node test/scripts/echo_server.mjs`):
+```bash
+IMG=$(base64 -i test/data/input/Visual_PII/Faces/face_single_frontal_01.jpg | tr -d '\n')
+curl -s -X POST http://127.0.0.1:18790/anthropic/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: demo" \
+  -d "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"image\",\
+\"source\":{\"type\":\"base64\",\"media_type\":\"image/jpeg\",\"data\":\"$IMG\"}}]}]}" \
+  > /dev/null
+
+# Confirm the face was redacted before forwarding:
+curl -s http://127.0.0.1:18790/_openobscure/health \
+  | jq '{faces_redacted: .faces_redacted_total, images_processed: .images_processed_total}'
+# {"faces_redacted": 1, "images_processed": 1}
 ```
 
 For full model coverage (face redaction, OCR, NSFW, NER, cognitive firewall): [Gateway Quick Start](docs/get-started/gateway-quick-start.md).
