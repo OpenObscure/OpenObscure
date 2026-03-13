@@ -884,39 +884,39 @@
       "min_text_regions": 0,
       "nsfw_expected": false,
       "screenshot_expected": false,
-      "note": "Semi-nude (borderline). NudeNet detector (nsfw_detector.rs) not yet wired into pipeline; NsfwClassifier does not flag at 0.5 threshold. Known limitation."
+      "note": "Semi-nude (borderline). 5-class INT8 model does not flag at 0.5 threshold (score ~0.004). Known limitation — center-crop at 224x224 misses content for very tall portrait images."
     },
     "Visual_PII/semi_nu_pic2.jpg": {
       "subcategory": "NSFW",
       "min_faces": 0,
       "min_text_regions": 0,
-      "nsfw_expected": false,
+      "nsfw_expected": true,
       "screenshot_expected": false,
-      "note": "Semi-nude (borderline). NudeNet detector (nsfw_detector.rs) not yet wired into pipeline; NsfwClassifier does not flag at 0.5 threshold. Known limitation."
+      "note": "Semi-nude — 5-class INT8 model detects as porn (score ~0.9999)"
     },
     "Visual_PII/semi_nu_pic3.jpg": {
       "subcategory": "NSFW",
-      "min_faces": 1,
+      "min_faces": 0,
       "min_text_regions": 0,
-      "nsfw_expected": false,
+      "nsfw_expected": true,
       "screenshot_expected": false,
-      "note": "Borderline — NudeNet does not flag, face detected"
+      "note": "Semi-nude — 5-class INT8 model detects as sexy (score ~0.9999). NSFW early return skips face/OCR."
     },
-    "Visual_PII/semi_nu_pic4_jpg.jpg": {
+    "Visual_PII/semi_nu_pic4.jpg": {
       "subcategory": "NSFW",
-      "min_faces": 1,
+      "min_faces": 0,
       "min_text_regions": 0,
-      "nsfw_expected": false,
+      "nsfw_expected": true,
       "screenshot_expected": false,
-      "note": "Borderline — NudeNet does not flag, faces detected"
+      "note": "Semi-nude — 5-class INT8 model detects as sexy (score ~0.9999). NSFW early return skips face/OCR."
     },
-    "Visual_PII/semi_nu_pic5_jpg.jpg": {
+    "Visual_PII/semi_nu_pic5.jpg": {
       "subcategory": "NSFW",
-      "min_faces": 1,
+      "min_faces": 0,
       "min_text_regions": 0,
-      "nsfw_expected": false,
+      "nsfw_expected": true,
       "screenshot_expected": false,
-      "note": "Borderline — NudeNet does not flag, face detected"
+      "note": "Semi-nude — 5-class INT8 model detects as sexy (score ~0.9999). NSFW early return skips face/OCR."
     }
   },
   "audio_files": {
