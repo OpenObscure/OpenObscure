@@ -909,14 +909,6 @@
       "nsfw_expected": true,
       "screenshot_expected": false,
       "note": "Semi-nude — 5-class INT8 model detects as sexy (score ~0.9999). NSFW early return skips face/OCR."
-    },
-    "Visual_PII/semi_nu_pic5.jpg": {
-      "subcategory": "NSFW",
-      "min_faces": 0,
-      "min_text_regions": 0,
-      "nsfw_expected": true,
-      "screenshot_expected": false,
-      "note": "Semi-nude — 5-class INT8 model detects as sexy (score ~0.9999). NSFW early return skips face/OCR."
     }
   },
   "audio_files": {
