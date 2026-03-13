@@ -1379,8 +1379,10 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
 /**
  * Opaque handle exposed to Swift/Kotlin via UniFFI.
  *
- * Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
- * crate (where `UniFfiTag` exists) rather than on the shared struct.
+ * `uniffi::Object` requires the derive to live in the crate that calls
+ * `uniffi::setup_scaffolding!()` (this lib crate, via `UniFfiTag`). We therefore
+ * wrap `OpenObscureMobile` here rather than deriving `uniffi::Object` on the
+ * struct itself, keeping the heavy implementation out of the FFI layer.
  */
 public interface OpenObscureHandleInterface {
     
@@ -1390,8 +1392,10 @@ public interface OpenObscureHandleInterface {
 /**
  * Opaque handle exposed to Swift/Kotlin via UniFFI.
  *
- * Wraps `OpenObscureMobile` so the `uniffi::Object` derive lives in the lib
- * crate (where `UniFfiTag` exists) rather than on the shared struct.
+ * `uniffi::Object` requires the derive to live in the crate that calls
+ * `uniffi::setup_scaffolding!()` (this lib crate, via `UniFfiTag`). We therefore
+ * wrap `OpenObscureMobile` here rather than deriving `uniffi::Object` on the
+ * struct itself, keeping the heavy implementation out of the FFI layer.
  */
 open class OpenObscureHandle: Disposable, AutoCloseable, OpenObscureHandleInterface
 {
