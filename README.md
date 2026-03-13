@@ -71,26 +71,7 @@ curl -s -X POST http://127.0.0.1:18790/_openobscure/ner \
 # FF1-encrypted before leaving your machine: "123-45-6789" → "847-29-3156"
 ```
 
-**Test face redaction** — solid-fill faces before the image reaches the LLM
-(requires models and an echo upstream: `node test/scripts/echo_server.mjs`):
-```bash
-TOKEN=$(cat ~/.openobscure/.auth-token)
-IMG=$(base64 -i test/data/input/Visual_PII/Faces/face_single_frontal_01.jpg | tr -d '\n')
-curl -s -X POST http://127.0.0.1:18790/anthropic/v1/messages \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: demo" \
-  -H "X-OpenObscure-Token: $TOKEN" \
-  -d "{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"image\",\
-\"source\":{\"type\":\"base64\",\"media_type\":\"image/jpeg\",\"data\":\"$IMG\"}}]}]}" \
-  > /dev/null
-
-# Confirm the face was redacted before forwarding:
-curl -s -H "X-OpenObscure-Token: $TOKEN" http://127.0.0.1:18790/_openobscure/health \
-  | jq '{faces_redacted: .faces_redacted_total, images_processed: .images_processed_total}'
-# {"faces_redacted": 1, "images_processed": 1}
-```
-
-For full model coverage (face redaction, OCR, NSFW, NER, cognitive firewall): [Gateway Quick Start](docs/get-started/gateway-quick-start.md).
+For face redaction, OCR, NSFW filtering, NER, and cognitive firewall (requires model downloads): [Gateway Quick Start](docs/get-started/gateway-quick-start.md).
 
 ## How It Works
 
