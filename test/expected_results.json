@@ -884,7 +884,7 @@
       "min_text_regions": 0,
       "nsfw_expected": false,
       "screenshot_expected": false,
-      "note": "Semi-nude (borderline). 5-class INT8 model does not flag at 0.5 threshold (score ~0.004). Known limitation — center-crop at 224x224 misses content for very tall portrait images."
+      "note": "Semi-nude tall portrait (3000x4500). Known limitation: standard ImageNet center-crop covers only the middle ~67% of the image height; content above that window is not seen. Fix requires replacing center-crop with letterboxing or a model that accepts variable aspect ratios. Tracked for future improvement."
     },
     "Visual_PII/semi_nu_pic2.jpg": {
       "subcategory": "NSFW",

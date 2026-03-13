@@ -343,9 +343,10 @@ impl ImageModelManager {
             };
         }
 
-        // Convert to RgbImage for redaction operations, keep DynamicImage for model inference
+        // Convert to RgbImage for redaction operations (NSFW early-return path),
+        // keep DynamicImage at original resolution for NSFW inference.
         let mut rgb = img.to_rgb8();
-        let mut dyn_img = img;
+        let dyn_img = img;
 
         // Update last-use timestamp
         if let Ok(mut last) = self.last_use.lock() {
@@ -426,6 +427,12 @@ impl ImageModelManager {
             }
         }
         stats.nsfw_ms = nsfw_start.elapsed().as_millis() as u64;
+
+        // Resize to max_dimension *after* NSFW phase so the classifier always
+        // sees the original resolution (avoids double-downscale for tall images).
+        let img_after_nsfw = resize_if_needed(dyn_img, self.config.max_dimension);
+        let mut dyn_img = img_after_nsfw;
+        let mut rgb = dyn_img.to_rgb8();
 
         // Phase 1: Face detection + redaction
         // Uses SCRFD (Full/Standard) or BlazeFace (Lite) based on config.face_model.

@@ -92,6 +92,15 @@ impl NsfwClassifier {
     }
 
     /// Classify an image for NSFW content.
+    ///
+    /// Uses standard ImageNet preprocessing: resize shortest edge to `input_size`,
+    /// center-crop to `input_size × input_size`.
+    ///
+    /// Known limitation: very tall portrait images (aspect > 1.5) may have content
+    /// above the center-crop window. A future improvement is to replace center-crop
+    /// with letterboxing (pad-to-square) or a dedicated NSFW model with global
+    /// average pooling. Tracked as: consider replacing 5-class ViT with a model
+    /// that accepts variable aspect ratios without cropping.
     pub fn classify(&mut self, img: &DynamicImage) -> Result<ClassifierResult, ImageError> {
         let sz = self.input_size;
 
@@ -304,5 +313,23 @@ mod tests {
         };
         assert!(result.is_nsfw);
         assert!((result.nsfw_score - 0.80).abs() < 1e-6);
+    }
+
+    /// Center-crop geometry: for a 3000×4500 image at sz=224, the center crop covers
+    /// only the middle third of the original height (750–3750 of 4500px). Content
+    /// above that window is not seen by the classifier — known limitation.
+    #[test]
+    fn test_center_crop_geometry() {
+        let sz = 224u32;
+        let (w, h) = (3000u32, 4500u32);
+        let scale = sz as f32 / w.min(h) as f32;
+        let new_h = (h as f32 * scale).round() as u32; // 336
+        let crop_y = (new_h.saturating_sub(sz)) / 2; // 56
+                                                     // crop covers rows 56..280 of 336 → 56/336 = 16.7% from top of scaled image
+        assert_eq!(new_h, 336);
+        assert_eq!(crop_y, 56);
+        // As fraction of original height, crop starts at 16.7% — content above that is missed
+        let crop_start_frac = crop_y as f32 / new_h as f32;
+        assert!((crop_start_frac - 0.1666).abs() < 0.001);
     }
 }

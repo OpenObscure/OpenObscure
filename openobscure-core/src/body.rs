@@ -673,10 +673,9 @@ fn process_single_image(
         image_pipeline::decode_image(raw_bytes)?
     };
 
-    // Resize if needed
-    let img = image_pipeline::resize_if_needed(img, models.config().max_dimension);
-
     // Run face detection + OCR redaction
+    // Note: resize_if_needed is applied inside process_image *after* NSFW classification
+    // so the NSFW classifier always sees the full-resolution image.
     let sg_ref = screen_result.as_ref().map(|(_, sg)| sg);
     let (processed, stats, _meta) = models.process_image(img, sg_ref, Some(scanner))?;
 
