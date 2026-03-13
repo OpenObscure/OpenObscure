@@ -134,7 +134,7 @@ let mobile = OpenObscureMobile::new(config, fpe_key).unwrap();
 
 // On a 12GB phone: Full tier → NER + CRF + ensemble + image pipeline
 // On a 6GB phone: Standard tier → NER + CRF + image pipeline
-// On a 3GB phone: Lite tier → NER + CRF (no ensemble)
+// On a 3GB phone: Lite tier → CRF + regex (no NER)
 ```
 
 To disable auto-detection and force a specific scanner:
@@ -250,66 +250,14 @@ MobileBindingError
 
 ---
 
-## 6. NAPI Native Addon (L1 Plugin Upgrade for Node.js)
-
-For Node.js/TypeScript agents, the NAPI addon provides in-process PII scanning without a running proxy. It wraps the same Rust HybridScanner as the L0 Core proxy, giving 15-type detection in-process.
-
-### Build
-
-```bash
-./build/build_napi.sh
-```
-
-### Usage
-
-```javascript
-const { OpenObscureScanner } = require('@openobscure/scanner-napi');
-
-// Regex + keywords (no NER model needed)
-const scanner = new OpenObscureScanner();
-const result = scanner.scanText('My SSN is 123-45-6789');
-// result.matches: [{ piiType: "ssn", start: 10, end: 21, confidence: 1.0, rawValue: "123-45-6789" }]
-// result.timingUs: 42
-
-// With NER (optional — requires model files)
-const scannerNer = new OpenObscureScanner('path/to/models/ner');
-console.log(scannerNer.hasNer()); // true
-```
-
-### L1 Plugin Auto-Detection
-
-When the NAPI addon is installed as `@openobscure/scanner-napi`, the L1 plugin's `redactPii()` automatically uses it. No code changes required — the plugin tries `require("@openobscure/scanner-napi")` at module load and falls back to JS regex if not found.
-
-### Smoke Test
-
-```bash
-node test/scripts/test_napi_smoke.mjs
-```
-
----
-
 ## Feature Parity
 
-The following features are **Embedded-only** (not available in Gateway mode):
+> For the full feature comparison across Gateway, L0 Embedded, and L1 Plugin, see [GATEWAY_TEST.md — Feature Parity](GATEWAY_TEST.md#feature-parity).
+
+The following feature is **L0 Embedded-only**:
 
 | Feature | Notes |
 |---------|-------|
-| UniFFI bindings (Swift/Kotlin) | Mobile-only FFI layer |
+| UniFFI bindings (Swift/Kotlin) | Mobile-only FFI layer; not available in Gateway or L1 Plugin |
 
-The following features are **tier-dependent** (available on both Gateway and Embedded if the device has sufficient RAM):
-
-| Feature | Required Tier | Notes |
-|---------|--------------|-------|
-| NER — TinyBERT INT8 | Standard+ (4GB+) | Requires `ner_model_dir` to be set |
-| Ensemble confidence voting | Full (8GB+) | NER + CRF + agreement bonus |
-| Image pipeline | All tiers (if budget allows) | Requires model directory paths |
-
-The following features remain **Gateway-only**:
-
-| Feature | Why |
-|---------|-----|
-| SSE streaming | HTTP proxy feature |
-| Auth token passthrough | HTTP proxy feature |
-| Response integrity (R1+R2 cognitive firewall) | Response-path scanning is a proxy feature |
-
-See [GATEWAY_TEST.md](GATEWAY_TEST.md) for these Gateway-specific features.
+For NAPI addon (L1 Plugin upgrade for Node.js agents), see [TESTING_GUIDE.md — NAPI](TESTING_GUIDE.md).

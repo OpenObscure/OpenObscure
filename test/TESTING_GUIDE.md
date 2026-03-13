@@ -1,7 +1,7 @@
 # OpenObscure PII Detection Testing Guide
 
 > Comprehensive guide for testing PII detection across all supported data categories
-> using Gateway (FPE) and Embedded (label redaction) architectures.
+> using Gateway (FPE) and L1 Plugin (label redaction) architectures.
 
 ---
 
@@ -37,7 +37,7 @@ for testing is how PII is redacted in the output files:
 | **Redaction Entry** | Proxy pass-through (FPE) | `redactPii()` returns labeled text |
 | **Detection** | Regex + Keywords + NER + CRF + Ensemble | NAPI addon: 15 types (same as L0) / Regex: 5 types (+ NER via L0 bridge) |
 | **Redaction Mode** | **FF1 FPE** for 5 types + labels for 9 types | **`[REDACTED-*]` labels** for all types |
-| **Image Pipeline** | Face/OCR/NSFW redaction via proxy | `sanitize_image()` on mobile |
+| **Image Pipeline** | Face/OCR/NSFW redaction via proxy | N/A (images processed by Gateway on outbound path) |
 | **Voice Pipeline** | KWS keyword spotting + PII audio strip | N/A |
 | **Auth** | `X-OpenObscure-Token` header | N/A |
 | **Streaming** | SSE pass-through | N/A |
@@ -233,6 +233,31 @@ L1 Plugin tests call `redactPii()` directly — no proxy or echo server needed:
 
 ```bash
 node test/scripts/test_embedded_all.mjs
+```
+
+### NAPI Native Addon (L1 Plugin Upgrade for Node.js)
+
+The NAPI addon upgrades the L1 Plugin's `redactPii()` from JS regex (5 types) to the full Rust HybridScanner (15 types) — no proxy required. When installed as `@openobscure/scanner-napi`, the plugin auto-detects and uses it.
+
+```bash
+# Build
+./build/build_napi.sh
+
+# Smoke test
+node test/scripts/test_napi_smoke.mjs
+```
+
+```javascript
+const { OpenObscureScanner } = require('@openobscure/scanner-napi');
+
+const scanner = new OpenObscureScanner();
+const result = scanner.scanText('My SSN is 123-45-6789');
+// result.matches: [{ piiType: "ssn", start: 10, end: 21, confidence: 1.0, rawValue: "123-45-6789" }]
+// result.timingUs: 42
+
+// With NER (optional — requires model files)
+const scannerNer = new OpenObscureScanner('path/to/models/ner');
+console.log(scannerNer.hasNer()); // true
 ```
 
 ---

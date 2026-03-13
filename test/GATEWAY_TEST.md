@@ -483,7 +483,7 @@ The script sends each `test/data/input/Cognitive_Firewall/*.txt` file through th
 
 ## Feature Parity
 
-With hardware capability detection (Phase 9), NER and ensemble voting are now available on capable mobile devices (8GB+ RAM). The following features remain **Gateway-only**:
+NER and ensemble voting are available on capable mobile devices (8GB+ RAM) via the L0 Embedded model. The following features remain **Gateway-only**:
 
 | Feature | Why Gateway-only |
 |---------|-----------------|
