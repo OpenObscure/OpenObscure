@@ -1,6 +1,6 @@
 {
   "name": "@openobscure/scanner-napi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenObscure native PII scanner \u2014 HybridScanner (regex + keywords + NER) via napi-rs",
   "main": "index.js",
   "types": "index.d.ts",
@@ -17,9 +17,9 @@
     }
   },
   "optionalDependencies": {
-    "@openobscure/scanner-napi-darwin-arm64": "0.1.0",
-    "@openobscure/scanner-napi-linux-x64-gnu": "0.1.0",
-    "@openobscure/scanner-napi-linux-arm64-gnu": "0.1.0"
+    "@openobscure/scanner-napi-darwin-arm64": "0.1.1",
+    "@openobscure/scanner-napi-linux-x64-gnu": "0.1.1",
+    "@openobscure/scanner-napi-linux-arm64-gnu": "0.1.1"
   },
   "devDependencies": {
     "@napi-rs/cli": "^2"

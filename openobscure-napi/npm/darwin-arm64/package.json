@@ -1,16 +1,22 @@
 {
   "name": "@openobscure/scanner-napi-darwin-arm64",
-  "version": "0.1.0",
-  "description": "OpenObscure native PII scanner — macOS Apple Silicon (arm64) binary",
+  "version": "0.1.1",
+  "description": "OpenObscure native PII scanner \u2014 macOS Apple Silicon (arm64) binary",
   "main": "scanner.darwin-arm64.node",
   "files": [
     "scanner.darwin-arm64.node",
     "models/"
   ],
   "license": "MIT OR Apache-2.0",
-  "engines": { "node": ">= 18" },
-  "os": ["darwin"],
-  "cpu": ["arm64"],
+  "engines": {
+    "node": ">= 18"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/OpenObscure/OpenObscure.git",
