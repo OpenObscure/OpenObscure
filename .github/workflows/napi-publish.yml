@@ -46,14 +46,14 @@ jobs:
 
   build-darwin-x64:
     name: Build darwin-x64
-    runs-on: macos-14
+    # macos-13 is Intel (x86_64) — native build avoids ort cross-compile prebuilt issue
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
-      - name: Install Rust stable with x86_64-apple-darwin target
+      - name: Install Rust stable
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
           rustup default stable
-          rustup target add x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: openobscure-napi
@@ -64,7 +64,7 @@ jobs:
         run: npm install --ignore-scripts
         working-directory: openobscure-napi
       - name: Build
-        run: npx napi build --release --target x86_64-apple-darwin
+        run: npx napi build --release
         working-directory: openobscure-napi
       - uses: actions/upload-artifact@v4
         with:
@@ -140,6 +140,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - name: Install OpenSSL dev headers
+        run: apk add --no-cache openssl-dev pkgconfig
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: openobscure-napi
@@ -149,41 +151,16 @@ jobs:
       - name: Build
         run: npx napi build --release --target x86_64-unknown-linux-musl
         working-directory: openobscure-napi
+        env:
+          OPENSSL_STATIC: "1"
       - uses: actions/upload-artifact@v4
         with:
           name: napi-linux-x64-musl
           path: openobscure-napi/scanner.linux-x64-musl.node
 
-  build-linux-arm64-musl:
-    name: Build linux-arm64-musl
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust stable with aarch64-musl target
-        run: |
-          rustup toolchain install stable --profile minimal --no-self-update
-          rustup default stable
-          rustup target add aarch64-unknown-linux-musl
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: openobscure-napi
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install cargo-zigbuild
-        run: |
-          pip3 install ziglang --quiet
-          cargo install cargo-zigbuild --quiet
-      - name: Install napi-rs CLI
-        run: npm install --ignore-scripts
-        working-directory: openobscure-napi
-      - name: Build
-        run: CARGO=cargo-zigbuild npx napi build --release --target aarch64-unknown-linux-musl
-        working-directory: openobscure-napi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: napi-linux-arm64-musl
-          path: openobscure-napi/scanner.linux-arm64-musl.node
+  # build-linux-arm64-musl: deferred — ort 2.0.0-rc.11 has no prebuilt binaries
+  # for aarch64-unknown-linux-musl. Will re-enable once ort ships musl-arm64 builds.
+  # Tracked: https://github.com/pykeio/ort/issues
 
   # ── Download TinyBERT NER model ─────────────────────────────────────────────
 
@@ -214,7 +191,6 @@ jobs:
       - build-linux-x64-gnu
       - build-linux-arm64-gnu
       - build-linux-x64-musl
-      - build-linux-arm64-musl
       - download-ner-model
     runs-on: ubuntu-latest
     strategy:
@@ -225,7 +201,6 @@ jobs:
           - linux-x64-gnu
           - linux-arm64-gnu
           - linux-x64-musl
-          - linux-arm64-musl
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
