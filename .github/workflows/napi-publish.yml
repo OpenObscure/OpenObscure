@@ -37,7 +37,7 @@ jobs:
         run: npm install --ignore-scripts
         working-directory: openobscure-napi
       - name: Build
-        run: npx napi build --release --target aarch64-apple-darwin
+        run: npx napi build --release --no-default-features --target aarch64-apple-darwin
         working-directory: openobscure-napi
       - uses: actions/upload-artifact@v4
         with:
@@ -64,7 +64,7 @@ jobs:
         run: npm install --ignore-scripts
         working-directory: openobscure-napi
       - name: Build
-        run: npx napi build --release --target x86_64-apple-darwin
+        run: npx napi build --release --no-default-features --target x86_64-apple-darwin
         working-directory: openobscure-napi
       - uses: actions/upload-artifact@v4
         with:
@@ -88,7 +88,7 @@ jobs:
         run: npm install --ignore-scripts
         working-directory: openobscure-napi
       - name: Build
-        run: npx napi build --release --target x86_64-unknown-linux-gnu
+        run: npx napi build --release --no-default-features --target x86_64-unknown-linux-gnu
         working-directory: openobscure-napi
       - uses: actions/upload-artifact@v4
         with:
@@ -123,7 +123,7 @@ jobs:
         working-directory: openobscure-napi
       - name: Build
         # CARGO override makes napi-rs CLI invoke cargo-zigbuild instead of cargo.
-        run: CARGO=cargo-zigbuild npx napi build --release --target aarch64-unknown-linux-gnu
+        run: CARGO=cargo-zigbuild npx napi build --release --no-default-features --target aarch64-unknown-linux-gnu
         working-directory: openobscure-napi
       - uses: actions/upload-artifact@v4
         with:
@@ -147,7 +147,7 @@ jobs:
         run: npm install --ignore-scripts
         working-directory: openobscure-napi
       - name: Build
-        run: npx napi build --release --target x86_64-unknown-linux-musl
+        run: npx napi build --release --no-default-features --target x86_64-unknown-linux-musl
         working-directory: openobscure-napi
       - uses: actions/upload-artifact@v4
         with:
@@ -178,7 +178,7 @@ jobs:
         run: npm install --ignore-scripts
         working-directory: openobscure-napi
       - name: Build
-        run: CARGO=cargo-zigbuild npx napi build --release --target aarch64-unknown-linux-musl
+        run: CARGO=cargo-zigbuild npx napi build --release --no-default-features --target aarch64-unknown-linux-musl
         working-directory: openobscure-napi
       - uses: actions/upload-artifact@v4
         with:
