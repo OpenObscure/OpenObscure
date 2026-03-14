@@ -1,0 +1,309 @@
+name: Publish NAPI Packages
+
+on:
+  push:
+    tags: ["napi-v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Package version (e.g. 0.1.0)"
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # TinyBERT INT8 — 13.7 MB
+  # Replace with the actual Hugging Face model repo and file path before first publish.
+  NER_MODEL_REPO: "openobscure/tinybert-ner-int8"
+  NER_MODEL_FILE: "model_int8.onnx"
+  NER_VOCAB_FILE: "vocab.txt"
+
+jobs:
+  # ── Native builds ───────────────────────────────────────────────────────────
+
+  build-darwin-arm64:
+    name: Build darwin-arm64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-napi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install napi-rs CLI
+        run: npm install --ignore-scripts
+        working-directory: openobscure-napi
+      - name: Build
+        run: npx napi build --release --target aarch64-apple-darwin
+        working-directory: openobscure-napi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: napi-darwin-arm64
+          path: openobscure-napi/scanner.darwin-arm64.node
+
+  build-darwin-x64:
+    name: Build darwin-x64
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable with x86_64-apple-darwin target
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustup target add x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-napi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install napi-rs CLI
+        run: npm install --ignore-scripts
+        working-directory: openobscure-napi
+      - name: Build
+        run: npx napi build --release --target x86_64-apple-darwin
+        working-directory: openobscure-napi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: napi-darwin-x64
+          path: openobscure-napi/scanner.darwin-x64.node
+
+  build-linux-x64-gnu:
+    name: Build linux-x64-gnu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-napi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install napi-rs CLI
+        run: npm install --ignore-scripts
+        working-directory: openobscure-napi
+      - name: Build
+        run: npx napi build --release --target x86_64-unknown-linux-gnu
+        working-directory: openobscure-napi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: napi-linux-x64-gnu
+          path: openobscure-napi/scanner.linux-x64-gnu.node
+
+  # ── Cross-compiled builds ───────────────────────────────────────────────────
+  # Uses cargo-zigbuild: sets CARGO=cargo-zigbuild so napi-rs CLI picks it up.
+
+  build-linux-arm64-gnu:
+    name: Build linux-arm64-gnu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable with aarch64-linux-gnu target
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustup target add aarch64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-napi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install cargo-zigbuild
+        run: |
+          pip3 install ziglang --quiet
+          cargo install cargo-zigbuild --quiet
+      - name: Install napi-rs CLI
+        run: npm install --ignore-scripts
+        working-directory: openobscure-napi
+      - name: Build
+        # CARGO override makes napi-rs CLI invoke cargo-zigbuild instead of cargo.
+        run: CARGO=cargo-zigbuild npx napi build --release --target aarch64-unknown-linux-gnu
+        working-directory: openobscure-napi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: napi-linux-arm64-gnu
+          path: openobscure-napi/scanner.linux-arm64-gnu.node
+
+  build-linux-x64-musl:
+    name: Build linux-x64-musl
+    # Alpine container provides musl libc; napi-rs builds natively inside it.
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-napi
+      - name: Install napi-rs CLI
+        run: npm install --ignore-scripts
+        working-directory: openobscure-napi
+      - name: Build
+        run: npx napi build --release --target x86_64-unknown-linux-musl
+        working-directory: openobscure-napi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: napi-linux-x64-musl
+          path: openobscure-napi/scanner.linux-x64-musl.node
+
+  build-linux-arm64-musl:
+    name: Build linux-arm64-musl
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable with aarch64-musl target
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustup target add aarch64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-napi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install cargo-zigbuild
+        run: |
+          pip3 install ziglang --quiet
+          cargo install cargo-zigbuild --quiet
+      - name: Install napi-rs CLI
+        run: npm install --ignore-scripts
+        working-directory: openobscure-napi
+      - name: Build
+        run: CARGO=cargo-zigbuild npx napi build --release --target aarch64-unknown-linux-musl
+        working-directory: openobscure-napi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: napi-linux-arm64-musl
+          path: openobscure-napi/scanner.linux-arm64-musl.node
+
+  # ── Download TinyBERT NER model ─────────────────────────────────────────────
+
+  download-ner-model:
+    name: Download TinyBERT NER model
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download model files from Hugging Face
+        run: |
+          mkdir -p ner-model
+          BASE="https://huggingface.co/${NER_MODEL_REPO}/resolve/main"
+          curl -fL "${BASE}/${NER_MODEL_FILE}" -o ner-model/model_int8.onnx
+          curl -fL "${BASE}/${NER_VOCAB_FILE}" -o ner-model/vocab.txt
+          echo "model_int8.onnx: $(du -sh ner-model/model_int8.onnx | cut -f1)"
+          echo "vocab.txt:       $(wc -l < ner-model/vocab.txt) lines"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ner-model
+          path: ner-model/
+
+  # ── Publish platform packages ───────────────────────────────────────────────
+
+  publish-platform-packages:
+    name: Publish ${{ matrix.platform }}
+    needs:
+      - build-darwin-arm64
+      - build-darwin-x64
+      - build-linux-x64-gnu
+      - build-linux-arm64-gnu
+      - build-linux-x64-musl
+      - build-linux-arm64-musl
+      - download-ner-model
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          - darwin-arm64
+          - darwin-x64
+          - linux-x64-gnu
+          - linux-arm64-gnu
+          - linux-x64-musl
+          - linux-arm64-musl
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: napi-${{ matrix.platform }}
+          path: openobscure-napi/npm/${{ matrix.platform }}/
+
+      - name: Download NER model
+        uses: actions/download-artifact@v4
+        with:
+          name: ner-model
+          path: openobscure-napi/npm/${{ matrix.platform }}/models/ner/
+
+      - name: Set package version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#napi-v}"
+          fi
+          echo "Publishing version $VERSION"
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = process.env.VERSION;
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          " VERSION="$VERSION"
+        working-directory: openobscure-napi/npm/${{ matrix.platform }}
+
+      - name: Publish to npm
+        run: npm publish --access public
+        working-directory: openobscure-napi/npm/${{ matrix.platform }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── Publish umbrella package ────────────────────────────────────────────────
+
+  publish-umbrella:
+    name: Publish @openobscure/scanner-napi
+    needs: [publish-platform-packages]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Set package version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#napi-v}"
+          fi
+          node -e "
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            pkg.version = process.env.VERSION;
+            for (const dep of Object.keys(pkg.optionalDependencies || {})) {
+              pkg.optionalDependencies[dep] = process.env.VERSION;
+            }
+            fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          "
+          echo "Publishing umbrella version $VERSION"
+        working-directory: openobscure-napi
+        env:
+          VERSION: >-
+            ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
+
+      - name: Publish to npm
+        run: npm publish --access public
+        working-directory: openobscure-napi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

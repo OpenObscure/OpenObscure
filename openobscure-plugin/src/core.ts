@@ -10,8 +10,8 @@
  */
 
 // PII Redaction
-export { redactPii, redactPiiWithNer, callNerEndpoint } from "./redactor";
-export type { RedactionResult, RedactionMatch } from "./redactor";
+export { redactPii, redactPiiWithNer, callNerEndpoint, activeEngine } from "./redactor";
+export type { RedactionResult, RedactionMatch, ScannerEngine } from "./redactor";
 
 // Tool types (for before_tool_call integration)
 export type { ToolCall } from "./types";

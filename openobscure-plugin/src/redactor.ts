@@ -43,28 +43,52 @@ try {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const mod = require("@openobscure/scanner-napi");
   NativeScanner = mod.OpenObscureScanner;
-} catch {
-  // Not installed — redactPii() falls back to JS regex
+} catch (e) {
+  // Not installed or failed to load — redactPii() falls back to JS regex (5 types).
+  // Warn so the degradation is visible in logs; skip in test environments.
+  if (process.env.NODE_ENV !== "test") {
+    process.stderr.write(
+      "[OpenObscure] scanner-napi not available — falling back to JS regex (5 types). " +
+      "Install @openobscure/scanner-napi for full 14-type coverage. " +
+      "Reason: " + String(e) + "\n"
+    );
+  }
 }
 
 let _nativeInstance: InstanceType<NativeScannerClass> | null = null;
 
 /**
- * Auto-detect NER model directory relative to the addon's location.
- * Looks for models at `../openobscure-core/models/ner` from the addon dir.
- * Returns the path if model files exist, undefined otherwise.
+ * Auto-detect NER model directory.
+ *
+ * Search order:
+ *   1. Bundled inside the platform package: `<addon>/models/ner/`
+ *      (populated by the napi-publish CI workflow from TinyBERT INT8)
+ *   2. Dev-layout fallback: `<addon>/../openobscure-core/models/ner/`
+ *      (works in the local monorepo checkout)
+ *
+ * Returns the first candidate that contains a recognised model file,
+ * or undefined if neither location has models (NER will be disabled).
  */
 function autoDetectNerModelDir(): string | undefined {
   try {
     const addonDir = dirname(
       require.resolve("@openobscure/scanner-napi/package.json"),
     );
-    const candidate = resolve(addonDir, "..", "openobscure-core", "models", "ner");
-    if (
-      existsSync(resolve(candidate, "model_int8.onnx")) ||
-      existsSync(resolve(candidate, "model.onnx"))
-    ) {
-      return candidate;
+
+    const candidates = [
+      // 1. Bundled inside the npm package (deployed environments)
+      resolve(addonDir, "models", "ner"),
+      // 2. Dev monorepo layout
+      resolve(addonDir, "..", "openobscure-core", "models", "ner"),
+    ];
+
+    for (const candidate of candidates) {
+      if (
+        existsSync(resolve(candidate, "model_int8.onnx")) ||
+        existsSync(resolve(candidate, "model.onnx"))
+      ) {
+        return candidate;
+      }
     }
   } catch {
     // addon not installed
@@ -128,6 +152,18 @@ export interface RedactionResult {
   types: Record<string, number>;
   /** Per-match details with positions in the original text. */
   matches: RedactionMatch[];
+}
+
+/** Which scanner engine is currently active. */
+export type ScannerEngine = "napi" | "js";
+
+/**
+ * Return the active scanner engine.
+ * - "napi": Rust HybridScanner via @openobscure/scanner-napi (14 types)
+ * - "js":   JS regex fallback (5 types)
+ */
+export function activeEngine(): ScannerEngine {
+  return NativeScanner ? "napi" : "js";
 }
 
 interface PiiPattern {

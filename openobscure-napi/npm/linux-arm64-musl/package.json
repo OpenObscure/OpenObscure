@@ -1,0 +1,20 @@
+{
+  "name": "@openobscure/scanner-napi-linux-arm64-musl",
+  "version": "0.1.0",
+  "description": "OpenObscure native PII scanner — Linux arm64 musl (Alpine) binary",
+  "main": "scanner.linux-arm64-musl.node",
+  "files": [
+    "scanner.linux-arm64-musl.node",
+    "models/"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "engines": { "node": ">= 18" },
+  "os": ["linux"],
+  "cpu": ["arm64"],
+  "libc": ["musl"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenObscure/OpenObscure.git",
+    "directory": "openobscure-napi"
+  }
+}

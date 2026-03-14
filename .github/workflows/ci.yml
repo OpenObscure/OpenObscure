@@ -116,6 +116,40 @@ jobs:
         working-directory: openobscure-plugin
         run: npm test
 
+  napi-test:
+    name: NAPI Addon Tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust stable
+        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: openobscure-napi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install napi-rs CLI
+        run: npm install --ignore-scripts
+        working-directory: openobscure-napi
+
+      - name: Build addon (Rust unit tests)
+        run: cargo test --lib
+        working-directory: openobscure-napi
+
+      - name: Build addon (.node binary)
+        run: npx napi build --release
+        working-directory: openobscure-napi
+
+      - name: Run JS integration tests
+        run: npm test
+        working-directory: openobscure-napi
+
   binding-check:
     name: UniFFI Binding Drift Check
     runs-on: macos-14

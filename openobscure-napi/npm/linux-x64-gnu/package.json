@@ -1,0 +1,19 @@
+{
+  "name": "@openobscure/scanner-napi-linux-x64-gnu",
+  "version": "0.1.0",
+  "description": "OpenObscure native PII scanner — Linux x64 glibc binary",
+  "main": "scanner.linux-x64-gnu.node",
+  "files": [
+    "scanner.linux-x64-gnu.node",
+    "models/"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "engines": { "node": ">= 18" },
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenObscure/OpenObscure.git",
+    "directory": "openobscure-napi"
+  }
+}

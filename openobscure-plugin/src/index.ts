@@ -14,7 +14,7 @@
  */
 
 import { PluginAPI, ToolCall, ToolResult } from "./types";
-import { redactPii, redactPiiWithNer } from "./redactor";
+import { redactPii, redactPiiWithNer, activeEngine } from "./redactor";
 import * as fs from "fs";
 import { HeartbeatMonitor } from "./heartbeat";
 import { ooInfo, OO_MODULES } from "./oo-log";
@@ -69,6 +69,9 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
 
   // Read auth token early (needed by both NER and heartbeat)
   const authToken = readAuthToken();
+
+  // Log which scanner engine loaded (napi = full 14-type, js = 5-type fallback)
+  ooInfo(OO_MODULES.PLUGIN, "Scanner engine active", { engine: activeEngine() });
 
   // 1. Start L1 heartbeat monitor for L0 proxy health
   //    Must start before registering the hook so state is available.
@@ -161,7 +164,8 @@ export function register(api: PluginAPI, config?: OpenObscurePluginConfig): void
 }
 
 // Re-export for direct use
-export { redactPii, redactPiiWithNer } from "./redactor";
+export { redactPii, redactPiiWithNer, activeEngine } from "./redactor";
+export type { ScannerEngine } from "./redactor";
 export type { PluginAPI, ToolCall, ToolResult, ToolDefinition } from "./types";
 export type { RedactionResult, NerMatch } from "./redactor";
 export { HeartbeatMonitor, STATE_MESSAGES } from "./heartbeat";

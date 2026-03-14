@@ -1,0 +1,19 @@
+{
+  "name": "@openobscure/scanner-napi-darwin-x64",
+  "version": "0.1.0",
+  "description": "OpenObscure native PII scanner — macOS Intel (x64) binary",
+  "main": "scanner.darwin-x64.node",
+  "files": [
+    "scanner.darwin-x64.node",
+    "models/"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "engines": { "node": ">= 18" },
+  "os": ["darwin"],
+  "cpu": ["x64"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenObscure/OpenObscure.git",
+    "directory": "openobscure-napi"
+  }
+}
