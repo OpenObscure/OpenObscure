@@ -12,6 +12,8 @@ crate-type = ["cdylib", "lib"]
 napi = { version = "2", default-features = false, features = ["napi4"] }
 napi-derive = "2"
 openobscure-core = { path = "../openobscure-core", default-features = false }
+# Force vendored OpenSSL for musl/Alpine builds (keyring pulls openssl-sys on Linux)
+openssl = { version = "0.10", features = ["vendored"] }
 
 [build-dependencies]
 napi-build = "2"
