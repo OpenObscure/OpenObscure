@@ -213,6 +213,7 @@ jobs:
       - name: Publish to npm
         run: npm publish --access public --dry-run
         working-directory: openobscure-napi/npm/${{ matrix.platform }}
+        env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ── Publish umbrella package ────────────────────────────────────────────────
@@ -246,10 +247,12 @@ jobs:
           "
           echo "Publishing umbrella version $VERSION"
         working-directory: openobscure-napi
+        env:
           VERSION: >-
             ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
 
       - name: Publish to npm
         run: npm publish --access public --dry-run
         working-directory: openobscure-napi
+        env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
