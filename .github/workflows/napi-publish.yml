@@ -44,32 +44,10 @@ jobs:
           name: napi-darwin-arm64
           path: openobscure-napi/scanner.darwin-arm64.node
 
-  build-darwin-x64:
-    name: Build darwin-x64
-    # macos-13 is Intel (x86_64) — native build avoids ort cross-compile prebuilt issue
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust stable
-        run: |
-          rustup toolchain install stable --profile minimal --no-self-update
-          rustup default stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: openobscure-napi
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install napi-rs CLI
-        run: npm install --ignore-scripts
-        working-directory: openobscure-napi
-      - name: Build
-        run: npx napi build --release
-        working-directory: openobscure-napi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: napi-darwin-x64
-          path: openobscure-napi/scanner.darwin-x64.node
+  # build-darwin-x64: deferred — ort 2.0.0-rc.11 has no prebuilt binaries for
+  # x86_64-apple-darwin. macos-13 (Intel) GitHub runners are also deprecated.
+  # Intel Macs are legacy hardware in 2026; darwin-arm64 covers all modern Macs.
+  # Will re-enable if ort adds x86_64-apple-darwin prebuilts.
 
   build-linux-x64-gnu:
     name: Build linux-x64-gnu
@@ -153,6 +131,7 @@ jobs:
         working-directory: openobscure-napi
         env:
           OPENSSL_STATIC: "1"
+          OPENSSL_DIR: "/usr"
       - uses: actions/upload-artifact@v4
         with:
           name: napi-linux-x64-musl
@@ -187,7 +166,6 @@ jobs:
     name: Publish ${{ matrix.platform }}
     needs:
       - build-darwin-arm64
-      - build-darwin-x64
       - build-linux-x64-gnu
       - build-linux-arm64-gnu
       - build-linux-x64-musl
@@ -197,7 +175,6 @@ jobs:
       matrix:
         platform:
           - darwin-arm64
-          - darwin-x64
           - linux-x64-gnu
           - linux-arm64-gnu
           - linux-x64-musl
