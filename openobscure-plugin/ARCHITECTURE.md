@@ -15,7 +15,7 @@ graph TD
         AgentTool["Agent Tool (Web, File, API)"]
         subgraph HookContainer ["tool_result_persist hook"]
             direction TB
-            Redactor["OpenObscure PII Redactor (Native / Regex + NER via L0)"]
+            Redactor["OpenObscure PII Redactor<br/>(Native/Regex + NER via L0)"]
         end
     end
 
@@ -23,8 +23,8 @@ graph TD
 
     style Gateway fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
     style HookContainer fill:#e6f3f7,stroke:#9D7BED,stroke-dasharray: 5 5,color:#232F3E
-    style AgentTool fill:#3F4756,stroke:#545b64,color:#fff
-    style Redactor fill:#9D7BED,stroke:#232F3E,color:#fff
+    style AgentTool fill:#3F4756,stroke:#545b64,color:#fff,font-size:12px
+    style Redactor fill:#9D7BED,stroke:#232F3E,color:#fff,font-size:12px
 ```
 
 ## Module Map
@@ -61,7 +61,13 @@ Scans tool result text for PII and replaces matches with `[REDACTED-*]` labels. 
 
 The native addon wraps the same Rust HybridScanner that powers L0. Auto-detection happens once at module load via `require("@openobscure/scanner-napi")`. If the require fails, falls back silently.
 
-**NER model auto-discovery:** When the native addon is loaded, the redactor looks for NER model files at `../openobscure-core/models/ner/` relative to the addon's install location. If found, enables NER (person, location, org detection) for 15-type coverage.
+**NER model auto-discovery:** When the native addon is loaded, the redactor searches for NER model files in this order:
+1. `<addonDir>/models/ner/` — bundled TinyBERT INT8 model inside the platform npm package
+2. `<addonDir>/../openobscure-core/models/ner/` — dev monorepo layout (local build)
+
+If model files are found, enables NER (person, location, org detection) for 15-type coverage. No extra download or configuration required when installing from npm.
+
+**Engine observability:** `activeEngine()` returns `"napi"` or `"js"` at runtime. Re-exported from both `openobscure-plugin` and `openobscure-plugin/core`. Logged at plugin startup.
 
 **JS Regex Fallback (5 types):**
 
@@ -221,6 +227,8 @@ via the default entry point (`openobscure-plugin`).
 ## Recently Completed
 
 - **Native scanner auto-detection:** `redactPii()` auto-upgrades to NAPI addon (15-type Rust HybridScanner) when `@openobscure/scanner-napi` is installed — DONE
+- **NAPI reliability hardening:** warn on null NativeScanner, `activeEngine()` export, startup logging, `postinstall.js` compile fallback, musl platform support, 6 per-platform npm package manifests, `napi-publish.yml` CI workflow — DONE
+- **NER model bundling path fixed:** `autoDetectNerModelDir()` now checks the bundled package path before the dev monorepo layout — DONE
 - **NER-enhanced redaction:** When L0 is healthy, redactor calls `POST /_openobscure/ner` for semantic PII spans (names, addresses, orgs) merged with regex results — DONE
 - **`before_tool_call` handler:** Prepared handler that auto-activates when OpenClaw wires the hook, upgrading from soft to hard enforcement — DONE
 - **Agent-agnostic API (`core.ts`):** Exports core functions without framework wiring for non-OpenClaw integrations — DONE
@@ -228,4 +236,5 @@ via the default entry point (`openobscure-plugin`).
 
 ## Future Work
 
+- **Phase 4 — promote NAPI to hard dependency (deferred):** Move `@openobscure/scanner-napi` from `optionalDependencies` to `dependencies` in `package.json`. Blocked on first npm publish of all 6 platform packages via `napi-publish.yml`. Until then, users who install `openobscure-plugin` without a local build of the addon get the JS regex fallback (5 types) instead of the full 15-type Rust scanner.
 - **Streaming redaction:** Handle streamed tool results (e.g., large file reads) incrementally (blocked by OpenClaw's synchronous hook API)

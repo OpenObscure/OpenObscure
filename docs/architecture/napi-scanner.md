@@ -85,9 +85,13 @@ const mod = require("@openobscure/scanner-napi");
 NativeScanner = mod.OpenObscureScanner;
 ```
 
-If the require succeeds, all `redactPii()` calls use the native scanner. If it fails (addon not installed), falls back silently to JS regex. No configuration needed.
+If the require succeeds, all `redactPii()` calls use the native scanner. If it fails (addon not installed), a warning is written to stderr and the plugin falls back to JS regex. No configuration needed.
 
-NER model auto-discovery: the plugin looks for model files at `../openobscure-core/models/ner/` relative to the addon's install path.
+**NER model auto-discovery:** The redactor searches two candidate paths in order:
+1. `<addonDir>/models/ner/` — bundled TinyBERT INT8 inside the platform npm package (no extra download needed when installed from npm)
+2. `<addonDir>/../openobscure-core/models/ner/` — dev monorepo layout (local build)
+
+**Engine observability:** Call `activeEngine()` (exported from `openobscure-plugin` and `openobscure-plugin/core`) to query `"napi"` or `"js"` at runtime. The engine is also logged at plugin startup.
 
 ## Technology Stack
 
@@ -98,14 +102,33 @@ NER model auto-discovery: the plugin looks for model files at `../openobscure-co
 | NER | ort 2.0 (ONNX Runtime) via openobscure-core | TinyBERT INT8, loaded on demand |
 | Release profile | `opt-level = "s"`, LTO, strip | Minimal binary size |
 
+## Distribution
+
+Platform binaries are published as separate npm packages and installed as `optionalDependencies` of the umbrella `@openobscure/scanner-napi`. Each package includes both the compiled `.node` binary and the bundled TinyBERT INT8 NER model.
+
+| npm package | Platform |
+|-------------|----------|
+| `@openobscure/scanner-napi-darwin-arm64` | macOS Apple Silicon |
+| `@openobscure/scanner-napi-darwin-x64` | macOS Intel |
+| `@openobscure/scanner-napi-linux-x64-gnu` | Linux x64 glibc |
+| `@openobscure/scanner-napi-linux-arm64-gnu` | Linux ARM64 glibc |
+| `@openobscure/scanner-napi-linux-x64-musl` | Linux x64 Alpine/musl |
+| `@openobscure/scanner-napi-linux-arm64-musl` | Linux ARM64 Alpine/musl |
+
+Publishing is automated via `.github/workflows/napi-publish.yml`, triggered by a `napi-v*` tag.
+
+> **Phase 4 (deferred):** Once all platform packages are published to npm, `@openobscure/scanner-napi` will move from `optionalDependencies` to `dependencies` in `openobscure-plugin/package.json`, making the 15-type Rust scanner the guaranteed default for all installs.
+
 ## Supported Platforms
 
 | Platform | Triple | Status |
 |----------|--------|--------|
 | macOS ARM64 | `aarch64-apple-darwin` | Tested |
-| macOS x64 | `x86_64-apple-darwin` | Configured |
-| Linux x64 | `x86_64-unknown-linux-gnu` | CI |
-| Linux ARM64 | `aarch64-unknown-linux-gnu` | CI |
+| macOS x64 | `x86_64-apple-darwin` | CI |
+| Linux x64 glibc | `x86_64-unknown-linux-gnu` | CI |
+| Linux ARM64 glibc | `aarch64-unknown-linux-gnu` | CI (cargo-zigbuild) |
+| Linux x64 musl (Alpine) | `x86_64-unknown-linux-musl` | CI (Alpine container) |
+| Linux ARM64 musl (Alpine) | `aarch64-unknown-linux-musl` | CI (cargo-zigbuild) |
 
 ## Resource Budget
 
