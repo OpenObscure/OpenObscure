@@ -170,9 +170,9 @@ jobs:
       - name: Set package version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+            export VERSION="${{ github.event.inputs.version }}"
           else
-            VERSION="${GITHUB_REF_NAME#napi-v}"
+            export VERSION="${GITHUB_REF_NAME#napi-v}"
           fi
           echo "Publishing version $VERSION"
           node -e "
@@ -180,7 +180,7 @@ jobs:
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
             pkg.version = process.env.VERSION;
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
-          " VERSION="$VERSION"
+          "
         working-directory: openobscure-napi/npm/${{ matrix.platform }}
 
       - name: Publish to npm
@@ -205,10 +205,11 @@ jobs:
       - name: Set package version
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ github.event.inputs.version }}"
+            export VERSION="${{ github.event.inputs.version }}"
           else
-            VERSION="${GITHUB_REF_NAME#napi-v}"
+            export VERSION="${GITHUB_REF_NAME#napi-v}"
           fi
+          echo "Publishing umbrella version $VERSION"
           node -e "
             const fs = require('fs');
             const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
@@ -218,11 +219,7 @@ jobs:
             }
             fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
           "
-          echo "Publishing umbrella version $VERSION"
         working-directory: openobscure-napi
-        env:
-          VERSION: >-
-            ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
 
       - name: Publish to npm
         run: npm publish --access public
