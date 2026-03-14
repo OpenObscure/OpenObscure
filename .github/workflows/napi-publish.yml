@@ -108,37 +108,9 @@ jobs:
           name: napi-linux-arm64-gnu
           path: openobscure-napi/scanner.linux-arm64-gnu.node
 
-  build-linux-x64-musl:
-    name: Build linux-x64-musl
-    # Alpine container provides musl libc; napi-rs builds natively inside it.
-    runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Rust stable
-        run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
-      - name: Install build dependencies
-        run: apk add --no-cache perl make openssl-dev openssl-libs-static
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: openobscure-napi
-      - name: Install napi-rs CLI
-        run: npm install --ignore-scripts
-        working-directory: openobscure-napi
-      - name: Build
-        run: npx napi build --release --target x86_64-unknown-linux-musl
-        working-directory: openobscure-napi
-        env:
-          OPENSSL_STATIC: "1"
-          OPENSSL_DIR: "/usr"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: napi-linux-x64-musl
-          path: openobscure-napi/scanner.linux-x64-musl.node
-
-  # build-linux-arm64-musl: deferred — ort 2.0.0-rc.11 has no prebuilt binaries
-  # for aarch64-unknown-linux-musl. Will re-enable once ort ships musl-arm64 builds.
+  # build-linux-x64-musl: deferred — ort 2.0.0-rc.11 has no prebuilt binaries for
+  # x86_64-unknown-linux-musl. Will re-enable once ort ships musl prebuilts.
+  # build-linux-arm64-musl: same issue for aarch64-unknown-linux-musl.
   # Tracked: https://github.com/pykeio/ort/issues
 
   # ── Download TinyBERT NER model ─────────────────────────────────────────────
@@ -168,7 +140,6 @@ jobs:
       - build-darwin-arm64
       - build-linux-x64-gnu
       - build-linux-arm64-gnu
-      - build-linux-x64-musl
       - download-ner-model
     runs-on: ubuntu-latest
     strategy:
@@ -177,7 +148,6 @@ jobs:
           - darwin-arm64
           - linux-x64-gnu
           - linux-arm64-gnu
-          - linux-x64-musl
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
