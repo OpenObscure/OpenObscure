@@ -1,0 +1,54 @@
+{
+  "comment": "OpenObscure Gateway — ECS Fargate task definition. AWS Secrets Manager injects OPENOBSCURE_MASTER_KEY as an environment variable (step 1 of key resolution — no sidecar needed).",
+  "prerequisites": [
+    "aws secretsmanager create-secret --name openobscure/fpe-key --secret-string $(openobscure print-key)",
+    "aws secretsmanager create-secret --name openobscure/auth-token --secret-string $(openssl rand -hex 32)",
+    "Attach SecretsManagerReadWrite policy to the task execution role (see iam-policy.json)"
+  ],
+  "family": "openobscure-gateway",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::123456789012:role/openobscure-task-execution-role",
+  "containerDefinitions": [
+    {
+      "name": "openobscure",
+      "image": "ghcr.io/openobscure/openobscure:slim",
+      "portMappings": [
+        {
+          "containerPort": 18790,
+          "protocol": "tcp"
+        }
+      ],
+      "secrets": [
+        {
+          "name": "OPENOBSCURE_MASTER_KEY",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:openobscure/fpe-key"
+        },
+        {
+          "name": "OPENOBSCURE_AUTH_TOKEN",
+          "valueFrom": "arn:aws:secretsmanager:us-east-1:123456789012:secret:openobscure/auth-token"
+        }
+      ],
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -sf -H 'X-OpenObscure-Token: ${OPENOBSCURE_AUTH_TOKEN}' http://localhost:18790/_openobscure/health || exit 1"
+        ],
+        "interval": 10,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 5
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/openobscure-gateway",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}

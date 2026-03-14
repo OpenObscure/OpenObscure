@@ -1,0 +1,43 @@
+# OpenObscure Gateway — local development docker-compose
+#
+# Usage:
+#   cp .env.example .env
+#   # Edit .env: set OPENOBSCURE_MASTER_KEY (run: openobscure print-key)
+#   docker compose up -d
+#   curl -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" http://localhost:18790/_openobscure/health
+
+services:
+  openobscure:
+    image: ghcr.io/openobscure/openobscure:slim
+    ports:
+      - "18790:18790"
+    environment:
+      OPENOBSCURE_MASTER_KEY: ${OPENOBSCURE_MASTER_KEY}
+      OPENOBSCURE_AUTH_TOKEN: ${OPENOBSCURE_AUTH_TOKEN:-devtoken}
+      OPENOBSCURE_LISTEN_ADDR: "0.0.0.0"
+    volumes:
+      # Optional: mount a custom openobscure.toml to override defaults
+      - ./openobscure-core/config:/home/oo/config:ro
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-sf"
+        - "-H"
+        - "X-OpenObscure-Token: ${OPENOBSCURE_AUTH_TOKEN:-devtoken}"
+        - "http://localhost:18790/_openobscure/health"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # Optional echo upstream for testing without a real LLM.
+  # Point openobscure.toml provider upstream_url at http://echo:18791
+  # echo:
+  #   image: node:18-alpine
+  #   command: node /app/echo_server.mjs
+  #   volumes:
+  #     - ./test/scripts:/app:ro
+  #   ports:
+  #     - "18791:18791"

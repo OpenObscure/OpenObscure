@@ -1,0 +1,90 @@
+# OpenObscure — Kubernetes Deployment
+#
+# Prerequisites:
+#   kubectl create secret generic openobscure-fpe \
+#     --from-literal=master-key=$(openobscure print-key)
+#   kubectl create secret generic openobscure-auth \
+#     --from-literal=token=$(openssl rand -hex 32)
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: openobscure-gateway
+  labels:
+    app: openobscure-gateway
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: openobscure-gateway
+  template:
+    metadata:
+      labels:
+        app: openobscure-gateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: openobscure
+          image: ghcr.io/openobscure/openobscure:slim
+          ports:
+            - containerPort: 18790
+          env:
+            - name: OPENOBSCURE_AUTH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: openobscure-auth
+                  key: token
+          volumeMounts:
+            - name: fpe-secret
+              mountPath: /run/secrets
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /_openobscure/health
+              port: 18790
+              httpHeaders:
+                - name: X-OpenObscure-Token
+                  value: $(OPENOBSCURE_AUTH_TOKEN)
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /_openobscure/health
+              port: 18790
+              httpHeaders:
+                - name: X-OpenObscure-Token
+                  value: $(OPENOBSCURE_AUTH_TOKEN)
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+      volumes:
+        - name: fpe-secret
+          secret:
+            secretName: openobscure-fpe
+            defaultMode: 0400
+            items:
+              - key: master-key
+                path: openobscure-master-key
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: openobscure-gateway
+  labels:
+    app: openobscure-gateway
+spec:
+  selector:
+    app: openobscure-gateway
+  ports:
+    - port: 18790
+      targetPort: 18790
+  type: ClusterIP

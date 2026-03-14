@@ -1,0 +1,16 @@
+{
+  "comment": "IAM policy for the ECS task execution role — grants read access to OpenObscure secrets in Secrets Manager.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:*:*:secret:openobscure/*"
+      ]
+    }
+  ]
+}

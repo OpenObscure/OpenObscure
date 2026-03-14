@@ -103,6 +103,10 @@ struct Cli {
     #[arg(short, long, env = "OPENOBSCURE_PORT")]
     port: Option<u16>,
 
+    /// Override listen address (default: 127.0.0.1; use 0.0.0.0 in containers)
+    #[arg(long, env = "OPENOBSCURE_LISTEN_ADDR")]
+    listen_addr: Option<String>,
+
     /// Override log level (trace, debug, info, warn, error)
     #[arg(long, env = "OPENOBSCURE_LOG")]
     log_level: Option<String>,
@@ -129,6 +133,8 @@ enum Commands {
     Serve,
     /// Rotate the FPE encryption key (generates new key, keeps old for overlap window)
     KeyRotate,
+    /// Print the current FPE key as 64 hex chars to stdout (for Docker/CI bootstrapping)
+    PrintKey,
     /// Lightweight passthrough proxy (no PII scanning, forwards to upstream directly)
     Passthrough,
     /// Manage the OpenObscure system service (launchd on macOS, systemd on Linux)
@@ -167,6 +173,9 @@ async fn main() -> anyhow::Result<()> {
     let mut config = AppConfig::load(&cli.config)?;
     if let Some(port) = cli.port {
         config.proxy.port = port;
+    }
+    if let Some(ref addr) = cli.listen_addr {
+        config.proxy.listen_addr = addr.clone();
     }
 
     // Initialize tracing subscriber from config + CLI overrides
@@ -228,6 +237,14 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Some(Commands::KeyRotate) => run_key_rotate(config).await,
+        Some(Commands::PrintKey) => {
+            let vault = Vault::new(&config.fpe.keychain_service);
+            let key = vault
+                .get_fpe_key()
+                .map_err(|e| anyhow::anyhow!("Cannot retrieve FPE key: {}", e))?;
+            println!("{}", hex::encode(key));
+            Ok(())
+        }
         Some(Commands::Passthrough) => run_passthrough(config).await,
         Some(Commands::Service { action }) => run_service(action).await,
     }
@@ -1489,4 +1506,48 @@ fn resolve_auth_token() -> Option<String> {
     }
 
     Some(token)
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn test_config_path() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("config/openobscure.toml")
+    }
+
+    #[test]
+    fn test_listen_addr_default_unchanged() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("OPENOBSCURE_LISTEN_ADDR");
+        let config = AppConfig::load(&test_config_path()).unwrap();
+        // Default is loopback — not overridden when neither CLI nor env var is set
+        assert_eq!(config.proxy.listen_addr, "127.0.0.1");
+    }
+
+    #[test]
+    fn test_listen_addr_env_var_overrides_config() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::set_var("OPENOBSCURE_LISTEN_ADDR", "0.0.0.0");
+        let mut config = AppConfig::load(&test_config_path()).unwrap();
+        // Simulate what main() does after Cli::parse() picks up the env var
+        let addr = std::env::var("OPENOBSCURE_LISTEN_ADDR").ok();
+        if let Some(a) = addr {
+            config.proxy.listen_addr = a;
+        }
+        std::env::remove_var("OPENOBSCURE_LISTEN_ADDR");
+        assert_eq!(config.proxy.listen_addr, "0.0.0.0");
+    }
+
+    #[test]
+    fn test_listen_addr_custom_value() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        std::env::remove_var("OPENOBSCURE_LISTEN_ADDR");
+        let mut config = AppConfig::load(&test_config_path()).unwrap();
+        config.proxy.listen_addr = "192.168.1.1".to_string();
+        assert_eq!(config.proxy.listen_addr, "192.168.1.1");
+    }
 }

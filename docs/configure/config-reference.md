@@ -267,9 +267,20 @@ These environment variables override or supplement TOML configuration.
 
 | Variable | Description |
 |----------|-------------|
-| `OPENOBSCURE_MASTER_KEY` | FPE master key (64 hex chars). Takes priority over OS keychain. |
+| `OPENOBSCURE_MASTER_KEY` | FPE master key (64 hex chars). Step 1 of key resolution — takes priority over all file and keychain sources. |
+| `OPENOBSCURE_KEY_FILE` | Path to a file containing the 64-hex-char FPE key. Step 3 of key resolution — used for non-standard mount points. |
 | `OPENOBSCURE_AUTH_TOKEN` | Health endpoint auth token (hex). Overrides `~/.openobscure/.auth-token`. |
+| `OPENOBSCURE_LISTEN_ADDR` | Override `proxy.listen_addr`. Set to `0.0.0.0` in containers (default: `127.0.0.1`). |
+| `OPENOBSCURE_PORT` | Override `proxy.port` (default: `18790`). Equivalent to `--port`. |
 | `OPENOBSCURE_CONFIG` | Path to TOML config file. Overrides default `config/openobscure.toml`. |
+| `OPENOBSCURE_LOG` | Log level: `trace`, `debug`, `info`, `warn`, `error` (default: `info`). |
 | `OPENOBSCURE_HEADLESS` | Set to `1` to print FPE key to stdout during `--init-key`. |
 | `OPENAI_BASE_URL` | Used by many AI tools (Cursor, Aider, etc.) to route through the proxy. |
 | `ANTHROPIC_BASE_URL` | Used by Anthropic-compatible tools to route through the proxy. |
+
+**FPE key resolution order** (first found wins):
+1. `OPENOBSCURE_MASTER_KEY` env var
+2. `/run/secrets/openobscure-master-key` file (Kubernetes Secrets / Docker Secrets standard path)
+3. `OPENOBSCURE_KEY_FILE` env var (custom file path)
+4. `~/.openobscure/master-key` file (volume-mounted home directory)
+5. OS keychain (native desktop/laptop install)

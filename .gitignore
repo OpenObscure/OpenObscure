@@ -42,3 +42,6 @@ data/
 project-plan/
 review-notes/
 session-notes/
+
+# Docker secrets / local env — never commit
+.env

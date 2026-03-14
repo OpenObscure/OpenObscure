@@ -1,0 +1,251 @@
+name: Docker
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      build_full:
+        description: "Build and smoke-test the full image (requires Git LFS)"
+        type: boolean
+        default: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ── Feature gate validation ────────────────────────────────────────────────
+  # Verify both feature variants compile before spending time on Docker build.
+  validate-features:
+    name: Validate feature gates
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        run: rustup toolchain install stable --no-self-update
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            openobscure-core/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('openobscure-core/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Slim feature check (server only — no voice/sherpa-onnx)
+        run: |
+          cargo build \
+            --manifest-path openobscure-core/Cargo.toml \
+            --release \
+            --no-default-features \
+            --features server
+
+      - name: Full feature check (default features — server + voice)
+        run: |
+          cargo build \
+            --manifest-path openobscure-core/Cargo.toml \
+            --release
+
+  # ── Docker build and push ──────────────────────────────────────────────────
+  build-and-push:
+    name: Build and push slim image
+    runs-on: ubuntu-latest
+    needs: validate-features
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch,suffix=-slim
+            type=semver,pattern={{version}},suffix=-slim
+            type=semver,pattern={{major}}.{{minor}},suffix=-slim
+            type=sha,prefix=sha-,format=short,suffix=-slim
+            # Also tag the slim image as the plain version tag
+            type=raw,value=slim,enable={{is_default_branch}}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push slim image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: slim
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
+
+  # ── Slim smoke test ────────────────────────────────────────────────────────
+  smoke-test-slim:
+    name: Smoke test slim image
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Generate test FPE key
+        run: echo "TEST_KEY=$(openssl rand -hex 32)" >> $GITHUB_ENV
+
+      - name: Start slim container
+        run: |
+          docker run -d --name oo-test \
+            -e OPENOBSCURE_MASTER_KEY=${{ env.TEST_KEY }} \
+            -e OPENOBSCURE_AUTH_TOKEN=ci-test-token \
+            -p 18790:18790 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:slim
+
+      - name: Wait for health endpoint
+        run: |
+          for i in $(seq 1 15); do
+            if curl -sf \
+              -H "X-OpenObscure-Token: ci-test-token" \
+              http://localhost:18790/_openobscure/health; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i failed, retrying in 2s..."
+            sleep 2
+          done
+          echo "Health check timed out"
+          docker logs oo-test
+          exit 1
+
+      - name: Verify NER endpoint responds
+        run: |
+          curl -sf \
+            -X POST \
+            -H "X-OpenObscure-Token: ci-test-token" \
+            -H "Content-Type: application/json" \
+            -d '{"text": "My name is John and my SSN is 123-45-6789"}' \
+            http://localhost:18790/_openobscure/ner
+
+      - name: Test /run/secrets key resolution
+        run: |
+          # Write key to a temp file simulating /run/secrets mount
+          echo "${{ env.TEST_KEY }}" > /tmp/oo-secret-key
+          docker run -d --name oo-secrets \
+            -e OPENOBSCURE_AUTH_TOKEN=ci-secrets-token \
+            -e OPENOBSCURE_KEY_FILE=/run/secrets/openobscure-master-key \
+            -v /tmp/oo-secret-key:/run/secrets/openobscure-master-key:ro \
+            -p 18791:18790 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:slim
+          sleep 5
+          curl -sf \
+            -H "X-OpenObscure-Token: ci-secrets-token" \
+            http://localhost:18791/_openobscure/health
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f oo-test oo-secrets 2>/dev/null || true
+
+  # ── Full image smoke test (manual only) ───────────────────────────────────
+  smoke-test-full:
+    name: Smoke test full image (manual)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.build_full == true
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Pull LFS model files
+        run: git lfs pull
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build full image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          target: full
+          push: false
+          tags: openobscure:full-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+
+      - name: Generate test FPE key
+        run: echo "TEST_KEY=$(openssl rand -hex 32)" >> $GITHUB_ENV
+
+      - name: Start full container
+        run: |
+          docker run -d --name oo-full \
+            -e OPENOBSCURE_MASTER_KEY=${{ env.TEST_KEY }} \
+            -e OPENOBSCURE_AUTH_TOKEN=ci-full-token \
+            -p 18790:18790 \
+            openobscure:full-test
+
+      - name: Wait for health
+        run: |
+          for i in $(seq 1 20); do
+            if curl -sf -H "X-OpenObscure-Token: ci-full-token" \
+              http://localhost:18790/_openobscure/health; then
+              exit 0
+            fi
+            sleep 3
+          done
+          docker logs oo-full; exit 1
+
+      - name: Verify NER endpoint
+        run: |
+          curl -sf -X POST \
+            -H "X-OpenObscure-Token: ci-full-token" \
+            -H "Content-Type: application/json" \
+            -d '{"text": "Contact John Smith at john@example.com"}' \
+            http://localhost:18790/_openobscure/ner
+
+      - name: Verify image pipeline endpoint responds
+        run: |
+          # Post a 1x1 white PNG (base64) to confirm image processing is reachable
+          TINY_PNG="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwADhQGAWjR9awAAAABJRU5ErkJggg=="
+          PAYLOAD=$(printf '{"model":"test","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,%s"}}]}]}' "$TINY_PNG")
+          # Expect proxy to handle it (may return 502 if no upstream — that is OK)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST \
+            -H "X-OpenObscure-Token: ci-full-token" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            http://localhost:18790/openai/v1/chat/completions)
+          echo "Image pipeline status: $STATUS"
+          [[ "$STATUS" != "500" ]] || exit 1
+
+      - name: Cleanup
+        if: always()
+        run: docker rm -f oo-full 2>/dev/null || true
