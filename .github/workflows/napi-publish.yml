@@ -119,7 +119,7 @@ jobs:
       - name: Install Rust stable
         run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
       - name: Install build dependencies
-        run: apk add --no-cache perl make
+        run: apk add --no-cache perl make openssl-dev openssl-libs-static
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: openobscure-napi
@@ -129,6 +129,9 @@ jobs:
       - name: Build
         run: npx napi build --release --target x86_64-unknown-linux-musl
         working-directory: openobscure-napi
+        env:
+          OPENSSL_STATIC: "1"
+          OPENSSL_DIR: "/usr"
       - uses: actions/upload-artifact@v4
         with:
           name: napi-linux-x64-musl
