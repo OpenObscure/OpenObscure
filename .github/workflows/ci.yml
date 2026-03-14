@@ -139,11 +139,11 @@ jobs:
         working-directory: openobscure-napi
 
       - name: Build addon (Rust unit tests)
-        run: cargo test --lib --no-default-features
+        run: cargo test --lib
         working-directory: openobscure-napi
 
       - name: Build addon (.node binary)
-        run: npx napi build --release --no-default-features
+        run: npx napi build --release
         working-directory: openobscure-napi
 
       - name: Run JS integration tests
