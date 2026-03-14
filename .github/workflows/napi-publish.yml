@@ -13,7 +13,7 @@ env:
   CARGO_TERM_COLOR: always
   # TinyBERT INT8 — 13.7 MB
   # Replace with the actual Hugging Face model repo and file path before first publish.
-  NER_MODEL_REPO: "openobscure/tinybert-ner-int8"
+  NER_MODEL_REPO: "openobscure/tinybert4l-pii-ner-int8"
   NER_MODEL_FILE: "model_int8.onnx"
   NER_VOCAB_FILE: "vocab.txt"
 
