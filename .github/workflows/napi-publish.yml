@@ -184,7 +184,7 @@ jobs:
         working-directory: openobscure-napi/npm/${{ matrix.platform }}
 
       - name: Publish to npm
-        run: npm publish --access public --dry-run
+        run: npm publish --access public
         working-directory: openobscure-napi/npm/${{ matrix.platform }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -225,7 +225,7 @@ jobs:
             ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
 
       - name: Publish to npm
-        run: npm publish --access public --dry-run
+        run: npm publish --access public
         working-directory: openobscure-napi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
