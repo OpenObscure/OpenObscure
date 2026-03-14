@@ -33,7 +33,7 @@ pub struct DeviceProfile {
 pub enum CapabilityTier {
     /// ≥8 GB RAM — full feature set: NER (DistilBERT), SCRFD face, PP-OCRv4, NSFW, ensemble voting.
     Full,
-    /// 4–8 GB RAM — NER (TinyBERT), BlazeFace, PP-OCRv4 lite, NSFW; shorter idle eviction.
+    /// 4–8 GB RAM — NER (TinyBERT), SCRFD face, PP-OCRv4 full recognition, NSFW; shorter idle eviction.
     Standard,
     /// <4 GB RAM — CRF + regex only; no image pipeline; conservative memory budget.
     Lite,
@@ -77,7 +77,7 @@ pub struct FeatureBudget {
     pub nsfw_enabled: bool,
     /// Enable screenshot detection heuristics.
     pub screen_guard_enabled: bool,
-    /// Face detection model: "scrfd" (Full/Standard) or "blazeface" (Lite).
+    /// Face detection model: "scrfd" (Full/Standard) or "ultralight" (Lite).
     pub face_model: String,
     /// Model idle timeout before eviction (seconds).
     pub model_idle_timeout_secs: u64,

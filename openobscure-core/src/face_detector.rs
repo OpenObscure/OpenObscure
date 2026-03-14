@@ -1,11 +1,15 @@
 //! Face detection via ONNX Runtime.
 //!
 //! Two detector backends, tier-gated:
-//! - **BlazeFace** (Lite tier): 128x128 input, ~400KB, selfie-distance faces
+//! - **Ultra-Light RFB-320** (Lite tier): 320x240 input, ~1MB disk / ~2MB RAM, fast mobile faces
 //! - **SCRFD-2.5GF** (Full/Standard tier): 640x640 input, ~3.1MB, multi-scale faces
 //!
+//! BlazeFace (~400KB disk, ~8MB RAM) was evaluated and rejected for Lite tier — RAM
+//! too high for the 80MB Lite budget. Ultra-Light RFB-320 meets all criteria.
+//!
 //! Model files expected:
-//! - BlazeFace: `blazeface.onnx` (~400KB) + optional `blazeface_anchors.json`
+//! - Ultra-Light: `version-RFB-320.onnx` (~1MB)
+//! - BlazeFace (available but not deployed): `blazeface.onnx` + optional `blazeface_anchors.json`
 //! - SCRFD: `scrfd_2.5g.onnx` (~3.1MB)
 
 use std::path::Path;
