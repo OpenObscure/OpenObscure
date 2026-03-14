@@ -227,7 +227,8 @@ via the default entry point (`openobscure-plugin`).
 ## Recently Completed
 
 - **Native scanner auto-detection:** `redactPii()` auto-upgrades to NAPI addon (15-type Rust HybridScanner) when `@openobscure/scanner-napi` is installed — DONE
-- **NAPI reliability hardening:** warn on null NativeScanner, `activeEngine()` export, startup logging, `postinstall.js` compile fallback, musl platform support, 6 per-platform npm package manifests, `napi-publish.yml` CI workflow — DONE
+- **NAPI reliability hardening:** warn on null NativeScanner, `activeEngine()` export, startup logging, `postinstall.js` compile fallback, 3 per-platform npm package manifests, `napi-publish.yml` CI workflow — DONE
+- **Phase 4 — NAPI published to npm:** `@openobscure/scanner-napi` v0.1.1 live on npm (darwin-arm64, linux-x64-gnu, linux-arm64-gnu). Wired as `optionalDependencies` in `package.json`. On supported platforms the 15-type Rust scanner auto-loads without any extra setup — DONE
 - **NER model bundling path fixed:** `autoDetectNerModelDir()` now checks the bundled package path before the dev monorepo layout — DONE
 - **NER-enhanced redaction:** When L0 is healthy, redactor calls `POST /_openobscure/ner` for semantic PII spans (names, addresses, orgs) merged with regex results — DONE
 - **`before_tool_call` handler:** Prepared handler that auto-activates when OpenClaw wires the hook, upgrading from soft to hard enforcement — DONE
@@ -236,5 +237,5 @@ via the default entry point (`openobscure-plugin`).
 
 ## Future Work
 
-- **Phase 4 — promote NAPI to hard dependency (deferred):** Move `@openobscure/scanner-napi` from `optionalDependencies` to `dependencies` in `package.json`. Blocked on first npm publish of all 6 platform packages via `napi-publish.yml`. Until then, users who install `openobscure-plugin` without a local build of the addon get the JS regex fallback (5 types) instead of the full 15-type Rust scanner.
+- **Promote NAPI to hard dependency:** Move `@openobscure/scanner-napi` from `optionalDependencies` to `dependencies` once the remaining deferred platform packages (darwin-x64, linux musl variants) are published. Blocked on `ort` 2.0 adding prebuilt binaries for musl targets.
 - **Streaming redaction:** Handle streamed tool results (e.g., large file reads) incrementally (blocked by OpenClaw's synchronous hook API)

@@ -106,29 +106,29 @@ If the require succeeds, all `redactPii()` calls use the native scanner. If it f
 
 Platform binaries are published as separate npm packages and installed as `optionalDependencies` of the umbrella `@openobscure/scanner-napi`. Each package includes both the compiled `.node` binary and the bundled TinyBERT INT8 NER model.
 
-| npm package | Platform |
-|-------------|----------|
-| `@openobscure/scanner-napi-darwin-arm64` | macOS Apple Silicon |
-| `@openobscure/scanner-napi-darwin-x64` | macOS Intel |
-| `@openobscure/scanner-napi-linux-x64-gnu` | Linux x64 glibc |
-| `@openobscure/scanner-napi-linux-arm64-gnu` | Linux ARM64 glibc |
-| `@openobscure/scanner-napi-linux-x64-musl` | Linux x64 Alpine/musl |
-| `@openobscure/scanner-napi-linux-arm64-musl` | Linux ARM64 Alpine/musl |
+| npm package | Platform | Status |
+|-------------|----------|--------|
+| `@openobscure/scanner-napi-darwin-arm64` | macOS Apple Silicon | **Live on npm** |
+| `@openobscure/scanner-napi-linux-x64-gnu` | Linux x64 glibc | **Live on npm** |
+| `@openobscure/scanner-napi-linux-arm64-gnu` | Linux ARM64 glibc | **Live on npm** |
+| `@openobscure/scanner-napi-darwin-x64` | macOS Intel | Deferred — requires cross-compile from ARM64 runner |
+| `@openobscure/scanner-napi-linux-x64-musl` | Linux x64 Alpine/musl | Deferred — `ort` 2.0 has no prebuilt binaries for musl targets |
+| `@openobscure/scanner-napi-linux-arm64-musl` | Linux ARM64 Alpine/musl | Deferred — same `ort` musl limitation |
 
-Publishing is automated via `.github/workflows/napi-publish.yml`, triggered by a `napi-v*` tag.
+Publishing is automated via `.github/workflows/napi-publish.yml`, triggered by a `napi-v*` tag. The current workflow builds and publishes the 3 live platforms; musl and darwin-x64 jobs are omitted until the upstream `ort` crate adds musl prebuilt support.
 
-> **Phase 4 (deferred):** Once all platform packages are published to npm, `@openobscure/scanner-napi` will move from `optionalDependencies` to `dependencies` in `openobscure-plugin/package.json`, making the 15-type Rust scanner the guaranteed default for all installs.
+> **Phase 4 (complete):** `@openobscure/scanner-napi` is published on npm (v0.1.1) and wired as `optionalDependencies` in `openobscure-plugin/package.json`. On supported platforms the 15-type Rust scanner is the default; unsupported platforms (musl, macOS Intel) fall back to JS regex (5 types) until their packages are published.
 
 ## Supported Platforms
 
 | Platform | Triple | Status |
 |----------|--------|--------|
-| macOS ARM64 | `aarch64-apple-darwin` | Tested |
-| macOS x64 | `x86_64-apple-darwin` | CI |
-| Linux x64 glibc | `x86_64-unknown-linux-gnu` | CI |
-| Linux ARM64 glibc | `aarch64-unknown-linux-gnu` | CI (cargo-zigbuild) |
-| Linux x64 musl (Alpine) | `x86_64-unknown-linux-musl` | CI (Alpine container) |
-| Linux ARM64 musl (Alpine) | `aarch64-unknown-linux-musl` | CI (cargo-zigbuild) |
+| macOS ARM64 | `aarch64-apple-darwin` | **Published (npm v0.1.1)** |
+| Linux x64 glibc | `x86_64-unknown-linux-gnu` | **Published (npm v0.1.1)** |
+| Linux ARM64 glibc | `aarch64-unknown-linux-gnu` | **Published (npm v0.1.1)** |
+| macOS x64 | `x86_64-apple-darwin` | Deferred |
+| Linux x64 musl (Alpine) | `x86_64-unknown-linux-musl` | Deferred — ort no prebuilts |
+| Linux ARM64 musl (Alpine) | `aarch64-unknown-linux-musl` | Deferred — ort no prebuilts |
 
 ## Resource Budget
 

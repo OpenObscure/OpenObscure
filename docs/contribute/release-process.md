@@ -61,32 +61,32 @@ Source code distribution is not subject to these restrictions.
 
 ## NAPI Package Release
 
-NAPI platform packages are published separately from the core release, triggered by a `napi-v*` tag (e.g. `napi-v0.1.0`). This runs `.github/workflows/napi-publish.yml` and publishes 6 platform packages plus the umbrella to npm.
+NAPI platform packages are published separately from the core release, triggered by a `napi-v*` tag (e.g. `napi-v0.1.1`). This runs `.github/workflows/napi-publish.yml` and publishes 3 platform packages plus the umbrella to npm.
 
-### Pre-publish checklist
+**First publish is complete.** `@openobscure/scanner-napi` v0.1.1 and three platform packages are live on npm:
+- `@openobscure/scanner-napi-darwin-arm64` — macOS Apple Silicon
+- `@openobscure/scanner-napi-linux-x64-gnu` — Linux x64 glibc
+- `@openobscure/scanner-napi-linux-arm64-gnu` — Linux ARM64 glibc
 
-Before pushing the first `napi-v*` tag, the following must be resolved:
+### Checklist for future NAPI releases
 
-1. **Update `NER_MODEL_REPO` in `napi-publish.yml`**
-   The current value (`openobscure/tinybert-ner-int8`) is a placeholder. Upload the TinyBERT INT8 model files (`model_int8.onnx`, `vocab.txt`) to a Hugging Face repository and update the env var. The `download-ner-model` job will fail with a 404 until this is done.
+1. **Bump versions** in `openobscure-napi/package.json` and each `openobscure-napi/npm/*/package.json`, keeping them in sync.
+2. **Ensure `NPM_TOKEN` secret** is set in GitHub repository → Settings → Secrets → Actions (already configured — verify it hasn't expired).
+3. **Tag and push** `napi-vX.Y.Z` to trigger the workflow. Platform packages publish first, then the umbrella (`needs: [publish-platform-packages]`).
 
-2. **Verify `CARGO=cargo-zigbuild` is respected by napi-rs CLI**
-   The cross-compilation jobs (`linux-arm64-gnu`, `linux-arm64-musl`) rely on napi-rs 2.x honouring the `CARGO` environment variable override. If it does not, those jobs will build with plain `cargo` against the wrong target or fail. Alternative: create a `.cargo/config.toml` in `openobscure-napi/` with the zigbuild target-specific runner, or use the `--use-cross` flag with the `cross` tool instead.
+### Known limitations and deferred platforms
 
-3. **Review Alpine container + rustup interaction for `linux-x64-musl`**
-   The `ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-alpine` container already ships a musl-capable Rust toolchain. Running `rustup toolchain install stable` on top may install a glibc toolchain that produces glibc binaries. Verify the generated `.node` file links against musl (`file scanner.linux-x64-musl.node`) before publishing. If it links glibc, remove the `rustup toolchain install` step and rely on the container's pre-installed toolchain.
+| Platform | Blocker |
+|----------|---------|
+| `linux-x64-musl` (Alpine) | `ort` 2.0 provides no prebuilt binaries for musl targets — build fails at link time |
+| `linux-arm64-musl` (Alpine) | Same `ort` limitation |
+| `darwin-x64` (macOS Intel) | Requires cross-compile infrastructure; low priority (ARM64 covers macOS) |
 
-4. **Add `NPM_TOKEN` secret** to GitHub repository → Settings → Secrets → Actions. Both publish jobs use `${{ secrets.NPM_TOKEN }}` as `NODE_AUTH_TOKEN`.
+These platforms are excluded from the current workflow. Add them once `ort` adds musl support or an alternative ONNX Runtime integration path is available.
 
-5. **Publish order**: platform packages must be published before the umbrella, because the umbrella's `optionalDependencies` reference the platform package versions. The workflow enforces this via `needs: [publish-platform-packages]` on the `publish-umbrella` job.
+### Phase 4 — promote to hard dependency
 
-### Post-publish: Phase 4
-
-After all 6 platform packages and the umbrella are live on npm, move `@openobscure/scanner-napi` from `optionalDependencies` to `dependencies` in `openobscure-plugin/package.json` and cut a new plugin release. This makes the 15-type Rust scanner the guaranteed default for all `openobscure-plugin` installs.
-
-### Known limitation: NER model path for npm-installed users
-
-`autoDetectNerModelDir()` in `redactor.ts` searches `<umbrellaPackageDir>/models/ner/` first, but models are bundled in the *platform* package dir (e.g. `node_modules/@openobscure/scanner-napi-darwin-arm64/models/ner/`). NER will not auto-load from the bundled model until this path is corrected to resolve the platform package directory. The dev-layout fallback (`../openobscure-core/models/ner/`) continues to work for local builds. Tracked as Future Work in `openobscure-napi/ARCHITECTURE.md`.
+Once the remaining platforms are published (or a decision is made to ship without them), move `@openobscure/scanner-napi` from `optionalDependencies` to `dependencies` in `openobscure-plugin/package.json`. This makes the 15-type Rust scanner the guaranteed default for all `openobscure-plugin` installs rather than an optional upgrade.
 
 ---
 

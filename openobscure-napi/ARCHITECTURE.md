@@ -110,31 +110,31 @@ If the require succeeds, all `redactPii()` calls use the native scanner. If it f
 
 Platform binaries are published as separate npm packages and installed as `optionalDependencies`. The umbrella package (`@openobscure/scanner-napi`) resolves the right one at install time.
 
-| npm package | Platform | Build method |
-|-------------|----------|--------------|
-| `@openobscure/scanner-napi-darwin-arm64` | macOS Apple Silicon | macos-14 native |
-| `@openobscure/scanner-napi-darwin-x64` | macOS Intel | macos-14 + `x86_64-apple-darwin` target |
-| `@openobscure/scanner-napi-linux-x64-gnu` | Linux x64 glibc | ubuntu native |
-| `@openobscure/scanner-napi-linux-arm64-gnu` | Linux ARM64 glibc | ubuntu + cargo-zigbuild |
-| `@openobscure/scanner-napi-linux-x64-musl` | Linux x64 Alpine | Alpine container |
-| `@openobscure/scanner-napi-linux-arm64-musl` | Linux ARM64 Alpine | ubuntu + cargo-zigbuild |
+| npm package | Platform | Build method | Status |
+|-------------|----------|--------------|--------|
+| `@openobscure/scanner-napi-darwin-arm64` | macOS Apple Silicon | macos-14 native | **Live on npm** |
+| `@openobscure/scanner-napi-linux-x64-gnu` | Linux x64 glibc | ubuntu native | **Live on npm** |
+| `@openobscure/scanner-napi-linux-arm64-gnu` | Linux ARM64 glibc | ubuntu + cargo-zigbuild | **Live on npm** |
+| `@openobscure/scanner-napi-darwin-x64` | macOS Intel | macos-14 cross-compile | Deferred |
+| `@openobscure/scanner-napi-linux-x64-musl` | Linux x64 Alpine | Alpine container | Deferred — ort no prebuilts |
+| `@openobscure/scanner-napi-linux-arm64-musl` | Linux ARM64 Alpine | ubuntu + cargo-zigbuild | Deferred — ort no prebuilts |
 
-Each platform package includes the compiled `.node` binary **and** the bundled TinyBERT INT8 NER model (`models/ner/`), so NER works immediately after install without any extra model download step.
+Each live platform package includes the compiled `.node` binary **and** the bundled TinyBERT INT8 NER model (`models/ner/`), so NER works immediately after install without any extra model download step.
 
-Publishing is automated via `.github/workflows/napi-publish.yml`, triggered by a `napi-v*` tag.
+Publishing is automated via `.github/workflows/napi-publish.yml`, triggered by a `napi-v*` tag. The current workflow builds the 3 live platforms; musl and darwin-x64 are omitted until `ort` 2.0 provides prebuilt binaries for those targets.
 
-> **Phase 4 (deferred):** Once all platform packages are published to npm, `@openobscure/scanner-napi` will move from `optionalDependencies` to `dependencies` in `openobscure-plugin/package.json`. Until then, the plugin falls back to JS regex (5 types) if the package is not yet available on the registry.
+> **Phase 4 (complete):** `@openobscure/scanner-napi` v0.1.1 is published on npm and wired as `optionalDependencies` in `openobscure-plugin/package.json`. On supported platforms the 15-type Rust scanner auto-loads; unsupported platforms fall back to JS regex until their packages are published.
 
 ## Supported Platforms
 
 | Platform | Triple | Status |
 |----------|--------|--------|
-| macOS ARM64 | `aarch64-apple-darwin` | Tested |
-| macOS x64 | `x86_64-apple-darwin` | CI |
-| Linux x64 glibc | `x86_64-unknown-linux-gnu` | CI |
-| Linux ARM64 glibc | `aarch64-unknown-linux-gnu` | CI (cargo-zigbuild) |
-| Linux x64 musl (Alpine) | `x86_64-unknown-linux-musl` | CI (Alpine container) |
-| Linux ARM64 musl (Alpine) | `aarch64-unknown-linux-musl` | CI (cargo-zigbuild) |
+| macOS ARM64 | `aarch64-apple-darwin` | **Published (npm v0.1.1)** |
+| Linux x64 glibc | `x86_64-unknown-linux-gnu` | **Published (npm v0.1.1)** |
+| Linux ARM64 glibc | `aarch64-unknown-linux-gnu` | **Published (npm v0.1.1)** |
+| macOS x64 | `x86_64-apple-darwin` | Deferred |
+| Linux x64 musl (Alpine) | `x86_64-unknown-linux-musl` | Deferred — ort no prebuilts |
+| Linux ARM64 musl (Alpine) | `aarch64-unknown-linux-musl` | Deferred — ort no prebuilts |
 
 ## Resource Budget
 
