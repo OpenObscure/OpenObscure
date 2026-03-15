@@ -155,6 +155,7 @@ PCI-DSS Requirement 10 (Log and Monitor All Access) is supported by `fpe_unprote
 
 ```bash
 # Health endpoint includes fpe_unprotected_total
+# Add -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" if auth token is configured
 curl -s http://127.0.0.1:18790/_openobscure/health | jq '.fpe_unprotected_total'
 ```
 
@@ -184,6 +185,7 @@ Regardless of which mode you choose, instrument `fpe_unprotected_total` before g
 
 ```bash
 # Check current unprotected count
+# Add -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" if auth token is configured
 curl -s http://127.0.0.1:18790/_openobscure/health | jq '.fpe_unprotected_total'
 ```
 

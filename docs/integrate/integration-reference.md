@@ -177,8 +177,10 @@ This works with Cursor, Aider, Continue, Open Interpreter, and any tool that rea
 ### OpenAI format
 
 ```bash
+# X-OpenObscure-Token is required on all routes when OPENOBSCURE_AUTH_TOKEN is set
 curl http://127.0.0.1:18790/openai/v1/chat/completions \
   -H "Authorization: Bearer $OPENAI_API_KEY" \
+  -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o",
@@ -191,6 +193,7 @@ curl http://127.0.0.1:18790/openai/v1/chat/completions \
 ```bash
 curl http://127.0.0.1:18790/anthropic/v1/messages \
   -H "x-api-key: $ANTHROPIC_API_KEY" \
+  -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" \
   -H "anthropic-version: 2023-06-01" \
   -H "Content-Type: application/json" \
   -d '{
@@ -252,6 +255,10 @@ Then use `http://127.0.0.1:18790/my-provider` as your base URL. The proxy uses l
 **SSE streaming:** The proxy accumulates SSE frames to detect PII that spans frame boundaries, then forwards frames with FPE-encrypted values. Supported for OpenAI, Anthropic, and Gemini delta formats.
 
 **Auth passthrough:** All original request headers (including `Authorization`, `x-api-key`, `anthropic-version`) are forwarded unchanged. The proxy adds only `x-openobscure-internal` headers for its own use, which are stripped before forwarding via the `strip_headers` config.
+
+**Auth token on proxy routes:** When `OPENOBSCURE_AUTH_TOKEN` is set (or auto-generated on first startup), the proxy enforces it on **all routes** — including LLM proxy routes like `/openai/v1/chat/completions`. Requests missing the `X-OpenObscure-Token` header return HTTP 401. The L1 plugin handles this automatically via the shared token file (`~/.openobscure/.auth-token`); curl examples above must include the header explicitly.
+
+**OpenClaw `baseUrl` must include `/v1`:** When configuring OpenClaw to route through the proxy, set `baseUrl` to `http://127.0.0.1:18790/openai` (not `/openai/v1`). The OpenAI-compatible SDK appends `/v1/chat/completions` automatically — adding `/v1` to the base URL results in `/v1/v1/chat/completions` and a connection error. If you see stale URLs after a config change, delete `~/.openclaw/agents/main/agent/models.json` and restart the gateway to force regeneration.
 
 ---
 

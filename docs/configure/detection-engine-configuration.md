@@ -429,6 +429,7 @@ CRF has no chunking limit. Viterbi runs on the full token sequence regardless of
 To verify which backend is active after startup:
 
 ```bash
+# Add -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" if auth token is configured
 curl -s http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool | grep scanner_mode
 ```
 
@@ -540,6 +541,7 @@ The NAPI addon is auto-detected at startup — no configuration needed. If prese
 ### Gateway
 
 ```bash
+# Add -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" if auth token is configured
 curl -s http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
 ```
 

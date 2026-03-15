@@ -51,7 +51,14 @@ val handle = createOpenobscure(configJson = config, fpeKeyHex = fpeKey)
 
 > **Key hygiene:** The FPE key is a 32-byte AES-256 secret. Hard-coding it in source exposes the key in version control and crash logs. On iOS, use the Keychain API (`kSecClassGenericPassword`). On Android, use `EncryptedSharedPreferences` backed by the Android Keystore. Generate the key once with a cryptographically secure random source (`SecRandomCopyBytes` on iOS, `SecureRandom` on Android, or `openssl rand -hex 32`).
 
-**Key resolution order** (gateway mode): `OPENOBSCURE_MASTER_KEY` env var → OS keychain (using `keychain_service` / `keychain_user` from config) → error.
+**Key resolution order** (gateway mode):
+1. `OPENOBSCURE_MASTER_KEY` env var
+2. `/run/secrets/openobscure-master-key` file (Kubernetes / Docker Secrets standard path)
+3. `OPENOBSCURE_KEY_FILE` env var pointing to a custom key file path
+4. `~/.openobscure/master-key` file (useful when home directory is volume-mounted)
+5. OS keychain (using `keychain_service` / `keychain_user` from config)
+
+If none of the above sources yields a valid key, the proxy exits with an error listing all five lookup locations.
 
 > **Single global key.** OpenObscure uses one AES-256 master key for all PII types and all languages. There is no per-country or per-locale key configuration. Country-aware behavior affects detection only (multilingual scanners in `multilingual/`) — not the encryption key or tweak derivation.
 
@@ -225,6 +232,7 @@ Prioritizes strict privacy — no plaintext PII or unscanned body ever leaves th
 ### Gateway
 
 ```bash
+# Add -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" if auth token is configured
 curl -s http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
 ```
 

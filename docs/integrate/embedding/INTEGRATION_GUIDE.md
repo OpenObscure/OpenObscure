@@ -390,7 +390,7 @@ dependencies {
 -dontwarn com.sun.jna.**
 ```
 
-5. **Verify Gradle JNI config** — ensure `build.gradle.kts` has:
+5. **Verify Gradle JNI config** — RikkaHub already has both of these; confirm they are present in `app/build.gradle.kts`:
 
 ```kotlin
 android {
@@ -535,11 +535,11 @@ Wire into `DataSourceModule.kt` (line ~192):
 For finer control, intercept at the message building level in `ChatCompletionsAPI.kt`:
 
 ```kotlin
-// In buildMessages() (line ~377), wrap each user message:
+// In buildMessages() (line ~399), wrap each user message:
 val result = sanitizeText(OpenObscureManager.handle, userText)
 // Use result.sanitizedText instead of userText in the JSON builder
 
-// In parseMessage() (line ~568), restore response text:
+// In parseMessage() (line ~590), restore response text:
 val restored = restoreText(OpenObscureManager.handle, assistantText, lastMappingJson)
 ```
 
@@ -581,8 +581,8 @@ Use the bundling script to copy models with correct directory naming:
 # Bundle all models from dev repo to app resources
 ./build/bundle_models.sh /path/to/your/app/models
 
-# Example for Enchanted
-./build/bundle_models.sh ~/Test/enchanted-openobscure/models
+# Example for Enchanted (cloned as ~/Test/enchanted)
+./build/bundle_models.sh ~/Test/enchanted/models
 ```
 
 The script maps dev repo directory names to the standard names expected by `models_base_dir` auto-resolution (e.g., `paddleocr` → `ocr`, `ner-lite` → `ner_lite`). It verifies all expected subdirectories exist after copying.
