@@ -232,7 +232,7 @@ All other settings (scanner, FPE, logging) match the default `openobscure.toml`.
 L1 Plugin tests call `redactPii()` directly — no proxy or echo server needed:
 
 ```bash
-node test/scripts/test_embedded_all.mjs
+node test/scripts/test_l1_plugin_all.mjs
 ```
 
 ### NAPI Native Addon (L1 Plugin Upgrade for Node.js)
@@ -488,9 +488,9 @@ console.log(`Types: ${JSON.stringify(result.types)}`);
 # Purges previous gateway results before running.
 ./test/scripts/test_gateway_all.sh
 
-# Embedded labels (standalone, no proxy needed)
-# Purges previous embedded results before running.
-node test/scripts/test_embedded_all.mjs
+# L1 Plugin labels (standalone, no proxy needed)
+# Purges previous l1_plugin results before running.
+node test/scripts/test_l1_plugin_all.mjs
 
 # Validate against expected_results.json manifest (exit code 0 = pass, 1 = fail)
 ./test/scripts/validate_results.sh
@@ -507,10 +507,10 @@ node test/scripts/test_embedded_all.mjs
 ./test/scripts/test_visual.sh                                                   # Visual PII images
 
 # ── L1 Plugin (Labels) ──
-node test/scripts/test_embedded_all.mjs                                         # All 5 text categories
-node test/scripts/test_embedded_category.mjs PII_Detection                      # One category
-node test/scripts/test_embedded_file.mjs <file> <output_dir>                    # One file
-USE_NER=1 node test/scripts/test_embedded_all.mjs                               # With NER bridge
+node test/scripts/test_l1_plugin_all.mjs                                         # All 5 text categories
+node test/scripts/test_l1_plugin_category.mjs PII_Detection                    # One category
+node test/scripts/test_l1_plugin_file.mjs <file> <output_dir>                  # One file
+USE_NER=1 node test/scripts/test_l1_plugin_all.mjs                               # With NER bridge
 
 # ── Infrastructure ──
 ./test/scripts/test_health.sh                                                   # Health endpoint validation
@@ -528,7 +528,7 @@ USE_NER=1 node test/scripts/test_embedded_all.mjs                               
 ./test/scripts/validate_results.sh --infrastructure                             # Infrastructure test results
 ./test/scripts/validate_results.sh --summary                                    # Summary only
 ./test/scripts/validate_results.sh --json                                       # JSON report (for CI)
-./test/scripts/validate_results.sh --gateway-only                               # Skip embedded checks
+./test/scripts/validate_results.sh --gateway-only                               # Skip l1_plugin checks
 ./test/scripts/validate_results.sh --check-redacted                             # Validate redacted file content
 ./test/scripts/validate_results.sh --strict --infrastructure --json             # Full CI regression
 ./test/scripts/generate_snapshot.sh                                             # Regenerate snapshot.json
@@ -545,16 +545,16 @@ would still see old outputs and report PASS.
 
 | Script Level | Purge Scope | What Gets Deleted |
 |:------------:|-------------|-------------------|
-| `*_all` | All categories | `*/json/*_gateway.json` or `*_embedded.json` + `*/redacted/*` |
-| `*_category` | One category | `<cat>/json/*_gateway.json` or `*_embedded.json` + `<cat>/redacted/*` |
+| `*_all` | All categories | `*/json/*_gateway.json` or `*_l1_plugin.json` + `*/redacted/*` |
+| `*_category` | One category | `<cat>/json/*_gateway.json` or `*_l1_plugin.json` + `<cat>/redacted/*` |
 | `*_file` | None | Overwrites single file only (implicit) |
 | `test_agent_json.sh` (batch) | Agent_Tool_Results | `json/*_gateway.json` + `redacted/*.json` |
 | `test_visual.sh` | Visual_PII | `json/*_visual.json` + `redacted/*` |
 
 > **Important:** Gateway purge only deletes `*_gateway.json` metadata (not
-> `*_embedded.json`), and vice versa. However, both architectures write to the
+> `*_l1_plugin.json`), and vice versa. However, both write to the
 > same `redacted/` folder — the batch purge clears all redacted files regardless
-> of which architecture created them. Run gateway and embedded tests in sequence,
+> of which script created them. Run gateway and L1 plugin tests in sequence,
 > then validate, to see both sets of JSON metadata.
 
 Each script produces **dual output** per file:
@@ -564,7 +564,7 @@ test/data/output/
 ├── PII_Detection/
 │   ├── json/
 │   │   ├── Credit_Card_Numbers_gateway.json     # NER spans + match metadata
-│   │   ├── Credit_Card_Numbers_embedded.json    # Redaction counts + types
+│   │   ├── Credit_Card_Numbers_l1_plugin.json   # Redaction counts + types
 │   │   └── ...
 │   └── redacted/
 │       ├── Credit_Card_Numbers.txt              # FPE-encrypted (last architecture run)
@@ -586,9 +586,9 @@ test/data/output/
 └── ...
 ```
 
-> **Note:** Both architectures write to the same `redacted/` folder with the same
-> filename. Running gateway then embedded (or vice versa) overwrites the previous
-> redacted file. The `json/` folder preserves both with `_gateway.json` / `_embedded.json`
+> **Note:** Both scripts write to the same `redacted/` folder with the same
+> filename. Running gateway then L1 plugin (or vice versa) overwrites the previous
+> redacted file. The `json/` folder preserves both with `_gateway.json` / `_l1_plugin.json`
 > suffixes.
 
 ### Environment Variables
@@ -600,7 +600,7 @@ test/data/output/
 | `ECHO_PORT` | `18791` | Echo server listen port |
 | `CAPTURE_DIR` | `/tmp/oo_echo_captures` | Echo server capture directory |
 | `AUTH_TOKEN` | `~/.openobscure/.auth-token` | Proxy auth token |
-| `USE_NER` | `0` | Set to `1` for embedded NER bridge mode |
+| `USE_NER` | `0` | Set to `1` for L1 plugin NER bridge mode |
 | `NO_AUTO_ECHO` | `0` | Set to `1` to skip auto-start of echo server |
 
 ---
@@ -615,9 +615,9 @@ test/data/output/
 | `test_gateway_file.sh` | Gateway | NER metadata + FPE-encrypted file (single file) |
 | `test_gateway_category.sh` | Gateway | Batch: all files in one input subfolder |
 | `test_gateway_all.sh` | Gateway | Full suite: all 5 text categories (auto-starts echo) |
-| `test_embedded_file.mjs` | Embedded | JSON metadata + label-redacted file (single file) |
-| `test_embedded_category.mjs` | Embedded | Batch: all files in one input subfolder |
-| `test_embedded_all.mjs` | Embedded | Full suite: all 5 text categories |
+| `test_l1_plugin_file.mjs` | L1 Plugin | JSON metadata + label-redacted file (single file) |
+| `test_l1_plugin_category.mjs` | L1 Plugin | Batch: all files in one input subfolder |
+| `test_l1_plugin_all.mjs` | L1 Plugin | Full suite: all 5 text categories |
 | `test_agent_json.sh` | Gateway | FPE for agent tool result JSON files |
 | `test_visual.sh` | Gateway | Image pipeline: face/OCR/NSFW redaction stats + redacted output |
 | `test_health.sh` | Infra | Health endpoint schema, types, counters, readiness |
@@ -676,12 +676,12 @@ test/data/output/
 }
 ```
 
-### L1 Plugin JSON Metadata (`json/*_embedded.json`)
+### L1 Plugin JSON Metadata (`json/*_l1_plugin.json`)
 
 ```json
 {
   "file": "Credit_Card_Numbers.txt",
-  "architecture": "embedded",
+  "architecture": "l1_plugin",
   "mode": "redactPii",
   "total_matches": 25,
   "type_summary": { "credit_card": 25 }
@@ -854,7 +854,7 @@ Additional checks (both modes):
 # JSON report for CI pipelines
 ./test/scripts/validate_results.sh --json
 
-# Skip embedded/audio/visual checks
+# Skip l1_plugin/audio/visual checks
 ./test/scripts/validate_results.sh --gateway-only
 
 # Redacted content validation (must_not_contain + EXIF stripping)
@@ -883,7 +883,7 @@ Additional checks (both modes):
   2026-02-21T23:50:02Z
 ============================================
 
-Found: 45 gateway JSON, 45 embedded JSON, 90 redacted files
+Found: 45 gateway JSON, 45 l1_plugin JSON, 90 redacted files
 
 --- PII_Detection ---
   PASS  PII_Detection/Credit_Card_Numbers.txt              22 matches (credit_card:22)
@@ -1197,7 +1197,7 @@ Delete the corresponding key from the JSON. Update `_meta.total_files` (or
 
 ```bash
 rm -f test/data/output/PII_Detection/json/Obsolete_File_gateway.json
-rm -f test/data/output/PII_Detection/json/Obsolete_File_embedded.json
+rm -f test/data/output/PII_Detection/json/Obsolete_File_l1_plugin.json
 rm -f test/data/output/PII_Detection/redacted/Obsolete_File.txt
 ```
 
@@ -1317,7 +1317,7 @@ have dedicated scripts). No script changes needed.
 | Issue | Cause | Fix |
 |-------|-------|-----|
 | `Cannot find module` | Plugin not built | `cd openobscure-plugin && npm run build` |
-| NER types missing | Regex-only mode | Use `USE_NER=1 node test/scripts/test_embedded_all.mjs` with proxy running |
+| NER types missing | Regex-only mode | Use `USE_NER=1 node test/scripts/test_l1_plugin_all.mjs` with proxy running |
 | Empty NER response | Scanner mode mismatch | Check `scanner_mode` in config (`auto`/`ner`/`crf`/`regex`) |
 | Low confidence scores | NER model not loaded | Ensure model files exist and device meets RAM tier |
 
