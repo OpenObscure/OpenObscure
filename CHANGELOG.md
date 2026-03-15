@@ -6,29 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-## [0.1.1] - 2026-03-14
-
-### Added
-
-#### NAPI Addon
-
-- First npm publish: `@openobscure/scanner-napi` v0.1.1 and three platform packages live on npm — `darwin-arm64`, `linux-x64-gnu`, `linux-arm64-gnu`
-- Each platform package bundles the compiled `.node` binary and the TinyBERT INT8 NER model (`models/ner/`), enabling 15-type detection immediately after `npm install` with no extra model download
-- `index.js` and `index.d.ts` committed to the repository so the umbrella package loader is included in the npm tarball
-
-#### L1 Plugin
-
-- `@openobscure/scanner-napi` wired as `optionalDependencies` in `openobscure-plugin/package.json` — the 15-type Rust HybridScanner auto-loads on supported platforms without any configuration
-
-### Fixed
-
-- `openobscure-napi/index.js` was excluded from the published tarball (gitignored) — umbrella package had no loader, causing silent fallback to JS regex on all platforms. Fixed by removing `index.js` and `index.d.ts` from `.gitignore`.
-
-### Notes
-
-- musl (Alpine) and macOS Intel platform packages are deferred — `ort` 2.0 provides no prebuilt binaries for musl targets. Installs on those platforms continue to use the JS regex fallback (5 PII types).
-
-## [0.1.0] - 2026-03-11
+## [1.0.0] - 2026-03-15
 
 ### Added
 
@@ -58,8 +36,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 #### NAPI Addon
 
+- First npm publish: `@openobscure/scanner-napi` v0.1.1 and three platform packages live on npm — `darwin-arm64`, `linux-x64-gnu`, `linux-arm64-gnu`
+- Each platform package bundles the compiled `.node` binary and the TinyBERT INT8 NER model (`models/ner/`), enabling 15-type detection immediately after `npm install` with no extra model download
 - Native addon bridge upgrading L1 JS regex (5 types) to Rust HybridScanner (15 types)
 - Persuasion scanner bridge for cognitive firewall access from TypeScript
+- `@openobscure/scanner-napi` wired as `optionalDependencies` in `openobscure-plugin/package.json` — the 15-type Rust HybridScanner auto-loads on supported platforms without any configuration
 
 #### L2 Encrypted Storage (Enterprise)
 
@@ -72,6 +53,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Model-gated accuracy tests for NER (TinyBERT F1: 85.6%), image pipeline, and voice pipeline
 - Detection validation framework: 40 pure-logic validator tests covering bbox sanity, OCR region validity, NSFW consistency, and precision/recall metrics
 
-[Unreleased]: https://github.com/openobscure/openobscure/compare/v0.1.1...HEAD
-[0.1.1]: https://github.com/openobscure/openobscure/compare/v0.1.0...v0.1.1
-[0.1.0]: https://github.com/openobscure/openobscure/releases/tag/v0.1.0
+### Fixed
+
+- `openobscure-napi/index.js` was excluded from the published tarball (gitignored) — umbrella package had no loader, causing silent fallback to JS regex on all platforms. Fixed by removing `index.js` and `index.d.ts` from `.gitignore`.
+
+### Notes
+
+- musl (Alpine) and macOS Intel platform packages are deferred — `ort` 2.0 provides no prebuilt binaries for musl targets. Installs on those platforms continue to use the JS regex fallback (5 PII types).
+
+[Unreleased]: https://github.com/openobscure/openobscure/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/openobscure/openobscure/releases/tag/v1.0.0
