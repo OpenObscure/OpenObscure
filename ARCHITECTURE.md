@@ -15,9 +15,7 @@
 - [Data Flow](#data-flow)
 - [Authentication Model](#authentication-model)
 - [Resource Budget](#resource-budget)
-- [Roadmap](#roadmap)
 - [Project Layout](#project-layout)
-- [Key Design Decisions](#key-design-decisions)
 - [Host Agent Constraints (OpenClaw Reference)](#host-agent-constraints-openclaw-reference)
 - [Health Monitoring & User Experience](#health-monitoring--user-experience)
 - [Logging](#logging)
@@ -362,10 +360,6 @@ Budget is **20% of device RAM, clamped to [12MB, 275MB]**. The same tier thresho
 
 See `openobscure-core/src/device_profile.rs` for full tier logic and per-component breakdown.
 
-## Roadmap
-
-See [docs/get-started/roadmap.md](docs/get-started/roadmap.md) — current capability matrix (all 15 PII types, all platforms, all tiers) and planned features.
-
 ## Project Layout
 
 ```
@@ -384,10 +378,6 @@ OpenObscure/
 ```
 
 Each component folder contains its own `ARCHITECTURE.md` with module-level details.
-
-## Key Design Decisions
-
-See [docs/architecture/design-decisions.md](docs/architecture/design-decisions.md) — rationale for FF1-only, fail-open, per-record tweaks, solid-fill redaction, sequential model loading, and all other core choices.
 
 ## Host Agent Constraints (OpenClaw Reference)
 

@@ -9,7 +9,8 @@ Everything runs locally. No cloud components, no telemetry, no external dependen
 **Contents**
 
 - [Two-Layer Defense-in-Depth](#two-layer-defense-in-depth)
-- [Host Agent Constraints (OpenClaw Reference)](#host-agent-constraints-openclaw-reference)
+- [Roadmap](#roadmap)
+- [Key Design Decisions](#key-design-decisions)
 - [Threat Model](#threat-model)
 - [Further Reading](#further-reading)
 
@@ -80,15 +81,15 @@ L0 can't see tool results — they're generated inside the host agent and never 
 
 ---
 
-## Host Agent Constraints (OpenClaw Reference)
+## Roadmap
 
-Three OpenClaw-specific constraints that shaped OpenObscure's architecture. Other host agents may have different constraints:
+See [roadmap](../get-started/roadmap.md) — current capability matrix (all 15 PII types, all platforms, all tiers) and planned features.
 
-1. **Only `tool_result_persist` is wired** — of OpenClaw's 14 defined hooks, only 3 have invocation sites. `before_tool_call`, `message_sending`, etc. are defined in TypeScript types but never called. This is why L0 (HTTP proxy) exists — it's the only way to intercept data *before* the LLM sees it.
+---
 
-2. **`tool_result_persist` is synchronous** — returning a Promise causes OpenClaw to silently skip the hook. All L1 processing must be synchronous.
+## Key Design Decisions
 
-3. **OpenClaw updates constantly** — 40+ security patches per release. OpenObscure modules touching internal APIs may break. Pin to known-good OpenClaw versions.
+See [design-decisions.md](design-decisions.md) — rationale for FF1-only, fail-open, per-record tweaks, solid-fill redaction, sequential model loading, and all other core choices.
 
 ---
 
