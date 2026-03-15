@@ -109,7 +109,9 @@ def export_to_onnx(model_dir: str, output_dir: str, max_length: int) -> str:
     return onnx_path
 
 
-def optimize_graph(fp32_path: str, output_dir: str, num_heads: int, hidden_size: int) -> str:
+def optimize_graph(
+    fp32_path: str, output_dir: str, num_heads: int, hidden_size: int
+) -> str:
     """Apply ORT transformer-specific graph optimizations (attention/LayerNorm/Gelu fusion)."""
     from onnxruntime.transformers import optimizer as ort_optimizer
 
@@ -272,7 +274,11 @@ def main():
     int8_path = quantize_int8(quant_input, args.output_dir)
 
     # 4. Clean up intermediate files
-    if not args.skip_optimize and os.path.exists(quant_input) and quant_input != int8_path:
+    if (
+        not args.skip_optimize
+        and os.path.exists(quant_input)
+        and quant_input != int8_path
+    ):
         os.remove(quant_input)
         logger.info("Removed intermediate optimized model")
     if args.skip_fp32 and os.path.exists(fp32_path) and fp32_path != int8_path:

@@ -16,11 +16,16 @@ from pathlib import Path
 
 VALID_TAGS = {
     "O",
-    "B-PER", "I-PER",
-    "B-LOC", "I-LOC",
-    "B-ORG", "I-ORG",
-    "B-HEALTH", "I-HEALTH",
-    "B-CHILD", "I-CHILD",
+    "B-PER",
+    "I-PER",
+    "B-LOC",
+    "I-LOC",
+    "B-ORG",
+    "I-ORG",
+    "B-HEALTH",
+    "I-HEALTH",
+    "B-CHILD",
+    "I-CHILD",
 }
 
 
@@ -32,7 +37,9 @@ def validate_bio_sequence(tags):
         if tag.startswith("I-"):
             entity_type = tag[2:]
             if prev_type != entity_type:
-                errors.append(f"  Position {i}: {tag} without preceding B-{entity_type} or I-{entity_type} (prev was {tags[i-1] if i > 0 else 'start'})")
+                errors.append(
+                    f"  Position {i}: {tag} without preceding B-{entity_type} or I-{entity_type} (prev was {tags[i - 1] if i > 0 else 'start'})"
+                )
         if tag.startswith("B-"):
             prev_type = tag[2:]
         elif tag.startswith("I-"):
@@ -46,7 +53,9 @@ def main():
     if len(sys.argv) > 1:
         dataset_path = Path(sys.argv[1])
     else:
-        dataset_path = Path(__file__).parent.parent / "data" / "pii_finetune_dataset.jsonl"
+        dataset_path = (
+            Path(__file__).parent.parent / "data" / "pii_finetune_dataset.jsonl"
+        )
 
     if not dataset_path.exists():
         print(f"ERROR: Dataset not found at {dataset_path}")
@@ -83,7 +92,9 @@ def main():
             tags = record["ner_tags"]
 
             if len(tokens) != len(tags):
-                print(f"ERROR line {line_num}: Length mismatch: {len(tokens)} tokens vs {len(tags)} tags")
+                print(
+                    f"ERROR line {line_num}: Length mismatch: {len(tokens)} tokens vs {len(tags)} tags"
+                )
                 errors += 1
                 continue
 
@@ -110,27 +121,30 @@ def main():
                     entity_counts[etype] = entity_counts.get(etype, 0) + 1
 
     # Summary
-    print(f"\n=== Validation Summary ===")
+    print("\n=== Validation Summary ===")
     print(f"Total samples: {total}")
     print(f"Errors: {errors}")
     print(f"Warnings: {warnings}")
-    print(f"Token length: min={min(token_lengths)}, max={max(token_lengths)}, avg={sum(token_lengths)/len(token_lengths):.1f}")
+    print(
+        f"Token length: min={min(token_lengths)}, max={max(token_lengths)}, avg={sum(token_lengths) / len(token_lengths):.1f}"
+    )
 
-    print(f"\nEntity distribution:")
+    print("\nEntity distribution:")
     total_entities = sum(entity_counts.values())
     for etype, count in sorted(entity_counts.items(), key=lambda x: -x[1]):
         pct = 100.0 * count / total_entities if total_entities > 0 else 0
         print(f"  {etype}: {count} ({pct:.1f}%)")
     print(f"  Total entities: {total_entities}")
 
-    negative_count = total - sum(1 for _ in open(dataset_path) if json.loads(_.strip()).get("ner_tags") and any(t != "O" for t in json.loads(_.strip())["ner_tags"]))
-    print(f"\nNegative samples (all O): ~{total - len([e for e in entity_counts.values()])}")
+    print(
+        f"\nNegative samples (all O): ~{total - len([e for e in entity_counts.values()])}"
+    )
 
     if errors > 0:
         print(f"\nFAILED: {errors} errors found")
         sys.exit(1)
     else:
-        print(f"\nPASSED: Dataset is valid")
+        print("\nPASSED: Dataset is valid")
 
 
 if __name__ == "__main__":

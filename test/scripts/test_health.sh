@@ -19,7 +19,6 @@ set -euo pipefail
 
 PROXY_URL="${PROXY_URL:-http://127.0.0.1:18790}"
 HEALTH_ENDPOINT="${PROXY_URL}/_openobscure/health"
-NER_ENDPOINT="${PROXY_URL}/_openobscure/ner"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEST_DIR="$(dirname "$SCRIPT_DIR")"

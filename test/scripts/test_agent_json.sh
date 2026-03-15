@@ -109,7 +109,7 @@ call_ner() {
 
 test_file() {
   local file="$1"
-  local filename=$(basename "$file")
+  local filename; filename=$(basename "$file")
   local name_no_ext="${filename%.*}"
   local json_out="$OUTPUT_DIR/json/${name_no_ext}_gateway.json"
   local redacted_out="$OUTPUT_DIR/redacted/$filename"
@@ -149,7 +149,7 @@ test_file() {
   # Serialize the entire agent JSON as a message content string.
   # The proxy's nested JSON scanner will detect PII within the serialized JSON
   # and apply FPE encryption to eligible types.
-  local capture_id="agent_${name_no_ext}_$$_$(date +%s)"
+  local capture_id; capture_id="agent_${name_no_ext}_$$_$(date +%s)"
   local file_as_string
   file_as_string=$(jq -Rs '.' "$file")
 

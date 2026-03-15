@@ -274,7 +274,7 @@ void*_Nonnull uniffi_openobscure_core_fn_func_create_openobscure(RustBuffer conf
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_GET_DEBUG_LOG
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_GET_DEBUG_LOG
 RustBuffer uniffi_openobscure_core_fn_func_get_debug_log(RustCallStatus *_Nonnull out_status
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_GET_STATS
@@ -590,61 +590,60 @@ void ffi_openobscure_core_rust_future_complete_void(uint64_t handle, RustCallSta
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_CHECK_AUDIO_PII
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_CHECK_AUDIO_PII
 uint16_t uniffi_openobscure_core_checksum_func_check_audio_pii(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_CREATE_OPENOBSCURE
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_CREATE_OPENOBSCURE
 uint16_t uniffi_openobscure_core_checksum_func_create_openobscure(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_GET_DEBUG_LOG
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_GET_DEBUG_LOG
 uint16_t uniffi_openobscure_core_checksum_func_get_debug_log(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_GET_STATS
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_GET_STATS
 uint16_t uniffi_openobscure_core_checksum_func_get_stats(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_RESTORE_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_RESTORE_TEXT
 uint16_t uniffi_openobscure_core_checksum_func_restore_text(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_AUDIO_TRANSCRIPT
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_AUDIO_TRANSCRIPT
 uint16_t uniffi_openobscure_core_checksum_func_sanitize_audio_transcript(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_IMAGE
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_IMAGE
 uint16_t uniffi_openobscure_core_checksum_func_sanitize_image(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_TEXT
 uint16_t uniffi_openobscure_core_checksum_func_sanitize_text(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SCAN_RESPONSE
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SCAN_RESPONSE
 uint16_t uniffi_openobscure_core_checksum_func_scan_response(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_OPENOBSCURE_CORE_UNIFFI_CONTRACT_VERSION
 #define UNIFFI_FFIDEF_FFI_OPENOBSCURE_CORE_UNIFFI_CONTRACT_VERSION
 uint32_t ffi_openobscure_core_uniffi_contract_version(void
-    
+
 );
 #endif
-

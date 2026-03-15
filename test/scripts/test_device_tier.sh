@@ -91,7 +91,6 @@ esac
 NER=$(echo "$BUDGET" | jq '.ner_enabled')
 CRF=$(echo "$BUDGET" | jq '.crf_enabled')
 ENSEMBLE=$(echo "$BUDGET" | jq '.ensemble_enabled')
-IMAGE=$(echo "$BUDGET" | jq '.image_pipeline_enabled')
 OCR_TIER=$(echo "$BUDGET" | jq -r '.ocr_tier')
 NSFW=$(echo "$BUDGET" | jq '.nsfw_enabled')
 SCREEN=$(echo "$BUDGET" | jq '.screen_guard_enabled')

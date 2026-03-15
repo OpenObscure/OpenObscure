@@ -419,4 +419,3 @@ Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/
 ## FAQ
 
 Common questions about file access, API keys, network behavior, RAM usage, and failure modes: [FAQ](docs/get-started/faq.md).
-

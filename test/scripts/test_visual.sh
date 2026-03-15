@@ -84,7 +84,7 @@ BASELINE_SCREENSHOTS=$(echo "$HEALTH" | jq '.screenshots_detected_total // 0')
 test_image() {
   local file="$1"
   local subcategory="$2"
-  local filename=$(basename "$file")
+  local filename; filename=$(basename "$file")
   local ext="${filename##*.}"
   local name_no_ext="${filename%.*}"
   local json_dir="$OUTPUT_DIR/json"
@@ -123,11 +123,11 @@ test_image() {
   # Record health stats before
   local before_health
   before_health=$(curl -sf "$HEALTH_ENDPOINT" ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} 2>/dev/null)
-  local before_images=$(echo "$before_health" | jq '.images_processed_total // 0')
-  local before_faces=$(echo "$before_health" | jq '.faces_redacted_total // 0')
-  local before_text=$(echo "$before_health" | jq '.text_regions_total // 0')
-  local before_nsfw=$(echo "$before_health" | jq '.nsfw_blocked_total // 0')
-  local before_screenshots=$(echo "$before_health" | jq '.screenshots_detected_total // 0')
+  local before_images; before_images=$(echo "$before_health" | jq '.images_processed_total // 0')
+  local before_faces; before_faces=$(echo "$before_health" | jq '.faces_redacted_total // 0')
+  local before_text; before_text=$(echo "$before_health" | jq '.text_regions_total // 0')
+  local before_nsfw; before_nsfw=$(echo "$before_health" | jq '.nsfw_blocked_total // 0')
+  local before_screenshots; before_screenshots=$(echo "$before_health" | jq '.screenshots_detected_total // 0')
 
   # Send through proxy — use temp file to avoid shell arg limits on large images
   local tmp_response
@@ -193,11 +193,11 @@ test_image() {
   # Check health stats after — delta tells us what the pipeline did
   local after_health
   after_health=$(curl -sf "$HEALTH_ENDPOINT" ${AUTH_TOKEN:+-H "X-OpenObscure-Token: $AUTH_TOKEN"} 2>/dev/null)
-  local after_images=$(echo "$after_health" | jq '.images_processed_total // 0')
-  local after_faces=$(echo "$after_health" | jq '.faces_redacted_total // 0')
-  local after_text=$(echo "$after_health" | jq '.text_regions_total // 0')
-  local after_nsfw=$(echo "$after_health" | jq '.nsfw_blocked_total // 0')
-  local after_screenshots=$(echo "$after_health" | jq '.screenshots_detected_total // 0')
+  local after_images; after_images=$(echo "$after_health" | jq '.images_processed_total // 0')
+  local after_faces; after_faces=$(echo "$after_health" | jq '.faces_redacted_total // 0')
+  local after_text; after_text=$(echo "$after_health" | jq '.text_regions_total // 0')
+  local after_nsfw; after_nsfw=$(echo "$after_health" | jq '.nsfw_blocked_total // 0')
+  local after_screenshots; after_screenshots=$(echo "$after_health" | jq '.screenshots_detected_total // 0')
 
   local delta_images=$((after_images - before_images))
   local delta_faces=$((after_faces - before_faces))

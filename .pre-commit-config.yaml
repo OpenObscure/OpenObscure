@@ -1,0 +1,116 @@
+minimum_pre_commit_version: "3.0.0"
+default_language_version:
+  python: python3
+
+repos:
+  # ── Git Hygiene ───────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Block commits directly to main/master — use a PR instead
+      - id: no-commit-to-branch
+        args: ["--branch", "main", "--branch", "master"]
+
+      # Catch accidental large file additions (models belong in Git LFS)
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+
+      # Detect unresolved merge conflict markers
+      - id: check-merge-conflict
+
+      # Validate structured data files
+      - id: check-json
+        exclude: "^(openobscure-plugin/node_modules/|openobscure-napi/node_modules/)"
+      - id: check-yaml
+        args: ["--allow-multiple-documents"]
+      - id: check-toml
+
+      # Normalise whitespace / line endings
+      - id: end-of-file-fixer
+        exclude: "^test/data/"
+      - id: trailing-whitespace
+        exclude: "^test/data/"
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # ── Security ──────────────────────────────────────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Reject private keys accidentally committed
+      - id: detect-private-key
+
+      # Reject AWS credential patterns (allow-missing so CI doesn't need creds)
+      - id: detect-aws-credentials
+        args: ["--allow-missing-credentials"]
+
+  # ── Shell Scripts (shellcheck) ────────────────────────────────────────────
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: ["--severity=warning"]
+        files: "\\.(sh)$"
+        exclude: "^test/data/"
+
+  # ── Python — NER training scripts (Ruff) ─────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.10
+    hooks:
+      # Lint: errors + pyflakes only (training scripts, not production code)
+      - id: ruff
+        files: "^openobscure-ner/"
+        # E501 (line-too-long) is handled by ruff-format; E741 (ambiguous l/I/O)
+        # is a style preference for ML scripts.  F841 (unused vars) IS enforced.
+        args: ["--select=E,F", "--ignore=E501,E741", "--fix"]
+      # Format: enforce consistent style
+      - id: ruff-format
+        files: "^openobscure-ner/"
+
+  # ── Rust ──────────────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      # Formatting: runs in < 1s, catches rustfmt drift immediately
+      - id: cargo-fmt
+        name: "Rust · cargo fmt --check"
+        language: system
+        entry: cargo fmt --manifest-path openobscure-core/Cargo.toml -- --check
+        pass_filenames: false
+        types: [rust]
+
+      # Linting: runs only when .rs or Cargo.toml files are staged
+      - id: cargo-clippy
+        name: "Rust · cargo clippy --all-targets"
+        language: system
+        entry: cargo clippy --manifest-path openobscure-core/Cargo.toml --all-targets -- -D warnings
+        pass_filenames: false
+        types_or: [rust, toml]
+
+      # Fast unit tests: pure-logic modules only, no I/O, no model loading.
+      # Targets: config, scanner, fpe_engine, pii_types, keyword_dict.
+      # Excludes voice/image model tests by omitting --all-features.
+      # Completes in < 3s on a warm cache; first run compiles the lib target.
+      - id: rust-fast-tests
+        name: "Rust · fast unit tests (< 5s)"
+        language: system
+        entry: >
+          cargo test
+          --manifest-path openobscure-core/Cargo.toml
+          --lib
+          --no-default-features
+          --features server
+          --
+          --test-threads=8
+        pass_filenames: false
+        types: [rust]
+
+  # ── TypeScript ────────────────────────────────────────────────────────────
+  - repo: local
+    hooks:
+      # Type-check without emitting: catches type errors before CI
+      - id: ts-typecheck
+        name: "TypeScript · tsc --noEmit"
+        language: system
+        entry: bash -c "cd openobscure-plugin && npm run lint"
+        pass_filenames: false
+        types: [ts]

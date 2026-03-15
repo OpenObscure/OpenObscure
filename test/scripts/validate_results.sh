@@ -525,7 +525,6 @@ if [[ "$RUN_TESTS" == "true" ]]; then
 
   # ── Docker mode: stop any local proxy on 18790, start container ────────────
   DOCKER_CONTAINER=""
-  KILLED_LOCAL_PID=""
   if [[ -n "$DOCKER_IMAGE" ]]; then
     PROXY_URL="http://127.0.0.1:18790"
 
@@ -536,7 +535,6 @@ if [[ "$RUN_TESTS" == "true" ]]; then
         echo "Stopping local process on :18790 (PID $LOCAL_PID) to free port for Docker..."
       fi
       kill "$LOCAL_PID" 2>/dev/null || true
-      KILLED_LOCAL_PID="$LOCAL_PID"
       sleep 1
     fi
 

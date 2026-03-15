@@ -2,6 +2,48 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Pre-commit Hooks
+
+All contributions must pass the pre-commit hook suite. Install once:
+
+```bash
+pip install pre-commit       # or: brew install pre-commit
+pre-commit install           # wires hooks into .git/hooks/pre-commit
+```
+
+Run manually against all files (useful before opening a PR):
+
+```bash
+pre-commit run --all-files
+```
+
+Run a single hook by id:
+
+```bash
+pre-commit run cargo-fmt --all-files
+pre-commit run shellcheck --all-files
+```
+
+### What runs on every commit
+
+| Hook | Scope | Purpose |
+|------|-------|---------|
+| `no-commit-to-branch` | all | Block direct pushes to `main`/`master` |
+| `check-added-large-files` | all | Models must be in Git LFS, not committed directly |
+| `check-merge-conflict` | all | Catch unresolved `<<<<<<` markers |
+| `check-json` / `check-yaml` / `check-toml` | all | Syntax-validate structured files |
+| `end-of-file-fixer` / `trailing-whitespace` | non-test-data | Normalise whitespace |
+| `detect-private-key` | all | Block accidental key commits |
+| `detect-aws-credentials` | all | Block AWS credential patterns |
+| `shellcheck` | `*.sh` | Shell script lint (warning+) |
+| `ruff` / `ruff-format` | `openobscure-ner/` | Python lint + format (NER scripts) |
+| `cargo-fmt` | `*.rs` | Rust formatting check |
+| `cargo-clippy` | `*.rs`, `*.toml` | Rust lint (`-D warnings`) |
+| `rust-fast-tests` | `*.rs` | Fast unit tests — config, scanner, FPE, types (< 5s) |
+| `ts-typecheck` | `*.ts` | TypeScript type-check (`tsc --noEmit`) |
+
+> **First run note:** `cargo-clippy` and `rust-fast-tests` compile Rust on first run (~1–2 min). Subsequent runs use the incremental cache and finish in seconds.
+
 ## Build & Test Commands
 
 ```bash
@@ -33,7 +75,6 @@ On-device privacy firewall for AI agents. Three layers, two deployment models:
 
 - **L0 — `openobscure-core/`** (Rust): PII detection and encryption layer. In Gateway mode acts as HTTP reverse proxy intercepting LLM traffic; in Embedded mode compiles as a native library. Detects PII with 4-engine ensemble (regex → keywords → NER/CRF → gazetteer), encrypts with FF1 FPE, processes images (NSFW/face/OCR), scans responses for manipulation. This is the bulk of the codebase.
 - **L1 — `openobscure-plugin/`** (TypeScript): In-process plugin for the host agent. Catches PII in tool results (web scrapes, file reads) that bypass the proxy. Optional NAPI addon (`openobscure-napi/`) upgrades JS regex (5 types) to Rust HybridScanner (15 types).
-- **L2 — `openobscure-crypto/`** (Rust, optional add-on): AES-256-GCM encrypted storage with Argon2id KDF for at-rest PII protection.
 
 **Gateway model:** L0 runs as a sidecar HTTP proxy. Agent points `base_url` at `127.0.0.1:18790`.
 **Embedded model:** L0 compiles as a static/shared library. Swift/Kotlin call it via UniFFI bindings. No HTTP server.

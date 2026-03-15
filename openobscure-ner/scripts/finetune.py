@@ -26,11 +26,10 @@ import json
 import logging
 import os
 import sys
-from pathlib import Path
 
 import evaluate
 import numpy as np
-from datasets import ClassLabel, Dataset, DatasetDict, Features, Sequence, Value, load_dataset
+from datasets import Dataset, DatasetDict, Features, Sequence, Value, load_dataset
 from transformers import (
     AutoModelForTokenClassification,
     AutoTokenizer,
@@ -46,15 +45,15 @@ logger = logging.getLogger(__name__)
 # ─── Label schema ────────────────────────────────────────────────────────────
 
 LABEL_LIST = [
-    "O",        # Outside any entity
-    "B-PER",    # Beginning of person name
-    "I-PER",    # Inside person name
-    "B-LOC",    # Beginning of location/address
-    "I-LOC",    # Inside location/address
-    "B-ORG",    # Beginning of organization
-    "I-ORG",    # Inside organization
-    "B-HEALTH", # Beginning of health/medical reference
-    "I-HEALTH", # Inside health/medical reference
+    "O",  # Outside any entity
+    "B-PER",  # Beginning of person name
+    "I-PER",  # Inside person name
+    "B-LOC",  # Beginning of location/address
+    "I-LOC",  # Inside location/address
+    "B-ORG",  # Beginning of organization
+    "I-ORG",  # Inside organization
+    "B-HEALTH",  # Beginning of health/medical reference
+    "I-HEALTH",  # Inside health/medical reference
     "B-CHILD",  # Beginning of child-related reference
     "I-CHILD",  # Inside child-related reference
 ]
@@ -71,22 +70,31 @@ CONLL_LABEL_MAP = {
     "I-LOC": "I-LOC",
     "B-ORG": "B-ORG",
     "I-ORG": "I-ORG",
-    "B-MISC": "O",   # MISC → O (we don't use MISC)
+    "B-MISC": "O",  # MISC → O (we don't use MISC)
     "I-MISC": "O",
 }
 
 # OntoNotes 5.0 uses 18 entity types — map to our 5-type schema
 ONTONOTES_LABEL_MAP = {
     "PERSON": "PER",
-    "GPE": "LOC",        # Geopolitical entities (countries, cities)
-    "LOC": "LOC",        # Non-GPE locations (mountains, rivers)
-    "FAC": "LOC",        # Facilities (airports, bridges)
+    "GPE": "LOC",  # Geopolitical entities (countries, cities)
+    "LOC": "LOC",  # Non-GPE locations (mountains, rivers)
+    "FAC": "LOC",  # Facilities (airports, bridges)
     "ORG": "ORG",
     # Everything else → O
-    "NORP": "O", "DATE": "O", "TIME": "O", "MONEY": "O",
-    "CARDINAL": "O", "ORDINAL": "O", "PERCENT": "O",
-    "QUANTITY": "O", "EVENT": "O", "WORK_OF_ART": "O",
-    "LAW": "O", "LANGUAGE": "O", "PRODUCT": "O",
+    "NORP": "O",
+    "DATE": "O",
+    "TIME": "O",
+    "MONEY": "O",
+    "CARDINAL": "O",
+    "ORDINAL": "O",
+    "PERCENT": "O",
+    "QUANTITY": "O",
+    "EVENT": "O",
+    "WORK_OF_ART": "O",
+    "LAW": "O",
+    "LANGUAGE": "O",
+    "PRODUCT": "O",
 }
 
 # WNUT-2017 uses 6 entity types — map to our schema
@@ -111,9 +119,15 @@ def parse_args():
         default="models/tinybert-ner",
         help="Directory to save the fine-tuned model",
     )
-    parser.add_argument("--epochs", type=int, default=5, help="Number of training epochs")
-    parser.add_argument("--batch_size", type=int, default=16, help="Training batch size")
-    parser.add_argument("--learning_rate", type=float, default=5e-5, help="Learning rate")
+    parser.add_argument(
+        "--epochs", type=int, default=5, help="Number of training epochs"
+    )
+    parser.add_argument(
+        "--batch_size", type=int, default=16, help="Training batch size"
+    )
+    parser.add_argument(
+        "--learning_rate", type=float, default=5e-5, help="Learning rate"
+    )
     parser.add_argument("--weight_decay", type=float, default=0.01, help="Weight decay")
     parser.add_argument("--warmup_ratio", type=float, default=0.1, help="Warmup ratio")
     parser.add_argument(
@@ -231,7 +245,9 @@ def load_ontonotes(weight: float = 1.0):
         if weight < 1.0 and len(ds) > 0:
             ds = ds.shuffle(seed=42).select(range(int(len(ds) * weight)))
         result[split_name] = ds
-        logger.info("OntoNotes %s: %d sentences (weight=%.1f)", split_name, len(ds), weight)
+        logger.info(
+            "OntoNotes %s: %d sentences (weight=%.1f)", split_name, len(ds), weight
+        )
 
     return DatasetDict(result)
 
@@ -301,7 +317,9 @@ def load_custom_data(path: str) -> Dataset:
             # Convert string labels to IDs if needed
             if tags and isinstance(tags[0], str):
                 tags = [LABEL2ID[t] for t in tags]
-            assert len(tokens) == len(tags), f"Line {line_num}: token/tag length mismatch"
+            assert len(tokens) == len(tags), (
+                f"Line {line_num}: token/tag length mismatch"
+            )
             records.append({"tokens": tokens, "ner_tags": tags})
 
     dataset = Dataset.from_dict(
@@ -325,7 +343,9 @@ def _normalize_dataset(ds: DatasetDict) -> DatasetDict:
     )
     result = {}
     for split, data in ds.items():
-        cleaned = data.remove_columns([c for c in data.column_names if c not in keep_cols])
+        cleaned = data.remove_columns(
+            [c for c in data.column_names if c not in keep_cols]
+        )
         result[split] = cleaned.cast(target_features)
     return DatasetDict(result)
 
@@ -367,9 +387,21 @@ def merge_datasets(
         train_parts.append(custom_split["train"])
         val_parts.append(custom_split["test"])
 
-    merged_train = concatenate_datasets(train_parts) if train_parts else Dataset.from_dict({"tokens": [], "ner_tags": []})
-    merged_val = concatenate_datasets(val_parts) if val_parts else Dataset.from_dict({"tokens": [], "ner_tags": []})
-    merged_test = concatenate_datasets(test_parts) if test_parts else Dataset.from_dict({"tokens": [], "ner_tags": []})
+    merged_train = (
+        concatenate_datasets(train_parts)
+        if train_parts
+        else Dataset.from_dict({"tokens": [], "ner_tags": []})
+    )
+    merged_val = (
+        concatenate_datasets(val_parts)
+        if val_parts
+        else Dataset.from_dict({"tokens": [], "ner_tags": []})
+    )
+    merged_test = (
+        concatenate_datasets(test_parts)
+        if test_parts
+        else Dataset.from_dict({"tokens": [], "ner_tags": []})
+    )
 
     logger.info(
         "Merged dataset: %d train, %d validation, %d test (%d sources)",
@@ -485,7 +517,10 @@ def main():
     if "distilbert" in args.base_model.lower():
         if args.learning_rate == 5e-5:  # only override if user didn't explicitly set
             args.learning_rate = 3e-5
-            logger.info("DistilBERT detected: adjusted learning_rate to %.0e", args.learning_rate)
+            logger.info(
+                "DistilBERT detected: adjusted learning_rate to %.0e",
+                args.learning_rate,
+            )
         if args.epochs == 5:  # only override if user didn't explicitly set
             args.epochs = 7
             logger.info("DistilBERT detected: adjusted epochs to %d", args.epochs)
@@ -639,7 +674,11 @@ def main():
     # Save label map for inference
     label_map_path = os.path.join(args.output_dir, "label_map.json")
     with open(label_map_path, "w") as f:
-        json.dump({"id2label": ID2LABEL, "label2id": LABEL2ID, "labels": LABEL_LIST}, f, indent=2)
+        json.dump(
+            {"id2label": ID2LABEL, "label2id": LABEL2ID, "labels": LABEL_LIST},
+            f,
+            indent=2,
+        )
     logger.info("Label map saved to %s", label_map_path)
 
     logger.info("=== Done! Model saved to %s ===", args.output_dir)

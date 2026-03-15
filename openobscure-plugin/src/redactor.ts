@@ -455,4 +455,3 @@ export function redactPiiWithNer(
 
   return { text: regexResult.text, count: totalCount, types: mergedTypes, matches: mergedMatches };
 }
-

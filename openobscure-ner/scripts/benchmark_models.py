@@ -220,7 +220,9 @@ def extract_entities(predictions, inputs, model_info):
 def benchmark_model(model_info, sentences, warmup: int):
     """Run full benchmark on a model."""
     name = Path(model_info["model_path"]).parent.name
-    logger.info("Benchmarking: %s (%d sentences, %d warmup)...", name, len(sentences), warmup)
+    logger.info(
+        "Benchmarking: %s (%d sentences, %d warmup)...", name, len(sentences), warmup
+    )
 
     # Warmup
     warmup_text = "John Smith lives at 123 Main Street in New York and has diabetes."
@@ -247,15 +249,23 @@ def benchmark_model(model_info, sentences, warmup: int):
         "samples": len(sentences),
         "latency_ms": {
             "p50": round(statistics.median(latencies), 2),
-            "p95": round(latencies[int(len(latencies) * 0.95)], 2) if len(latencies) >= 20 else None,
-            "p99": round(latencies[int(len(latencies) * 0.99)], 2) if len(latencies) >= 100 else None,
+            "p95": round(latencies[int(len(latencies) * 0.95)], 2)
+            if len(latencies) >= 20
+            else None,
+            "p99": round(latencies[int(len(latencies) * 0.99)], 2)
+            if len(latencies) >= 100
+            else None,
             "mean": round(statistics.mean(latencies), 2),
             "min": round(min(latencies), 2),
             "max": round(max(latencies), 2),
-            "stdev": round(statistics.stdev(latencies), 2) if len(latencies) >= 2 else 0,
+            "stdev": round(statistics.stdev(latencies), 2)
+            if len(latencies) >= 2
+            else 0,
         },
         "entities_detected": sum(len(e) for e in all_entities),
-        "entities_per_sample": round(sum(len(e) for e in all_entities) / len(sentences), 2),
+        "entities_per_sample": round(
+            sum(len(e) for e in all_entities) / len(sentences), 2
+        ),
     }
 
     return stats
@@ -280,7 +290,12 @@ def print_comparison(results):
         ("Labels", lambda r: str(r["num_labels"])),
         ("Samples", lambda r: str(r["samples"])),
         ("Latency p50 (ms)", lambda r: f"{r['latency_ms']['p50']:.1f}"),
-        ("Latency p95 (ms)", lambda r: f"{r['latency_ms']['p95']:.1f}" if r["latency_ms"]["p95"] else "N/A"),
+        (
+            "Latency p95 (ms)",
+            lambda r: f"{r['latency_ms']['p95']:.1f}"
+            if r["latency_ms"]["p95"]
+            else "N/A",
+        ),
         ("Latency mean (ms)", lambda r: f"{r['latency_ms']['mean']:.1f}"),
         ("Latency min (ms)", lambda r: f"{r['latency_ms']['min']:.1f}"),
         ("Latency max (ms)", lambda r: f"{r['latency_ms']['max']:.1f}"),

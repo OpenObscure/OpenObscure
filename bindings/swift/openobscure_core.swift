@@ -524,7 +524,7 @@ fileprivate struct FfiConverterData: FfiConverterRustBuffer {
  * struct itself, keeping the heavy implementation out of the FFI layer.
  */
 public protocol OpenObscureHandleProtocol: AnyObject, Sendable {
-    
+
 }
 /**
  * Opaque handle exposed to Swift/Kotlin via UniFFI.
@@ -583,9 +583,9 @@ open class OpenObscureHandle: OpenObscureHandleProtocol, @unchecked Sendable {
         try! rustCall { uniffi_openobscure_core_fn_free_openobscurehandle(pointer, $0) }
     }
 
-    
 
-    
+
+
 
 }
 
@@ -657,7 +657,7 @@ public struct MobileStatsFfi {
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(totalPiiFound: UInt64, totalImagesProcessed: UInt64, scannerMode: String, imagePipelineAvailable: Bool, 
+    public init(totalPiiFound: UInt64, totalImagesProcessed: UInt64, scannerMode: String, imagePipelineAvailable: Bool,
         /**
          * Device capability tier: "full", "standard", or "lite".
          */deviceTier: String) {
@@ -712,10 +712,10 @@ public struct FfiConverterTypeMobileStatsFFI: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> MobileStatsFfi {
         return
             try MobileStatsFfi(
-                totalPiiFound: FfiConverterUInt64.read(from: &buf), 
-                totalImagesProcessed: FfiConverterUInt64.read(from: &buf), 
-                scannerMode: FfiConverterString.read(from: &buf), 
-                imagePipelineAvailable: FfiConverterBool.read(from: &buf), 
+                totalPiiFound: FfiConverterUInt64.read(from: &buf),
+                totalImagesProcessed: FfiConverterUInt64.read(from: &buf),
+                scannerMode: FfiConverterString.read(from: &buf),
+                imagePipelineAvailable: FfiConverterBool.read(from: &buf),
                 deviceTier: FfiConverterString.read(from: &buf)
         )
     }
@@ -775,16 +775,16 @@ public struct RiReportFfi {
     public init(
         /**
          * Severity tier: "Notice", "Warning", or "Caution".
-         */severity: String, 
+         */severity: String,
         /**
          * Persuasion categories detected (e.g. "Urgency", "Fear", "Authority").
-         */categories: [String], 
+         */categories: [String],
         /**
          * Matched phrases from R1 dictionary scan.
-         */flags: [String], 
+         */flags: [String],
         /**
          * Article 5 categories detected by R2 classifier (if model loaded).
-         */r2Categories: [String], 
+         */r2Categories: [String],
         /**
          * Scan duration in microseconds.
          */scanTimeUs: UInt64) {
@@ -839,10 +839,10 @@ public struct FfiConverterTypeRiReportFFI: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> RiReportFfi {
         return
             try RiReportFfi(
-                severity: FfiConverterString.read(from: &buf), 
-                categories: FfiConverterSequenceString.read(from: &buf), 
-                flags: FfiConverterSequenceString.read(from: &buf), 
-                r2Categories: FfiConverterSequenceString.read(from: &buf), 
+                severity: FfiConverterString.read(from: &buf),
+                categories: FfiConverterSequenceString.read(from: &buf),
+                flags: FfiConverterSequenceString.read(from: &buf),
+                r2Categories: FfiConverterSequenceString.read(from: &buf),
                 scanTimeUs: FfiConverterUInt64.read(from: &buf)
         )
     }
@@ -930,9 +930,9 @@ public struct FfiConverterTypeSanitizeResultFFI: FfiConverterRustBuffer {
     public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SanitizeResultFfi {
         return
             try SanitizeResultFfi(
-                sanitizedText: FfiConverterString.read(from: &buf), 
-                piiCount: FfiConverterUInt32.read(from: &buf), 
-                categories: FfiConverterSequenceString.read(from: &buf), 
+                sanitizedText: FfiConverterString.read(from: &buf),
+                piiCount: FfiConverterUInt32.read(from: &buf),
+                categories: FfiConverterSequenceString.read(from: &buf),
                 mappingJson: FfiConverterString.read(from: &buf)
         )
     }
@@ -966,8 +966,8 @@ public func FfiConverterTypeSanitizeResultFFI_lower(_ value: SanitizeResultFfi) 
  */
 public enum MobileBindingError: Swift.Error {
 
-    
-    
+
+
     case Config(String
     )
     case InvalidKey(String
@@ -989,9 +989,9 @@ public struct FfiConverterTypeMobileBindingError: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
 
-        
 
-        
+
+
         case 1: return .Config(
             try FfiConverterString.read(from: &buf)
             )
@@ -1012,29 +1012,29 @@ public struct FfiConverterTypeMobileBindingError: FfiConverterRustBuffer {
     public static func write(_ value: MobileBindingError, into buf: inout [UInt8]) {
         switch value {
 
-        
 
-        
-        
+
+
+
         case let .Config(v1):
             writeInt(&buf, Int32(1))
             FfiConverterString.write(v1, into: &buf)
-            
-        
+
+
         case let .InvalidKey(v1):
             writeInt(&buf, Int32(2))
             FfiConverterString.write(v1, into: &buf)
-            
-        
+
+
         case let .Init(v1):
             writeInt(&buf, Int32(3))
             FfiConverterString.write(v1, into: &buf)
-            
-        
+
+
         case let .Processing(v1):
             writeInt(&buf, Int32(4))
             FfiConverterString.write(v1, into: &buf)
-            
+
         }
     }
 }

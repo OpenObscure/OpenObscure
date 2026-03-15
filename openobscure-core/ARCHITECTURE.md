@@ -13,7 +13,7 @@ flowchart LR
     %% Direction and Grouping
     subgraph LocalHost [" Local Host Environment "]
         direction LR
-        
+
         subgraph Agent [" Compute "]
             A["<b>AI Agent</b><br/>(Local App)"]
         end
@@ -21,16 +21,16 @@ flowchart LR
         subgraph Proxy [" OpenObscure Proxy "]
             direction TB
             IP["<b>Endpoint</b><br/>127.0.0.1:18790"]
-            
+
             subgraph Logic [" Security Operations "]
                 direction TB
                 req["<b>Request Path</b><br/>Scan → FPE Encrypt PII"]
                 res["<b>Response Path</b><br/>FPE Decrypt ciphertexts"]
             end
-            
+
             IP --- Logic
         end
-        
+
         %% Local Handshake
         A <== "HTTP" ==> IP
     end
@@ -43,15 +43,15 @@ flowchart LR
     Logic <== "HTTPS" ==> LLM
 
     %% --- AWS STYLE STYLING ---
-    
+
     %% Main Host Boundary
     style LocalHost fill:#f2f5f7,stroke:#232F3E,stroke-width:2px,color:#232F3E
-    
+
     %% Internal Logic
     style Agent fill:#e6f3f7,stroke:#3b48cc,stroke-dasharray: 5 5,color:#232F3E
     style Proxy fill:#e6f3f7,stroke:#545b64,stroke-dasharray: 5 5,color:#232F3E
     style Logic fill:#ffffff,stroke:#545b64,stroke-dasharray: 2 2,color:#232F3E
-    
+
     %% Node Styling
     style A fill:#3b48cc,stroke:#232F3E,color:#fff
     style IP fill:#ffffff,stroke:#545b64,color:#232F3E

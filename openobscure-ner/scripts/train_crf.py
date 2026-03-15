@@ -30,29 +30,72 @@ logger = logging.getLogger(__name__)
 # Same 11-label BIO schema as NER scanner and crf_scanner.rs
 LABEL_LIST = [
     "O",
-    "B-PER", "I-PER",
-    "B-LOC", "I-LOC",
-    "B-ORG", "I-ORG",
-    "B-HEALTH", "I-HEALTH",
-    "B-CHILD", "I-CHILD",
+    "B-PER",
+    "I-PER",
+    "B-LOC",
+    "I-LOC",
+    "B-ORG",
+    "I-ORG",
+    "B-HEALTH",
+    "I-HEALTH",
+    "B-CHILD",
+    "I-CHILD",
 ]
 NUM_LABELS = len(LABEL_LIST)
 LABEL2ID = {label: i for i, label in enumerate(LABEL_LIST)}
 
 # Gazetteer terms (subset — matches KeywordDict in Rust)
 HEALTH_TERMS = {
-    "diabetes", "asthma", "hypertension", "cancer", "depression", "anxiety",
-    "adhd", "metformin", "lisinopril", "sertraline", "albuterol", "insulin",
-    "chemotherapy", "mri", "x-ray", "prescription", "diagnosis", "symptoms",
-    "fever", "autism", "herniated", "oncologist", "pediatrician", "dental",
-    "appointment", "lab", "results", "hospital",
+    "diabetes",
+    "asthma",
+    "hypertension",
+    "cancer",
+    "depression",
+    "anxiety",
+    "adhd",
+    "metformin",
+    "lisinopril",
+    "sertraline",
+    "albuterol",
+    "insulin",
+    "chemotherapy",
+    "mri",
+    "x-ray",
+    "prescription",
+    "diagnosis",
+    "symptoms",
+    "fever",
+    "autism",
+    "herniated",
+    "oncologist",
+    "pediatrician",
+    "dental",
+    "appointment",
+    "lab",
+    "results",
+    "hospital",
 }
 
 CHILD_TERMS = {
-    "daughter", "son", "toddler", "baby", "child", "teenager", "grandson",
-    "granddaughter", "newborn", "infant", "kindergarten", "daycare",
-    "preschool", "school", "pediatrician", "breastfeeding", "8-year-old",
-    "5-year-old", "psychologist",
+    "daughter",
+    "son",
+    "toddler",
+    "baby",
+    "child",
+    "teenager",
+    "grandson",
+    "granddaughter",
+    "newborn",
+    "infant",
+    "kindergarten",
+    "daycare",
+    "preschool",
+    "school",
+    "pediatrician",
+    "breastfeeding",
+    "8-year-old",
+    "5-year-old",
+    "psychologist",
 }
 
 
@@ -94,7 +137,9 @@ def load_data(path):
                 tokens = obj["tokens"]
                 tags = obj["ner_tags"]
                 if len(tokens) != len(tags):
-                    logger.warning("Line %d: token/tag length mismatch, skipping", line_num)
+                    logger.warning(
+                        "Line %d: token/tag length mismatch, skipping", line_num
+                    )
                     continue
                 sentences.append((tokens, tags))
             except (json.JSONDecodeError, KeyError) as e:
@@ -224,10 +269,6 @@ def export_model(crf, output_dir):
     """
     os.makedirs(output_dir, exist_ok=True)
 
-    # Build label→index map from the CRF's label list
-    labels = crf.classes_
-    label_to_idx = {label: LABEL2ID.get(label, 0) for label in labels}
-
     # Extract state features
     state_features = defaultdict(lambda: [0.0] * NUM_LABELS)
 
@@ -268,7 +309,7 @@ def export_model(crf, output_dir):
 
     logger.info("Exported CRF model: %s", output_path)
     logger.info("  State features: %d", num_features)
-    logger.info("  Non-zero transitions: %d / %d", non_zero_transitions, NUM_LABELS ** 2)
+    logger.info("  Non-zero transitions: %d / %d", non_zero_transitions, NUM_LABELS**2)
     logger.info("  File size: %.1f KB", file_size)
 
     return output_path
@@ -313,7 +354,9 @@ def main():
     # Train CRF
     logger.info(
         "Training CRF (L-BFGS, c1=%.3f, c2=%.3f, max_iter=%d)...",
-        args.c1, args.c2, args.max_iterations,
+        args.c1,
+        args.c2,
+        args.max_iterations,
     )
     crf = sklearn_crfsuite.CRF(
         algorithm="lbfgs",
@@ -330,10 +373,12 @@ def main():
     evaluate(crf, X, y)
 
     # Export to JSON format for Rust scanner
-    output_path = export_model(crf, args.output_dir)
+    export_model(crf, args.output_dir)
 
     logger.info("=== CRF model ready at %s ===", args.output_dir)
-    logger.info("Configure in openobscure.toml: scanner.crf_model_dir = \"%s\"", args.output_dir)
+    logger.info(
+        'Configure in openobscure.toml: scanner.crf_model_dir = "%s"', args.output_dir
+    )
 
 
 if __name__ == "__main__":

@@ -733,16 +733,16 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 // For large crates we prevent `MethodTooLargeException` (see #2340)
-// N.B. the name of the extension is very misleading, since it is 
-// rather `InterfaceTooLargeException`, caused by too many methods 
+// N.B. the name of the extension is very misleading, since it is
+// rather `InterfaceTooLargeException`, caused by too many methods
 // in the interface for large crates.
 //
 // By splitting the otherwise huge interface into two parts
-// * UniffiLib 
+// * UniffiLib
 // * IntegrityCheckingUniffiLib (this)
 // we allow for ~2x as many methods in the UniffiLib interface.
-// 
-// The `ffi_uniffi_contract_version` method and all checksum methods are put 
+//
+// The `ffi_uniffi_contract_version` method and all checksum methods are put
 // into `IntegrityCheckingUniffiLib` and these methods are called only once,
 // when the library is loaded.
 internal interface IntegrityCheckingUniffiLib : Library {
@@ -777,8 +777,8 @@ internal interface UniffiLib : Library {
         internal val INSTANCE: UniffiLib by lazy {
             val componentName = "openobscure_core"
             // For large crates we prevent `MethodTooLargeException` (see #2340)
-            // N.B. the name of the extension is very misleading, since it is 
-            // rather `InterfaceTooLargeException`, caused by too many methods 
+            // N.B. the name of the extension is very misleading, since it is
+            // rather `InterfaceTooLargeException`, caused by too many methods
             // in the interface for large crates.
             //
             // By splitting the otherwise huge interface into two parts
@@ -786,7 +786,7 @@ internal interface UniffiLib : Library {
             // * IntegrityCheckingUniffiLib
             // And all checksum methods are put into `IntegrityCheckingUniffiLib`
             // we allow for ~2x as many methods in the UniffiLib interface.
-            // 
+            //
             // Thus we first load the library with `loadIndirect` as `IntegrityCheckingUniffiLib`
             // so that we can (optionally!) call `uniffiCheckApiChecksums`...
             loadIndirect<IntegrityCheckingUniffiLib>(componentName)
@@ -801,12 +801,12 @@ internal interface UniffiLib : Library {
             // to trigger this issue, the performance impact is negligible, running on
             // a macOS M1 machine the `loadIndirect` call takes ~50ms.
             val lib = loadIndirect<UniffiLib>(componentName)
-            // No need to check the contract version and checksums, since 
+            // No need to check the contract version and checksums, since
             // we already did that with `IntegrityCheckingUniffiLib` above.
             // Loading of library with integrity check done.
             lib
         }
-        
+
         // The Cleaner for the whole library
         internal val CLEANER: UniffiCleaner by lazy {
             UniffiCleaner.create()
@@ -814,35 +814,35 @@ internal interface UniffiLib : Library {
     }
 
     // FFI functions
-    fun uniffi_openobscure_core_fn_clone_openobscurehandle(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_openobscure_core_fn_clone_openobscurehandle(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
 ): Pointer
-fun uniffi_openobscure_core_fn_free_openobscurehandle(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_free_openobscurehandle(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-fun uniffi_openobscure_core_fn_func_check_audio_pii(`handle`: Pointer,`transcript`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_check_audio_pii(`handle`: Pointer,`transcript`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Int
-fun uniffi_openobscure_core_fn_func_create_openobscure(`configJson`: RustBuffer.ByValue,`fpeKeyHex`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_create_openobscure(`configJson`: RustBuffer.ByValue,`fpeKeyHex`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Pointer
-fun uniffi_openobscure_core_fn_func_get_debug_log(uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_get_debug_log(uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun uniffi_openobscure_core_fn_func_get_stats(`handle`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_get_stats(`handle`: Pointer,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun uniffi_openobscure_core_fn_func_restore_text(`handle`: Pointer,`text`: RustBuffer.ByValue,`mappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_restore_text(`handle`: Pointer,`text`: RustBuffer.ByValue,`mappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun uniffi_openobscure_core_fn_func_sanitize_audio_transcript(`handle`: Pointer,`transcript`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_sanitize_audio_transcript(`handle`: Pointer,`transcript`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun uniffi_openobscure_core_fn_func_sanitize_image(`handle`: Pointer,`imageBytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_sanitize_image(`handle`: Pointer,`imageBytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun uniffi_openobscure_core_fn_func_sanitize_text(`handle`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_sanitize_text(`handle`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun uniffi_openobscure_core_fn_func_scan_response(`handle`: Pointer,`responseText`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun uniffi_openobscure_core_fn_func_scan_response(`handle`: Pointer,`responseText`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun ffi_openobscure_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun ffi_openobscure_core_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun ffi_openobscure_core_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
-fun ffi_openobscure_core_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 fun ffi_openobscure_core_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -850,7 +850,7 @@ fun ffi_openobscure_core_rust_future_cancel_u8(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_u8(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
 fun ffi_openobscure_core_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -858,7 +858,7 @@ fun ffi_openobscure_core_rust_future_cancel_i8(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_i8(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Byte
 fun ffi_openobscure_core_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -866,7 +866,7 @@ fun ffi_openobscure_core_rust_future_cancel_u16(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_u16(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Short
 fun ffi_openobscure_core_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -874,7 +874,7 @@ fun ffi_openobscure_core_rust_future_cancel_i16(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_i16(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Short
 fun ffi_openobscure_core_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -882,7 +882,7 @@ fun ffi_openobscure_core_rust_future_cancel_u32(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_u32(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Int
 fun ffi_openobscure_core_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -890,7 +890,7 @@ fun ffi_openobscure_core_rust_future_cancel_i32(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_i32(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Int
 fun ffi_openobscure_core_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -898,7 +898,7 @@ fun ffi_openobscure_core_rust_future_cancel_u64(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_u64(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 fun ffi_openobscure_core_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -906,7 +906,7 @@ fun ffi_openobscure_core_rust_future_cancel_i64(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_i64(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Long
 fun ffi_openobscure_core_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -914,7 +914,7 @@ fun ffi_openobscure_core_rust_future_cancel_f32(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_f32(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Float
 fun ffi_openobscure_core_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -922,7 +922,7 @@ fun ffi_openobscure_core_rust_future_cancel_f64(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_f64(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Double
 fun ffi_openobscure_core_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -930,7 +930,7 @@ fun ffi_openobscure_core_rust_future_cancel_pointer(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_pointer(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Pointer
 fun ffi_openobscure_core_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -938,7 +938,7 @@ fun ffi_openobscure_core_rust_future_cancel_rust_buffer(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_rust_buffer(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 fun ffi_openobscure_core_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
 ): Unit
@@ -946,7 +946,7 @@ fun ffi_openobscure_core_rust_future_cancel_void(`handle`: Long,
 ): Unit
 fun ffi_openobscure_core_rust_future_free_void(`handle`: Long,
 ): Unit
-fun ffi_openobscure_core_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+fun ffi_openobscure_core_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
 ): Unit
 
 }
@@ -1061,7 +1061,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
         }
     }
 
-/** 
+/**
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
@@ -1385,7 +1385,7 @@ public object FfiConverterByteArray: FfiConverterRustBuffer<ByteArray> {
  * struct itself, keeping the heavy implementation out of the FFI layer.
  */
 public interface OpenObscureHandleInterface {
-    
+
     companion object
 }
 
@@ -1479,12 +1479,12 @@ open class OpenObscureHandle: Disposable, AutoCloseable, OpenObscureHandleInterf
         }
     }
 
-    
 
-    
-    
+
+
+
     companion object
-    
+
 }
 
 /**
@@ -1521,16 +1521,16 @@ public object FfiConverterTypeOpenObscureHandle: FfiConverter<OpenObscureHandle,
  * Statistics exposed to Swift/Kotlin via UniFFI.
  */
 data class MobileStatsFfi (
-    var `totalPiiFound`: kotlin.ULong, 
-    var `totalImagesProcessed`: kotlin.ULong, 
-    var `scannerMode`: kotlin.String, 
-    var `imagePipelineAvailable`: kotlin.Boolean, 
+    var `totalPiiFound`: kotlin.ULong,
+    var `totalImagesProcessed`: kotlin.ULong,
+    var `scannerMode`: kotlin.String,
+    var `imagePipelineAvailable`: kotlin.Boolean,
     /**
      * Device capability tier: "full", "standard", or "lite".
      */
     var `deviceTier`: kotlin.String
 ) {
-    
+
     companion object
 }
 
@@ -1574,25 +1574,25 @@ data class RiReportFfi (
     /**
      * Severity tier: "Notice", "Warning", or "Caution".
      */
-    var `severity`: kotlin.String, 
+    var `severity`: kotlin.String,
     /**
      * Persuasion categories detected (e.g. "Urgency", "Fear", "Authority").
      */
-    var `categories`: List<kotlin.String>, 
+    var `categories`: List<kotlin.String>,
     /**
      * Matched phrases from R1 dictionary scan.
      */
-    var `flags`: List<kotlin.String>, 
+    var `flags`: List<kotlin.String>,
     /**
      * Article 5 categories detected by R2 classifier (if model loaded).
      */
-    var `r2Categories`: List<kotlin.String>, 
+    var `r2Categories`: List<kotlin.String>,
     /**
      * Scan duration in microseconds.
      */
     var `scanTimeUs`: kotlin.ULong
 ) {
-    
+
     companion object
 }
 
@@ -1633,12 +1633,12 @@ public object FfiConverterTypeRiReportFFI: FfiConverterRustBuffer<RiReportFfi> {
  * Result of sanitizing text, exposed to Swift/Kotlin via UniFFI.
  */
 data class SanitizeResultFfi (
-    var `sanitizedText`: kotlin.String, 
-    var `piiCount`: kotlin.UInt, 
-    var `categories`: List<kotlin.String>, 
+    var `sanitizedText`: kotlin.String,
+    var `piiCount`: kotlin.UInt,
+    var `categories`: List<kotlin.String>,
     var `mappingJson`: kotlin.String
 ) {
-    
+
     companion object
 }
 
@@ -1678,45 +1678,45 @@ public object FfiConverterTypeSanitizeResultFFI: FfiConverterRustBuffer<Sanitize
  * Error type exposed to Swift/Kotlin via UniFFI.
  */
 sealed class MobileBindingException: kotlin.Exception() {
-    
+
     class Config(
-        
+
         val v1: kotlin.String
         ) : MobileBindingException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
     class InvalidKey(
-        
+
         val v1: kotlin.String
         ) : MobileBindingException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
     class Init(
-        
+
         val v1: kotlin.String
         ) : MobileBindingException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
     class Processing(
-        
+
         val v1: kotlin.String
         ) : MobileBindingException() {
         override val message
             get() = "v1=${ v1 }"
     }
-    
+
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<MobileBindingException> {
         override fun lift(error_buf: RustBuffer.ByValue): MobileBindingException = FfiConverterTypeMobileBindingError.lift(error_buf)
     }
 
-    
+
 }
 
 /**
@@ -1724,7 +1724,7 @@ sealed class MobileBindingException: kotlin.Exception() {
  */
 public object FfiConverterTypeMobileBindingError : FfiConverterRustBuffer<MobileBindingException> {
     override fun read(buf: ByteBuffer): MobileBindingException {
-        
+
 
         return when(buf.getInt()) {
             1 -> MobileBindingException.Config(
@@ -1866,7 +1866,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
+
 
         /**
          * Create a new OpenObscure mobile instance.
@@ -1886,7 +1886,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
+
 
         /**
          * Get buffered debug log messages from the Rust layer.
@@ -1902,7 +1902,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
+
 
         /**
          * Get current statistics for diagnostics.
@@ -1914,7 +1914,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
+
 
         /**
          * Restore original PII values in response text using saved mappings.
@@ -1926,7 +1926,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
+
 
         /**
          * Scan a transcript (from platform speech API) for PII and encrypt matches.
@@ -1942,7 +1942,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
+
 
         /**
          * Process an image for visual PII (face redaction, OCR text redaction, EXIF strip).
@@ -1957,7 +1957,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
+
 
         /**
          * Scan text for PII and encrypt matches with FF1 FPE.
@@ -1972,7 +1972,7 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
+
 
         /**
          * Scan a response for persuasion and manipulation techniques (cognitive firewall).
@@ -1986,6 +1986,3 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 }
     )
     }
-    
-
-

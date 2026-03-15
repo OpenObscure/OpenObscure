@@ -91,13 +91,13 @@ echo "=== Done ==="
 echo ""
 echo "Model layout:"
 echo "  $BLAZEFACE_DIR/"
-ls -lh "$BLAZEFACE_DIR/" 2>/dev/null | grep -v total || true
+ls -lh "$BLAZEFACE_DIR/" 2>/dev/null || true
 if [ "$TIER" = "standard" ] || [ "$TIER" = "full" ]; then
     echo "  $SCRFD_DIR/"
-    ls -lh "$SCRFD_DIR/" 2>/dev/null | grep -v total || true
+    ls -lh "$SCRFD_DIR/" 2>/dev/null || true
 fi
 echo "  $PADDLEOCR_DIR/"
-ls -lh "$PADDLEOCR_DIR/" 2>/dev/null | grep -v total || true
+ls -lh "$PADDLEOCR_DIR/" 2>/dev/null || true
 if [ "$TIER" = "full" ]; then
     echo ""
     echo "Note: NER, KWS, and RI models are tracked via Git LFS."

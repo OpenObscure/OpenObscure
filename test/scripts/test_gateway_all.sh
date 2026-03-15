@@ -53,7 +53,7 @@ start_echo() {
   ECHO_STARTED_BY_US=true
 
   # Wait for it to be ready
-  for i in {1..20}; do
+  for _i in {1..20}; do
     if curl -sf "http://127.0.0.1:${ECHO_PORT}/" >/dev/null 2>&1; then
       echo "Echo server ready (PID: $ECHO_PID)"
       break
