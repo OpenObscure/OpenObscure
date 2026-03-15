@@ -9,10 +9,8 @@ Everything runs locally. No cloud components, no telemetry, no external dependen
 **Contents**
 
 - [Two-Layer Defense-in-Depth](#two-layer-defense-in-depth)
-- [Roadmap](#roadmap)
-- [Key Design Decisions](#key-design-decisions)
 - [Threat Model](#threat-model)
-- [Further Reading](#further-reading)
+- [Deep-Dives Reading](#deep-dives-reading)
 
 ## Two-Layer Defense-in-Depth
 
