@@ -18,12 +18,11 @@
 6. [Voice Pipeline Latency](#voice-pipeline-latency)
 7. [FPE Encryption Latency](#fpe-encryption-latency)
 8. [Response Integrity Latency](#response-integrity-latency)
-9. [Embedded Pipeline Latency](#embedded-pipeline-latency)
-10. [Health Endpoint Histogram](#health-endpoint-histogram)
-11. [Micro-Benchmarks vs Real World](#micro-benchmarks-vs-real-world)
-12. [Outliers and Cold Start](#outliers-and-cold-start)
-13. [UX Impact and Optimization Opportunities](#ux-impact-and-optimization-opportunities)
-14. [Timing Headers Reference](#timing-headers-reference)
+9. [Health Endpoint Histogram](#health-endpoint-histogram)
+10. [Micro-Benchmarks vs Real World](#micro-benchmarks-vs-real-world)
+11. [Outliers and Cold Start](#outliers-and-cold-start)
+12. [UX Impact and Optimization Opportunities](#ux-impact-and-optimization-opportunities)
+13. [Timing Headers Reference](#timing-headers-reference)
 
 ---
 
@@ -297,57 +296,6 @@ FPE operates in the low-microsecond range — negligible relative to scan and im
 
 > R2 activation: `high` (default) = every response; `medium` = R1 flags + 10% sample;
 > `low` = R1 flags only; `off` = skip all.
-
----
-
-## Embedded Pipeline Latency
-
-### L1 TypeScript Plugin — Regex Only (45 samples)
-
-| Metric | Value | Unit |
-|---|---|---|
-| **Median elapsed_ms** | 0 | ms |
-| **Average elapsed_ms** | 0.04 | ms |
-| **Max elapsed_ms** | 1 | ms |
-| **Sub-millisecond rate** | 43/45 (96%) | — |
-
-All 45 embedded test files completed in under 1ms. The L1 regex scanner
-is faster than the Gateway hybrid scanner because it skips NER model
-inference and JSON traversal. With TinyBERT 4L, the gap is now ~2 orders
-of magnitude (0ms vs ~164ms median) rather than the previous ~4 orders.
-
-### L1 with NER Bridge (estimated)
-
-When `redactPiiWithNer()` calls the L0 Core proxy's NER endpoint:
-
-| Component | Estimated Latency | Notes |
-|---|---|---|
-| HTTP round-trip to L0 | 1–50ms | localhost, depends on connection reuse |
-| L0 NER inference | 42–371ms | Same as Gateway text scan (TinyBERT 4L) |
-| curl timeout | 2,000ms max | Hard limit in `--max-time 2` |
-| execFileSync timeout | 3,000ms max | Process-level timeout |
-
-### Mobile (lib_mobile.rs via UniFFI)
-
-| Method | Expected Latency | Notes |
-|---|---|---|
-| `sanitize_text()` — regex only (Lite) | <1ms | Same regex engine as Gateway |
-| `sanitize_text()` — with CRF (Standard) | 5–20ms | CRF feature extraction + Viterbi |
-| `sanitize_text()` — with NER (Full) | 10–50ms | TinyBERT on mobile ONNX EP |
-| `sanitize_image()` | 100–350ms | Same pipeline as Gateway, mobile EPs |
-| `restore_text()` | <1ms | String replacement from mapping |
-
-> Mobile timing is estimated from Gateway model inference. No instrumentation
-> currently exists in `lib_mobile.rs` — `ImageStats` is collected but discarded.
-
-### Planned: Embedded Voice (Phase 13)
-
-| Engine | Target Latency | Model Size | Status |
-|---|---|---|---|
-| **openWakeWord WASM** | <1.5s detection | ~6MB | PENDING |
-| **sherpa-onnx WASM** (fallback) | Similar to Gateway KWS | ~10–15MB | PENDING |
-| **iOS SFSpeechRecognizer** | OS-dependent (~1–2x real-time) | 0MB (system) | PENDING |
-| **Android SpeechRecognizer** | OS-dependent | 0MB (system) | PENDING |
 
 ---
 
