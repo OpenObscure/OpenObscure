@@ -148,4 +148,4 @@ test/
 | Check which PII types each layer detects | [TESTING_GUIDE.md — Detection Coverage](TESTING_GUIDE.md#detection-coverage) |
 | See the canonical feature comparison | [GATEWAY_TEST.md — Feature Parity](GATEWAY_TEST.md#feature-parity) |
 | Run benchmark / perf tests | [PERFORMANCE.md](PERFORMANCE.md) |
-| Add samples to the corpus | [data/DATA_COLLECTION_PROMPTS.md](data/DATA_COLLECTION_PROMPTS.md) |
+| Add samples to the corpus | [data/input/DATA_COLLECTION_PROMPTS.md](data/input/DATA_COLLECTION_PROMPTS.md) |
