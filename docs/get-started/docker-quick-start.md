@@ -2,6 +2,8 @@
 
 Run the OpenObscure Gateway as a container in two commands — no Rust toolchain required.
 
+For build options, full-image setup, Git LFS details, CI/CD integration, and troubleshooting, see the [Docker Setup and Testing Guide](./docker-setup-testing-guide.md).
+
 ---
 
 ## Prerequisites
