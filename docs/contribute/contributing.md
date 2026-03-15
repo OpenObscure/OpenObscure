@@ -63,12 +63,6 @@ You need Rust (stable), Node.js 20+, and a working build of the proxy. If you ha
 
 ---
 
-## Good First Issues
-
-Look for issues labeled **`good first issue`** on GitHub. These are scoped, well-defined tasks suitable for new contributors. If none are open, documentation improvements and test coverage gaps are always welcome.
-
----
-
 ## Feature Gating Protocol
 
 > **Adding a new capability** (new detection type, new model, new config option)? The Feature
