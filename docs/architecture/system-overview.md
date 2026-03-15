@@ -81,18 +81,6 @@ L0 can't see tool results — they're generated inside the host agent and never 
 
 ---
 
-## Roadmap
-
-See [roadmap](../get-started/roadmap.md) — current capability matrix (all 15 PII types, all platforms, all tiers) and planned features.
-
----
-
-## Key Design Decisions
-
-See [design-decisions.md](design-decisions.md) — rationale for FF1-only, fail-open, per-record tweaks, solid-fill redaction, sequential model loading, and all other core choices.
-
----
-
 ## Threat Model
 
 The proxy intercepts data-in-transit to LLM providers but does not protect data at rest, the LLM provider itself, or the agent host. Compromised OS/root access and side-channel attacks are explicitly out of scope.
