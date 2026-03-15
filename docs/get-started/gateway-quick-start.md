@@ -83,6 +83,7 @@ For Node.js, curl, LangChain, Anthropic SDK, and environment variable approaches
 ## 6. Verify
 
 ```bash
+# Add -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" if auth token is configured
 curl -s http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
 ```
 

@@ -131,6 +131,7 @@ On mobile, set `auto_detect: false` in `MobileConfig` to disable hardware profil
 The health endpoint reports the detected tier and active feature budget:
 
 ```bash
+# Add -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" if auth token is configured
 curl -s http://127.0.0.1:18790/_openobscure/health | jq '.device_tier, .feature_budget'
 ```
 

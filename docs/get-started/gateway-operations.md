@@ -89,12 +89,16 @@ scanner_mode = "regex"   # Options: "auto" (default), "regex", "ner", "crf"
 ### Download
 
 ```bash
+# Downloads image pipeline models only (BlazeFace, SCRFD, PaddleOCR)
 ./build/download_models.sh lite      # ~11MB  — face detection + OCR
 ./build/download_models.sh standard  # ~14MB  — adds SCRFD face detection
-./build/download_models.sh full      # same as standard; NER/RI/KWS via Git LFS
+./build/download_models.sh full      # identical to standard (does NOT download NER/RI/KWS)
 
-git lfs pull                         # NER, cognitive firewall (R2), voice KWS
-./build/download_kws_models.sh       # download KWS models separately (~5MB)
+# NER, cognitive firewall (R2), and voice KWS models are tracked via Git LFS:
+git lfs pull                         # downloads NER (~14–64MB), RI (~14MB), KWS (~5MB)
+
+# Alternative for KWS only (no Git LFS required — downloads from GitHub releases):
+./build/download_kws_models.sh       # ~5MB — KWS Zipformer INT8 + tokens
 ```
 
 ### Model Table by Tier
