@@ -49,8 +49,10 @@ jobs:
             --features server
 
       - name: Full feature check (default features — server + voice)
+        # cargo check type-checks without linking, so no libonnxruntime/libsherpa-onnx needed.
+        # cargo build would require native library caches (~/.cache/ort.pyke.io, etc.).
         run: |
-          cargo build \
+          cargo check \
             --manifest-path openobscure-core/Cargo.toml \
             --release
 
