@@ -1,0 +1,67 @@
+{
+  "audio_ssn_single.wav": {
+    "transcript": "My Social Security number is 123-45-6789. Please update my records.",
+    "expected_pii_types": ["ssn"],
+    "expected_pii_min": 1
+  },
+  "audio_ssn_single.mp3": {
+    "transcript": "My Social Security number is 123-45-6789. Please update my records.",
+    "expected_pii_types": ["ssn"],
+    "expected_pii_min": 1
+  },
+  "audio_cc_visa.wav": {
+    "transcript": "My Visa card number is 4111 1111 1111 1111 and the expiry is 12 slash 28.",
+    "expected_pii_types": ["credit_card"],
+    "expected_pii_min": 1
+  },
+  "audio_email_single.wav": {
+    "transcript": "Please send the confirmation to john.doe@example.com as soon as possible.",
+    "expected_pii_types": ["email"],
+    "expected_pii_min": 1
+  },
+  "audio_phone_us.wav": {
+    "transcript": "You can reach me at 555-867-5309 or leave a message after the beep.",
+    "expected_pii_types": ["phone"],
+    "expected_pii_min": 1
+  },
+  "audio_phone_us.ogg": {
+    "transcript": "You can reach me at 555-867-5309 or leave a message after the beep.",
+    "expected_pii_types": ["phone"],
+    "expected_pii_min": 1
+  },
+  "audio_address_single.wav": {
+    "transcript": "My home address is 742 Evergreen Terrace, Springfield, IL 62704.",
+    "expected_pii_types": [],
+    "expected_pii_min": 0
+  },
+  "audio_name_single.wav": {
+    "transcript": "Good afternoon, this is Jane Smith calling from HR regarding your application.",
+    "expected_pii_types": [],
+    "expected_pii_min": 0
+  },
+  "audio_customer_service.wav": {
+    "transcript": "Thank you for calling support. My account number is 4532 0151 1283 0366 and my email is support.user@bigbank.com. My SSN ends in 6789.",
+    "expected_pii_types": ["credit_card", "email"],
+    "expected_pii_min": 2
+  },
+  "audio_customer_service.mp3": {
+    "transcript": "Thank you for calling support. My account number is 4532 0151 1283 0366 and my email is support.user@bigbank.com. My SSN ends in 6789.",
+    "expected_pii_types": ["credit_card", "email"],
+    "expected_pii_min": 2
+  },
+  "audio_medical_intake.wav": {
+    "transcript": "Patient intake for Robert Johnson, date of birth 03/15/1975. Insurance ID Z987654321. Please call 555-234-9876 for any questions.",
+    "expected_pii_types": ["phone"],
+    "expected_pii_min": 1
+  },
+  "audio_medical_intake.ogg": {
+    "transcript": "Patient intake for Robert Johnson, date of birth 03/15/1975. Insurance ID Z987654321. Please call 555-234-9876 for any questions.",
+    "expected_pii_types": ["phone"],
+    "expected_pii_min": 1
+  },
+  "audio_job_screening.wav": {
+    "transcript": "Hi, this is Alex Rivera. My contact email is alex.rivera@techcorp.io and you can reach me at 800-555-0190. I look forward to the interview.",
+    "expected_pii_types": ["email", "phone"],
+    "expected_pii_min": 2
+  }
+}

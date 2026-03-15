@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// test_embedded_file.mjs — Test a single file against the L1 Embedded plugin (redactPii).
+// test_l1_plugin_file.mjs — Test a single file against the L1 TypeScript Plugin (redactPii).
 //
 // Produces two outputs:
-//   1) JSON metadata  → <output_dir>/json/<filename>_embedded.json
-//   2) Redacted file  → <output_dir>/redacted/<filename>  (original extension preserved)
+//   1) JSON metadata  → <output_dir>/json/<filename>_l1_plugin.json
+//   2) Redacted file  → <output_dir>/redacted/<filename>_l1_plugin.<ext>
 //
 // Usage:
-//   node test/scripts/test_embedded_file.mjs <input_file> [output_dir]
+//   node test/scripts/test_l1_plugin_file.mjs <input_file> [output_dir]
 //
 // If output_dir is omitted, results are printed to stdout.
 // If output_dir is provided, both json/ and redacted/ files are written.
@@ -41,11 +41,11 @@ const inputFile = args[0];
 const outputDir = args[1] || null;
 
 if (!inputFile) {
-  console.log("Usage: node test_embedded_file.mjs <input_file> [output_dir]");
+  console.log("Usage: node test_l1_plugin_file.mjs <input_file> [output_dir]");
   console.log("");
   console.log("Examples:");
-  console.log("  node test/scripts/test_embedded_file.mjs test/data/input/PII_Detection/Credit_Card_Numbers.txt");
-  console.log("  node test/scripts/test_embedded_file.mjs test/data/input/PII_Detection/Credit_Card_Numbers.txt test/data/output/PII_Detection");
+  console.log("  node test/scripts/test_l1_plugin_file.mjs test/data/input/PII_Detection/Credit_Card_Numbers.txt");
+  console.log("  node test/scripts/test_l1_plugin_file.mjs test/data/input/PII_Detection/Credit_Card_Numbers.txt test/data/output/PII_Detection");
   process.exit(1);
 }
 
@@ -92,10 +92,12 @@ const elapsedMs = Date.now() - startMs;
 
 // Build JSON metadata envelope (aligned with gateway format)
 const filename = basename(inputFile);
+const ext = extname(inputFile);
+const nameNoExt = basename(inputFile, ext);
 const envelope = {
   file: filename,
   path: inputFile,
-  architecture: useNer ? "embedded+ner" : "embedded",
+  architecture: useNer ? "l1_plugin+ner" : "l1_plugin",
   redaction_mode: "label",
   timestamp: new Date().toISOString(),
   total_matches: result.count,
@@ -115,14 +117,12 @@ if (outputDir) {
   mkdirSync(jsonDir, { recursive: true });
   mkdirSync(redactedDir, { recursive: true });
 
-  const nameNoExt = basename(inputFile, extname(inputFile));
-
   // Write JSON metadata
-  const jsonFile = join(jsonDir, `${nameNoExt}_embedded.json`);
+  const jsonFile = join(jsonDir, `${nameNoExt}_l1_plugin.json`);
   writeFileSync(jsonFile, JSON.stringify(envelope, null, 2) + "\n");
 
-  // Write redacted file (preserving original filename and extension)
-  const redactedFile = join(redactedDir, filename);
+  // Write redacted file with _l1_plugin suffix
+  const redactedFile = join(redactedDir, `${nameNoExt}_l1_plugin${ext}`);
   writeFileSync(redactedFile, result.text);
 
   console.log(`OK  ${filename} — ${result.count} matches → json/ + redacted/`);

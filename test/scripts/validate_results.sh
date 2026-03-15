@@ -23,12 +23,13 @@
 #   ./test/scripts/validate_results.sh                     # Threshold validation
 #   ./test/scripts/validate_results.sh --strict             # Exact snapshot comparison
 #   ./test/scripts/validate_results.sh --check-redacted     # Validate redacted file content
-#   ./test/scripts/validate_results.sh --gateway-only       # Skip embedded checks
+#   ./test/scripts/validate_results.sh --gateway-only       # Skip l1_plugin checks
 #   ./test/scripts/validate_results.sh --summary            # Summary only (no per-file output)
 #   ./test/scripts/validate_results.sh --json               # JSON report to stdout
 #   ./test/scripts/validate_results.sh --infrastructure     # Infrastructure test results
 #   ./test/scripts/validate_results.sh --validate-only      # Schema + input validation only
 #   ./test/scripts/validate_results.sh --run                 # Run all tests + validate results
+#   ./test/scripts/validate_results.sh --docker IMAGE        # Run against Docker image (stops local proxy, starts container)
 
 set -euo pipefail
 
@@ -48,7 +49,10 @@ CHECK_REDACTED=false
 INFRASTRUCTURE=false
 VALIDATE_ONLY=false
 RUN_TESTS=false
-for arg in "$@"; do
+DOCKER_IMAGE=""
+i=1
+while [[ $i -le $# ]]; do
+  arg="${!i}"
   case "$arg" in
     --gateway-only) GATEWAY_ONLY=true ;;
     --summary) SUMMARY_ONLY=true ;;
@@ -58,7 +62,11 @@ for arg in "$@"; do
     --infrastructure) INFRASTRUCTURE=true ;;
     --validate-only) VALIDATE_ONLY=true ;;
     --run) RUN_TESTS=true ;;
+    --docker)
+      i=$((i+1)); DOCKER_IMAGE="${!i}"
+      RUN_TESTS=true ;;
   esac
+  i=$((i+1))
 done
 
 # --run implies --infrastructure (validate after running tests)
@@ -515,6 +523,61 @@ if [[ "$RUN_TESTS" == "true" ]]; then
   fi
   export AUTH_TOKEN
 
+  # ── Docker mode: stop any local proxy on 18790, start container ────────────
+  DOCKER_CONTAINER=""
+  KILLED_LOCAL_PID=""
+  if [[ -n "$DOCKER_IMAGE" ]]; then
+    PROXY_URL="http://127.0.0.1:18790"
+
+    # Stop any process already bound to 18790 so Docker can take the port
+    LOCAL_PID=$(lsof -ti TCP:18790 -n -P 2>/dev/null | head -1 || true)
+    if [[ -n "$LOCAL_PID" ]]; then
+      if [[ "$JSON_OUTPUT" == "false" ]]; then
+        echo "Stopping local process on :18790 (PID $LOCAL_PID) to free port for Docker..."
+      fi
+      kill "$LOCAL_PID" 2>/dev/null || true
+      KILLED_LOCAL_PID="$LOCAL_PID"
+      sleep 1
+    fi
+
+    if [[ -z "$AUTH_TOKEN" ]]; then
+      AUTH_TOKEN=$(openssl rand -hex 32)
+    fi
+    MASTER_KEY=$(openssl rand -hex 32)
+    DOCKER_CONTAINER="oo-test-$$"
+
+    if [[ "$JSON_OUTPUT" == "false" ]]; then
+      echo "Starting Docker container: $DOCKER_IMAGE → $DOCKER_CONTAINER"
+    fi
+
+    docker run -d --name "$DOCKER_CONTAINER" \
+      -e OPENOBSCURE_MASTER_KEY="$MASTER_KEY" \
+      -e OPENOBSCURE_AUTH_TOKEN="$AUTH_TOKEN" \
+      -e OPENOBSCURE_CONFIG=/etc/oo/test.toml \
+      -v "$SCRIPT_DIR/../config/test_fpe_docker.toml":/etc/oo/test.toml:ro \
+      --add-host host.docker.internal:host-gateway \
+      -p 18790:18790 \
+      "$DOCKER_IMAGE" >/dev/null
+
+    # Wait up to 30s for the container to be healthy
+    for _i in $(seq 1 30); do
+      if curl -sf "http://127.0.0.1:18790/_openobscure/health" \
+           -H "X-OpenObscure-Token: $AUTH_TOKEN" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 1
+    done
+
+    # Cleanup hook: stop container and optionally restart local proxy
+    _docker_cleanup() {
+      if [[ -n "$DOCKER_CONTAINER" ]]; then
+        docker rm -f "$DOCKER_CONTAINER" >/dev/null 2>&1 || true
+      fi
+    }
+    trap _docker_cleanup EXIT
+  fi
+  # ── End Docker mode ──────────────────────────────────────────────────────────
+
   # Pre-flight: verify proxy is reachable
   if [[ -n "$AUTH_TOKEN" ]]; then
     RUN_HEALTH=$(curl -sf "${PROXY_URL}/_openobscure/health" -H "X-OpenObscure-Token: $AUTH_TOKEN" 2>/dev/null || true)
@@ -524,9 +587,13 @@ if [[ "$RUN_TESTS" == "true" ]]; then
   if [[ -z "$RUN_HEALTH" ]]; then
     echo "Error: Proxy not reachable at $PROXY_URL"
     echo ""
-    echo "Start the proxy first:"
-    echo "  OPENOBSCURE_CONFIG=test/config/test_fpe.toml \\"
-    echo "    ./openobscure-core/target/debug/openobscure-core serve"
+    if [[ -n "$DOCKER_IMAGE" ]]; then
+      echo "Docker container failed to start. Check: docker logs $DOCKER_CONTAINER"
+    else
+      echo "Start the proxy first:"
+      echo "  OPENOBSCURE_CONFIG=test/config/test_fpe.toml \\"
+      echo "    ./openobscure-core/target/debug/openobscure-core serve"
+    fi
     exit 1
   fi
 
@@ -548,14 +615,27 @@ if [[ "$RUN_TESTS" == "true" ]]; then
 
   if [[ "$JSON_OUTPUT" == "false" ]]; then
     echo ""
-    echo "--- Phase 2: Embedded ---"
+    echo "--- Phase 2: L1 Plugin ---"
   fi
 
-  run_node_script "test_embedded_all.mjs"
+  run_node_script "test_l1_plugin_all.mjs"
 
   if [[ "$JSON_OUTPUT" == "false" ]]; then
     echo ""
-    echo "--- Phase 3: Infrastructure ---"
+    echo "--- Phase 3: L0 Embedded ---"
+  fi
+
+  if [[ -x "$SCRIPT_DIR/test_embedded_l0_all.sh" ]]; then
+    run_script "test_embedded_l0_all.sh"
+  else
+    if [[ "$JSON_OUTPUT" == "false" ]]; then
+      printf "  %-45s \033[90mSKIP\033[0m (not found)\n" "test_embedded_l0_all.sh"
+    fi
+  fi
+
+  if [[ "$JSON_OUTPUT" == "false" ]]; then
+    echo ""
+    echo "--- Phase 4: Infrastructure ---"
   fi
 
   INFRA_RUN_SCRIPTS=(
@@ -610,6 +690,7 @@ fi
 GW_JSON_COUNT=0
 REDACTED_COUNT=0
 EM_JSON_COUNT=0
+L0_EM_JSON_COUNT=0
 
 while IFS= read -r -d '' _; do
   GW_JSON_COUNT=$((GW_JSON_COUNT + 1))
@@ -621,10 +702,14 @@ done < <(find "$OUTPUT_DIR" -path "*/redacted/*" -type f -print0 2>/dev/null)
 
 while IFS= read -r -d '' _; do
   EM_JSON_COUNT=$((EM_JSON_COUNT + 1))
-done < <(find "$OUTPUT_DIR" -path "*/json/*_embedded.json" -print0 2>/dev/null)
+done < <(find "$OUTPUT_DIR" -path "*/json/*_l1_plugin.json" -print0 2>/dev/null)
+
+while IFS= read -r -d '' _; do
+  L0_EM_JSON_COUNT=$((L0_EM_JSON_COUNT + 1))
+done < <(find "$OUTPUT_DIR" -path "*/json/*_l0_embedded.json" -print0 2>/dev/null)
 
 if [[ "$JSON_OUTPUT" == "false" ]]; then
-  echo "Found: $GW_JSON_COUNT gateway JSON, $EM_JSON_COUNT embedded JSON, $REDACTED_COUNT redacted files"
+  echo "Found: $GW_JSON_COUNT gateway JSON, $EM_JSON_COUNT l1_plugin JSON, $L0_EM_JSON_COUNT l0_embedded JSON, $REDACTED_COUNT redacted files"
   echo ""
 fi
 
@@ -634,7 +719,7 @@ if [[ $GW_JSON_COUNT -eq 0 && $EM_JSON_COUNT -eq 0 && "$INFRASTRUCTURE" == "fals
     echo ""
     echo "Run the test suite first:"
     echo "  ./test/scripts/test_gateway_all.sh    # Gateway FPE tests"
-    echo "  node test/scripts/test_embedded_all.mjs  # Embedded label tests"
+    echo "  node test/scripts/test_l1_plugin_all.mjs  # L1 Plugin label tests"
   fi
   exit 2
 fi
@@ -716,10 +801,10 @@ elif [[ "$STRICT" == "true" ]]; then
     done
   fi
 
-  # ─── Strict: Embedded validation ────────────────────────────────
+  # ─── Strict: L1 Plugin validation ───────────────────────────────
 
   if [[ "$GATEWAY_ONLY" == "false" ]]; then
-    STRICT_EM_KEYS=$(jq -r '.embedded // {} | keys[]' "$SNAPSHOT" 2>/dev/null)
+    STRICT_EM_KEYS=$(jq -r '.l1_plugin // {} | keys[]' "$SNAPSHOT" 2>/dev/null)
 
     if [[ -n "$STRICT_EM_KEYS" ]]; then
       CURRENT_CAT=""
@@ -732,31 +817,31 @@ elif [[ "$STRICT" == "true" ]]; then
         if [[ "$category" != "$CURRENT_CAT" ]]; then
           CURRENT_CAT="$category"
           if [[ "$SUMMARY_ONLY" == "false" && "$JSON_OUTPUT" == "false" ]]; then
-            echo "--- $category (embedded) ---"
+            echo "--- $category (l1_plugin) ---"
           fi
         fi
 
-        em_json="$OUTPUT_DIR/$category/json/${name_no_ext}_embedded.json"
+        em_json="$OUTPUT_DIR/$category/json/${name_no_ext}_l1_plugin.json"
 
         if [[ ! -f "$em_json" ]]; then
-          skip "$key (embedded)" "no embedded JSON"
+          skip "$key (l1_plugin)" "no l1_plugin JSON"
           continue
         fi
 
-        expected_total=$(jq -r ".embedded[\"$key\"].total_matches" "$SNAPSHOT")
+        expected_total=$(jq -r ".l1_plugin[\"$key\"].total_matches" "$SNAPSHOT")
         actual_total=$(jq '.total_matches // 0' "$em_json")
 
         if [[ "$actual_total" -ne "$expected_total" ]]; then
-          fail "$key (embedded)" "total_matches: got $actual_total, expected $expected_total"
+          fail "$key (l1_plugin)" "total_matches: got $actual_total, expected $expected_total"
           continue
         fi
 
         # Compare per-type counts exactly
         type_mismatch=false
         type_msg=""
-        expected_types_keys=$(jq -r ".embedded[\"$key\"].type_summary | keys[]" "$SNAPSHOT" 2>/dev/null)
+        expected_types_keys=$(jq -r ".l1_plugin[\"$key\"].type_summary | keys[]" "$SNAPSHOT" 2>/dev/null)
         for etype in $expected_types_keys; do
-          exp_count=$(jq -r ".embedded[\"$key\"].type_summary[\"$etype\"]" "$SNAPSHOT")
+          exp_count=$(jq -r ".l1_plugin[\"$key\"].type_summary[\"$etype\"]" "$SNAPSHOT")
           act_count=$(jq -r ".type_summary[\"$etype\"] // 0" "$em_json")
           if [[ "$act_count" -ne "$exp_count" ]]; then
             type_mismatch=true
@@ -769,19 +854,19 @@ elif [[ "$STRICT" == "true" ]]; then
         if [[ "$type_mismatch" == "false" ]]; then
           actual_types_keys=$(jq -r '.type_summary | keys[]' "$em_json" 2>/dev/null)
           for atype in $actual_types_keys; do
-            has_expected=$(jq -r ".embedded[\"$key\"].type_summary[\"$atype\"] // \"missing\"" "$SNAPSHOT")
+            has_expected=$(jq -r ".l1_plugin[\"$key\"].type_summary[\"$atype\"] // \"missing\"" "$SNAPSHOT")
             if [[ "$has_expected" == "missing" ]]; then
-              warn "$key (embedded)" "unexpected new type '$atype' not in snapshot"
+              warn "$key (l1_plugin)" "unexpected new type '$atype' not in snapshot"
             fi
           done
         fi
 
         if [[ "$type_mismatch" == "true" ]]; then
-          fail "$key (embedded)" "type mismatch: $type_msg"
+          fail "$key (l1_plugin)" "type mismatch: $type_msg"
           continue
         fi
 
-        pass "$key (embedded)" "$actual_total matches (exact)"
+        pass "$key (l1_plugin)" "$actual_total matches (exact)"
       done
     fi
   fi
@@ -1078,29 +1163,29 @@ print(idx)
       filename="${key#*/}"
       name_no_ext="${filename%.*}"
 
-      # Skip categories that embedded doesn't handle
+      # Skip categories that l1_plugin doesn't handle
       case "$category" in
         Visual_PII|Audio_PII) continue ;;
       esac
 
-      em_json="$OUTPUT_DIR/$category/json/${name_no_ext}_embedded.json"
+      em_json="$OUTPUT_DIR/$category/json/${name_no_ext}_l1_plugin.json"
       [[ -f "$em_json" ]] || continue
 
       em_matches=$(jq '.total_matches // 0' "$em_json")
       min_matches=$(jq -r ".files[\"$key\"].min_matches" "$MANIFEST")
 
-      # Use explicit embedded_min_matches if present, otherwise derive from gateway
-      em_min_explicit=$(jq -r ".files[\"$key\"].embedded_min_matches // \"null\"" "$MANIFEST")
+      # Use explicit l1_plugin_min_matches if present, otherwise derive from gateway
+      em_min_explicit=$(jq -r ".files[\"$key\"].l1_plugin_min_matches // .files[\"$key\"].embedded_min_matches // \"null\"" "$MANIFEST")
       if [[ "$em_min_explicit" != "null" ]]; then
         em_min=$em_min_explicit
       else
-        # Check if embedded results include NER types (person/location/organization)
+        # Check if l1_plugin results include NER types (person/location/organization)
         has_ner=$(jq '[.type_summary.person // 0, .type_summary.location // 0, .type_summary.organization // 0] | add' "$em_json")
         if [[ "$has_ner" -gt 0 ]]; then
-          # NER-capable embedded: use same thresholds as gateway
+          # NER-capable l1_plugin: use same thresholds as gateway
           em_min=$min_matches
         else
-          # Regex-only embedded: use 30% of gateway threshold
+          # Regex-only l1_plugin: use 30% of gateway threshold
           em_min=$(( min_matches * 3 / 10 ))
         fi
         [[ $em_min -lt 1 ]] && em_min=1
@@ -1111,13 +1196,13 @@ print(idx)
       else
         EM_FAIL=$((EM_FAIL + 1))
         if [[ "$SUMMARY_ONLY" == "false" && "$JSON_OUTPUT" == "false" ]]; then
-          printf "  \033[31mFAIL\033[0m  %-50s  embedded: %d < min %d\n" "$key" "$em_matches" "$em_min"
+          printf "  \033[31mFAIL\033[0m  %-50s  l1_plugin: %d < min %d\n" "$key" "$em_matches" "$em_min"
         fi
       fi
     done
 
     if [[ "$JSON_OUTPUT" == "false" && "$SUMMARY_ONLY" == "false" ]]; then
-      echo "  Embedded: $EM_PASS passed, $EM_FAIL failed"
+      echo "  L1 Plugin: $EM_PASS passed, $EM_FAIL failed"
     fi
   fi
 
@@ -1657,15 +1742,52 @@ if [[ "$JSON_OUTPUT" == "false" && "$SUMMARY_ONLY" == "false" ]]; then
     [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && gw_fpe_us+=("$v")
   done
 
-  # Collect embedded timing
+  # Collect l1_plugin timing
   em_total_ms=(); em_regex_ms=(); em_ner_ms=()
-  for em_file in $(find "$OUTPUT_DIR" -path "*/json/*_embedded.json" 2>/dev/null | sort); do
+  for em_file in $(find "$OUTPUT_DIR" -path "*/json/*_l1_plugin.json" 2>/dev/null | sort); do
     v=$(jq '.timing.total_ms // .elapsed_ms // empty' "$em_file" 2>/dev/null)
     [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && em_total_ms+=("$v")
     v=$(jq '.timing.regex_ms // empty' "$em_file" 2>/dev/null)
     [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && em_regex_ms+=("$v")
     v=$(jq '.timing.ner_ms // empty' "$em_file" 2>/dev/null)
     [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && em_ner_ms+=("$v")
+  done
+
+  # Collect l0_embedded text timing
+  l0_text_sanitize_ms=()
+  for l0_file in $(find "$OUTPUT_DIR" -path "*/json/*_l0_embedded.json" 2>/dev/null | sort); do
+    arch=$(jq -r '.architecture // ""' "$l0_file" 2>/dev/null)
+    [[ "$arch" != "l0_embedded" ]] && continue
+    # Skip image/audio entries (they have pipeline_ms or kws_results)
+    has_kws=$(jq 'has("kws_results")' "$l0_file" 2>/dev/null)
+    has_pipe=$(jq '.timing | has("pipeline_ms")' "$l0_file" 2>/dev/null)
+    if [[ "$has_kws" == "false" && "$has_pipe" == "false" ]]; then
+      v=$(jq '.timing.sanitize_ms // empty' "$l0_file" 2>/dev/null)
+      [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && l0_text_sanitize_ms+=("$v")
+    fi
+  done
+
+  # Collect l0_embedded image timing
+  l0_image_pipeline_ms=(); l0_image_nsfw_ms=(); l0_image_face_ms=(); l0_image_ocr_ms=()
+  for l0_file in $(find "$OUTPUT_DIR" -path "*/json/*_l0_embedded.json" 2>/dev/null | sort); do
+    v=$(jq '.timing.pipeline_ms // empty' "$l0_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && l0_image_pipeline_ms+=("$v")
+    v=$(jq '.timing.nsfw_ms // empty' "$l0_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && l0_image_nsfw_ms+=("$v")
+    v=$(jq '.timing.face_ms // empty' "$l0_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && l0_image_face_ms+=("$v")
+    v=$(jq '.timing.ocr_ms // empty' "$l0_file" 2>/dev/null)
+    [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && l0_image_ocr_ms+=("$v")
+  done
+
+  # Collect l0_embedded audio timing
+  l0_audio_sanitize_ms=()
+  for l0_file in $(find "$OUTPUT_DIR" -path "*/json/*_l0_embedded.json" 2>/dev/null | sort); do
+    has_kws=$(jq 'has("kws_results")' "$l0_file" 2>/dev/null)
+    if [[ "$has_kws" == "true" ]]; then
+      v=$(jq '.timing.sanitize_ms // empty' "$l0_file" 2>/dev/null)
+      [[ -n "$v" && "$v" != "0" && "$v" != "null" ]] && l0_audio_sanitize_ms+=("$v")
+    fi
   done
 
   # Collect visual timing
@@ -1693,26 +1815,32 @@ if [[ "$JSON_OUTPUT" == "false" && "$SUMMARY_ONLY" == "false" ]]; then
   done
 
   # Print if any timing data exists
-  total_timing_count=$(( ${#gw_total_ms[@]} + ${#em_total_ms[@]} + ${#vis_pipeline_ms[@]} + ${#aud_pipeline_ms[@]} ))
+  total_timing_count=$(( ${#gw_total_ms[@]} + ${#em_total_ms[@]} + ${#vis_pipeline_ms[@]} + ${#aud_pipeline_ms[@]} + ${#l0_text_sanitize_ms[@]} + ${#l0_image_pipeline_ms[@]} ))
   if [[ $total_timing_count -gt 0 ]]; then
     echo ""
     echo "--- Timing Statistics ---"
-    printf "  %-25s %5s  %8s  %8s  %8s  %8s  %8s\n" "Metric" "Count" "Min" "Avg" "P50" "P95" "Max"
-    printf "  %-25s %5s  %8s  %8s  %8s  %8s  %8s\n" "─────────────────────────" "─────" "────────" "────────" "────────" "────────" "────────"
+    printf "  %-28s %5s  %8s  %8s  %8s  %8s  %8s\n" "Metric" "Count" "Min" "Avg" "P50" "P95" "Max"
+    printf "  %-28s %5s  %8s  %8s  %8s  %8s  %8s\n" "────────────────────────────" "─────" "────────" "────────" "────────" "────────" "────────"
 
-    print_timing_stats "Gateway total (ms)"     "${gw_total_ms[@]+"${gw_total_ms[@]}"}"
-    print_timing_stats "Gateway proxy scan (us)" "${gw_scan_us[@]+"${gw_scan_us[@]}"}"
-    print_timing_stats "Gateway proxy FPE (us)"  "${gw_fpe_us[@]+"${gw_fpe_us[@]}"}"
-    print_timing_stats "Embedded total (ms)"     "${em_total_ms[@]+"${em_total_ms[@]}"}"
-    print_timing_stats "Embedded regex (ms)"     "${em_regex_ms[@]+"${em_regex_ms[@]}"}"
-    print_timing_stats "Embedded NER (ms)"       "${em_ner_ms[@]+"${em_ner_ms[@]}"}"
-    print_timing_stats "Visual pipeline (ms)"    "${vis_pipeline_ms[@]+"${vis_pipeline_ms[@]}"}"
-    print_timing_stats "Visual NSFW (ms)"        "${vis_nsfw_ms[@]+"${vis_nsfw_ms[@]}"}"
-    print_timing_stats "Visual face (ms)"        "${vis_face_ms[@]+"${vis_face_ms[@]}"}"
-    print_timing_stats "Visual OCR (ms)"         "${vis_ocr_ms[@]+"${vis_ocr_ms[@]}"}"
-    print_timing_stats "Audio pipeline (ms)"     "${aud_pipeline_ms[@]+"${aud_pipeline_ms[@]}"}"
-    print_timing_stats "Audio voice (ms)"        "${aud_voice_ms[@]+"${aud_voice_ms[@]}"}"
-    print_timing_stats "Audio KWS (ms)"          "${aud_kws_ms[@]+"${aud_kws_ms[@]}"}"
+    print_timing_stats "Gateway total (ms)"        "${gw_total_ms[@]+"${gw_total_ms[@]}"}"
+    print_timing_stats "Gateway proxy scan (us)"   "${gw_scan_us[@]+"${gw_scan_us[@]}"}"
+    print_timing_stats "Gateway proxy FPE (us)"    "${gw_fpe_us[@]+"${gw_fpe_us[@]}"}"
+    print_timing_stats "L1 Plugin total (ms)"      "${em_total_ms[@]+"${em_total_ms[@]}"}"
+    print_timing_stats "L1 Plugin regex (ms)"      "${em_regex_ms[@]+"${em_regex_ms[@]}"}"
+    print_timing_stats "L1 Plugin NER (ms)"        "${em_ner_ms[@]+"${em_ner_ms[@]}"}"
+    print_timing_stats "L0 Embedded text (ms)"     "${l0_text_sanitize_ms[@]+"${l0_text_sanitize_ms[@]}"}"
+    print_timing_stats "L0 Embedded img pipe (ms)" "${l0_image_pipeline_ms[@]+"${l0_image_pipeline_ms[@]}"}"
+    print_timing_stats "L0 Embedded img NSFW (ms)" "${l0_image_nsfw_ms[@]+"${l0_image_nsfw_ms[@]}"}"
+    print_timing_stats "L0 Embedded img face (ms)" "${l0_image_face_ms[@]+"${l0_image_face_ms[@]}"}"
+    print_timing_stats "L0 Embedded img OCR (ms)"  "${l0_image_ocr_ms[@]+"${l0_image_ocr_ms[@]}"}"
+    print_timing_stats "L0 Embedded audio (ms)"    "${l0_audio_sanitize_ms[@]+"${l0_audio_sanitize_ms[@]}"}"
+    print_timing_stats "Visual pipeline (ms)"      "${vis_pipeline_ms[@]+"${vis_pipeline_ms[@]}"}"
+    print_timing_stats "Visual NSFW (ms)"          "${vis_nsfw_ms[@]+"${vis_nsfw_ms[@]}"}"
+    print_timing_stats "Visual face (ms)"          "${vis_face_ms[@]+"${vis_face_ms[@]}"}"
+    print_timing_stats "Visual OCR (ms)"           "${vis_ocr_ms[@]+"${vis_ocr_ms[@]}"}"
+    print_timing_stats "Audio pipeline (ms)"       "${aud_pipeline_ms[@]+"${aud_pipeline_ms[@]}"}"
+    print_timing_stats "Audio voice (ms)"          "${aud_voice_ms[@]+"${aud_voice_ms[@]}"}"
+    print_timing_stats "Audio KWS (ms)"            "${aud_kws_ms[@]+"${aud_kws_ms[@]}"}"
   fi
 fi
 

@@ -1,0 +1,55 @@
+# OpenObscure Test Configuration — FPE Testing with Echo Server (Docker)
+#
+# Like test_fpe.toml but routes to host.docker.internal so the container
+# can reach the echo server running on the host machine.
+#
+# Model paths are relative to /home/oo (the container WORKDIR).
+
+[proxy]
+listen_addr = "0.0.0.0"
+port = 18790
+request_timeout_secs = 180
+max_body_bytes = 16777216
+body_limit_full = 16777216
+fail_mode = "open"
+
+[fpe]
+enabled = true
+keychain_service = "openobscure"
+keychain_user = "fpe-master-key"
+
+[scanner]
+enabled = true
+ner_model_dir = "models/ner"
+ner_model_dir_lite = "models/ner-lite"
+ner_pool_size = 4
+skip_fields = ["model", "stream", "temperature", "max_tokens", "top_p", "top_k"]
+
+[image]
+enabled = true
+face_detection = true
+face_model = "scrfd"
+face_model_dir_scrfd = "models/scrfd"
+face_model_dir = "models/blazeface"
+ocr_enabled = true
+ocr_model_dir = "models/paddleocr"
+nsfw_detection = true
+nsfw_model_dir = "models/nsfw_classifier"
+screen_guard = true
+exif_strip = true
+
+[voice]
+enabled = true
+kws_model_dir = "models/kws"
+kws_keywords_file = "models/kws/keywords.txt"
+
+[logging]
+level = "info"
+json_output = false
+pii_scrub = true
+
+# Echo server on the Docker host — captures FPE-encrypted request bodies
+[providers.anthropic]
+upstream_url = "http://host.docker.internal:18791"
+route_prefix = "/anthropic"
+strip_headers = ["x-openobscure-internal"]

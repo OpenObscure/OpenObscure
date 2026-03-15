@@ -26,9 +26,23 @@ const NORM_MEAN: [f32; 3] = [0.5, 0.5, 0.5];
 const NORM_STD: [f32; 3] = [0.5, 0.5, 0.5];
 
 /// 5-class output class indices.
+const IDX_DRAWINGS: usize = 0;
 const IDX_HENTAI: usize = 1;
 const IDX_PORN: usize = 3;
 const IDX_SEXY: usize = 4;
+
+/// Minimum `drawings` class probability required before `hentai` probability
+/// contributes to the NSFW score.
+///
+/// The ViT 5-class model's `hentai` class fires on dark high-contrast images
+/// (dark-background screenshots, document scans) that are clearly not drawn
+/// artwork. Gating hentai by the `drawings` class eliminates those false
+/// positives: real drawn adult content scores high on both `drawings` AND
+/// `hentai`, while dark photographic images score low on `drawings` (< 0.05).
+///
+/// False-positive profile: drawings=0.02–0.04, hentai=0.49–0.57, porn<0.01
+/// True-positive profile:  drawings≈0.00, porn≈1.0 or sexy≈1.0
+const HENTAI_DRAWINGS_MIN: f32 = 0.10;
 
 /// 5-class output class names.
 const CLASS_NAMES_5: [&str; 5] = ["drawings", "hentai", "neutral", "porn", "sexy"];
@@ -170,8 +184,17 @@ impl NsfwClassifier {
             cp[1] = probs[1]; // nsfw → slot 1
             (score, top_name.to_string(), cp)
         } else {
-            // 5-class model: hentai + porn + sexy
-            let score = probs[IDX_HENTAI] + probs[IDX_PORN] + probs[IDX_SEXY];
+            // 5-class model: porn + sexy, plus hentai only when the image
+            // resembles drawn artwork (drawings class >= HENTAI_DRAWINGS_MIN).
+            // Gating hentai prevents false positives on dark-background images
+            // (dark-theme screenshots, document scans) which the model
+            // misclassifies as drawn content despite low drawings probability.
+            let hentai_contrib = if probs[IDX_DRAWINGS] >= HENTAI_DRAWINGS_MIN {
+                probs[IDX_HENTAI]
+            } else {
+                0.0
+            };
+            let score = hentai_contrib + probs[IDX_PORN] + probs[IDX_SEXY];
             let top_idx = probs
                 .iter()
                 .enumerate()
@@ -284,17 +307,78 @@ mod tests {
     }
 
     #[test]
-    fn test_nsfw_score_5class() {
-        let probs: [f32; 5] = [0.01, 0.05, 0.04, 0.85, 0.05]; // draw, hentai, neutral, porn, sexy
-        let nsfw_score = probs[IDX_HENTAI] + probs[IDX_PORN] + probs[IDX_SEXY];
-        assert!((nsfw_score - 0.95).abs() < 1e-6);
+    fn test_nsfw_score_5class_porn_dominant() {
+        // High porn score → NSFW regardless of drawings/hentai
+        let probs: [f32; 5] = [0.00, 0.00, 0.00, 1.00, 0.00]; // porn=1.0
+        let hentai_contrib = if probs[IDX_DRAWINGS] >= HENTAI_DRAWINGS_MIN {
+            probs[IDX_HENTAI]
+        } else {
+            0.0
+        };
+        let nsfw_score = hentai_contrib + probs[IDX_PORN] + probs[IDX_SEXY];
+        assert!((nsfw_score - 1.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_nsfw_score_5class_safe() {
         let probs = [0.01, 0.001, 0.98, 0.005, 0.004];
-        let nsfw_score = probs[IDX_HENTAI] + probs[IDX_PORN] + probs[IDX_SEXY];
+        let hentai_contrib = if probs[IDX_DRAWINGS] >= HENTAI_DRAWINGS_MIN {
+            probs[IDX_HENTAI]
+        } else {
+            0.0
+        };
+        let nsfw_score = hentai_contrib + probs[IDX_PORN] + probs[IDX_SEXY];
         assert!(nsfw_score < 0.05);
+    }
+
+    /// Dark-background images (screenshots, document scans) score high on
+    /// `hentai` but low on `drawings`, `porn`, and `sexy`. Gating hentai by
+    /// the drawings class prevents these false positives.
+    ///
+    /// Observed scores from the 3 failing test images (drawings < 0.05):
+    ///   doc_credit_card_01.jpg:          drawings=0.040, hentai=0.494, porn=0.006, sexy=0.264 → raw=0.764, gated=0.270
+    ///   screenshot_ide_code_1920x1080:   drawings=0.027, hentai=0.484, porn=0.007, sexy=0.263 → raw=0.754, gated=0.270
+    ///   screenshot_terminal_2560x1440:   drawings=0.020, hentai=0.567, porn=0.006, sexy=0.189 → raw=0.763, gated=0.196
+    #[test]
+    fn test_nsfw_hentai_gate_false_positive_dark_screenshot() {
+        // Typical false-positive profile: dark screenshot, high hentai, low drawings
+        let probs: [f32; 5] = [0.027, 0.484, 0.219, 0.007, 0.263]; // ide screenshot
+        let hentai_contrib = if probs[IDX_DRAWINGS] >= HENTAI_DRAWINGS_MIN {
+            probs[IDX_HENTAI]
+        } else {
+            0.0
+        };
+        let gated_score = hentai_contrib + probs[IDX_PORN] + probs[IDX_SEXY];
+        // drawings=0.027 < 0.10 → hentai not counted
+        assert!(
+            (hentai_contrib - 0.0).abs() < 1e-6,
+            "hentai should be gated out"
+        );
+        assert!(
+            gated_score < 0.50,
+            "gated score {gated_score} should be < 0.50 threshold"
+        );
+    }
+
+    #[test]
+    fn test_nsfw_hentai_gate_drawn_content_allowed() {
+        // Real drawn adult content: high drawings AND hentai → hentai IS counted
+        let probs: [f32; 5] = [0.35, 0.55, 0.05, 0.02, 0.03]; // drawings=0.35, hentai=0.55
+        let hentai_contrib = if probs[IDX_DRAWINGS] >= HENTAI_DRAWINGS_MIN {
+            probs[IDX_HENTAI]
+        } else {
+            0.0
+        };
+        let gated_score = hentai_contrib + probs[IDX_PORN] + probs[IDX_SEXY];
+        // drawings=0.35 >= 0.10 → hentai counted
+        assert!(
+            (hentai_contrib - probs[IDX_HENTAI]).abs() < 1e-6,
+            "hentai should be included for drawn content"
+        );
+        assert!(
+            gated_score >= 0.50,
+            "gated score {gated_score} should be >= 0.50 threshold"
+        );
     }
 
     #[test]
@@ -331,5 +415,90 @@ mod tests {
         // As fraction of original height, crop starts at 16.7% — content above that is missed
         let crop_start_frac = crop_y as f32 / new_h as f32;
         assert!((crop_start_frac - 0.1666).abs() < 0.001);
+    }
+
+    /// Probe: print exact NSFW scores for the 3 known false-positive images.
+    /// Run with: cargo test --lib nsfw_classifier::tests::probe_failing_images -- --nocapture --ignored
+    #[test]
+    #[ignore]
+    fn probe_failing_images() {
+        let model_dir = Path::new("models/nsfw_classifier");
+        let mut clf = NsfwClassifier::load(model_dir, 0.5).expect("load model");
+
+        let images = [
+            (
+                "doc_credit_card_01.jpg",
+                "../test/data/input/Visual_PII/Documents/doc_credit_card_01.jpg",
+            ),
+            (
+                "screenshot_ide_code_1920x1080.png",
+                "../test/data/input/Visual_PII/Screenshots/screenshot_ide_code_1920x1080.png",
+            ),
+            (
+                "screenshot_terminal_logs_2560x1440.png",
+                "../test/data/input/Visual_PII/Screenshots/screenshot_terminal_logs_2560x1440.png",
+            ),
+        ];
+
+        for (name, path) in &images {
+            let img = image::open(path).expect(path);
+            let result = clf.classify(&img).expect("classify");
+            println!(
+                "{name}: score={:.4}  top={}  \
+                 [draw={:.3} hentai={:.3} neutral={:.3} porn={:.3} sexy={:.3}]",
+                result.nsfw_score,
+                result.top_class,
+                result.class_probs[0],
+                result.class_probs[1],
+                result.class_probs[2],
+                result.class_probs[3],
+                result.class_probs[4],
+            );
+        }
+
+        println!("\n--- True NSFW images ---");
+        let nsfw_images = [
+            (
+                "semi_nu_pic1.jpg",
+                "../test/data/input/Visual_PII/NSFW/semi_nu_pic1.jpg",
+            ),
+            (
+                "semi_nu_pic2.jpg",
+                "../test/data/input/Visual_PII/NSFW/semi_nu_pic2.jpg",
+            ),
+            (
+                "semi_nu_pic3.jpg",
+                "../test/data/input/Visual_PII/NSFW/semi_nu_pic3.jpg",
+            ),
+            (
+                "semi_nu_pic4.jpg",
+                "../test/data/input/Visual_PII/NSFW/semi_nu_pic4.jpg",
+            ),
+            (
+                "nsfw_safe_object_01.jpg",
+                "../test/data/input/Visual_PII/NSFW/nsfw_safe_object_01.jpg",
+            ),
+        ];
+        for (name, path) in &nsfw_images {
+            let img = match image::open(path) {
+                Ok(i) => i,
+                Err(e) => {
+                    println!("{name}: SKIP ({e})");
+                    continue;
+                }
+            };
+            let result = clf.classify(&img).expect("classify");
+            println!(
+                "{name}: score={:.4}  top={}  \
+                 [draw={:.3} hentai={:.3} neutral={:.3} porn={:.3} sexy={:.3}]",
+                result.nsfw_score,
+                result.top_class,
+                result.class_probs[0],
+                result.class_probs[1],
+                result.class_probs[2],
+                result.class_probs[3],
+                result.class_probs[4],
+            );
+        }
     }
 }

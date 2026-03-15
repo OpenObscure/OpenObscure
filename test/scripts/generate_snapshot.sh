@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # generate_snapshot.sh — Generate snapshot.json from current test output for regression testing.
 #
-# Reads all gateway/embedded/audio/visual output JSONs and captures exact detection counts.
+# Reads all gateway/l1_plugin/audio/visual output JSONs and captures exact detection counts.
 # Used by validate_results.sh --strict to catch any count changes.
 #
 # Usage:
@@ -62,7 +62,7 @@ while IFS= read -r -d '' visual_file; do
     '. + {($k): {"subcategory": $sub, "faces_redacted": $f, "text_regions_detected": $tr, "nsfw_blocked": $nsfw, "screenshot_detected": $ss}}')
 done < <(find "$OUTPUT_DIR/Visual_PII" -path "*/json/*_visual.json" -print0 2>/dev/null | sort -z)
 
-# ─── Embedded entries ────────────────────────────────────────
+# ─── L1 Plugin entries ───────────────────────────────────────
 embedded_json="{}"
 while IFS= read -r -d '' em_file; do
   category=$(echo "$em_file" | sed "s|$OUTPUT_DIR/||" | cut -d'/' -f1)
@@ -72,7 +72,7 @@ while IFS= read -r -d '' em_file; do
   types=$(jq -c '.type_summary // {}' "$em_file")
   embedded_json=$(echo "$embedded_json" | jq --arg k "$key" --argjson t "$total" --argjson ts "$types" \
     '. + {($k): {"total_matches": $t, "type_summary": $ts}}')
-done < <(find "$OUTPUT_DIR" -path "*/json/*_embedded.json" -print0 2>/dev/null | sort -z)
+done < <(find "$OUTPUT_DIR" -path "*/json/*_l1_plugin.json" -print0 2>/dev/null | sort -z)
 
 # ─── Assemble snapshot ───────────────────────────────────────
 gw_count=$(echo "$gateway_json" | jq 'length')
@@ -96,19 +96,19 @@ jq -n \
       generated: $ts,
       description: "Exact detection counts for regression testing. Regenerate with: ./test/scripts/generate_snapshot.sh",
       gateway_files: $gw_count,
-      embedded_files: $em_count,
+      l1_plugin_files: $em_count,
       audio_files: $audio_count,
       visual_files: $visual_count
     },
     gateway: $gateway,
-    embedded: $embedded,
+    l1_plugin: $embedded,
     audio: $audio,
     visual: $visual
   }' > "$SNAPSHOT"
 
 echo "Snapshot generated: $SNAPSHOT"
-echo "  Gateway:  $gw_count files"
-echo "  Embedded: $em_count files"
+echo "  Gateway:   $gw_count files"
+echo "  L1 Plugin: $em_count files"
 echo "  Audio:    $audio_count files"
 echo "  Visual:   $visual_count files"
 echo ""

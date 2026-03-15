@@ -46,7 +46,7 @@ mkdir -p "$CAT_OUTPUT/json" "$CAT_OUTPUT/redacted"
 
 # Purge previous gateway results for this category
 rm -f "$CAT_OUTPUT"/json/*_gateway.json 2>/dev/null || true
-rm -f "$CAT_OUTPUT"/redacted/* 2>/dev/null || true
+rm -f "$CAT_OUTPUT"/redacted/*_gateway.* 2>/dev/null || true
 
 echo "=== Gateway FPE Test: $CATEGORY ==="
 echo ""

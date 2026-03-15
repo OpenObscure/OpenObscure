@@ -217,8 +217,10 @@ if [[ -n "$OUTPUT_DIR" ]]; then
   # Write JSON metadata
   echo "$RESULT" | jq . > "$JSON_DIR/${NAME_NO_EXT}_gateway.json"
 
-  # Write FPE-encrypted file (preserving original filename)
-  printf '%s' "$FPE_TEXT" > "$REDACTED_DIR/$FILENAME"
+  # Write FPE-encrypted file with _gateway suffix
+  EXT="${FILENAME##*.}"
+  [[ "$FILENAME" == "$EXT" ]] && EXT="" || EXT=".$EXT"
+  printf '%s' "$FPE_TEXT" > "$REDACTED_DIR/${NAME_NO_EXT}_gateway${EXT}"
 
   echo "OK  $FILENAME — $MATCH_COUNT matches, FPE HTTP $FPE_HTTP_CODE, ${TOTAL_ELAPSED_MS}ms (ner:${NER_ELAPSED_MS}ms fpe:${FPE_ELAPSED_MS}ms, proxy scan:${PROXY_SCAN_US}us fpe:${PROXY_FPE_US}us)"
 else

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// test_embedded_category.mjs — Test all files in a specific input category via Embedded plugin.
+// test_l1_plugin_category.mjs — Test all files in a specific input category via L1 TypeScript Plugin.
 //
 // Produces dual output per file:
-//   <output_dir>/<category>/json/<filename>_embedded.json
-//   <output_dir>/<category>/redacted/<filename>
+//   <output_dir>/<category>/json/<filename>_l1_plugin.json
+//   <output_dir>/<category>/redacted/<filename>_l1_plugin.<ext>
 //
 // Usage:
-//   node test/scripts/test_embedded_category.mjs <category>
+//   node test/scripts/test_l1_plugin_category.mjs <category>
 //
 // Categories: PII_Detection, Multilingual_PII, Code_Config_PII,
 //             Structured_Data_PII, Agent_Tool_Results
@@ -24,7 +24,7 @@ const OUTPUT_DIR = join(TEST_DIR, "data", "output");
 const category = process.argv[2];
 
 if (!category) {
-  console.log("Usage: node test_embedded_category.mjs <category>");
+  console.log("Usage: node test_l1_plugin_category.mjs <category>");
   console.log("");
   console.log("Available categories:");
   for (const dir of readdirSync(INPUT_DIR)) {
@@ -49,21 +49,21 @@ try {
 
 const TEXT_EXTENSIONS = new Set([".txt", ".csv", ".tsv", ".env", ".py", ".yaml", ".yml", ".json", ".sh", ".md", ".log"]);
 
-// Purge previous embedded results for this category
+// Purge previous l1_plugin results for this category
 const jsonDir = join(catOutput, "json");
 const redactedDir = join(catOutput, "redacted");
 if (existsSync(jsonDir)) {
-  for (const f of readdirSync(jsonDir).filter((f) => f.endsWith("_embedded.json"))) {
+  for (const f of readdirSync(jsonDir).filter((f) => f.endsWith("_l1_plugin.json"))) {
     rmSync(join(jsonDir, f), { force: true });
   }
 }
 if (existsSync(redactedDir)) {
-  for (const f of readdirSync(redactedDir)) {
+  for (const f of readdirSync(redactedDir).filter((f) => f.includes("_l1_plugin."))) {
     rmSync(join(redactedDir, f), { force: true });
   }
 }
 
-console.log(`=== Embedded Test: ${category} ===`);
+console.log(`=== L1 Plugin Test: ${category} ===`);
 console.log("");
 
 let totalFiles = 0;
@@ -82,14 +82,14 @@ for (const file of files) {
   const nameNoExt = basename(file, extname(file));
 
   try {
-    const scriptPath = join(__dirname, "test_embedded_file.mjs");
+    const scriptPath = join(__dirname, "test_l1_plugin_file.mjs");
     execFileSync("node", [scriptPath, inputPath, catOutput], {
       stdio: ["pipe", "pipe", "pipe"],
       timeout: 30000,
     });
 
     // Read JSON result to get match count
-    const jsonPath = join(catOutput, "json", `${nameNoExt}_embedded.json`);
+    const jsonPath = join(catOutput, "json", `${nameNoExt}_l1_plugin.json`);
     const result = JSON.parse(readFileSync(jsonPath, "utf-8"));
     totalMatches += result.total_matches;
     console.log(`OK  ${file} — ${result.total_matches} matches`);
@@ -117,7 +117,7 @@ console.log(`Redacted files: ${catOutput}/redacted/`);
 // Write validation JSON
 mkdirSync(catOutput, { recursive: true });
 const validationJson = {
-  test_suite: `embedded_${category}`,
+  test_suite: `l1_plugin_${category}`,
   timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
   total: totalFiles,
   pass,
@@ -126,4 +126,4 @@ const validationJson = {
   skip: 0,
   results,
 };
-writeFileSync(join(catOutput, "embedded_category_validation.json"), JSON.stringify(validationJson, null, 2) + "\n");
+writeFileSync(join(catOutput, "l1_plugin_category_validation.json"), JSON.stringify(validationJson, null, 2) + "\n");

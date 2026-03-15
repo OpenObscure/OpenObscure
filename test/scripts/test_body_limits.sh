@@ -121,7 +121,7 @@ json.dump(payload, sys.stdout)
 
 OVERSIZED_SIZE=$(wc -c < "$OVERSIZED_FILE" | tr -d ' ')
 
-CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$PROVIDER_ENDPOINT" \
+CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -X POST "$PROVIDER_ENDPOINT" \
   -H "Content-Type: application/json" \
   -H "x-api-key: test-body-limit" \
   -H "anthropic-version: 2023-06-01" \

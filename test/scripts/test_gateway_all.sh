@@ -131,7 +131,7 @@ OUTPUT_DIR="$TEST_DIR/data/output"
 echo "Purging previous gateway results..."
 for cat in "${CATEGORIES[@]}"; do
   rm -f "$OUTPUT_DIR/$cat"/json/*_gateway.json 2>/dev/null || true
-  rm -f "$OUTPUT_DIR/$cat"/redacted/* 2>/dev/null || true
+  rm -f "$OUTPUT_DIR/$cat"/redacted/*_gateway.* 2>/dev/null || true
 done
 # Visual and Audio purged by their own scripts
 echo ""

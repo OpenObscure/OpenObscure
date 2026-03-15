@@ -63,7 +63,7 @@ impl PiiScanner {
             // API keys: common provider prefixes
             (
                 PiiType::ApiKey,
-                r"\b(?:sk-ant-[a-zA-Z0-9_-]{20,}|sk-[a-zA-Z0-9]{20,}|AKIA[0-9A-Z]{16}|ghp_[a-zA-Z0-9]{36,}|gho_[a-zA-Z0-9]{36,}|xoxb-[0-9]+-[a-zA-Z0-9]+|xoxp-[0-9]+-[a-zA-Z0-9]+)\b",
+                r"\b(?:sk-[a-zA-Z0-9][a-zA-Z0-9_-]{19,}|AKIA[0-9A-Z]{14,20}|ghp_[a-zA-Z0-9]{33,}|gho_[a-zA-Z0-9]{33,}|xoxb-[0-9]+-[a-zA-Z0-9]+|xoxp-[0-9]+-[a-zA-Z0-9]+)\b",
             ),
             // IPv4 addresses (0-255 octets, validate_ipv4 rejects loopback/broadcast/0.x.x.x)
             (

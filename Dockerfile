@@ -10,30 +10,35 @@
 #           Requires git lfs pull before build. Run: make docker-full
 
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM rust:1.75-slim-bookworm AS builder
+FROM ubuntu:24.04 AS builder
 
 RUN apt-get update && apt-get install -y \
-    pkg-config libssl-dev cmake \
+    curl pkg-config libssl-dev cmake g++ \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /build
 
 # Copy workspace files
 COPY openobscure-core/Cargo.toml openobscure-core/Cargo.lock ./openobscure-core/
 COPY openobscure-core/src ./openobscure-core/src
+COPY openobscure-core/examples ./openobscure-core/examples
+COPY openobscure-core/benches ./openobscure-core/benches
 COPY openobscure-core/config ./openobscure-core/config
 
 # Build slim binary — server only, voice feature dropped (no sherpa-onnx dependency)
 WORKDIR /build/openobscure-core
-RUN cargo build --release --no-default-features --features server
+RUN RUSTFLAGS="-C link-arg=-lstdc++" cargo build --release --no-default-features --features server
 
 # ── Stage 2: Runtime — slim (no models) ───────────────────────────────────────
-FROM debian:bookworm-slim AS slim
+FROM ubuntu:24.04 AS slim
 
 RUN apt-get update && apt-get install -y ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
 # Non-root user for security
-RUN useradd -r -u 1000 -m -d /home/oo oo
+RUN useradd -r -u 10000 -m -d /home/oo oo
 USER oo
 WORKDIR /home/oo
 
@@ -53,4 +58,4 @@ FROM slim AS full
 
 # Models are large (several GB total with Git LFS) — only baked in for the full image.
 # Each model sub-directory matches the path expected by openobscure.toml defaults.
-COPY --chown=oo:oo openobscure-core/models ./models
+COPY --chown=10000:10000 openobscure-core/models ./models

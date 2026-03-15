@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// test_embedded_all.mjs — Test ALL text-based input categories via Embedded plugin.
+// test_l1_plugin_all.mjs — Test ALL text-based input categories via L1 TypeScript Plugin.
 //
 // Produces dual output per file:
-//   test/data/output/<category>/json/<filename>_embedded.json
-//   test/data/output/<category>/redacted/<filename>
+//   test/data/output/<category>/json/<filename>_l1_plugin.json
+//   test/data/output/<category>/redacted/<filename>_l1_plugin.<ext>
 //
 // Usage:
-//   node test/scripts/test_embedded_all.mjs
+//   node test/scripts/test_l1_plugin_all.mjs
 //
 // Environment:
 //   USE_NER=1   — Enable NER bridge mode (requires proxy running)
@@ -54,10 +54,10 @@ if (!authToken) {
   }
 }
 
-const mode = useNer ? "embedded+ner" : "embedded";
+const mode = useNer ? "l1_plugin+ner" : "l1_plugin";
 
 console.log("============================================");
-console.log("  OpenObscure Embedded Test Suite");
+console.log("  OpenObscure L1 Plugin Test Suite");
 console.log(`  Mode: ${mode}`);
 if (useNer) {
   console.log(`  Proxy: ${proxyUrl}`);
@@ -84,18 +84,18 @@ let grandPass = 0;
 let grandFail = 0;
 const grandResults = [];
 
-// Purge previous embedded results
-console.log("Purging previous embedded results...");
+// Purge previous l1_plugin results
+console.log("Purging previous l1_plugin results...");
 for (const cat of CATEGORIES) {
   const jsonDir = join(OUTPUT_DIR, cat, "json");
   const redactedDir = join(OUTPUT_DIR, cat, "redacted");
   if (existsSync(jsonDir)) {
-    for (const f of readdirSync(jsonDir).filter((f) => f.endsWith("_embedded.json"))) {
+    for (const f of readdirSync(jsonDir).filter((f) => f.endsWith("_l1_plugin.json"))) {
       rmSync(join(jsonDir, f), { force: true });
     }
   }
   if (existsSync(redactedDir)) {
-    for (const f of readdirSync(redactedDir)) {
+    for (const f of readdirSync(redactedDir).filter((f) => f.includes("_l1_plugin."))) {
       rmSync(join(redactedDir, f), { force: true });
     }
   }
@@ -133,7 +133,8 @@ for (const category of CATEGORIES) {
 
   for (const file of files) {
     const inputPath = join(catInput, file);
-    const nameNoExt = basename(file, extname(file));
+    const ext = extname(file);
+    const nameNoExt = basename(file, ext);
 
     try {
       const text = readFileSync(inputPath, "utf-8");
@@ -166,10 +167,10 @@ for (const category of CATEGORIES) {
         },
         matches: result.matches,
       };
-      writeFileSync(join(jsonDir, `${nameNoExt}_embedded.json`), JSON.stringify(envelope, null, 2) + "\n");
+      writeFileSync(join(jsonDir, `${nameNoExt}_l1_plugin.json`), JSON.stringify(envelope, null, 2) + "\n");
 
-      // Write redacted file (preserving original filename)
-      writeFileSync(join(redactedDir, file), result.text);
+      // Write redacted file with _l1_plugin suffix
+      writeFileSync(join(redactedDir, `${nameNoExt}_l1_plugin${ext}`), result.text);
 
       console.log(`  OK  ${file} — ${result.count} matches (${elapsedMs}ms)`);
 
@@ -207,7 +208,7 @@ console.log("============================================");
 
 // Write validation JSON
 const validationJson = {
-  test_suite: "embedded_all",
+  test_suite: "l1_plugin_all",
   timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
   total: grandTotalFiles,
   pass: grandPass,
@@ -216,6 +217,6 @@ const validationJson = {
   skip: 0,
   results: grandResults,
 };
-writeFileSync(join(OUTPUT_DIR, "embedded_all_validation.json"), JSON.stringify(validationJson, null, 2) + "\n");
+writeFileSync(join(OUTPUT_DIR, "l1_plugin_all_validation.json"), JSON.stringify(validationJson, null, 2) + "\n");
 
 process.exit(grandFail > 0 ? 1 : 0);
