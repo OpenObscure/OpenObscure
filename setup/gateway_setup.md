@@ -66,7 +66,7 @@ When it finishes without errors, the proxy is ready. The compiled program is at 
 This creates a unique encryption key and stores it securely in your Mac's Keychain (the same place your saved passwords go):
 
 ```bash
-cargo run --release -- --init-key
+cargo run --release --bin openobscure -- --init-key
 ```
 
 You should see a message confirming the key was generated. This only needs to be done once.
@@ -148,7 +148,7 @@ Discord ──► OpenClaw ──► OpenObscure (:18790) ──► Ollama (:114
 
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-core
-cargo run --release -- -c config/openobscure.toml
+cargo run --release --bin openobscure -- -c config/openobscure.toml
 ```
 
 You should see output like:
@@ -826,7 +826,7 @@ If all ship criteria pass, the R2 model is functioning correctly.
 For maximum detail, stop the proxy (Ctrl+C in the proxy Terminal) and restart it with debug logging:
 
 ```bash
-OPENOBSCURE_LOG=debug cargo run --release -- -c config/openobscure.toml
+OPENOBSCURE_LOG=debug cargo run --release --bin openobscure -- -c config/openobscure.toml
 ```
 
 Now every PII scan, FPE encryption, image processing step, and model inference will be logged. This is useful for verifying that specific PII types are being caught.
@@ -935,7 +935,7 @@ See [FPE Configuration](../docs/configure/fpe-configuration.md) for key generati
 
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-core
-cargo run --release -- --init-key
+cargo run --release --bin openobscure -- --init-key
 ```
 
 If you see a keychain access dialog, click **Allow** or **Always Allow**.
@@ -1204,7 +1204,7 @@ ollama serve
 **Terminal 2 — Start the proxy:**
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-core
-cargo run --release -- -c config/openobscure.toml
+cargo run --release --bin openobscure -- -c config/openobscure.toml
 ```
 
 **Terminal 3 — Start OpenClaw:**
@@ -1218,7 +1218,7 @@ pnpm openclaw gateway
 **Terminal 1 — Start the proxy:**
 ```bash
 cd ~/Desktop/OpenObscure/openobscure-core
-cargo run --release -- -c config/openobscure.toml
+cargo run --release --bin openobscure -- -c config/openobscure.toml
 ```
 
 **Terminal 2 — Start OpenClaw:**
@@ -1242,16 +1242,16 @@ Then open Discord on your MacBook or iPhone and start chatting.
 | Command | What It Does |
 |---------|-------------|
 | `curl -s http://127.0.0.1:18790/_openobscure/health \| python3 -m json.tool` | Check proxy status |
-| `OPENOBSCURE_LOG=debug cargo run --release -- -c config/openobscure.toml` | Start proxy with verbose logs |
+| `OPENOBSCURE_LOG=debug cargo run --release --bin openobscure -- -c config/openobscure.toml` | Start proxy with verbose logs |
 | `lsof -i :18790` | Check if proxy port is in use |
-| `cargo run --release -- --init-key` | Regenerate encryption key |
-| `cargo run --release -- key-rotate` | Rotate FPE key (zero-downtime, 30s overlap window) |
-| `cargo run --release -- passthrough` | Run in passthrough mode (no scanning/encryption) |
-| `cargo run --release -- service install` | Install as background service (launchd/systemd) |
-| `cargo run --release -- service start` | Start the installed background service |
-| `cargo run --release -- service stop` | Stop the background service |
-| `cargo run --release -- service status` | Check background service status |
-| `cargo run --release -- service uninstall` | Remove the background service |
+| `cargo run --release --bin openobscure -- --init-key` | Regenerate encryption key |
+| `cargo run --release --bin openobscure -- key-rotate` | Rotate FPE key (zero-downtime, 30s overlap window) |
+| `cargo run --release --bin openobscure -- passthrough` | Run in passthrough mode (no scanning/encryption) |
+| `cargo run --release --bin openobscure -- service install` | Install as background service (launchd/systemd) |
+| `cargo run --release --bin openobscure -- service start` | Start the installed background service |
+| `cargo run --release --bin openobscure -- service stop` | Stop the background service |
+| `cargo run --release --bin openobscure -- service status` | Check background service status |
+| `cargo run --release --bin openobscure -- service uninstall` | Remove the background service |
 | `ollama list` | Show downloaded local LLM models |
 | `ollama pull qwen3:8b` | Download Qwen3 8B model |
 | `ollama pull llama3.2:3b` | Download Llama 3.2 3B model |
