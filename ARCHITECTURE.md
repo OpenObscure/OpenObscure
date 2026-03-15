@@ -21,6 +21,7 @@
 - [Host Agent Constraints (OpenClaw Reference)](#host-agent-constraints-openclaw-reference)
 - [Health Monitoring & User Experience](#health-monitoring--user-experience)
 - [Logging](#logging)
+- [Further Reading](#further-reading)
 - [FAQ](#faq)
 
 ## What OpenObscure Does
@@ -421,7 +422,7 @@ Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/
 
 ## Further Reading
 
-For a concise entry-point overview — two-layer diagram, and links to all architecture deep-dives → [System Overview](docs/architecture/system-overview.md).
+For a concise entry-point overview — two-layer diagram and links to all architecture deep-dives → [System Overview](docs/architecture/system-overview.md).
 
 ---
 
