@@ -117,6 +117,5 @@ The proxy intercepts data-in-transit to LLM providers but does not protect data 
 | Cognitive firewall (R1 + R2 cascade) | [Response Integrity](response-integrity.md) |
 | NAPI native scanner addon | [NAPI Scanner](napi-scanner.md) |
 | Core architectural choices with rationale | [Design Decisions](design-decisions.md) |
-| Current capability matrix and planned features | [Roadmap](../reference/roadmap.md) |
-| L2 Encrypted Storage | [openobscure-crypto/ARCHITECTURE.md](../../openobscure-crypto/ARCHITECTURE.md) |
+| Current capability matrix and planned features | [Roadmap](../get-started/roadmap.md) |
 | Export control (cryptography) | [EXPORT_CONTROL_NOTICE.md](../../EXPORT_CONTROL_NOTICE.md) |
