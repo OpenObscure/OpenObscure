@@ -368,7 +368,7 @@ OpenObscure/
 ├── setup/                       Setup guides (gateway proxy, embedded library, example config)
 ├── docs/integrate/embedding/    Embedding in third-party apps (guide, examples, templates)
 ├── build/                       Build scripts (iOS, Android, NAPI, model downloads, bindings)
-├── test/                        Test apps (iOS/Android), PII corpus, test runners
+├── test/                        Test apps (iOS/Android), PII corpus, test runners (see test/README.md)
 ├── openobscure-core/           L0: Rust PII proxy + embedded mobile library (see ARCHITECTURE.md inside)
 ├── openobscure-plugin/          L1: Gateway plugin (TypeScript, see ARCHITECTURE.md inside)
 ├── openobscure-crypto/          L2: Encrypted storage (AES-256-GCM + Argon2id)

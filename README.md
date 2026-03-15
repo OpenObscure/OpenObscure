@@ -115,6 +115,7 @@ Add providers in `config/openobscure.toml`. See [Integration Reference](docs/int
 | **Configure detection or encryption** | [Config Reference](docs/configure/config-reference.md) — every TOML key, FPE, detection engines |
 | **Integrate with my app** | [Integration Reference](docs/integrate/integration-reference.md) — LLM providers, third-party embedding |
 | **Look up API types** | [API Reference](docs/reference/api-reference.md) — FFI types, PII coverage, fail behavior |
+| **Run the test suite** | [test/README.md](test/README.md) — PII corpus, gateway + L1 plugin tests, validation scripts |
 | **Contribute** | [Contributing](docs/contribute/contributing.md) — dev setup, conventions, testing |
 
 ## Prerequisites
