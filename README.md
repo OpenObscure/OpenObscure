@@ -111,7 +111,7 @@ Add providers in `config/openobscure.toml`. See [Integration Reference](docs/int
 | **Install as an end user** | [Setup](setup/README.md) — install with OpenClaw (Gateway) or as a mobile library (Embedded) |
 | **Try it as a developer** | [Gateway Quick Start](docs/get-started/gateway-quick-start.md) — build, run, and verify in 5 minutes |
 | **Run as a container** | [Docker Quick Start](docs/get-started/docker-quick-start.md) — pull and run in 2 commands |
-| **Understand the architecture** | [Architecture](docs/architecture/system-overview.md) — system overview, data flow, design decisions |
+| **Understand the architecture** | [Architecture](ARCHITECTURE.md) — system overview, data flow, design decisions |
 | **Configure detection or encryption** | [Config Reference](docs/configure/config-reference.md) — every TOML key, FPE, detection engines |
 | **Integrate with my app** | [Integration Reference](docs/integrate/integration-reference.md) — LLM providers, third-party embedding |
 | **Look up API types** | [API Reference](docs/reference/api-reference.md) — FFI types, PII coverage, fail behavior |

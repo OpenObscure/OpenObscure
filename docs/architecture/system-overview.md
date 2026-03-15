@@ -9,11 +9,6 @@ Everything runs locally. No cloud components, no telemetry, no external dependen
 **Contents**
 
 - [Two-Layer Defense-in-Depth](#two-layer-defense-in-depth)
-- [Data Flow](#data-flow)
-- [Detection Engines](#detection-engines)
-- [Resource Budget](#resource-budget)
-- [Authentication Model](#authentication-model)
-- [Key Design Decisions](#key-design-decisions)
 - [Host Agent Constraints (OpenClaw Reference)](#host-agent-constraints-openclaw-reference)
 - [Threat Model](#threat-model)
 - [Further Reading](#further-reading)
@@ -85,96 +80,6 @@ L0 can't see tool results — they're generated inside the host agent and never 
 
 ---
 
-## Data Flow
-
-### Outbound (user message → LLM)
-
-> The examples below use realistic PII formats to illustrate how FPE preserves structure. In your code examples and test suites, prefer fictional formats (e.g., `X00-00-0000`) so that copy-paste errors don't expose real data to LLM providers before OpenObscure is running.
-
-```
-User input                "My SSN is 123-45-6789"
-    │
-    ▼
-Agent formats request     { messages: [{ content: "My SSN is 123-45-6789" }] }
-    │
-    ▼
-L0 Core scans            Regex finds SSN at offset 10..21
-    │
-    ▼
-L0 FPE encrypts           "My SSN is 847-29-3156"   ← same format, different digits
-    │
-    ▼
-LLM Provider              Sees "847-29-3156" — can reason about structure,
-                           never sees "123-45-6789"
-```
-
-### Inbound (LLM response → user)
-
-```
-LLM response              "Your SSN ending in 3156..."
-    │
-    ▼
-L0 FPE decrypts           "Your SSN ending in 6789..."   ← original restored
-    │
-    ▼
-L0 Cognitive firewall     Scans for persuasion techniques
-    │                      (urgency, scarcity, authority, etc.)
-    ▼
-Agent → User               Response delivered with optional warning labels
-```
-
-### Tool results (agent tools → transcript)
-
-```
-Agent tool executes        file_read("medical_records.csv")
-    │
-    ▼
-Tool produces result       "Name: John Smith, DOB: 1985-03-14, ..."
-    │
-    ▼
-L1 hook fires              tool_result_persist (synchronous)
-    │
-    ▼
-L1 redacts                 "Name: [REDACTED], DOB: [REDACTED], ..."
-    │
-    ▼
-Transcript stored          PII never persisted to disk
-```
-
-All analysis is on data flowing through the proxy or passed explicitly by the agent — OpenObscure has no file system access of its own.
-
-Full details → [ARCHITECTURE.md — Security Architecture](../../ARCHITECTURE.md#two-layer-defense-in-depth)
-
----
-
-## Detection Engines
-
-Full engine tables with latency numbers, activation tiers, and voting logic → [ARCHITECTURE.md — Features](../../ARCHITECTURE.md#features)
-
----
-
-## Resource Budget
-
-Full tier matrix with NER models, image pipeline variants, and RAM ceilings → [ARCHITECTURE.md — Resource Budget](../../ARCHITECTURE.md#resource-budget)
-
-See [Deployment Tiers](../get-started/deployment-tiers.md) for the feature matrix and override instructions.
-
----
-
-## Authentication Model
-
-Auth tokens from the host agent pass through to the upstream LLM unchanged. Full details → [ARCHITECTURE.md — Authentication Model](../../ARCHITECTURE.md#authentication-model)
-
----
-
-## Key Design Decisions
-
-Design decisions (FF1-only, fail-open, per-record tweaks, solid-fill redaction, sequential model loading) are documented with rationale in a dedicated reference.
-
-Full details → [Key Design Decisions](design-decisions.md)
-
----
-
 ## Host Agent Constraints (OpenClaw Reference)
 
 Three OpenClaw-specific constraints that shaped OpenObscure's architecture. Other host agents may have different constraints:
@@ -193,7 +98,7 @@ The proxy intercepts data-in-transit to LLM providers but does not protect data 
 
 ---
 
-## Further Reading
+## Deep-Dives Reading
 
 | Topic | Page |
 |-------|------|
