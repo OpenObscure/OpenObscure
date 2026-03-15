@@ -412,7 +412,7 @@ Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/
 
 ## Further Reading
 
-For a concise entry-point overview — two-layer diagram and links to all architecture deep-dives → [System Overview](docs/architecture/system-overview.md).
+[System Overview](docs/architecture/system-overview.md) — two-layer defense diagram, roadmap, key design decisions, threat model, and a full index of architecture deep-dives.
 
 ---
 
