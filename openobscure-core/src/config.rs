@@ -467,7 +467,7 @@ pub struct VoiceConfig {
     /// When enabled and KWS models are available, audio blocks are scanned
     /// for PII keywords. Blocks with PII are stripped; clean audio passes through.
     /// When KWS models are unavailable, audio passes through unscanned.
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub enabled: bool,
 
     /// Directory containing KWS Zipformer ONNX models (encoder/decoder/joiner + tokens.txt).
@@ -863,6 +863,19 @@ nsfw_detection = false
         assert_eq!(config.fpe.keychain_user, "fpe-master-key");
         assert!(config.fpe.enabled);
         assert!(config.fpe.type_overrides.is_empty());
+    }
+
+    #[test]
+    fn test_voice_defaults_enabled() {
+        // Regression test: #[serde(default)] on bool gives false, not Default impl's true.
+        // Must use #[serde(default = "default_true")] for voice.enabled to default to true.
+        let config = AppConfig::from_toml(MINIMAL_CONFIG).unwrap();
+        assert!(
+            config.voice.enabled,
+            "voice.enabled must default to true when absent from TOML"
+        );
+        assert_eq!(config.voice.kws_model_dir, "models/kws");
+        assert_eq!(config.voice.kws_threshold, 0.1);
     }
 
     #[test]

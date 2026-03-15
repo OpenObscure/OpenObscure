@@ -202,7 +202,9 @@ RESULT=$(jq -n \
       total_ms: $total_ms,
       proxy_scan_us: $proxy_scan_us,
       proxy_fpe_us: $proxy_fpe_us,
-      proxy_total_us: $proxy_total_us
+      proxy_total_us: $proxy_total_us,
+      proxy_only_us: ($proxy_scan_us + $proxy_fpe_us),
+      echo_overhead_us: ($proxy_total_us - $proxy_scan_us - $proxy_fpe_us)
     },
     matches: $matches
   }')

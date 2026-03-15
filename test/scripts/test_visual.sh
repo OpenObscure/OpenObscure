@@ -281,13 +281,15 @@ test_image() {
         screenshot_detected: ($screenshot_detected > 0)
       },
       timing: {
-        pipeline_ms: $pipeline_ms,
+        script_elapsed_ms: $pipeline_ms,
         nsfw_ms: $nsfw_ms,
         face_ms: $face_ms,
         ocr_ms: $ocr_ms,
         image_us: $image_us,
         scan_us: $scan_us,
-        proxy_total_us: $proxy_total_us
+        proxy_total_us: $proxy_total_us,
+        proxy_only_us: ($image_us + $scan_us),
+        echo_overhead_us: ($proxy_total_us - $image_us - $scan_us)
       },
       redacted_image_captured: $image_captured,
       note: (if $image_captured then "Redacted image saved" else "Original copied — run with echo upstream to capture pipeline output" end),

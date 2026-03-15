@@ -240,11 +240,13 @@ test_audio() {
         action: $action
       },
       timing: {
-        pipeline_ms: $pipeline_ms,
+        script_elapsed_ms: $pipeline_ms,
         voice_ms: $voice_ms,
         kws_ms: $kws_ms,
         scan_us: $scan_us,
-        proxy_total_us: $proxy_total_us
+        proxy_total_us: $proxy_total_us,
+        proxy_only_us: (($voice_ms * 1000) + $scan_us),
+        echo_overhead_us: ($proxy_total_us - ($voice_ms * 1000) - $scan_us)
       },
       device_tier: $device_tier,
       timestamp: $ts
