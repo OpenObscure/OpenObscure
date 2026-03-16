@@ -207,7 +207,14 @@ INFO openobscure_core: FPE engine ready
 Open a **new Terminal window** (Cmd+N) and run:
 
 ```bash
-curl -s http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
+TOKEN=$(cat ~/.openobscure/.auth-token)
+curl -s -H "X-OpenObscure-Token: $TOKEN" http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
+```
+
+The first line reads the auth token that was auto-generated when the proxy first started. It is saved to `~/.openobscure/.auth-token` (mode 0600). Alternatively, if you set `OPENOBSCURE_AUTH_TOKEN` in your environment before starting the proxy, use that value instead:
+
+```bash
+curl -s -H "X-OpenObscure-Token: $OPENOBSCURE_AUTH_TOKEN" http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
 ```
 
 You should see a JSON response containing `"status": "ok"`. This confirms the proxy is running and ready.
@@ -751,7 +758,8 @@ With EXIF stripping, the LLM cannot answer. Without it, the LLM would report you
 After running the tests above, check the proxy statistics from your MacBook:
 
 ```bash
-curl -s http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
+TOKEN=$(cat ~/.openobscure/.auth-token)
+curl -s -H "X-OpenObscure-Token: $TOKEN" http://127.0.0.1:18790/_openobscure/health | python3 -m json.tool
 ```
 
 Look for fields like:
@@ -1289,7 +1297,7 @@ Then open Discord on your MacBook or iPhone and start chatting.
 
 | Command | What It Does |
 |---------|-------------|
-| `curl -s http://127.0.0.1:18790/_openobscure/health \| python3 -m json.tool` | Check proxy status |
+| `TOKEN=$(cat ~/.openobscure/.auth-token) && curl -s -H "X-OpenObscure-Token: $TOKEN" http://127.0.0.1:18790/_openobscure/health \| python3 -m json.tool` | Check proxy status |
 | `OPENOBSCURE_LOG=debug cargo run --release -- -c config/openobscure.toml` | Start proxy with verbose logs |
 | `lsof -i :18790` | Check if proxy port is in use |
 | `cargo run --release -- --init-key` | Regenerate encryption key |
