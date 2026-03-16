@@ -208,14 +208,14 @@ cp openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so \
 Expected output:
 ```
 bindings/swift/openobscure_core.swift
-bindings/swift/openobscureProxy.modulemap
+bindings/swift/openobscure_coreFFI.modulemap
 ```
 
 Copy both files from the OpenObscure repo root into your iOS/macOS app (run from the repo root):
 
 ```bash
 cp bindings/swift/openobscure_core.swift $FORK_SWIFT/Enchanted/openobscure_core.swift
-cp bindings/swift/openobscureProxy.modulemap $FORK_SWIFT/Enchanted/openobscureProxy.modulemap
+cp bindings/swift/openobscure_coreFFI.modulemap $FORK_SWIFT/Enchanted/openobscure_coreFFI.modulemap
 ```
 
 Then add both files to the app target in Xcode (drag from the Finder into the `Enchanted/` group, or use **File → Add Files**). The `.swift` file is the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
@@ -310,7 +310,7 @@ cp -R openobscure-core/target/OpenObscure.xcframework \
 
 # 2. UniFFI Swift bindings (generated in Part 3)
 cp bindings/swift/openobscure_core.swift \
-   bindings/swift/openobscureProxy.modulemap \
+   bindings/swift/openobscure_coreFFI.modulemap \
    $FORK_SWIFT/Enchanted/
 
 # 3. OpenObscureManager singleton (handles key storage, mapping accumulation, RI scan)
@@ -334,7 +334,7 @@ git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-
 
 1. Open `Enchanted.xcodeproj` in Xcode 15+.
 2. **File → Add Package Dependencies…** → **Add Local…** → select `OpenObscure.xcframework` (or create a local Swift package wrapping it — see [Integration Guide: Xcode SPM setup](../docs/integrate/embedding/embedded_integration.md#xcode-spm-setup)).
-3. Add `openobscure_core.swift` and `openobscureProxy.modulemap` to the **Enchanted** target (Copy Bundle Resources is not needed for these — they compile into the target).
+3. Add `openobscure_core.swift` and `openobscure_coreFFI.modulemap` to the **Enchanted** target (Copy Bundle Resources is not needed for these — they compile into the target).
 4. Add the `models/` folder as a **folder reference** (blue icon in Xcode) and tick **Copy Bundle Resources** so models are included in the app bundle.
 5. **Product → Build** (⌘B). Fix any missing import errors — ensure `OpenObscureLib` resolves.
 6. **Product → Run** on a simulator or connected device.
