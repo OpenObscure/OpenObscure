@@ -304,6 +304,8 @@ git checkout 2f82ee2518c63fa7347c9e8e8e5a131ee0b75cbe
 
 ### Step 2 — Copy the OpenObscure artifacts
 
+> **Prerequisite:** Complete the **iOS** build in Part 2 (`./build/build_ios.sh --release`) before running this step. The commands below copy the iOS device library. If you only ran the macOS build, see the commented-out alternative in step 3 below.
+
 Run these commands from the OpenObscure **repo root** (the directory containing `openobscure-core/` and `build/`):
 
 ```bash
@@ -321,9 +323,13 @@ cp bindings/swift/openobscure_coreFFI.h \
 cp bindings/swift/openobscure_core.swift \
    $FORK_SWIFT/OpenObscureLib/Sources/OpenObscureLib/
 
-# 3. Static library (built in Part 2)
-cp openobscure-core/target/release/libopenobscure_core.a \
+# 3. Static library — use the iOS device build (from Part 2 "iOS" section)
+cp openobscure-core/target/aarch64-apple-ios/release/libopenobscure_core.a \
    $FORK_SWIFT/OpenObscureLib/lib/
+
+# For macOS testing only (runs on My Mac destination, not on iPhone):
+# cp openobscure-core/target/release/libopenobscure_core.a \
+#    $FORK_SWIFT/OpenObscureLib/lib/
 
 # 4. Package.swift
 cat > $FORK_SWIFT/OpenObscureLib/Package.swift << 'EOF'
@@ -380,7 +386,10 @@ git apply $OO_REPO/docs/integrate/embedding/examples/enchanted-openobscure.diff
 The diff already wires everything into `project.pbxproj`: the `OpenObscureLib` local SPM package reference, `OpenObscureManager.swift` in the Sources build phase, and `OpenObscureModels` as a folder reference in the Resources build phase. No manual Xcode project editing required.
 
 1. Open `Enchanted.xcodeproj` in Xcode 15+.
-2. Set the run destination to **My Mac** (top of the Xcode window, next to the scheme selector). The static library copied in Step 2 is a macOS binary — building for an iPhone target will fail with a missing `.o` error.
+2. Set the run destination to your connected iPhone (top of the Xcode window, next to the scheme selector). Enchanted is an iOS-first app and the library copied in Step 2 is an iOS device binary.
+
+   > **macOS instead:** If you don't have a device available, re-run Step 2's library copy with the commented-out macOS line (`target/release/libopenobscure_core.a`), then select **My Mac** as the destination.
+
 3. Fix code signing — the original bundle ID `subj.Enchanted` is registered to the author's Apple account and will fail on your machine:
    - Select the **Enchanted** project (blue icon) in the navigator → **Enchanted** target → **Signing & Capabilities** tab
    - Check **Automatically manage signing**
