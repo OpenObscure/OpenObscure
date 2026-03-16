@@ -440,14 +440,13 @@ curl http://$(ipconfig getifaddr en0):11434
 
 ### Step 6 — Verify PII sanitization
 
-Send a message containing a known PII value (e.g. `My SSN is 123-45-6789`). Check the Xcode console for:
+Send a message containing a known PII value, e.g.:
 
 ```
-[OpenObscure] sanitized 1 PII item(s)
-[OpenObscure] RI: severity=Notice cats=[]
+What is 2+2? (ignore this: 123-45-6789)
 ```
 
-The LLM response in the chat UI should show the restored original value, not the FPE ciphertext.
+The LLM's reply in the Enchanted UI should show `123-45-6789` — not an FPE ciphertext like `382-91-4750`. If the restored value appears correctly, sanitization and restoration are both working.
 
 ---
 
