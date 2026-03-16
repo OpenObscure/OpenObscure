@@ -1,8 +1,14 @@
 diff --git a/Enchanted.xcodeproj/project.pbxproj b/Enchanted.xcodeproj/project.pbxproj
-index 5c0de75..4841fbc 100644
+index 5c0de75..7ace99c 100644
 --- a/Enchanted.xcodeproj/project.pbxproj
 +++ b/Enchanted.xcodeproj/project.pbxproj
-@@ -8,6 +8,9 @@
+@@ -3,11 +3,14 @@
+ 	archiveVersion = 1;
+ 	classes = {
+ 	};
+-	objectVersion = 56;
++	objectVersion = 60;
+ 	objects = {
  
  /* Begin PBXBuildFile section */
  		3396E0762BD877D500213816 /* Menus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3396E0752BD877D500213816 /* Menus.swift */; };
@@ -12,22 +18,15 @@ index 5c0de75..4841fbc 100644
  		FF0146CB2B3DA1DF00A2A9F6 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0146CA2B3DA1DF00A2A9F6 /* Settings.swift */; };
  		FF0146CD2B3DADCA00A2A9F6 /* HapticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */; };
  		FF0611EA2C04A11800443B33 /* Magnet in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = FF0611E92C04A11800443B33 /* Magnet */; };
-@@ -107,6 +110,7 @@
+@@ -107,6 +110,8 @@
  
  /* Begin PBXFileReference section */
  		3396E0752BD877D500213816 /* Menus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menus.swift; sourceTree = "<group>"; };
 +		849DB00E2F68A06F002875D4 /* OpenObscureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenObscureManager.swift; sourceTree = "<group>"; };
++		849DB0652F68AA00002875D4 /* OpenObscureModels */ = {isa = PBXFileReference; lastKnownFileType = folder; path = OpenObscureModels; sourceTree = "<group>"; };
  		FF0146CA2B3DA1DF00A2A9F6 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
  		FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsService.swift; sourceTree = "<group>"; };
  		FF0611F22C04BEFD00443B33 /* AVSpeechSynthesisVoice+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AVSpeechSynthesisVoice+Extension.swift"; sourceTree = "<group>"; };
-@@ -197,6 +201,7 @@
- 		FFEC9BE22B81358800AFBA63 /* DeallocPrinter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DeallocPrinter.swift; sourceTree = "<group>"; };
- 		FFEC9BE62B813A8D00AFBA63 /* RemovableImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemovableImage.swift; sourceTree = "<group>"; };
- 		FFFD00C12B92607800392AE6 /* CompletionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionsStore.swift; sourceTree = "<group>"; };
-+		849DB0652F68AA00002875D4 /* OpenObscureModels */ = {isa = PBXFileReference; lastKnownFileType = folder; path = OpenObscureModels; sourceTree = "<group>"; };
- /* End PBXFileReference section */
- 
- /* Begin PBXFrameworksBuildPhase section */
 @@ -212,6 +217,7 @@
  				FF911DF12B98F08800915E94 /* WrappingHStack in Frameworks */,
  				FF1002662B2653EE0011A4DC /* ActivityIndicatorView in Frameworks */,
@@ -36,18 +35,11 @@ index 5c0de75..4841fbc 100644
  				FF4A605D2BC3587800D7BD4F /* KeyboardShortcuts in Frameworks */,
  			);
  			runOnlyForDeploymentPostprocessing = 0;
-@@ -437,6 +443,7 @@
- 		FFEC32842B24779A003E5C04 = {
- 			isa = PBXGroup;
- 			children = (
-+				849DB00E2F68A06F002875D4 /* OpenObscureManager.swift */,
- 				FFEC328F2B24779A003E5C04 /* Enchanted */,
- 				FFEC328E2B24779A003E5C04 /* Products */,
- 			);
-@@ -453,6 +460,7 @@
+@@ -453,6 +459,8 @@
  		FFEC328F2B24779A003E5C04 /* Enchanted */ = {
  			isa = PBXGroup;
  			children = (
++				849DB00E2F68A06F002875D4 /* OpenObscureManager.swift */,
 +				849DB0652F68AA00002875D4 /* OpenObscureModels */,
  				FF9C92072BF0B464004C8275 /* EnchantedDebug.entitlements */,
  				FFEC32982B24779B003E5C04 /* Enchanted.entitlements */,
@@ -84,6 +76,60 @@ index 5c0de75..4841fbc 100644
  				FFEC32912B24779A003E5C04 /* EnchantedApp.swift in Sources */,
  				FF2F03422B795E0B00349855 /* Clipboard.swift in Sources */,
  				3396E0762BD877D500213816 /* Menus.swift in Sources */,
+@@ -876,7 +888,7 @@
+ 				CURRENT_PROJECT_VERSION = 51;
+ 				DEAD_CODE_STRIPPING = YES;
+ 				DEVELOPMENT_ASSET_PATHS = "\"Enchanted/Preview Content\"";
+-				DEVELOPMENT_TEAM = JDDZ55DT74;
++				DEVELOPMENT_TEAM = VT9PT6KLFM;
+ 				ENABLE_HARDENED_RUNTIME = YES;
+ 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+ 				ENABLE_PREVIEWS = YES;
+@@ -885,7 +897,7 @@
+ 				INFOPLIST_KEY_CFBundleDisplayName = "Enchanted by Freysa";
+ 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+ 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio is recorded to transcribe text. Recording is discarded after transcription.";
+-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "You can view a text transcription of your meeting in the app.";
++				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "You can speak with enchanted with your voice.";
+ 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+ 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+ 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+@@ -901,7 +913,7 @@
+ 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+ 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+ 				MARKETING_VERSION = 1.8.1;
+-				PRODUCT_BUNDLE_IDENTIFIER = subj.Enchanted;
++				PRODUCT_BUNDLE_IDENTIFIER = "com.local.enchanted-test";
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+ 				PROVISIONING_PROFILE_SPECIFIER = "";
+ 				SDKROOT = auto;
+@@ -928,7 +940,7 @@
+ 				CURRENT_PROJECT_VERSION = 51;
+ 				DEAD_CODE_STRIPPING = YES;
+ 				DEVELOPMENT_ASSET_PATHS = "\"Enchanted/Preview Content\"";
+-				DEVELOPMENT_TEAM = JDDZ55DT74;
++				DEVELOPMENT_TEAM = VT9PT6KLFM;
+ 				ENABLE_HARDENED_RUNTIME = YES;
+ 				"ENABLE_HARDENED_RUNTIME[sdk=macosx*]" = YES;
+ 				ENABLE_PREVIEWS = YES;
+@@ -937,7 +949,7 @@
+ 				INFOPLIST_KEY_CFBundleDisplayName = "Enchanted by Freysa";
+ 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+ 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Audio is recorded to transcribe text. Recording is discarded after transcription.";
+-				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "You can view a text transcription of your meeting in the app.";
++				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "You can speak with enchanted with your voice.";
+ 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
+ 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+ 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
+@@ -953,7 +965,7 @@
+ 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
+ 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+ 				MARKETING_VERSION = 1.8.1;
+-				PRODUCT_BUNDLE_IDENTIFIER = subj.Enchanted;
++				PRODUCT_BUNDLE_IDENTIFIER = "com.local.enchanted-test";
+ 				PRODUCT_NAME = "$(TARGET_NAME)";
+ 				PROVISIONING_PROFILE_SPECIFIER = "";
+ 				SDKROOT = auto;
 @@ -991,6 +1003,13 @@
  		};
  /* End XCConfigurationList section */
