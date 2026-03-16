@@ -963,14 +963,19 @@ Now send PII messages, photos, or audio from Discord on the same iPhone. You'll 
 
 This is expected. Stats (`pii_matches_total`, `images_processed_total`, etc.) are **cumulative across restarts** — they are saved to `~/.openobscure/stats.json` every 60 seconds and reloaded on startup. This lets you track lifetime proxy activity even after reboots.
 
-To reset all counters to zero, stop the proxy first, then delete the file:
+To reset all counters to zero, the proxy **must be stopped first** — deleting the file while it is running has no effect on in-memory counters, and the proxy re-writes the file every 60 seconds anyway:
 
 ```bash
-# Stop the proxy (Ctrl+C in its Terminal), then:
+# Step 1 — stop the proxy (Ctrl+C in its Terminal window)
+
+# Step 2 — delete the stats file
 rm ~/.openobscure/stats.json
+
+# Step 3 — restart the proxy
+cargo run --release -- -c config/openobscure.toml
 ```
 
-The file is recreated automatically on the next proxy start. Latency percentiles (`*_latency_p50_us`, etc.) are in-memory only and always start at zero.
+Latency percentiles (`*_latency_p50_us`, etc.) are in-memory only and always start at zero after a restart regardless.
 
 ### "command not found: cargo"
 
