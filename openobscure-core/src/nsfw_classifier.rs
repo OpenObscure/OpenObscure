@@ -169,6 +169,23 @@ impl NsfwClassifier {
         }
 
         let logits: Vec<f32> = data[..self.num_classes].to_vec();
+
+        // Guard: INT8 models can emit NaN logits on some ORT EPs (observed on iOS
+        // CPU EP with nsfw_5class_int8.onnx). NaN would propagate through softmax
+        // and produce nsfw_score=NaN, which silently compares false against the
+        // threshold — making the NSFW check a no-op. Return neutral explicitly so
+        // the fail-open path is intentional and the log makes the issue visible.
+        if logits.iter().any(|x| x.is_nan()) {
+            oo_warn!(crate::oo_log::modules::IMAGE,
+                "NSFW classifier returned NaN logits — INT8/EP incompatibility; treating as neutral");
+            return Ok(ClassifierResult {
+                is_nsfw: false,
+                nsfw_score: 0.0,
+                top_class: "neutral".to_string(),
+                class_probs: [0.0; 5],
+            });
+        }
+
         let probs = softmax(&logits);
 
         let (nsfw_score, top_class, class_probs) = if self.num_classes == 2 {
@@ -378,6 +395,27 @@ mod tests {
         assert!(
             gated_score >= 0.50,
             "gated score {gated_score} should be >= 0.50 threshold"
+        );
+    }
+
+    #[test]
+    fn test_nsfw_score_nan_guard() {
+        // NaN logits (observed with INT8 model on some ORT EPs) must not
+        // silently produce nsfw_score=NaN which compares false vs threshold.
+        let nan_logits = [f32::NAN; 5];
+        assert!(
+            nan_logits.iter().any(|x| x.is_nan()),
+            "guard should trigger"
+        );
+        // Verify NaN propagates through softmax without the guard
+        let probs = softmax(&nan_logits);
+        assert!(probs.iter().all(|x| x.is_nan()), "NaN logits → NaN probs");
+        let score: f32 = probs[IDX_PORN] + probs[IDX_SEXY];
+        // Without the guard, score is NaN and is_nsfw would be false (NaN >= 0.5 == false).
+        // The guard catches this before softmax is reached.
+        assert!(
+            score.is_nan(),
+            "NaN logits → NaN score — silent miss without guard"
         );
     }
 
