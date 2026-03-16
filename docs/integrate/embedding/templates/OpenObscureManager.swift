@@ -19,8 +19,8 @@ final class OpenObscureManager {
         //   Standard (4–8 GB) → TinyBERT NER, SCRFD, detect-only OCR
         //   Lite (<4 GB) → TinyBERT NER, BlazeFace, minimal pipeline
         // EXIF metadata is always stripped from images regardless of tier.
-        let modelsDir = Bundle.main.resourcePath.map { $0 + "/models" }
-            ?? Bundle.main.bundlePath + "/Contents/Resources/models"
+        let modelsDir = Bundle.main.resourcePath.map { $0 + "/OpenObscureModels" }
+            ?? Bundle.main.bundlePath + "/Contents/Resources/OpenObscureModels"
         handle = try! createOpenobscure(
             configJson: """
             {"scanner_mode": "auto", "models_base_dir": "\(modelsDir)"}
