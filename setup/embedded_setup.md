@@ -165,11 +165,21 @@ openobscure-core/target/armv7-linux-androideabi/release/libopenobscure_core.so  
 openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so     (x86_64)
 ```
 
-Copy each `.so` into your Android project:
-```
-app/src/main/jniLibs/arm64-v8a/libopenobscure_core.so
-app/src/main/jniLibs/armeabi-v7a/libopenobscure_core.so
-app/src/main/jniLibs/x86_64/libopenobscure_core.so
+Copy each `.so` from the build output into your Android project (run from the repo root):
+
+```bash
+FORK=/path/to/your-android-project
+
+mkdir -p $FORK/app/src/main/jniLibs/arm64-v8a
+mkdir -p $FORK/app/src/main/jniLibs/armeabi-v7a
+mkdir -p $FORK/app/src/main/jniLibs/x86_64
+
+cp openobscure-core/target/aarch64-linux-android/release/libopenobscure_core.so \
+   $FORK/app/src/main/jniLibs/arm64-v8a/libopenobscure_core.so
+cp openobscure-core/target/armv7-linux-androideabi/release/libopenobscure_core.so \
+   $FORK/app/src/main/jniLibs/armeabi-v7a/libopenobscure_core.so
+cp openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so \
+   $FORK/app/src/main/jniLibs/x86_64/libopenobscure_core.so
 ```
 
 ---
