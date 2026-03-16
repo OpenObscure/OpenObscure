@@ -372,10 +372,12 @@ git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-
 
 ### Step 4 — Open in Xcode and add the local package
 
+> **Note:** All package steps below use the **File menu at the top of the screen**, not the project settings Targets panel. If you see "Choose a template" or "Application Extension", you are in the wrong place — close that dialog.
+
 1. Open `Enchanted.xcodeproj` in Xcode 15+.
-2. From the menu bar: **File → Add Package Dependencies…**
-3. In the bottom-left of the dialog, click **Add Local…** → navigate to and select the **`OpenObscureLib/`** folder (the one containing `Package.swift`).
-4. Xcode resolves the package and shows a **"Choose Package Products"** table — this is still inside the same dialog, not in the project settings. In the **Add to Target** column, select **Enchanted** from the dropdown next to `OpenObscureLib`, then click **Add Package**.
+2. In the **macOS menu bar** (not inside Xcode): **File → Add Package Dependencies…**
+3. A package search window opens. Click **Add Local…** in the **bottom-left corner** of that window, then navigate to and select the **`OpenObscureLib/`** folder (the one containing `Package.swift`).
+4. Xcode resolves the package and shows a **"Choose Package Products"** table inside the same window. In the **Add to Target** column, select **Enchanted** from the dropdown next to `OpenObscureLib`, then click **Add Package**.
 5. Add the `Enchanted/models/` folder as a **folder reference** (blue icon in Xcode) and tick **Copy Bundle Resources** so models are included in the app bundle.
 6. **Product → Build** (⌘B). Fix any missing import errors — ensure `OpenObscureLib` resolves.
 7. **Product → Run** on a simulator or connected device.
