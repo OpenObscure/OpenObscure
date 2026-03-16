@@ -327,6 +327,8 @@ cd rikkahub-openobscure
 git checkout 7e224767dcac8e76d21a57c74790089214e15d28
 ```
 
+> **Reminder:** If you skipped the `.so` copy in Part 2, do it now. Set `FORK=/path/to/rikkahub-openobscure` and run the copy commands from the OpenObscure repo root before continuing.
+
 ### Step 2 — Copy the OpenObscure artifacts
 
 Run these from the OpenObscure **repo root**:
