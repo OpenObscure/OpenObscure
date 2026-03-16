@@ -14,14 +14,14 @@ The full step-by-step guide covers everything from building the native library t
 |------|-------|---------------|
 | [Part 1](../get-started/embedded-quick-start.md#1-build-the-library) | Build the Native Library | iOS, macOS, and Android build commands and output artifacts |
 | [Part 2](../get-started/embedded-quick-start.md#2-generate-bindings) | Generate Bindings | UniFFI Swift and Kotlin binding generation |
-| [Part 3](embedding/INTEGRATION_GUIDE.md#part-3-api-reference-all-platforms) | API Reference | Full function signatures: `createOpenobscure`, `sanitizeText`, `restoreText`, `sanitizeImage`, etc. |
-| [Part 4](embedding/INTEGRATION_GUIDE.md#part-4-iosmacos-integration-swift) | iOS/macOS Integration | Xcode project setup, SPM package, Swift intercept points, speech transcript handling |
-| [Part 5](embedding/INTEGRATION_GUIDE.md#part-5-android-integration-kotlin) | Android Integration | Gradle setup, OkHttp interceptor, JNA dependency, ProGuard rules |
-| [Part 6](embedding/INTEGRATION_GUIDE.md#part-6-feature-coverage) | Feature Coverage | Model bundling (6a), NER-only setup (6b), cognitive firewall (6c) |
-| [Part 7](embedding/INTEGRATION_GUIDE.md#part-7-testing-your-integration) | Testing | Verification checklist for sanitize/restore, image pipeline, and voice |
-| [Part 8](embedding/INTEGRATION_GUIDE.md#part-8-troubleshooting) | Troubleshooting | Common build errors, missing symbols, CoreML EP issues, debug logging |
+| [Part 3](embedding/embedded_integration.md#part-3-api-reference-all-platforms) | API Reference | Full function signatures: `createOpenobscure`, `sanitizeText`, `restoreText`, `sanitizeImage`, etc. |
+| [Part 4](embedding/embedded_integration.md#part-4-iosmacos-integration-swift) | iOS/macOS Integration | Xcode project setup, SPM package, Swift intercept points, speech transcript handling |
+| [Part 5](embedding/embedded_integration.md#part-5-android-integration-kotlin) | Android Integration | Gradle setup, OkHttp interceptor, JNA dependency, ProGuard rules |
+| [Part 6](embedding/embedded_integration.md#part-6-feature-coverage) | Feature Coverage | Model bundling (6a), NER-only setup (6b), cognitive firewall (6c) |
+| [Part 7](embedding/embedded_integration.md#part-7-testing-your-integration) | Testing | Verification checklist for sanitize/restore, image pipeline, and voice |
+| [Part 8](embedding/embedded_integration.md#part-8-troubleshooting) | Troubleshooting | Common build errors, missing symbols, CoreML EP issues, debug logging |
 
-> **Full guide:** [embedding/INTEGRATION_GUIDE.md](embedding/INTEGRATION_GUIDE.md)
+> **Full guide:** [embedding/embedded_integration.md](embedding/embedded_integration.md)
 
 ---
 

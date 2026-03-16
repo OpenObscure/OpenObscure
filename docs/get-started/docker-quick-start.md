@@ -36,7 +36,7 @@ docker run -d \
 curl -sf -H "X-OpenObscure-Token: mytoken" http://localhost:18790/_openobscure/health
 ```
 
-Point your agent at `http://127.0.0.1:18790`. See [Integration Reference](../integrate/integration-reference.md) for provider-specific setup.
+Point your agent at `http://127.0.0.1:18790`. See [Integration Reference](../integrate/provider_integration.md) for provider-specific setup.
 
 ---
 

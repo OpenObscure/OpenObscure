@@ -102,7 +102,7 @@ For face redaction, OCR, NSFW filtering, NER, and cognitive firewall (requires m
 | `/ollama` | Ollama | localhost:11434 |
 | `/custom` | Any OpenAI-compatible API | configurable |
 
-Add providers in `config/openobscure.toml`. See [Integration Reference](docs/integrate/integration-reference.md).
+Add providers in `config/openobscure.toml`. See [Integration Reference](docs/integrate/provider_integration.md).
 
 ## Choose Your Path
 
@@ -113,7 +113,7 @@ Add providers in `config/openobscure.toml`. See [Integration Reference](docs/int
 | **Run as a container** | [Docker Quick Start](docs/get-started/docker-quick-start.md) — pull and run in 2 commands |
 | **Understand the architecture** | [Architecture](ARCHITECTURE.md) — system overview, data flow, design decisions |
 | **Configure detection or encryption** | [Config Reference](docs/configure/config-reference.md) — every TOML key, FPE, detection engines |
-| **Integrate with my app** | [Integration Reference](docs/integrate/integration-reference.md) — LLM providers, third-party embedding |
+| **Integrate with my app** | [Integration Reference](docs/integrate/provider_integration.md) — LLM providers, third-party embedding |
 | **Look up API types** | [API Reference](docs/reference/api-reference.md) — FFI types, PII coverage, fail behavior |
 | **Run the test suite** | [test/README.md](test/README.md) — PII corpus, gateway + L1 plugin tests, validation scripts |
 | **Contribute** | [Contributing](docs/contribute/contributing.md) — dev setup, conventions, testing |

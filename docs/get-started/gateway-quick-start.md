@@ -79,7 +79,7 @@ response = client.chat.completions.create(
 print(response.choices[0].message.content)
 ```
 
-For Node.js, curl, LangChain, Anthropic SDK, and environment variable approaches, see [Integration Reference](../integrate/integration-reference.md).
+For Node.js, curl, LangChain, Anthropic SDK, and environment variable approaches, see [Integration Reference](../integrate/provider_integration.md).
 
 ## 6. Verify
 
@@ -109,4 +109,4 @@ Your real PII never leaves your device. For the full architecture, see [System O
 
 - [Gateway Operations](gateway-operations.md) — CLI subcommands, passthrough mode, L1 plugin setup, model config, cross-process auth
 - [Configure](../configure/) — FPE settings, detection engine tuning, full config reference
-- [Integration Reference](../integrate/integration-reference.md) — all provider examples, SSE streaming, custom providers
+- [Integration Reference](../integrate/provider_integration.md) — all provider examples, SSE streaming, custom providers

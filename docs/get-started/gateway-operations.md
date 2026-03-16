@@ -13,7 +13,7 @@ Operational reference for the OpenObscure Gateway proxy. This page assumes you h
 | `/openrouter` | OpenRouter | openrouter.ai |
 | `/ollama` | Ollama | localhost:11434 |
 
-Add custom providers in `config/openobscure.toml` under `[providers.<name>]`. For per-provider details, Google Gemini setup, and SSE streaming, see [Integration Reference](../integrate/integration-reference.md).
+Add custom providers in `config/openobscure.toml` under `[providers.<name>]`. For per-provider details, Google Gemini setup, and SSE streaming, see [Integration Reference](../integrate/provider_integration.md).
 
 ---
 

@@ -93,5 +93,5 @@ print(result.sanitizedText)  // My SSN is 847-29-3156  (FF1-encrypted, differs p
 ## Next Steps
 
 - [Embedded Setup Guide](../../setup/embedded_setup.md) — complete walkthrough with troubleshooting (platform prerequisites, build details, model loading, verification)
-- [Integration Guide](../integrate/embedding/INTEGRATION_GUIDE.md) — Xcode SPM setup, Gradle + JNA + ProGuard, OkHttp interceptor, worked diffs from Enchanted and RikkaHub
+- [Integration Guide](../integrate/embedding/embedded_integration.md) — Xcode SPM setup, Gradle + JNA + ProGuard, OkHttp interceptor, worked diffs from Enchanted and RikkaHub
 - [API Reference](../reference/api-reference.md) — full function list, types, error conditions

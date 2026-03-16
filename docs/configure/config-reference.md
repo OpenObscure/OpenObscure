@@ -241,7 +241,7 @@ route_prefix = "/openai"
 strip_headers = ["x-openobscure-internal"]
 ```
 
-See [Integration Reference](../integrate/integration-reference.md) for all built-in providers and custom provider setup.
+See [Integration Reference](../integrate/provider_integration.md) for all built-in providers and custom provider setup.
 
 ---
 

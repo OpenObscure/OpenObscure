@@ -331,6 +331,6 @@ The most common causes:
 
 ## Next Steps
 
-1. **[Integration Guide](../docs/integrate/embedding/INTEGRATION_GUIDE.md)** — Xcode SPM setup, Gradle + JNA + ProGuard, OkHttp interceptor, and worked diffs from tested apps (Enchanted, RikkaHub)
+1. **[Integration Guide](../docs/integrate/embedding/embedded_integration.md)** — Xcode SPM setup, Gradle + JNA + ProGuard, OkHttp interceptor, and worked diffs from tested apps (Enchanted, RikkaHub)
 2. **[API Reference](../docs/reference/api-reference.md)** — full function signatures, type definitions, and error conditions
 3. **[Deployment Tiers](../docs/get-started/deployment-tiers.md)** — what each tier enables and how to override

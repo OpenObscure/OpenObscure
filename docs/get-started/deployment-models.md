@@ -101,7 +101,7 @@ flowchart TB
 | `rotate_key(new_key)` | Rotate FPE key with 30-second overlap window for in-flight mappings |
 | `stats()` | PII counts, scanner mode, image pipeline status, device tier |
 
-**Third-party integration:** OpenObscure can be embedded into any iOS/macOS/Android chat app. Tested integrations include [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS Ollama client) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android multi-provider LLM client). See [INTEGRATION_GUIDE.md](../integrate/embedding/INTEGRATION_GUIDE.md) for step-by-step instructions.
+**Third-party integration:** OpenObscure can be embedded into any iOS/macOS/Android chat app. Tested integrations include [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS Ollama client) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android multi-provider LLM client). See [INTEGRATION_GUIDE.md](../integrate/embedding/embedded_integration.md) for step-by-step instructions.
 
 **Key differences from Gateway Model:**
 - No HTTP server (axum/tokio not compiled in)
