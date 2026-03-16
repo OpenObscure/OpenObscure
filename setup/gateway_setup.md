@@ -959,6 +959,19 @@ Now send PII messages, photos, or audio from Discord on the same iPhone. You'll 
 
 ## Part 4: Troubleshooting
 
+### Health endpoint shows non-zero counters on a fresh start
+
+This is expected. Stats (`pii_matches_total`, `images_processed_total`, etc.) are **cumulative across restarts** — they are saved to `~/.openobscure/stats.json` every 60 seconds and reloaded on startup. This lets you track lifetime proxy activity even after reboots.
+
+To reset all counters to zero, stop the proxy first, then delete the file:
+
+```bash
+# Stop the proxy (Ctrl+C in its Terminal), then:
+rm ~/.openobscure/stats.json
+```
+
+The file is recreated automatically on the next proxy start. Latency percentiles (`*_latency_p50_us`, etc.) are in-memory only and always start at zero.
+
 ### "command not found: cargo"
 
 Rust was not added to your path. Run:
@@ -1302,6 +1315,7 @@ Then open Discord on your MacBook or iPhone and start chatting.
 | `lsof -i :18790` | Check if proxy port is in use |
 | `cargo run --release -- --init-key` | Regenerate encryption key |
 | `cargo run --release -- key-rotate` | Rotate FPE key (zero-downtime, 30s overlap window) |
+| `rm ~/.openobscure/stats.json` | Reset all lifetime counters (run while proxy is stopped) |
 | `cargo run --release -- passthrough` | Run in passthrough mode (no scanning/encryption) |
 | `cargo run --release -- service install` | Install as background service (launchd/systemd) |
 | `cargo run --release -- service start` | Start the installed background service |
