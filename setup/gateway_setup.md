@@ -454,9 +454,17 @@ Replace `qwen3:8b` with `llama3.2:3b` (and update the `models` array to match) i
 >
 > **`baseUrl` and API versioning:** For providers that use the OpenAI-compatible API format (`"api": "openai-completions"`), include `/v1` after the route prefix in `baseUrl` (e.g. `http://127.0.0.1:18790/openai/v1`). OpenClaw appends `/chat/completions` to this URL, so without `/v1` the upstream path would be wrong. Anthropic and Ollama use their own API formats and handle versioning internally — their `baseUrl` does not need `/v1`.
 
-### Step 9 — Build and Verify the OpenObscure Plugin
+### Step 9 — Install and Build the OpenObscure Plugin
 
-The OpenObscure plugin ships bundled with OpenClaw in `extensions/openobscure-plugin/`. Step 8 already enabled it in `openclaw.json`, but you need to compile it first.
+The OpenObscure plugin is not yet bundled with OpenClaw. It ships in the OpenObscure repository and must be copied into OpenClaw's extensions directory manually. Once OpenObscure launches publicly, the team will work with the OpenClaw team to include it as an official extension — at that point this step will no longer be needed.
+
+**Copy the plugin from the OpenObscure repo into OpenClaw:**
+
+```bash
+cp -r ~/Desktop/OpenObscure/openobscure-plugin ~/Desktop/openclaw/extensions/openobscure-plugin
+```
+
+**Install dependencies and build:**
 
 ```bash
 cd ~/Desktop/openclaw/extensions/openobscure-plugin
@@ -464,7 +472,7 @@ pnpm install
 pnpm run build
 ```
 
-Verify the build succeeded:
+**Verify the build succeeded:**
 
 ```bash
 ls ~/Desktop/openclaw/extensions/openobscure-plugin/dist/index.js
@@ -1146,14 +1154,23 @@ pnpm openclaw gateway
 
 If gateway startup logs don't show the OpenObscure plugin loading:
 
-1. **Check that `dist/` exists** — the plugin must be compiled first:
+1. **Check that the plugin was copied** — it does not ship with OpenClaw and must be copied manually from the OpenObscure repo (Step 9):
+   ```bash
+   ls ~/Desktop/openclaw/extensions/openobscure-plugin/
+   ```
+   If the directory is missing, run:
+   ```bash
+   cp -r ~/Desktop/OpenObscure/openobscure-plugin ~/Desktop/openclaw/extensions/openobscure-plugin
+   ```
+
+2. **Check that `dist/` exists** — the plugin must be compiled after copying:
    ```bash
    cd ~/Desktop/openclaw/extensions/openobscure-plugin
-   pnpm run build
+   pnpm install && pnpm run build
    ls dist/index.js
    ```
 
-2. **Check `openclaw.json`** — the `plugins` section must be present with `openobscure-plugin` enabled:
+3. **Check `openclaw.json`** — the `plugins` section must be present with `openobscure-plugin` enabled:
    ```json
    "plugins": {
      "enabled": true,
@@ -1171,7 +1188,7 @@ If gateway startup logs don't show the OpenObscure plugin loading:
    }
    ```
 
-3. **Restart the gateway** after any plugin changes — plugins are loaded at startup.
+4. **Restart the gateway** after any plugin changes — plugins are loaded at startup.
 
 ### Purging a stale OpenClaw setup
 
