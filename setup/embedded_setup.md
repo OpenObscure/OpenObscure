@@ -199,9 +199,18 @@ bindings/swift/openobscure_core.swift
 bindings/swift/openobscureProxy.modulemap
 ```
 
-Drag both files from `bindings/swift/` (in the OpenObscure repo root) into the **Enchanted** target in Xcode. The `.swift` file is the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
+Copy both files from the OpenObscure repo root into your iOS/macOS app (run from the repo root):
 
-> **Note:** If you are integrating into Enchanted, do this after **Part 5A Step 3** (copy artifacts into the fork) when the Xcode project is open. The destination is the `Enchanted/` group inside `Enchanted.xcodeproj`.
+```bash
+FORK=/path/to/your-ios-project
+
+cp bindings/swift/openobscure_core.swift $FORK/Enchanted/openobscure_core.swift
+cp bindings/swift/openobscureProxy.modulemap $FORK/Enchanted/openobscureProxy.modulemap
+```
+
+Then add both files to the app target in Xcode (drag from the Finder into the `Enchanted/` group, or use **File → Add Files**). The `.swift` file is the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
+
+> **Note:** If you are integrating into Enchanted, do this after **Part 5A Step 1** (clone the fork) when the destination directory exists. Set `FORK=/path/to/enchanted-openobscure`.
 
 ```bash
 # Kotlin (Android)
@@ -213,7 +222,19 @@ Expected output:
 bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt
 ```
 
-Add the file to your Android source set (e.g. `app/src/main/java/` or a dedicated `uniffi/` directory). It must be compiled alongside `libopenobscure_core.so`.
+Copy the file into your Android project's source set (run from the repo root):
+
+```bash
+FORK=/path/to/your-android-project
+
+mkdir -p $FORK/app/src/main/java/uniffi/openobscure_core
+cp bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt \
+   $FORK/app/src/main/java/uniffi/openobscure_core/openobscure_core.kt
+```
+
+The file must be compiled alongside `libopenobscure_core.so`.
+
+> **Note:** If you are integrating into RikkaHub, do this after **Part 5B Step 1** (clone the fork). Set `FORK=/path/to/rikkahub-openobscure`.
 
 ---
 
