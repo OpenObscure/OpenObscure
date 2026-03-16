@@ -175,76 +175,162 @@ Bundle the `models/` directory into your app's resources (iOS) or assets (Androi
 
 ---
 
-## Part 5: Integrate
+## Part 5A: Integrate — Enchanted (iOS/macOS)
 
-### Step 1 — Generate an FPE key
+Enchanted is an Ollama client for iOS and macOS. The integration adds outbound PII sanitization, inbound response restoration, image sanitization, and voice transcript sanitization.
+
+**Upstream:** [AugustDev/enchanted](https://github.com/AugustDev/enchanted) — base commit `2f82ee2`
+
+### Step 1 — Clone the Enchanted fork
 
 ```bash
-openssl rand -hex 32
+git clone https://github.com/AugustDev/enchanted.git enchanted-openobscure
+cd enchanted-openobscure
+git checkout 2f82ee2518c63fa7347c9e8e8e5a131ee0b75cbe
 ```
 
-Store the result in iOS Keychain or Android Keystore. **Never hard-code it in source.** Pass it to `createOpenobscure()` at runtime.
+### Step 2 — Copy the OpenObscure artifacts
 
-### Step 2 — Initialize and sanitize (Swift)
+Run these commands from the OpenObscure **repo root** (the directory containing `openobscure-core/` and `build/`):
 
-```swift
-import openobscure_core
+```bash
+# 1. XCFramework (built in Part 2 with --xcframework flag)
+cp -R openobscure-core/target/OpenObscure.xcframework \
+      /path/to/enchanted-openobscure/OpenObscure.xcframework
 
-// Load key from Keychain — never hard-code in source
-let fpeKey = KeychainHelper.load(key: "openobscure-fpe-key")!
+# 2. UniFFI Swift bindings (generated in Part 3)
+cp bindings/swift/openobscure_core.swift \
+   bindings/swift/openobscureProxy.modulemap \
+   /path/to/enchanted-openobscure/Enchanted/
 
-let modelsDir = Bundle.main.resourcePath! + "/models"
-let config = """
-{"scanner_mode": "auto", "models_base_dir": "\(modelsDir)"}
-"""
+# 3. OpenObscureManager singleton (handles key storage, mapping accumulation, RI scan)
+cp docs/integrate/embedding/templates/OpenObscureManager.swift \
+   /path/to/enchanted-openobscure/Enchanted/
 
-let handle = try createOpenobscure(configJson: config, fpeKeyHex: fpeKey)
-
-// Sanitize user input before sending to LLM
-let result = try sanitizeText(handle: handle, text: userMessage)
-// Save result.mappingJson — needed to restore after LLM responds
-
-// Restore original PII from LLM response
-let restored = try restoreText(
-    handle: handle,
-    text: llmResponse,
-    mappingJson: result.mappingJson
-)
+# 4. Model files — bundle_models.sh copies only what the app target needs
+./build/bundle_models.sh /path/to/enchanted-openobscure/Enchanted/models
 ```
 
-### Step 2 — Initialize and sanitize (Kotlin)
+> `bundle_models.sh` selects the right models for the host machine's tier. For a full-tier bundle (all models), run `./build/bundle_models.sh --full /path/to/...`.
 
-```kotlin
-import uniffi.openobscure_core.*
+### Step 3 — Apply the diff
 
-// Load key from Android Keystore — never hard-code in source
-val fpeKey = keystoreHelper.load("openobscure-fpe-key")
-
-// createOpenobscure() requires a real filesystem path — APK asset URIs not accepted.
-// Copy models/ to internal storage on first launch.
-fun copyAssets(src: String, dest: File) {
-    val items = context.assets.list(src) ?: return
-    if (items.isEmpty()) { context.assets.open(src).use { it.copyTo(dest.outputStream()) }; return }
-    dest.mkdirs()
-    items.forEach { copyAssets("$src/$it", File(dest, it)) }
-}
-val modelsDir = context.filesDir.resolve("models")
-    .also { if (!it.exists()) copyAssets("models", it) }.absolutePath
-
-val config = """{"scanner_mode": "auto", "models_base_dir": "$modelsDir"}"""
-
-val handle = createOpenobscure(configJson = config, fpeKeyHex = fpeKey)
-
-// Sanitize user input before sending to LLM
-val result = sanitizeText(handle = handle, text = userMessage)
-
-// Restore after LLM responds
-val restored = restoreText(
-    handle = handle,
-    text = llmResponse,
-    mappingJson = result.mappingJson
-)
+```bash
+cd /path/to/enchanted-openobscure
+git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-openobscure.diff
 ```
+
+### Step 4 — Open in Xcode and add the local package
+
+1. Open `Enchanted.xcodeproj` in Xcode 15+.
+2. **File → Add Package Dependencies…** → **Add Local…** → select `OpenObscure.xcframework` (or create a local Swift package wrapping it — see [Integration Guide: Xcode SPM setup](../docs/integrate/embedding/embedded_integration.md#xcode-spm-setup)).
+3. Add `openobscure_core.swift` and `openobscureProxy.modulemap` to the **Enchanted** target (Copy Bundle Resources is not needed for these — they compile into the target).
+4. Add the `models/` folder as a **folder reference** (blue icon in Xcode) and tick **Copy Bundle Resources** so models are included in the app bundle.
+5. **Product → Build** (⌘B). Fix any missing import errors — ensure `OpenObscureLib` resolves.
+6. **Product → Run** on a simulator or connected device.
+
+### Step 5 — Verify
+
+Send a message containing a known PII value (e.g. `My SSN is 123-45-6789`). Check the Xcode console for:
+
+```
+[OpenObscure] sanitized 1 PII item(s)
+[OpenObscure] RI: severity=Notice cats=[]
+```
+
+The LLM response in the chat UI should show the restored original value, not the FPE ciphertext.
+
+---
+
+## Part 5B: Integrate — RikkaHub (Android)
+
+RikkaHub is a multi-provider LLM client for Android. The integration wires an OkHttp interceptor that sanitizes every outbound request body and restores every response.
+
+**Upstream:** [rikkahub/rikkahub](https://github.com/rikkahub/rikkahub) — base commit `7e22476`
+
+### Step 1 — Clone the RikkaHub fork
+
+```bash
+git clone https://github.com/rikkahub/rikkahub.git rikkahub-openobscure
+cd rikkahub-openobscure
+git checkout 7e224767dcac8e76d21a57c74790089214e15d28
+```
+
+### Step 2 — Copy the OpenObscure artifacts
+
+Run these from the OpenObscure **repo root**:
+
+```bash
+FORK=/path/to/rikkahub-openobscure
+
+# 1. Native library (built in Part 2 for Android)
+mkdir -p $FORK/app/src/main/jniLibs/arm64-v8a
+cp openobscure-core/target/aarch64-linux-android/release/libopenobscure_core.so \
+   $FORK/app/src/main/jniLibs/arm64-v8a/
+
+# 2. UniFFI Kotlin bindings (generated in Part 3)
+mkdir -p $FORK/app/src/main/java/uniffi/openobscure_core
+cp bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt \
+   $FORK/app/src/main/java/uniffi/openobscure_core/
+
+# 3. Manager + interceptor (handles init, key storage, OkHttp wiring)
+mkdir -p $FORK/app/src/main/java/me/rerere/rikkahub/data/ai
+cp docs/integrate/embedding/templates/OpenObscureManager.kt \
+   docs/integrate/embedding/templates/OpenObscureInterceptor.kt \
+   $FORK/app/src/main/java/me/rerere/rikkahub/data/ai/
+
+# 4. Model files
+mkdir -p $FORK/app/src/main/assets
+./build/bundle_models.sh --android $FORK/app/src/main/assets/models
+```
+
+> For x86_64 (emulator) support also copy: `openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so` → `jniLibs/x86_64/`.
+
+### Step 3 — Apply the diff
+
+```bash
+cd /path/to/rikkahub-openobscure
+git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/rikkahub-openobscure.diff
+```
+
+The diff adds:
+- `jna:5.15.0@aar` dependency to `build.gradle.kts`
+- ProGuard keep rules for UniFFI + JNA in `proguard-rules.pro`
+- `OpenObscureManager.init(this)` call in `RikkaHubApp.onCreate()`
+- `OpenObscureInterceptor` wired into the OkHttp client in `DataSourceModule.kt`
+- `mavenLocal()` before JitPack in `settings.gradle.kts`
+
+### Step 4 — Open in Android Studio and build
+
+1. Open the `rikkahub-openobscure/` directory in Android Studio Hedgehog (2023.1.1) or later.
+2. **File → Sync Project with Gradle Files**. The JNA dependency downloads automatically.
+3. Confirm `libopenobscure_core.so` is visible under `app/src/main/jniLibs/arm64-v8a/` in the Project view.
+4. **Build → Make Project** (⌃F9). Fix any unresolved reference errors — ensure `uniffi.openobscure_core` package is on the source path.
+5. **Run → Run 'app'** on a connected device or an ARM64 emulator (API 27+).
+
+> **x86_64 emulators:** Standard AVD images are x86_64. Either use an ARM64 image (slower) or add the x86_64 `.so` as described in Step 2.
+
+### Step 5 — Verify
+
+Send a chat message containing a test PII value. Open Logcat and filter by tag `OpenObscure`:
+
+```
+D OpenObscure: sanitized 1 PII item(s) in 3ms
+D OpenObscure: response restored, 1 token(s) decrypted
+```
+
+The response text shown in the RikkaHub UI should display the original value, not the FPE ciphertext.
+
+---
+
+## Part 5C: Integrate — Generic iOS/Android app
+
+For any iOS/macOS or Android app not covered above, see the [Integration Guide](../docs/integrate/embedding/embedded_integration.md). It covers:
+
+- Xcode SPM local package setup
+- Gradle + JNA + ProGuard configuration
+- Swift `OpenObscureManager` and Kotlin `OpenObscureManager` / `OpenObscureInterceptor` templates
+- Model bundling options (full, NER-only, cognitive firewall)
 
 ---
 
