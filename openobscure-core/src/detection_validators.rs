@@ -363,7 +363,7 @@ pub fn validate_nsfw(meta: &NsfwMeta) -> Vec<ValidationIssue> {
         });
     }
 
-    // Exposed scores count (should be ≤ 18 total classes in NudeNet)
+    // Exposed scores count (should be ≤ 18 total NSFW classes)
     if meta.exposed_scores.len() > 18 {
         issues.push(ValidationIssue {
             severity: Severity::Warning,
