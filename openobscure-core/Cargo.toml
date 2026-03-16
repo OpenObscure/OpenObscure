@@ -3,6 +3,7 @@ name = "openobscure-core"
 version = "0.1.0"
 edition = "2021"
 rust-version = "1.75"
+default-run = "openobscure"
 description = "OpenObscure L0 Core — Rust PII detection and encryption layer (gateway proxy + embedded library)"
 license = "MIT OR Apache-2.0"
 

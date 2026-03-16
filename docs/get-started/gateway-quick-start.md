@@ -31,10 +31,6 @@ cd openobscure-core
 ./target/release/openobscure --init-key
 ```
 
-> **Note:** Always run the built binary directly (`./target/release/openobscure`), not via
-> `cargo run` — the workspace has two binaries (`openobscure` and `uniffi-bindgen`) so
-> `cargo run` requires `--bin openobscure` to disambiguate.
-
 **Headless / Docker alternative** (no keychain required):
 
 ```bash

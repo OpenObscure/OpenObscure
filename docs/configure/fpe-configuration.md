@@ -20,17 +20,10 @@ FF1 operates on a configurable alphabet (digits, hex, alphanumeric) with AES-256
 ### First-time setup (desktop / server)
 
 ```bash
-# Build first, then run the binary directly from openobscure-core/
 cd openobscure-core
 cargo build --release
 ./target/release/openobscure --init-key
 ```
-
-> **`cargo run` users:** The workspace defines two binaries (`openobscure` and
-> `uniffi-bindgen`), so `cargo run` requires `--bin openobscure`:
-> ```bash
-> cargo run --release --bin openobscure -- --init-key
-> ```
 
 ### Headless / Docker / CI
 
