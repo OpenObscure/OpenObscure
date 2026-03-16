@@ -84,5 +84,23 @@ if [ "$GENERATE_KOTLIN" = true ]; then
     ls -la "$BINDINGS_DIR/kotlin/" 2>/dev/null || true
 fi
 
+# Normalize generated files to match pre-commit hook expectations:
+#   - strip trailing whitespace from every line
+#   - ensure each file ends with a single newline
+# This prevents the CI drift check from failing due to whitespace-only diffs.
+for f in \
+    "$BINDINGS_DIR/swift/openobscure_core.swift" \
+    "$BINDINGS_DIR/swift/openobscure_coreFFI.h" \
+    "$BINDINGS_DIR/swift/openobscure_coreFFI.modulemap" \
+    "$BINDINGS_DIR/kotlin/uniffi/openobscure_core/openobscure_core.kt"; do
+    [ -f "$f" ] || continue
+    # Strip trailing whitespace per line
+    sed -i '' 's/[[:space:]]*$//' "$f"
+    # Ensure file ends with a newline
+    if [ -n "$(tail -c 1 "$f")" ]; then
+        echo >> "$f"
+    fi
+done
+
 echo ""
 echo "=== Binding Generation Complete ==="
