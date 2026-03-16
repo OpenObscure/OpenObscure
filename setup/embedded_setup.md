@@ -202,15 +202,15 @@ bindings/swift/openobscureProxy.modulemap
 Copy both files from the OpenObscure repo root into your iOS/macOS app (run from the repo root):
 
 ```bash
-FORK=/path/to/your-ios-project
+FORK_SWIFT=/path/to/your-ios-project
 
-cp bindings/swift/openobscure_core.swift $FORK/Enchanted/openobscure_core.swift
-cp bindings/swift/openobscureProxy.modulemap $FORK/Enchanted/openobscureProxy.modulemap
+cp bindings/swift/openobscure_core.swift $FORK_SWIFT/Enchanted/openobscure_core.swift
+cp bindings/swift/openobscureProxy.modulemap $FORK_SWIFT/Enchanted/openobscureProxy.modulemap
 ```
 
 Then add both files to the app target in Xcode (drag from the Finder into the `Enchanted/` group, or use **File → Add Files**). The `.swift` file is the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
 
-> **Note:** If you are integrating into Enchanted, do this after **Part 5A Step 1** (clone the fork) when the destination directory exists. Set `FORK=/path/to/enchanted-openobscure`.
+> **Note:** If you are integrating into Enchanted, do this after **Part 5A Step 1** (clone the fork) when the destination directory exists. Set `FORK_SWIFT=/path/to/enchanted-openobscure`.
 
 ```bash
 # Kotlin (Android)
@@ -225,16 +225,16 @@ bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt
 Copy the file into your Android project's source set (run from the repo root):
 
 ```bash
-FORK=/path/to/your-android-project
+FORK_KOTLIN=/path/to/your-android-project
 
-mkdir -p $FORK/app/src/main/java/uniffi/openobscure_core
+mkdir -p $FORK_KOTLIN/app/src/main/java/uniffi/openobscure_core
 cp bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt \
-   $FORK/app/src/main/java/uniffi/openobscure_core/openobscure_core.kt
+   $FORK_KOTLIN/app/src/main/java/uniffi/openobscure_core/openobscure_core.kt
 ```
 
 The file must be compiled alongside `libopenobscure_core.so`.
 
-> **Note:** If you are integrating into RikkaHub, do this after **Part 5B Step 1** (clone the fork). Set `FORK=/path/to/rikkahub-openobscure`.
+> **Note:** If you are integrating into RikkaHub, do this after **Part 5B Step 1** (clone the fork). Set `FORK_KOTLIN=/path/to/rikkahub-openobscure`.
 
 ---
 
