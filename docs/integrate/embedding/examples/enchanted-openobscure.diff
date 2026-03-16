@@ -1,3 +1,114 @@
+diff --git a/Enchanted.xcodeproj/project.pbxproj b/Enchanted.xcodeproj/project.pbxproj
+index 5c0de75..4841fbc 100644
+--- a/Enchanted.xcodeproj/project.pbxproj
++++ b/Enchanted.xcodeproj/project.pbxproj
+@@ -8,6 +8,9 @@
+ 
+ /* Begin PBXBuildFile section */
+ 		3396E0762BD877D500213816 /* Menus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3396E0752BD877D500213816 /* Menus.swift */; };
++		849DB00D2F689D1F002875D4 /* OpenObscureLib in Frameworks */ = {isa = PBXBuildFile; productRef = 849DB00C2F689D1F002875D4 /* OpenObscureLib */; };
++		849DB00F2F68A06F002875D4 /* OpenObscureManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 849DB00E2F68A06F002875D4 /* OpenObscureManager.swift */; };
++		849DB0662F68AA00002875D4 /* OpenObscureModels in Resources */ = {isa = PBXBuildFile; fileRef = 849DB0652F68AA00002875D4 /* OpenObscureModels */; };
+ 		FF0146CB2B3DA1DF00A2A9F6 /* Settings.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0146CA2B3DA1DF00A2A9F6 /* Settings.swift */; };
+ 		FF0146CD2B3DADCA00A2A9F6 /* HapticsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */; };
+ 		FF0611EA2C04A11800443B33 /* Magnet in Frameworks */ = {isa = PBXBuildFile; platformFilters = (macos, ); productRef = FF0611E92C04A11800443B33 /* Magnet */; };
+@@ -107,6 +110,7 @@
+ 
+ /* Begin PBXFileReference section */
+ 		3396E0752BD877D500213816 /* Menus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Menus.swift; sourceTree = "<group>"; };
++		849DB00E2F68A06F002875D4 /* OpenObscureManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenObscureManager.swift; sourceTree = "<group>"; };
+ 		FF0146CA2B3DA1DF00A2A9F6 /* Settings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Settings.swift; sourceTree = "<group>"; };
+ 		FF0146CC2B3DADCA00A2A9F6 /* HapticsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticsService.swift; sourceTree = "<group>"; };
+ 		FF0611F22C04BEFD00443B33 /* AVSpeechSynthesisVoice+Extension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AVSpeechSynthesisVoice+Extension.swift"; sourceTree = "<group>"; };
+@@ -197,6 +201,7 @@
+ 		FFEC9BE22B81358800AFBA63 /* DeallocPrinter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DeallocPrinter.swift; sourceTree = "<group>"; };
+ 		FFEC9BE62B813A8D00AFBA63 /* RemovableImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemovableImage.swift; sourceTree = "<group>"; };
+ 		FFFD00C12B92607800392AE6 /* CompletionsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionsStore.swift; sourceTree = "<group>"; };
++		849DB0652F68AA00002875D4 /* OpenObscureModels */ = {isa = PBXFileReference; lastKnownFileType = folder; path = OpenObscureModels; sourceTree = "<group>"; };
+ /* End PBXFileReference section */
+ 
+ /* Begin PBXFrameworksBuildPhase section */
+@@ -212,6 +217,7 @@
+ 				FF911DF12B98F08800915E94 /* WrappingHStack in Frameworks */,
+ 				FF1002662B2653EE0011A4DC /* ActivityIndicatorView in Frameworks */,
+ 				FFFD00C92B94CB5E00392AE6 /* AsyncAlgorithms in Frameworks */,
++				849DB00D2F689D1F002875D4 /* OpenObscureLib in Frameworks */,
+ 				FF4A605D2BC3587800D7BD4F /* KeyboardShortcuts in Frameworks */,
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+@@ -437,6 +443,7 @@
+ 		FFEC32842B24779A003E5C04 = {
+ 			isa = PBXGroup;
+ 			children = (
++				849DB00E2F68A06F002875D4 /* OpenObscureManager.swift */,
+ 				FFEC328F2B24779A003E5C04 /* Enchanted */,
+ 				FFEC328E2B24779A003E5C04 /* Products */,
+ 			);
+@@ -453,6 +460,7 @@
+ 		FFEC328F2B24779A003E5C04 /* Enchanted */ = {
+ 			isa = PBXGroup;
+ 			children = (
++				849DB0652F68AA00002875D4 /* OpenObscureModels */,
+ 				FF9C92072BF0B464004C8275 /* EnchantedDebug.entitlements */,
+ 				FFEC32982B24779B003E5C04 /* Enchanted.entitlements */,
+ 				FFE2C8222B9A657A00BD82F3 /* Accessibility.plist */,
+@@ -590,6 +598,7 @@
+ 				FF0611E92C04A11800443B33 /* Magnet */,
+ 				FF0611F02C04A2FB00443B33 /* Splash */,
+ 				FF79AEB52CE72ECE00EDE10C /* MarkdownUI */,
++				849DB00C2F689D1F002875D4 /* OpenObscureLib */,
+ 			);
+ 			productName = Enchanted;
+ 			productReference = FFEC328D2B24779A003E5C04 /* Enchanted.app */;
+@@ -629,6 +638,7 @@
+ 				FF0611E82C04A11800443B33 /* XCRemoteSwiftPackageReference "Magnet" */,
+ 				FF0611EF2C04A2FB00443B33 /* XCRemoteSwiftPackageReference "Splash" */,
+ 				FF79AEB42CE72ECE00EDE10C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
++				849DB00B2F689D1F002875D4 /* XCLocalSwiftPackageReference "OpenObscureLib" */,
+ 			);
+ 			productRefGroup = FFEC328E2B24779A003E5C04 /* Products */;
+ 			projectDirPath = "";
+@@ -647,6 +657,7 @@
+ 				FFEC329B2B24779B003E5C04 /* Preview Assets.xcassets in Resources */,
+ 				FFE2C8232B9A657A00BD82F3 /* Accessibility.plist in Resources */,
+ 				FFEC32972B24779B003E5C04 /* Assets.xcassets in Resources */,
++				849DB0662F68AA00002875D4 /* OpenObscureModels in Resources */,
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 		};
+@@ -731,6 +742,7 @@
+ 				FF10024E2B25C2A70011A4DC /* ConversationSD.swift in Sources */,
+ 				FF9C920C2BF0C088004C8275 /* OptionsMenuView.swift in Sources */,
+ 				FF9C920A2BF0B7B1004C8275 /* LanguageModel.swift in Sources */,
++				849DB00F2F68A06F002875D4 /* OpenObscureManager.swift in Sources */,
+ 				FFEC32912B24779A003E5C04 /* EnchantedApp.swift in Sources */,
+ 				FF2F03422B795E0B00349855 /* Clipboard.swift in Sources */,
+ 				3396E0762BD877D500213816 /* Menus.swift in Sources */,
+@@ -991,6 +1003,13 @@
+ 		};
+ /* End XCConfigurationList section */
+ 
++/* Begin XCLocalSwiftPackageReference section */
++		849DB00B2F689D1F002875D4 /* XCLocalSwiftPackageReference "OpenObscureLib" */ = {
++			isa = XCLocalSwiftPackageReference;
++			relativePath = OpenObscureLib;
++		};
++/* End XCLocalSwiftPackageReference section */
++
+ /* Begin XCRemoteSwiftPackageReference section */
+ 		FF0611E82C04A11800443B33 /* XCRemoteSwiftPackageReference "Magnet" */ = {
+ 			isa = XCRemoteSwiftPackageReference;
+@@ -1067,6 +1086,10 @@
+ /* End XCRemoteSwiftPackageReference section */
+ 
+ /* Begin XCSwiftPackageProductDependency section */
++		849DB00C2F689D1F002875D4 /* OpenObscureLib */ = {
++			isa = XCSwiftPackageProductDependency;
++			productName = OpenObscureLib;
++		};
+ 		FF0611E92C04A11800443B33 /* Magnet */ = {
+ 			isa = XCSwiftPackageProductDependency;
+ 			package = FF0611E82C04A11800443B33 /* XCRemoteSwiftPackageReference "Magnet" */;
 diff --git a/Enchanted/Stores/ConversationStore.swift b/Enchanted/Stores/ConversationStore.swift
 index c9043ea..d7dccd4 100644
 --- a/Enchanted/Stores/ConversationStore.swift

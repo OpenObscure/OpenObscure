@@ -370,31 +370,17 @@ cd $FORK_SWIFT
 git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-openobscure.diff
 ```
 
-### Step 4 — Open in Xcode and add the local package
+### Step 4 — Open in Xcode and build
 
-> **Note:** All package steps below use the **File menu at the top of the screen**, not the project settings Targets panel. If you see "Choose a template" or "Application Extension", you are in the wrong place — close that dialog.
+The diff already wires everything into `project.pbxproj`: the `OpenObscureLib` local SPM package reference, `OpenObscureManager.swift` in the Sources build phase, and `OpenObscureModels` as a folder reference in the Resources build phase. No manual Xcode project editing required.
 
 1. Open `Enchanted.xcodeproj` in Xcode 15+.
-2. In the **macOS menu bar** (not inside Xcode): **File → Add Package Dependencies…**
-3. A package search window opens. Click **Add Local…** in the **bottom-left corner** of that window, then navigate to and select the **`OpenObscureLib/`** folder (the one containing `Package.swift`).
-4. Xcode resolves the package and shows a **"Choose Package Products"** table inside the same window. The **Add to Target** column may default to **None** — click that dropdown and change it to **Enchanted**, then click **Add Package**.
-5. Add `OpenObscureManager.swift` to the project — it is copied to the `Enchanted/` folder but Xcode does not pick it up automatically:
-   - Right-click the **Enchanted** group in the project navigator → **Add Files to "Enchanted"…**
-   - Select `OpenObscureManager.swift` from inside the `Enchanted/` folder
-   - Make sure **Enchanted** is checked under **Add to targets**, then click **Add**
-6. Add the `Enchanted/OpenObscureModels/` folder to the project:
-   - In the Xcode project navigator, right-click the **Enchanted** group → **Add Files to "Enchanted"…**
-   - Navigate to and select the **`OpenObscureModels/`** folder inside the fork
-   - At the bottom of the sheet, under **Added folders**, select **Create folder references** (this makes it a blue folder — do NOT select "Create groups")
-   - Make sure **Enchanted** is checked under **Add to targets**
-   - Click **Add**
-6. Fix code signing — the original bundle ID `subj.Enchanted` is registered to the author's Apple account and will fail on your machine:
+2. Fix code signing — the original bundle ID `subj.Enchanted` is registered to the author's Apple account and will fail on your machine:
    - Select the **Enchanted** project (blue icon) in the navigator → **Enchanted** target → **Signing & Capabilities** tab
    - Check **Automatically manage signing**
    - Set **Team** to your Apple ID (add via Xcode → Settings → Accounts if needed)
    - Change **Bundle Identifier** to something unique, e.g. `com.local.enchanted-test`
-7. **Product → Build** (⌘B). Fix any missing import errors — ensure `OpenObscureLib` resolves.
-8. **Product → Run** on a simulator or connected device.
+3. **Product → Build** (⌘B).
 
 ### Step 5 — Verify
 
