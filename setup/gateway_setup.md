@@ -144,6 +144,47 @@ Discord ──► OpenClaw ──► OpenObscure (:18790) ──► Ollama (:114
 
 ---
 
+### (Optional) Check Your Hardware Tier
+
+Before starting the proxy, you can confirm which capability tier and features your machine will use:
+
+```bash
+cd ~/Desktop/OpenObscure/openobscure-core
+cargo run --release -- check-tier
+```
+
+Example output on an Apple Silicon Mac:
+
+```
+Hardware:  16384 MB RAM  ·  12 CPU cores
+Tier:      full (≥8 GB — full feature set)
+
+Feature Budget:
+  RAM cap:          275 MB
+  NER scanner:      yes (model: distilbert, pool: 2)
+  CRF scanner:      yes
+  Ensemble voting:  yes
+  Image pipeline:   yes (OCR: full_recognition)
+  Face detection:   yes (model: scrfd)
+  NSFW detection:   yes
+  Screen guard:     yes
+  Voice KWS:        yes
+  Response integrity: yes
+  Gazetteer:        yes
+  Keyword dict:     yes
+  Model idle TTL:   300s
+```
+
+| Tier | RAM | NER Model | Face Model | Image Pipeline |
+|------|-----|-----------|------------|----------------|
+| **Full** | ≥8 GB | DistilBERT (higher accuracy) | SCRFD-2.5GF | Full OCR |
+| **Standard** | 4–8 GB | TinyBERT (fast) | SCRFD-2.5GF | Full OCR |
+| **Lite** | <4 GB | TinyBERT (fast) | UltraLight | Detect-and-fill |
+
+No server is started — the command exits immediately after printing.
+
+---
+
 ### Step 4 — Start the Privacy Proxy
 
 ```bash

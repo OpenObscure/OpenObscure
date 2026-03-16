@@ -135,6 +135,8 @@ enum Commands {
     KeyRotate,
     /// Print the current FPE key as 64 hex chars to stdout (for Docker/CI bootstrapping)
     PrintKey,
+    /// Print hardware tier and feature budget for this machine (no server started)
+    CheckTier,
     /// Lightweight passthrough proxy (no PII scanning, forwards to upstream directly)
     Passthrough,
     /// Manage the OpenObscure system service (launchd on macOS, systemd on Linux)
@@ -245,8 +247,63 @@ async fn main() -> anyhow::Result<()> {
             println!("{}", hex::encode(key));
             Ok(())
         }
+        Some(Commands::CheckTier) => {
+            let profile = device_profile::detect(false);
+            let tier = device_profile::tier_for_profile(&profile);
+            let budget = device_profile::budget_for_tier(tier, &profile);
+            println!(
+                "Hardware:  {} MB RAM  ·  {} CPU cores",
+                profile.total_ram_mb, profile.cpu_cores
+            );
+            println!(
+                "Tier:      {} ({})",
+                tier,
+                match tier {
+                    device_profile::CapabilityTier::Full => "≥8 GB — full feature set",
+                    device_profile::CapabilityTier::Standard => "4–8 GB — balanced",
+                    device_profile::CapabilityTier::Lite => "<4 GB — lightweight",
+                }
+            );
+            println!();
+            println!("Feature Budget:");
+            println!("  RAM cap:          {} MB", budget.max_ram_mb);
+            println!(
+                "  NER scanner:      {} (model: {}, pool: {})",
+                yn(budget.ner_enabled),
+                budget.ner_model,
+                budget.ner_pool_size
+            );
+            println!("  CRF scanner:      {}", yn(budget.crf_enabled));
+            println!("  Ensemble voting:  {}", yn(budget.ensemble_enabled));
+            println!(
+                "  Image pipeline:   {} (OCR: {})",
+                yn(budget.image_pipeline_enabled),
+                budget.ocr_tier
+            );
+            println!(
+                "  Face detection:   {} (model: {})",
+                yn(budget.image_pipeline_enabled),
+                budget.face_model
+            );
+            println!("  NSFW detection:   {}", yn(budget.nsfw_enabled));
+            println!("  Screen guard:     {}", yn(budget.screen_guard_enabled));
+            println!("  Voice KWS:        {}", yn(budget.voice_enabled));
+            println!("  Response integrity: {}", yn(budget.ri_enabled));
+            println!("  Gazetteer:        {}", yn(budget.gazetteer_enabled));
+            println!("  Keyword dict:     {}", yn(budget.keywords_enabled));
+            println!("  Model idle TTL:   {}s", budget.model_idle_timeout_secs);
+            Ok(())
+        }
         Some(Commands::Passthrough) => run_passthrough(config).await,
         Some(Commands::Service { action }) => run_service(action).await,
+    }
+}
+
+fn yn(v: bool) -> &'static str {
+    if v {
+        "yes"
+    } else {
+        "no"
     }
 }
 
