@@ -357,8 +357,8 @@ EOF
 cp docs/integrate/embedding/templates/OpenObscureManager.swift \
    $FORK_SWIFT/Enchanted/
 
-# 6. Model files — bundle_models.sh copies only what the app target needs
-./build/bundle_models.sh $FORK_SWIFT/Enchanted/models
+# 6. Model files — use a distinct folder name to avoid colliding with Enchanted/Models/ (Swift files)
+./build/bundle_models.sh $FORK_SWIFT/Enchanted/OpenObscureModels
 ```
 
 > `bundle_models.sh` selects the right models for the host machine's tier. For a full-tier bundle (all models), run `./build/bundle_models.sh --full /path/to/...`.
@@ -378,7 +378,12 @@ git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-
 2. In the **macOS menu bar** (not inside Xcode): **File → Add Package Dependencies…**
 3. A package search window opens. Click **Add Local…** in the **bottom-left corner** of that window, then navigate to and select the **`OpenObscureLib/`** folder (the one containing `Package.swift`).
 4. Xcode resolves the package and shows a **"Choose Package Products"** table inside the same window. The **Add to Target** column may default to **None** — click that dropdown and change it to **Enchanted**, then click **Add Package**.
-5. Add the `Enchanted/models/` folder as a **folder reference** (blue icon in Xcode) and tick **Copy Bundle Resources** so models are included in the app bundle.
+5. Add the `Enchanted/OpenObscureModels/` folder to the project:
+   - In the Xcode project navigator, right-click the **Enchanted** group → **Add Files to "Enchanted"…**
+   - Navigate to and select the **`OpenObscureModels/`** folder inside the fork
+   - At the bottom of the sheet, under **Added folders**, select **Create folder references** (this makes it a blue folder — do NOT select "Create groups")
+   - Make sure **Enchanted** is checked under **Add to targets**
+   - Click **Add**
 6. **Product → Build** (⌘B). Fix any missing import errors — ensure `OpenObscureLib` resolves.
 7. **Product → Run** on a simulator or connected device.
 
