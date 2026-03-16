@@ -165,6 +165,8 @@ openobscure-core/target/armv7-linux-androideabi/release/libopenobscure_core.so  
 openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so     (x86_64)
 ```
 
+> **Note:** If you are integrating into RikkaHub or another existing app, you won't have a target project directory yet. Skip this copy step for now and complete it after **Part 5B Step 1** (clone the fork) when the destination exists.
+
 Copy each `.so` from the build output into your Android project (run from the repo root):
 
 ```bash
