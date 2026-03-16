@@ -85,21 +85,30 @@ if [ "$GENERATE_KOTLIN" = true ]; then
 fi
 
 # Normalize generated files to match pre-commit hook expectations:
-#   - strip trailing whitespace from every line
-#   - ensure each file ends with a single newline
+#   - strip trailing whitespace from every line  (trailing-whitespace hook)
+#   - remove trailing blank lines, keep exactly one trailing newline  (end-of-file-fixer hook)
 # This prevents the CI drift check from failing due to whitespace-only diffs.
+_normalize_file() {
+    python3 - "$1" <<'PYEOF'
+import sys
+path = sys.argv[1]
+with open(path, 'r') as f:
+    content = f.read()
+lines = [line.rstrip() for line in content.splitlines()]
+while lines and lines[-1] == '':
+    lines.pop()
+with open(path, 'w') as f:
+    f.write('\n'.join(lines) + '\n')
+PYEOF
+}
+
 for f in \
     "$BINDINGS_DIR/swift/openobscure_core.swift" \
     "$BINDINGS_DIR/swift/openobscure_coreFFI.h" \
     "$BINDINGS_DIR/swift/openobscure_coreFFI.modulemap" \
     "$BINDINGS_DIR/kotlin/uniffi/openobscure_core/openobscure_core.kt"; do
     [ -f "$f" ] || continue
-    # Strip trailing whitespace per line
-    sed -i '' 's/[[:space:]]*$//' "$f"
-    # Ensure file ends with a newline
-    if [ -n "$(tail -c 1 "$f")" ]; then
-        echo >> "$f"
-    fi
+    _normalize_file "$f"
 done
 
 echo ""
