@@ -250,12 +250,16 @@ The file must be compiled alongside `libopenobscure_core.so`.
 
 Models enable NER, image pipeline, voice KWS, and cognitive firewall. Without them, OpenObscure falls back to regex + keyword + gazetteer detection — 15 structured PII types still covered, but names, locations, and orgs are not detected.
 
-```bash
-# From repo root — downloads BlazeFace, SCRFD, PaddleOCR (~14 MB)
-./build/download_models.sh
+Both commands are required — they fetch different model sets:
 
-# NER, NSFW, response integrity, KWS models (~175 MB — stored in Git LFS)
+```bash
+# NER, NSFW, response integrity, KWS models (~175 MB)
+# Stored in Git LFS — pulled from this repo
 git lfs pull
+
+# BlazeFace, SCRFD, PaddleOCR (~14 MB)
+# Downloaded directly from upstream sources (license restricts repo distribution)
+./build/download_models.sh
 ```
 
 Expected model directories after both commands:
