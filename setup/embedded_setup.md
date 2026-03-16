@@ -304,6 +304,8 @@ git checkout 2f82ee2518c63fa7347c9e8e8e5a131ee0b75cbe
 Run these commands from the OpenObscure **repo root** (the directory containing `openobscure-core/` and `build/`):
 
 ```bash
+cd /path/to/openobscure-repo   # ← adjust to where you cloned OpenObscure
+
 # 1. Create the local SPM package that Xcode will import
 mkdir -p $FORK_SWIFT/OpenObscureLib/Sources/COpenObscure/include
 mkdir -p $FORK_SWIFT/OpenObscureLib/Sources/OpenObscureLib
