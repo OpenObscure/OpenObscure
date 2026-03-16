@@ -1,5 +1,5 @@
 diff --git a/Enchanted/Stores/ConversationStore.swift b/Enchanted/Stores/ConversationStore.swift
-index c9043ea..4690dd5 100644
+index c9043ea..d7dccd4 100644
 --- a/Enchanted/Stores/ConversationStore.swift
 +++ b/Enchanted/Stores/ConversationStore.swift
 @@ -10,6 +10,7 @@ import SwiftData
@@ -7,13 +7,13 @@ index c9043ea..4690dd5 100644
  import Combine
  import SwiftUI
 +import OpenObscureLib
-
+ 
  @Observable
  final class ConversationStore: Sendable {
 @@ -134,19 +135,41 @@ final class ConversationStore: Sendable {
          let userMessage = MessageSD(content: userPrompt, role: "user", image: image?.render()?.compressImageData())
          userMessage.conversation = conversation
-
+         
 -        /// prepare message history for Ollama
 +        /// prepare message history for Ollama — sanitize user messages via OpenObscure
 +        let oo = OpenObscureManager.shared
@@ -28,11 +28,11 @@ index c9043ea..4690dd5 100644
 +                }
 +                return OKChatRequestData.Message(role: role, content: msg.content)
 +            }
-
-
+         
+         
          print(messageHistory.map({$0.content}))
-
--        /// attach selected image to the last Message — sanitize via OpenObscure first
+         
+-        /// attach selected image to the last Message
 +        /// attach selected image to the last Message — sanitize via OpenObscure
          if let image = image?.render() {
              if let lastMessage = messageHistory.popLast() {
@@ -57,11 +57,12 @@ index c9043ea..4690dd5 100644
                  messageHistory.append(messageWithImage)
              }
          }
-@@ -192,7 +215,14 @@ final class ConversationStore: Sendable {
+@@ -192,8 +215,15 @@ final class ConversationStore: Sendable {
          if messages.isEmpty { return }
-
+         
          if let responseContent = response.message?.content {
 -            currentMessageBuffer = currentMessageBuffer + responseContent
+-            
 +            let restored = OpenObscureManager.shared.restore(responseContent)
 +
 +            // Cognitive firewall: scan restored response for manipulation
@@ -70,16 +71,17 @@ index c9043ea..4690dd5 100644
 +            }
 +
 +            currentMessageBuffer = currentMessageBuffer + restored
-
++
              throttler.throttle { [weak self] in
                  guard let self = self else { return }
+                 let lastIndex = self.messages.count - 1
 diff --git a/Enchanted/UI/iOS/ChatView_iOS.swift b/Enchanted/UI/iOS/ChatView_iOS.swift
 index 95e8b07..1c7d6db 100644
 --- a/Enchanted/UI/iOS/ChatView_iOS.swift
 +++ b/Enchanted/UI/iOS/ChatView_iOS.swift
 @@ -147,7 +147,7 @@ struct ChatView: View {
                      .font(.system(size: 14))
-
+                 
                  RecordingView(speechRecognizer: speechRecognizer, isRecording: $isRecording.animation()) { transcription in
 -                    self.message = transcription
 +                    self.message = OpenObscureManager.shared.sanitizeTranscript(transcription)
@@ -98,3 +100,4 @@ index bca42bf..1232661 100644
 +                            self.message = OpenObscureManager.shared.sanitizeTranscript(transcription)
                          }
                      }
+                     
