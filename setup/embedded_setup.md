@@ -68,6 +68,9 @@ In addition to the [common prerequisites](README.md):
 Set these once in your terminal session. All copy commands in Parts 2–5 use them:
 
 ```bash
+# Path to this OpenObscure repo
+export OO_REPO=~/Code/OpenObscure
+
 # Path to your cloned Enchanted fork (iOS / macOS)
 export FORK_SWIFT=~/Test/enchanted-openobscure
 
@@ -75,7 +78,7 @@ export FORK_SWIFT=~/Test/enchanted-openobscure
 export FORK_KOTLIN=~/Test/rikkahub-openobscure
 ```
 
-> Adjust the paths if you cloned to a different location.
+> Adjust the paths to match where you cloned each repo.
 
 ---
 
@@ -304,7 +307,7 @@ git checkout 2f82ee2518c63fa7347c9e8e8e5a131ee0b75cbe
 Run these commands from the OpenObscure **repo root** (the directory containing `openobscure-core/` and `build/`):
 
 ```bash
-cd /path/to/openobscure-repo   # ← adjust to where you cloned OpenObscure
+cd $OO_REPO
 
 # 1. Create the local SPM package that Xcode will import
 mkdir -p $FORK_SWIFT/OpenObscureLib/Sources/COpenObscure/include
@@ -369,7 +372,7 @@ cp docs/integrate/embedding/templates/OpenObscureManager.swift \
 
 ```bash
 cd $FORK_SWIFT
-git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-openobscure.diff
+git apply $OO_REPO/docs/integrate/embedding/examples/enchanted-openobscure.diff
 ```
 
 ### Step 4 — Open in Xcode and build
@@ -377,12 +380,13 @@ git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-
 The diff already wires everything into `project.pbxproj`: the `OpenObscureLib` local SPM package reference, `OpenObscureManager.swift` in the Sources build phase, and `OpenObscureModels` as a folder reference in the Resources build phase. No manual Xcode project editing required.
 
 1. Open `Enchanted.xcodeproj` in Xcode 15+.
-2. Fix code signing — the original bundle ID `subj.Enchanted` is registered to the author's Apple account and will fail on your machine:
+2. Set the run destination to **My Mac** (top of the Xcode window, next to the scheme selector). The static library copied in Step 2 is a macOS binary — building for an iPhone target will fail with a missing `.o` error.
+3. Fix code signing — the original bundle ID `subj.Enchanted` is registered to the author's Apple account and will fail on your machine:
    - Select the **Enchanted** project (blue icon) in the navigator → **Enchanted** target → **Signing & Capabilities** tab
    - Check **Automatically manage signing**
    - Set **Team** to your Apple ID (add via Xcode → Settings → Accounts if needed)
    - Change **Bundle Identifier** to something unique, e.g. `com.local.enchanted-test`
-3. **Product → Build** (⌘B).
+4. **Product → Build** (⌘B).
 
 ### Step 5 — Verify
 
