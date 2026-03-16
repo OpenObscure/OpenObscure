@@ -964,11 +964,18 @@ If you see a keychain access dialog, click **Allow** or **Always Allow**.
 
 ### "Model not found" errors in proxy logs
 
-Run the model download scripts again:
+Models are stored in Git LFS. Pull them:
 
 ```bash
 cd ~/Desktop/OpenObscure
-./build/download_models.sh
+git lfs install   # one-time setup
+git lfs pull      # re-download all models
+```
+
+If you don't have Git LFS, use the fallback scripts instead:
+
+```bash
+./build/download_models.sh full
 ./build/download_kws_models.sh
 ```
 

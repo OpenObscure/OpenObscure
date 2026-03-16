@@ -52,14 +52,19 @@ cd OpenObscure
 
 ### Download AI Models
 
-OpenObscure uses small ONNX models for face detection, OCR text detection, and voice PII keyword spotting:
+All ONNX models (face detection, OCR, NSFW classifier, NER, KWS, response integrity) are stored in Git LFS. Pull them after cloning:
 
 ```bash
-./build/download_models.sh       # ~14MB: BlazeFace, SCRFD, PaddleOCR, NER
-./build/download_kws_models.sh   # ~5MB: sherpa-onnx KWS Zipformer
+git lfs install   # one-time: register LFS hooks in your git config
+git lfs pull      # ~120MB: all models (NER, BlazeFace, SCRFD, PaddleOCR, NSFW, KWS, RI)
 ```
 
-> **Note:** The gateway model uses all models. The embedded model auto-selects models based on device tier and available RAM.
+> **No LFS?** If you downloaded a ZIP or your CI environment lacks LFS support, use the fallback download scripts instead:
+> ```bash
+> ./build/download_models.sh full   # BlazeFace, SCRFD, PaddleOCR, NSFW (~14MB from web)
+> ./build/download_kws_models.sh    # KWS Zipformer INT8 (~5MB from github.com/k2-fsa)
+> ```
+> Note: NER and response-integrity models are only available via Git LFS.
 
 ---
 
