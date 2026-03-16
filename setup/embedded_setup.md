@@ -304,20 +304,60 @@ git checkout 2f82ee2518c63fa7347c9e8e8e5a131ee0b75cbe
 Run these commands from the OpenObscure **repo root** (the directory containing `openobscure-core/` and `build/`):
 
 ```bash
-# 1. XCFramework (built in Part 2 with --xcframework flag)
-cp -R openobscure-core/target/OpenObscure.xcframework \
-      $FORK_SWIFT/OpenObscure.xcframework
+# 1. Create the local SPM package that Xcode will import
+mkdir -p $FORK_SWIFT/OpenObscureLib/Sources/COpenObscure/include
+mkdir -p $FORK_SWIFT/OpenObscureLib/Sources/OpenObscureLib
+mkdir -p $FORK_SWIFT/OpenObscureLib/lib
 
-# 2. UniFFI Swift bindings (generated in Part 3)
-cp bindings/swift/openobscure_core.swift \
+# 2. UniFFI bindings — C header + modulemap go into COpenObscure, Swift file into OpenObscureLib
+cp bindings/swift/openobscure_coreFFI.h \
    bindings/swift/openobscure_coreFFI.modulemap \
-   $FORK_SWIFT/Enchanted/
+   $FORK_SWIFT/OpenObscureLib/Sources/COpenObscure/include/
+cp bindings/swift/openobscure_core.swift \
+   $FORK_SWIFT/OpenObscureLib/Sources/OpenObscureLib/
 
-# 3. OpenObscureManager singleton (handles key storage, mapping accumulation, RI scan)
+# 3. Static library (built in Part 2)
+cp openobscure-core/target/release/libopenobscure_core.a \
+   $FORK_SWIFT/OpenObscureLib/lib/
+
+# 4. Package.swift
+cat > $FORK_SWIFT/OpenObscureLib/Package.swift << 'EOF'
+// swift-tools-version: 5.9
+import PackageDescription
+
+let package = Package(
+    name: "OpenObscureLib",
+    platforms: [.iOS(.v17), .macOS(.v14)],
+    products: [
+        .library(name: "OpenObscureLib", targets: ["OpenObscureLib"]),
+    ],
+    targets: [
+        .target(
+            name: "openobscure_coreFFI",
+            path: "Sources/COpenObscure",
+            publicHeadersPath: "include"
+        ),
+        .target(
+            name: "OpenObscureLib",
+            dependencies: ["openobscure_coreFFI"],
+            path: "Sources/OpenObscureLib",
+            linkerSettings: [
+                .unsafeFlags(["-L\(Context.packageDirectory)/lib"]),
+                .linkedLibrary("openobscure_core"),
+                .linkedLibrary("resolv"),
+                .linkedFramework("Security"),
+                .linkedFramework("SystemConfiguration"),
+            ]
+        ),
+    ]
+)
+EOF
+
+# 5. OpenObscureManager singleton (handles key storage, mapping accumulation, RI scan)
 cp docs/integrate/embedding/templates/OpenObscureManager.swift \
    $FORK_SWIFT/Enchanted/
 
-# 4. Model files — bundle_models.sh copies only what the app target needs
+# 6. Model files — bundle_models.sh copies only what the app target needs
 ./build/bundle_models.sh $FORK_SWIFT/Enchanted/models
 ```
 
@@ -333,9 +373,9 @@ git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-
 ### Step 4 — Open in Xcode and add the local package
 
 1. Open `Enchanted.xcodeproj` in Xcode 15+.
-2. **File → Add Package Dependencies…** → **Add Local…** → select `OpenObscure.xcframework` (or create a local Swift package wrapping it — see [Integration Guide: Xcode SPM setup](../docs/integrate/embedding/embedded_integration.md#xcode-spm-setup)).
-3. Add `openobscure_core.swift` and `openobscure_coreFFI.modulemap` to the **Enchanted** target (Copy Bundle Resources is not needed for these — they compile into the target).
-4. Add the `models/` folder as a **folder reference** (blue icon in Xcode) and tick **Copy Bundle Resources** so models are included in the app bundle.
+2. **File → Add Package Dependencies…** → **Add Local…** → select the **`OpenObscureLib/`** folder (the one with `Package.swift`), not `OpenObscure.xcframework`.
+3. In the "Add to Target" dialog, add **OpenObscureLib** to the **Enchanted** target.
+4. Add the `Enchanted/models/` folder as a **folder reference** (blue icon in Xcode) and tick **Copy Bundle Resources** so models are included in the app bundle.
 5. **Product → Build** (⌘B). Fix any missing import errors — ensure `OpenObscureLib` resolves.
 6. **Product → Run** on a simulator or connected device.
 
