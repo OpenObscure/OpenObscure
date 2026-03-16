@@ -10,6 +10,7 @@ A step-by-step guide for integrating OpenObscure as a **native library** (embedd
 
 - [Prerequisites](#prerequisites)
 - [Part 3: API Reference (All Platforms)](#part-3-api-reference-all-platforms)
+- [Part 3a: Reference API Usage](#part-3a-reference-api-usage)
 - [Part 4: iOS/macOS Integration (Swift)](#part-4-iosmacos-integration-swift)
 - [Part 5: Android Integration (Kotlin)](#part-5-android-integration-kotlin)
 - [Part 6: Feature Coverage](#part-6-feature-coverage)
@@ -130,6 +131,38 @@ Returns `nil`/`null` when no manipulation is detected, RI is disabled, or device
 Credit card (Luhn), SSN (range-validated), phone, email, API key, IPv4, IPv6, GPS coordinates, MAC address, IBAN (22 countries with check-digit validation), health keywords (~350 terms), child-related keywords (~350 terms).
 
 **12 of 15 types work without any model files.** Person names, locations, and organizations require the NER TinyBERT model (~14MB).
+
+---
+
+## Part 3a: Reference API Usage
+
+Call `sanitizeText()` with a known PII value to confirm the library is wired correctly before integrating the full LLM flow:
+
+**Swift:**
+```swift
+let result = try sanitizeText(handle: handle, text: "My SSN is 123-45-6789")
+print(result.sanitizedText)
+// Expected: My SSN is 847-29-3156  (encrypted value differs per key)
+```
+
+**Kotlin:**
+```kotlin
+val result = sanitizeText(handle = handle, text = "My card is 4111-1111-1111-1111")
+println(result.sanitizedText)
+// Expected: My card is 7392-8841-5503-2947  (encrypted value differs per key)
+```
+
+Then check the active tier:
+
+**Swift:**
+```swift
+let stats = getStats(handle: handle)
+print(stats.deviceTier)  // "full", "standard", or "lite"
+```
+
+> **If `sanitizedText` equals your input unchanged** — regex detection failed. Check that `createOpenobscure()` received a valid 64-char hex key and a non-empty config.
+>
+> **If `deviceTier` is `"lite"` but you expected `"full"`** — verify `models_base_dir` is correct and that `ner/`, `nsfw_classifier/`, `ri/`, `kws/` subdirectories are present. Run `getDebugLog(handle)` to see which model paths were attempted.
 
 ---
 

@@ -334,39 +334,7 @@ For any iOS/macOS or Android app not covered above, see the [Integration Guide](
 
 ---
 
-## Part 6: Verify Detection
-
-Call `sanitizeText()` with a known PII value before wiring the full LLM flow:
-
-**Swift:**
-```swift
-let result = try sanitizeText(handle: handle, text: "My SSN is 123-45-6789")
-print(result.sanitizedText)
-// Expected: My SSN is 847-29-3156  (encrypted value differs per key)
-```
-
-**Kotlin:**
-```kotlin
-val result = sanitizeText(handle = handle, text = "My card is 4111-1111-1111-1111")
-println(result.sanitizedText)
-// Expected: My card is 7392-8841-5503-2947  (encrypted value differs per key)
-```
-
-Then check the active tier:
-
-**Swift:**
-```swift
-let stats = getStats(handle: handle)
-print(stats.deviceTier)  // "full", "standard", or "lite"
-```
-
-> **If `sanitizedText` equals your input unchanged** — regex detection failed. Check that `createOpenobscure()` received a valid 64-char hex key and a non-empty config.
->
-> **If `deviceTier` is `"lite"` but you expected `"full"`** — verify `models_base_dir` is correct and that `ner/`, `nsfw_classifier/`, `ri/`, `kws/` subdirectories are present. Run `getDebugLog(handle)` to see which model paths were attempted.
-
----
-
-## Part 7: Troubleshooting
+## Part 6: Troubleshooting
 
 ### Build fails with "feature `mobile` not found"
 
