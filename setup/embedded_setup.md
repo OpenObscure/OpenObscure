@@ -199,7 +199,9 @@ bindings/swift/openobscure_core.swift
 bindings/swift/openobscureProxy.modulemap
 ```
 
-Drag both files into your Xcode project. The `.swift` file is the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
+Drag both files from `bindings/swift/` (in the OpenObscure repo root) into the **Enchanted** target in Xcode. The `.swift` file is the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
+
+> **Note:** If you are integrating into Enchanted, do this after **Part 5A Step 3** (copy artifacts into the fork) when the Xcode project is open. The destination is the `Enchanted/` group inside `Enchanted.xcodeproj`.
 
 ```bash
 # Kotlin (Android)
