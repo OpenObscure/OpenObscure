@@ -289,6 +289,8 @@ Enchanted is an Ollama client for iOS and macOS. The integration adds outbound P
 
 ### Step 1 — Clone the Enchanted fork
 
+Run from **outside** the OpenObscure repo (e.g. `~/Test/`):
+
 ```bash
 git clone https://github.com/AugustDev/enchanted.git enchanted-openobscure
 cd enchanted-openobscure
@@ -357,6 +359,8 @@ RikkaHub is a multi-provider LLM client for Android. The integration wires an Ok
 **Upstream:** [rikkahub/rikkahub](https://github.com/rikkahub/rikkahub) — base commit `7e22476`
 
 ### Step 1 — Clone the RikkaHub fork
+
+Run from **outside** the OpenObscure repo (e.g. `~/Test/`):
 
 ```bash
 git clone https://github.com/rikkahub/rikkahub.git rikkahub-openobscure
