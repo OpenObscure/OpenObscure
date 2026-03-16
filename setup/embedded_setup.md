@@ -6,6 +6,65 @@ Compile OpenObscure into your iOS, macOS, or Android app — no proxy, no HTTP s
 
 ---
 
+## What You're Setting Up
+
+OpenObscure compiles into your app as a **native library** — no sidecar process, no HTTP server. PII detection and encryption run in your app's own process, so sensitive data is sanitized before any network call is made.
+
+```
+Your app (Swift / Kotlin)
+        │  user message
+        ▼
+OpenObscure library (in-process)
+  ├─ Detects PII — regex + NER ensemble
+  ├─ Encrypts with FF1 format-preserving encryption
+  └─ Returns sanitized text + mapping
+        │  sanitized request (no real PII)
+        ▼
+  LLM provider (cloud or on-device)
+        │  LLM response (may contain FPE tokens)
+        ▼
+OpenObscure library
+  └─ Restores original values using saved mapping
+        │  restored response
+        ▼
+Your app (shows real values to user)
+```
+
+| What gets built | Platform | Size |
+|-----------------|----------|------|
+| `OpenObscure.xcframework` | iOS + simulator | ~300 MB (ORT linked statically) |
+| `libopenobscure_core.so` | Android ARM64 | ~5–10 MB |
+| UniFFI bindings | Swift / Kotlin | generated, ~50 KB |
+| ONNX models | all | ~14 MB download + ~175 MB via Git LFS |
+
+This guide covers two tested integration paths and a generic option:
+
+- **Part 5A — Enchanted** (iOS/macOS Ollama client): apply a diff, copy artifacts, build in Xcode
+- **Part 5B — RikkaHub** (Android multi-provider LLM client): apply a diff, copy artifacts, build in Android Studio
+- **Part 5C — Generic app**: pointers to the [Integration Guide](../docs/integrate/embedding/embedded_integration.md) for your own app
+
+---
+
+## What You'll Need
+
+In addition to the [common prerequisites](README.md):
+
+**For iOS / macOS (Enchanted or your own app):**
+- [ ] **Xcode 15+** with iOS SDK — `xcodebuild -version` to verify
+- [ ] **iOS Rust targets:** `rustup target add aarch64-apple-ios aarch64-apple-ios-sim`
+
+**For Android (RikkaHub or your own app):**
+- [ ] **Android Studio** Hedgehog (2023.1.1) or later
+- [ ] **Android NDK 27+** — installed via `sdkmanager` (see Part 1)
+- [ ] **cargo-ndk** — `cargo install cargo-ndk`
+- [ ] **Android Rust targets:** `rustup target add aarch64-linux-android x86_64-linux-android`
+
+**All platforms:**
+- [ ] **Git LFS** — model files (NER, NSFW, RI, KWS) are stored in LFS (~175 MB); `git lfs pull` in the repo root
+- [ ] **~500 MB free disk space** — iOS static libs (~300 MB), Android `.so` (~10 MB), models (~190 MB)
+
+---
+
 ## Part 1: Platform Prerequisites
 
 ### iOS / macOS
