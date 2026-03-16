@@ -405,9 +405,40 @@ The diff already wires everything into `project.pbxproj`: the `OpenObscureLib` l
    - Change **Bundle Identifier** to something unique, e.g. `com.local.enchanted-test`
 4. **Product → Build** (⌘B).
 
-### Step 5 — Verify
+### Step 5 — Start Ollama and find its address
 
-> **Prerequisite:** Enchanted connects to an Ollama server. Make sure Ollama is running on your Mac (`ollama serve`) and is reachable from the device. In the Enchanted app, go to **Settings → Server URL** and set it to your Mac's local IP (e.g. `http://192.168.1.x:11434`) — `localhost` won't work from a physical iPhone.
+Enchanted connects to an Ollama server. The iPhone and your Mac must be on the same Wi-Fi network.
+
+**1. Start Ollama bound to all interfaces** (required — the default `127.0.0.1` is not reachable from an iPhone):
+
+```bash
+OLLAMA_HOST=0.0.0.0 ollama serve
+```
+
+**2. Find your Mac's LAN IP:**
+
+```bash
+ipconfig getifaddr en0    # Wi-Fi on most Macs
+# or
+ipconfig getifaddr en1    # try this if en0 returns nothing
+```
+
+The output will be an address like `10.0.0.216` or `192.168.1.x`. That is your Ollama server URL base.
+
+**3. Verify Ollama is reachable** from your Mac before switching to the iPhone:
+
+```bash
+curl http://$(ipconfig getifaddr en0):11434
+# expected: "Ollama is running"
+```
+
+**4. Set the server URL in Enchanted on your iPhone:**
+
+- Open Enchanted → tap the gear icon → **Server URL**
+- Enter `http://<your-mac-ip>:11434` (e.g. `http://10.0.0.216:11434`)
+- Tap **Save** — Enchanted will test the connection
+
+### Step 6 — Verify PII sanitization
 
 Send a message containing a known PII value (e.g. `My SSN is 123-45-6789`). Check the Xcode console for:
 
