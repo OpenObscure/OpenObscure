@@ -407,6 +407,8 @@ The diff already wires everything into `project.pbxproj`: the `OpenObscureLib` l
 
 ### Step 5 — Verify
 
+> **Prerequisite:** Enchanted connects to an Ollama server. Make sure Ollama is running on your Mac (`ollama serve`) and is reachable from the device. In the Enchanted app, go to **Settings → Server URL** and set it to your Mac's local IP (e.g. `http://192.168.1.x:11434`) — `localhost` won't work from a physical iPhone.
+
 Send a message containing a known PII value (e.g. `My SSN is 123-45-6789`). Check the Xcode console for:
 
 ```
