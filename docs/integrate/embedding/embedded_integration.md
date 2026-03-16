@@ -1108,6 +1108,8 @@ cargo test --manifest-path openobscure-core/Cargo.toml --lib --all-features
 | Intercept pattern | Direct API calls in ConversationStore | OkHttp Interceptor on request JSON |
 | Build output | Xcode build (CODE_SIGNING_ALLOWED=NO) | `app-arm64-v8a-debug.apk` (76MB) |
 
+> **⚠ Android key storage:** The RikkaHub reference integration uses `SharedPreferences`, which stores the FPE key in plaintext on the device filesystem. For production use, replace with `EncryptedSharedPreferences` backed by the Android Keystore. Plain `SharedPreferences` is acceptable for development and testing only.
+
 ---
 
 ## Reference: Build Scripts

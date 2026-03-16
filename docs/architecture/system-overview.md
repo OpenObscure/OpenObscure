@@ -95,7 +95,7 @@ The proxy intercepts data-in-transit to LLM providers but does not protect data 
 | Scanner engines, tier mapping, TOML keys | [Detection Engine Configuration](../configure/detection-engine-configuration.md) |
 | Full TOML config reference | [Config Reference](../configure/config-reference.md) |
 | LLM provider integration (SDK examples) | [Integration Reference](../integrate/provider_integration.md) |
-| Embedding in third-party apps | [Third-Party Embedding](../integrate/third-party-embedding.md) |
+| Embedding in third-party apps | [Embedded Integration Guide](../integrate/embedding/embedded_integration.md) |
 | L0 Core internals (module map, request flow) | [L0 Core Architecture](l0-core.md) |
 | L1 Plugin internals (hooks, detection paths) | [L1 Plugin Architecture](l1-plugin.md) |
 | Semantic PII detection (regex, NER, CRF, voting) | [Semantic PII Detection](semantic-pii-detection.md) |
