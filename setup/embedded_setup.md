@@ -572,7 +572,7 @@ cargo install cargo-ndk
 The most common causes:
 - **Invalid key** — must be exactly 64 hexadecimal characters (`openssl rand -hex 32` produces the correct format)
 - **Bad config JSON** — validate the JSON string before passing it
-- **Models path wrong** — use `Bundle.main.resourcePath! + "/models"` and verify the models directory is included in the app target's Copy Bundle Resources build phase
+- **Models path wrong** — use `Bundle.main.resourcePath! + "/OpenObscureModels"` and verify the `OpenObscureModels` folder is included in the app target's Copy Bundle Resources build phase
 
 ---
 

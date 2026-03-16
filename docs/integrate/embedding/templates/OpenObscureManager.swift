@@ -13,7 +13,7 @@ final class OpenObscureManager {
 
     private init() {
         let key = OpenObscureManager.getOrCreateKey()
-        // Bundle all models under a "models" folder reference in Xcode.
+        // Bundle all models under an "OpenObscureModels" folder reference in Xcode.
         // The tier system auto-detects device RAM and loads only what fits:
         //   Full (≥8 GB) → DistilBERT NER, SCRFD, full OCR, NSFW, RI
         //   Standard (4–8 GB) → TinyBERT NER, SCRFD, detect-only OCR
