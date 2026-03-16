@@ -366,23 +366,6 @@ print(stats.deviceTier)  // "full", "standard", or "lite"
 
 ---
 
-## API Reference
-
-| Function | Purpose |
-|----------|---------|
-| `createOpenobscure(configJson, fpeKeyHex)` | Initialize with config and FPE key |
-| `sanitizeText(handle, text)` | Scan + encrypt PII, return sanitized text + mapping |
-| `restoreText(handle, text, mappingJson)` | Decrypt FPE values using saved mapping |
-| `sanitizeImage(handle, imageBytes)` | EXIF strip (always) + face/OCR/NSFW redaction (model-dependent) |
-| `sanitizeAudioTranscript(handle, transcript)` | Scan speech transcript for PII |
-| `checkAudioPii(handle, transcript)` | Quick PII count without encryption |
-| `rotateKey(handle, newKeyHex)` | Rotate FPE key with 30-second overlap |
-| `scanResponse(handle, text)` | Scan LLM response for manipulation techniques |
-| `getStats(handle)` | PII counts, scanner mode, image pipeline status, device tier |
-| `getDebugLog(handle)` | Retrieve buffered log entries for diagnostics |
-
----
-
 ## Part 7: Troubleshooting
 
 ### Build fails with "feature `mobile` not found"
