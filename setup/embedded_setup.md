@@ -384,8 +384,13 @@ git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-
    - At the bottom of the sheet, under **Added folders**, select **Create folder references** (this makes it a blue folder — do NOT select "Create groups")
    - Make sure **Enchanted** is checked under **Add to targets**
    - Click **Add**
-6. **Product → Build** (⌘B). Fix any missing import errors — ensure `OpenObscureLib` resolves.
-7. **Product → Run** on a simulator or connected device.
+6. Fix code signing — the original bundle ID `subj.Enchanted` is registered to the author's Apple account and will fail on your machine:
+   - Select the **Enchanted** project (blue icon) in the navigator → **Enchanted** target → **Signing & Capabilities** tab
+   - Check **Automatically manage signing**
+   - Set **Team** to your Apple ID (add via Xcode → Settings → Accounts if needed)
+   - Change **Bundle Identifier** to something unique, e.g. `com.local.enchanted-test`
+7. **Product → Build** (⌘B). Fix any missing import errors — ensure `OpenObscureLib` resolves.
+8. **Product → Run** on a simulator or connected device.
 
 ### Step 5 — Verify
 
