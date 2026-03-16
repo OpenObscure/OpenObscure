@@ -2,7 +2,7 @@
 
 A step-by-step guide for integrating OpenObscure as a **native library** (embedded model) into iOS, Android, and macOS chat applications. This covers both first-party test apps and third-party apps like [Enchanted](https://github.com/AugustDev/enchanted) (iOS/macOS) and [RikkaHub](https://github.com/rikkahub/rikkahub) (Android).
 
-> **Proxy vs Embedded:** The [gateway quick start](../../get-started/gateway-quick-start.md) covers the **gateway/proxy** model where OpenObscure runs as a sidecar HTTP proxy. This guide covers the **embedded** model where OpenObscure is compiled into your app as a native library. See [embedded quick start](../../get-started/embedded-quick-start.md) for build prerequisites.
+> **Proxy vs Embedded:** The [gateway quick start](../../get-started/gateway-quick-start.md) covers the **gateway/proxy** model where OpenObscure runs as a sidecar HTTP proxy. This guide covers the **embedded** model where OpenObscure is compiled into your app as a native library. See [Embedded Setup](../../../setup/embedded_setup.md) for the complete build walkthrough.
 
 ---
 
@@ -33,8 +33,8 @@ A step-by-step guide for integrating OpenObscure as a **native library** (embedd
 ---
 
 > **Build steps live in one place.**
-> See [Embedded Quick Start — Build the library](../../get-started/embedded-quick-start.md#1-build-the-library)
-> and [Generate bindings](../../get-started/embedded-quick-start.md#2-generate-bindings)
+> See [Embedded Setup — Part 2: Build the library](../../../setup/embedded_setup.md#part-2-build-the-library)
+> and [Part 3: Generate bindings](../../../setup/embedded_setup.md#part-3-generate-uniffi-bindings)
 > for the canonical build commands. The steps below assume you
 > have completed that setup.
 
