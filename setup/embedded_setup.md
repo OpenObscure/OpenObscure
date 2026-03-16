@@ -10,6 +10,8 @@ This guide covers the **platform-specific prerequisites** for compiling OpenObsc
 
 ### iOS / macOS
 
+Run from any directory — `rustup target add` is a global Rust toolchain command:
+
 ```bash
 # Install cross-compilation targets
 rustup target add aarch64-apple-ios aarch64-apple-ios-sim
