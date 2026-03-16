@@ -318,10 +318,17 @@ mkdir -p $FORK_SWIFT/OpenObscureLib/lib
 
 # 2. UniFFI bindings — C header + modulemap go into COpenObscure, Swift file into OpenObscureLib
 cp bindings/swift/openobscure_coreFFI.h \
-   bindings/swift/openobscure_coreFFI.modulemap \
    $FORK_SWIFT/OpenObscureLib/Sources/COpenObscure/include/
+# SPM requires the modulemap to be named module.modulemap in publicHeadersPath
+cp bindings/swift/openobscure_coreFFI.modulemap \
+   $FORK_SWIFT/OpenObscureLib/Sources/COpenObscure/include/module.modulemap
 cp bindings/swift/openobscure_core.swift \
    $FORK_SWIFT/OpenObscureLib/Sources/OpenObscureLib/
+
+# 2b. Dummy C file — SPM C target must have at least one source file to produce an .o;
+#     without it Xcode fails with "Build input file cannot be found: openobscure_coreFFI.o"
+echo "// required: forces SPM to produce an object file for this C module target" \
+  > $FORK_SWIFT/OpenObscureLib/Sources/COpenObscure/openobscure_coreFFI.c
 
 # 3. Static library — use the iOS device build (from Part 2 "iOS" section)
 cp openobscure-core/target/aarch64-apple-ios/release/libopenobscure_core.a \
@@ -346,6 +353,7 @@ let package = Package(
         .target(
             name: "openobscure_coreFFI",
             path: "Sources/COpenObscure",
+            sources: ["openobscure_coreFFI.c"],
             publicHeadersPath: "include"
         ),
         .target(
