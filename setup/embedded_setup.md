@@ -63,6 +63,20 @@ In addition to the [common prerequisites](README.md):
 - [ ] **Git LFS** — model files (NER, NSFW, RI, KWS) are stored in LFS (~175 MB); `git lfs pull` in the repo root
 - [ ] **~500 MB free disk space** — iOS static libs (~300 MB), Android `.so` (~10 MB), models (~190 MB)
 
+### Set your fork paths
+
+Set these once in your terminal session. All copy commands in Parts 2–5 use them:
+
+```bash
+# Path to your cloned Enchanted fork (iOS / macOS)
+export FORK_SWIFT=~/Test/enchanted-openobscure
+
+# Path to your cloned RikkaHub fork (Android)
+export FORK_KOTLIN=~/Test/rikkahub-openobscure
+```
+
+> Adjust the paths if you cloned to a different location.
+
 ---
 
 ## Part 1: Platform Prerequisites
@@ -170,18 +184,16 @@ openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so     
 Copy each `.so` from the build output into your Android project (run from the repo root):
 
 ```bash
-FORK=/path/to/your-android-project
-
-mkdir -p $FORK/app/src/main/jniLibs/arm64-v8a
-mkdir -p $FORK/app/src/main/jniLibs/armeabi-v7a
-mkdir -p $FORK/app/src/main/jniLibs/x86_64
+mkdir -p $FORK_KOTLIN/app/src/main/jniLibs/arm64-v8a
+mkdir -p $FORK_KOTLIN/app/src/main/jniLibs/armeabi-v7a
+mkdir -p $FORK_KOTLIN/app/src/main/jniLibs/x86_64
 
 cp openobscure-core/target/aarch64-linux-android/release/libopenobscure_core.so \
-   $FORK/app/src/main/jniLibs/arm64-v8a/libopenobscure_core.so
+   $FORK_KOTLIN/app/src/main/jniLibs/arm64-v8a/libopenobscure_core.so
 cp openobscure-core/target/armv7-linux-androideabi/release/libopenobscure_core.so \
-   $FORK/app/src/main/jniLibs/armeabi-v7a/libopenobscure_core.so
+   $FORK_KOTLIN/app/src/main/jniLibs/armeabi-v7a/libopenobscure_core.so
 cp openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so \
-   $FORK/app/src/main/jniLibs/x86_64/libopenobscure_core.so
+   $FORK_KOTLIN/app/src/main/jniLibs/x86_64/libopenobscure_core.so
 ```
 
 ---
@@ -202,15 +214,13 @@ bindings/swift/openobscureProxy.modulemap
 Copy both files from the OpenObscure repo root into your iOS/macOS app (run from the repo root):
 
 ```bash
-FORK_SWIFT=/path/to/your-ios-project
-
 cp bindings/swift/openobscure_core.swift $FORK_SWIFT/Enchanted/openobscure_core.swift
 cp bindings/swift/openobscureProxy.modulemap $FORK_SWIFT/Enchanted/openobscureProxy.modulemap
 ```
 
 Then add both files to the app target in Xcode (drag from the Finder into the `Enchanted/` group, or use **File → Add Files**). The `.swift` file is the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
 
-> **Note:** If you are integrating into Enchanted, do this after **Part 5A Step 1** (clone the fork) when the destination directory exists. Set `FORK_SWIFT=/path/to/enchanted-openobscure`.
+> **Note:** If you are integrating into Enchanted, do this after **Part 5A Step 1** (clone the fork) when the destination directory exists.
 
 ```bash
 # Kotlin (Android)
@@ -225,8 +235,6 @@ bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt
 Copy the file into your Android project's source set (run from the repo root):
 
 ```bash
-FORK_KOTLIN=/path/to/your-android-project
-
 mkdir -p $FORK_KOTLIN/app/src/main/java/uniffi/openobscure_core
 cp bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt \
    $FORK_KOTLIN/app/src/main/java/uniffi/openobscure_core/openobscure_core.kt
@@ -234,7 +242,7 @@ cp bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt \
 
 The file must be compiled alongside `libopenobscure_core.so`.
 
-> **Note:** If you are integrating into RikkaHub, do this after **Part 5B Step 1** (clone the fork). Set `FORK_KOTLIN=/path/to/rikkahub-openobscure`.
+> **Note:** If you are integrating into RikkaHub, do this after **Part 5B Step 1** (clone the fork).
 
 ---
 
@@ -283,6 +291,8 @@ cd enchanted-openobscure
 git checkout 2f82ee2518c63fa7347c9e8e8e5a131ee0b75cbe
 ```
 
+> **Reminder:** If you skipped the Swift bindings copy in Part 3, do it now — run the copy commands from the OpenObscure repo root before continuing.
+
 ### Step 2 — Copy the OpenObscure artifacts
 
 Run these commands from the OpenObscure **repo root** (the directory containing `openobscure-core/` and `build/`):
@@ -290,19 +300,19 @@ Run these commands from the OpenObscure **repo root** (the directory containing 
 ```bash
 # 1. XCFramework (built in Part 2 with --xcframework flag)
 cp -R openobscure-core/target/OpenObscure.xcframework \
-      /path/to/enchanted-openobscure/OpenObscure.xcframework
+      $FORK_SWIFT/OpenObscure.xcframework
 
 # 2. UniFFI Swift bindings (generated in Part 3)
 cp bindings/swift/openobscure_core.swift \
    bindings/swift/openobscureProxy.modulemap \
-   /path/to/enchanted-openobscure/Enchanted/
+   $FORK_SWIFT/Enchanted/
 
 # 3. OpenObscureManager singleton (handles key storage, mapping accumulation, RI scan)
 cp docs/integrate/embedding/templates/OpenObscureManager.swift \
-   /path/to/enchanted-openobscure/Enchanted/
+   $FORK_SWIFT/Enchanted/
 
 # 4. Model files — bundle_models.sh copies only what the app target needs
-./build/bundle_models.sh /path/to/enchanted-openobscure/Enchanted/models
+./build/bundle_models.sh $FORK_SWIFT/Enchanted/models
 ```
 
 > `bundle_models.sh` selects the right models for the host machine's tier. For a full-tier bundle (all models), run `./build/bundle_models.sh --full /path/to/...`.
@@ -310,7 +320,7 @@ cp docs/integrate/embedding/templates/OpenObscureManager.swift \
 ### Step 3 — Apply the diff
 
 ```bash
-cd /path/to/enchanted-openobscure
+cd $FORK_SWIFT
 git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/enchanted-openobscure.diff
 ```
 
@@ -350,34 +360,32 @@ cd rikkahub-openobscure
 git checkout 7e224767dcac8e76d21a57c74790089214e15d28
 ```
 
-> **Reminder:** If you skipped the `.so` copy in Part 2, do it now. Set `FORK=/path/to/rikkahub-openobscure` and run the copy commands from the OpenObscure repo root before continuing.
+> **Reminder:** If you skipped the `.so` copy in Part 2, do it now — run the copy commands from the OpenObscure repo root before continuing.
 
 ### Step 2 — Copy the OpenObscure artifacts
 
 Run these from the OpenObscure **repo root**:
 
 ```bash
-FORK=/path/to/rikkahub-openobscure
-
 # 1. Native library (built in Part 2 for Android)
-mkdir -p $FORK/app/src/main/jniLibs/arm64-v8a
+mkdir -p $FORK_KOTLIN/app/src/main/jniLibs/arm64-v8a
 cp openobscure-core/target/aarch64-linux-android/release/libopenobscure_core.so \
-   $FORK/app/src/main/jniLibs/arm64-v8a/
+   $FORK_KOTLIN/app/src/main/jniLibs/arm64-v8a/
 
 # 2. UniFFI Kotlin bindings (generated in Part 3)
-mkdir -p $FORK/app/src/main/java/uniffi/openobscure_core
+mkdir -p $FORK_KOTLIN/app/src/main/java/uniffi/openobscure_core
 cp bindings/kotlin/uniffi/openobscure_core/openobscure_core.kt \
-   $FORK/app/src/main/java/uniffi/openobscure_core/
+   $FORK_KOTLIN/app/src/main/java/uniffi/openobscure_core/
 
 # 3. Manager + interceptor (handles init, key storage, OkHttp wiring)
-mkdir -p $FORK/app/src/main/java/me/rerere/rikkahub/data/ai
+mkdir -p $FORK_KOTLIN/app/src/main/java/me/rerere/rikkahub/data/ai
 cp docs/integrate/embedding/templates/OpenObscureManager.kt \
    docs/integrate/embedding/templates/OpenObscureInterceptor.kt \
-   $FORK/app/src/main/java/me/rerere/rikkahub/data/ai/
+   $FORK_KOTLIN/app/src/main/java/me/rerere/rikkahub/data/ai/
 
 # 4. Model files
-mkdir -p $FORK/app/src/main/assets
-./build/bundle_models.sh --android $FORK/app/src/main/assets/models
+mkdir -p $FORK_KOTLIN/app/src/main/assets
+./build/bundle_models.sh --android $FORK_KOTLIN/app/src/main/assets/models
 ```
 
 > For x86_64 (emulator) support also copy: `openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so` → `jniLibs/x86_64/`.
@@ -385,7 +393,7 @@ mkdir -p $FORK/app/src/main/assets
 ### Step 3 — Apply the diff
 
 ```bash
-cd /path/to/rikkahub-openobscure
+cd $FORK_KOTLIN
 git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/rikkahub-openobscure.diff
 ```
 
