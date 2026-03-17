@@ -521,6 +521,9 @@ impl OpenObscureMobile {
             (scanner, config.scanner_mode.clone(), tier.to_string())
         };
         scanner.set_enabled_languages(config.enabled_languages.clone());
+        // Mobile sanitizes user-supplied input (prompts, pasted data), not LLM code outputs.
+        // Users legitimately embed JSON/CSV inside code fences — scan inside them.
+        scanner.set_respect_code_fences(false);
 
         // Build image pipeline if enabled and budget allows
         let image_manager = if config.image_enabled && budget.image_pipeline_enabled {
@@ -1014,6 +1017,29 @@ mod tests {
         let result = mobile.sanitize_text("SSN: 123-45-6789").unwrap();
         assert!(result.pii_count >= 1);
         assert!(!result.sanitized_text.contains("123-45-6789"));
+    }
+
+    #[test]
+    fn test_mobile_sanitize_pii_inside_code_fence() {
+        // Regression: PII inside markdown code fences must be detected and sanitized.
+        // Users paste JSON records/CSV data in fences — code fence masking must be OFF
+        // for mobile (it's only correct for gateway response scanning).
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let text = "What is the name in this record?\n\n```json\n{\"ssn\": \"412-55-8823\", \"email\": \"a.martinez82@gmail.com\"}\n```";
+        let result = mobile.sanitize_text(text).unwrap();
+        assert!(
+            result.pii_count >= 1,
+            "Expected PII detections inside code fence, got 0. sanitized={}",
+            result.sanitized_text
+        );
+        assert!(
+            !result.sanitized_text.contains("412-55-8823"),
+            "SSN must be sanitized inside code fence"
+        );
+        assert!(
+            !result.sanitized_text.contains("a.martinez82@gmail.com"),
+            "Email must be sanitized inside code fence"
+        );
     }
 
     #[test]
