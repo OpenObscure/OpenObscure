@@ -80,6 +80,54 @@ pub fn build_session_cpu(model_path: &Path) -> ort::Result<Session> {
         .commit_from_file(model_path)
 }
 
+/// Build an ONNX Runtime session using CoreML with MLProgram format.
+///
+/// MLProgram (Core ML 5+, iOS 15+) supports INT8 weight quantization natively,
+/// making it the correct target for INT8-quantized ONNX models. NeuralNetwork
+/// format has no INT8 op support and silently produces NaN for quantized graphs.
+///
+/// **iOS**: Uses CPUAndGPU compute units (no ANE) — same ANE exclusion as
+/// `platform_eps()` to avoid `Unknown aneSubType` crashes on some devices.
+/// Neural Engine INT8 execution requires A14 Bionic+; CPUAndGPU gives correct
+/// results on all supported devices.
+///
+/// **macOS**: Uses default compute units (MLProgram is the macOS default and
+/// handles INT8 correctly on all Apple Silicon Macs).
+///
+/// **Non-Apple**: Falls back to CPU (no CoreML available).
+///
+/// Use this specifically for INT8-quantized models where `build_session()`
+/// (NeuralNetwork EP on iOS) produces NaN. Example: `nsfw_5class_int8.onnx`.
+pub fn build_session_coreml_mlprogram(model_path: &Path) -> ort::Result<Session> {
+    #[allow(unused_mut)]
+    let mut eps: Vec<ort::ep::ExecutionProviderDispatch> = Vec::new();
+
+    #[cfg(target_os = "ios")]
+    {
+        eps.push(
+            ort::ep::CoreML::default()
+                .with_model_format(ort::ep::coreml::ModelFormat::MLProgram)
+                .with_compute_units(ort::ep::coreml::ComputeUnits::CPUAndGPU)
+                .build(),
+        );
+    }
+
+    #[cfg(all(target_vendor = "apple", not(target_os = "ios")))]
+    {
+        eps.push(
+            ort::ep::CoreML::default()
+                .with_model_format(ort::ep::coreml::ModelFormat::MLProgram)
+                .build(),
+        );
+    }
+
+    let mut builder = Session::builder()?.with_intra_threads(1)?;
+    if !eps.is_empty() {
+        builder = builder.with_execution_providers(eps)?;
+    }
+    builder.commit_from_file(model_path)
+}
+
 /// Name of the active execution provider backend (for logging).
 pub fn ep_name() -> &'static str {
     if cfg!(target_vendor = "apple") {

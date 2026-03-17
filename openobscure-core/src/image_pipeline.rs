@@ -449,6 +449,20 @@ impl ImageModelManager {
                     let face_w = face.x_max - face.x_min;
                     let face_h = face.y_max - face.y_min;
                     let face_area = face_w * face_h;
+
+                    // Always log bbox so we can verify redaction coordinates via getDebugLog().
+                    oo_info!(
+                        crate::oo_log::modules::FACE,
+                        "Face bbox (pixels)",
+                        img_w = img_w,
+                        img_h = img_h,
+                        x_min = face.x_min,
+                        y_min = face.y_min,
+                        x_max = face.x_max,
+                        y_max = face.y_max,
+                        area_pct = format!("{:.1}%", 100.0 * face_area / img_area)
+                    );
+
                     // 80% threshold: if the face fills most of the frame (portrait /
                     // close-up shot), a selective bbox redaction would still leave the
                     // subject identifiable from hair, chin, or ears — so we fill the

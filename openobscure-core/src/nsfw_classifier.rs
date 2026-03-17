@@ -80,7 +80,18 @@ impl NsfwClassifier {
     pub fn load(model_dir: &Path, threshold: f32) -> Result<Self, ImageError> {
         let model_path = find_model_file(model_dir)?;
 
-        let session = crate::ort_ep::build_session(&model_path)
+        // iOS: CoreML (both NeuralNetwork and MLProgram) produces NaN logits for
+        // INT8-quantized ONNX ops (QLinearMatMul/QLinearConv) — use CPU.
+        // macOS: CoreML MLProgram handles INT8 correctly (confirmed via gateway tests).
+        // Other: CPU only (no CoreML available).
+        #[cfg(target_os = "ios")]
+        let session = crate::ort_ep::build_session_cpu(&model_path)
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+        #[cfg(all(target_vendor = "apple", not(target_os = "ios")))]
+        let session = crate::ort_ep::build_session_coreml_mlprogram(&model_path)
+            .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
+        #[cfg(not(target_vendor = "apple"))]
+        let session = crate::ort_ep::build_session_cpu(&model_path)
             .map_err(|e| ImageError::OnnxRuntime(e.to_string()))?;
 
         // Detect output class count from the first output dimension.
@@ -170,14 +181,28 @@ impl NsfwClassifier {
 
         let logits: Vec<f32> = data[..self.num_classes].to_vec();
 
+        // Always log raw logits so we can confirm EP correctness via getDebugLog().
+        {
+            let logit_str = logits
+                .iter()
+                .map(|x| format!("{x:.4}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            oo_info!(crate::oo_log::modules::IMAGE,
+                "NSFW raw logits",
+                ep = crate::ort_ep::ep_name(),
+                num_classes = self.num_classes,
+                logits = %logit_str);
+        }
+
         // Guard: INT8 models can emit NaN logits on some ORT EPs (observed on iOS
-        // CPU EP with nsfw_5class_int8.onnx). NaN would propagate through softmax
-        // and produce nsfw_score=NaN, which silently compares false against the
-        // threshold — making the NSFW check a no-op. Return neutral explicitly so
-        // the fail-open path is intentional and the log makes the issue visible.
+        // CoreML NeuralNetwork EP with nsfw_5class_int8.onnx). NaN propagates
+        // through softmax producing nsfw_score=NaN, which silently compares false
+        // against the threshold — making the NSFW check a no-op. Return neutral
+        // explicitly so the fail-open is intentional and the log is visible.
         if logits.iter().any(|x| x.is_nan()) {
             oo_warn!(crate::oo_log::modules::IMAGE,
-                "NSFW classifier returned NaN logits — INT8/EP incompatibility; treating as neutral");
+                "NSFW classifier returned NaN logits — INT8/CoreML incompatibility; treating as neutral");
             return Ok(ClassifierResult {
                 is_nsfw: false,
                 nsfw_score: 0.0,
