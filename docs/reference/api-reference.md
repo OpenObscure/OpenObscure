@@ -62,6 +62,28 @@ print(result.piiCount)        // 1
 
 ---
 
+### sanitize_messages
+
+Sanitize a full conversation history in one call. User and system messages are scanned for PII; assistant messages pass through unchanged (they already contain FPE tokens from DB).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `handle` | `OpenObscureHandle` | Instance handle from `create_openobscure`. |
+| `messages` | `[ChatMessageFfi]` | Array of `{role, content}` messages. |
+| `existingMappingJson` | `String` | Accumulated mappings from prior turns (pass `"[]"` for first call). Seeds the plaintext→token registry so the same PII value gets the same token across turns. |
+
+**Returns:** [SanitizeMessagesResultFfi](#sanitizemessagesresultffi) — or `MobileBindingError` on failure.
+
+**Token stability:** Pass the `mappingJson` from the previous call's result as `existingMappingJson` on subsequent turns. This ensures consistent tokens across the conversation — the LLM sees the same placeholder for the same entity.
+
+**Assistant message handling:** Assistant messages are passed through unchanged. The caller must store raw LLM responses (with FPE tokens) in the DB and use `restore_text` only for UI display. This prevents plaintext PII from leaking to the LLM on subsequent turns.
+
+```swift
+let result = try sanitizeMessages(handle: handle, messages: ffiMsgs, existingMappingJson: priorMappingJson)
+```
+
+---
+
 ### restore_text
 
 Restore original PII values in response text using saved mappings.
@@ -202,7 +224,7 @@ Configuration passed as JSON to [create_openobscure](#create_openobscure). All f
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | `scanner_mode` | `string` | `"auto"` | Scanner backend: `"auto"`, `"ner"`, `"crf"`, `"regex"`. Unknown values fall through to `"regex"`. |
-| `auto_detect` | `bool` | `true` | Enable hardware RAM detection at init. When `true`, selects a `CapabilityTier`: Full (≥8GB), Standard (4–8GB), Lite (<4GB). The tier gates which models are loaded: Full uses DistilBERT + SCRFD + NSFW; Standard uses DistilBERT or TinyBERT + SCRFD; Lite uses TinyBERT + Ultra-Light face only. Set `false` to skip detection and rely solely on `scanner_mode`. See [Deployment Tiers](../get-started/deployment-tiers.md) for the full feature matrix. |
+| `auto_detect` | `bool` | `true` | Enable hardware RAM detection at init. When `true`, selects a `CapabilityTier`: Full (≥4GB), Standard (2–4GB), Lite (<2GB). Thresholds use reported RAM (3584/1536 MB) to account for OS reservation. The tier gates which models are loaded: Full uses DistilBERT + SCRFD + NSFW; Standard uses DistilBERT or TinyBERT + SCRFD; Lite uses TinyBERT + Ultra-Light face only. Set `false` to skip detection and rely solely on `scanner_mode`. See [Deployment Tiers](../get-started/deployment-tiers.md) for the full feature matrix. |
 | `keywords_enabled` | `bool` | `true` | Enable health/child keyword dictionary |
 | `gazetteer_enabled` | `bool` | `true` | Enable name gazetteer for person detection |
 | `ner_model_dir` | `string?` | `null` | Path to DistilBERT NER model directory (Full/Standard tier) |
@@ -251,6 +273,27 @@ let result = try sanitizeText(handle: handle, text: "Email: alice@example.com")
 // result.categories     → ["email"]
 // result.mappingJson    → "{...}"  (opaque — do not parse)
 ```
+
+---
+
+### SanitizeMessagesResultFfi
+
+Returned by [sanitize_messages](#sanitize_messages).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `messages` | `[ChatMessageFfi]` | Sanitized messages in the same order as input. User/system messages have PII replaced; assistant messages pass through unchanged. |
+| `pii_count` | `u32` / `UInt32` | Total PII detections across all scanned messages. |
+| `mapping_json` | `String` | Combined mapping data for all messages — pass to [restore_text](#restore_text) to decrypt, or pass back as `existingMappingJson` on the next call for stable tokens. |
+
+### ChatMessageFfi
+
+Used by [sanitize_messages](#sanitize_messages) for input and output.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `role` | `String` | Message role: `"user"`, `"assistant"`, or `"system"`. |
+| `content` | `String` | Message text content. |
 
 ---
 

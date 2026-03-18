@@ -248,6 +248,10 @@ impl NsfwClassifier {
             (score, CLASS_NAMES_5[top_idx].to_string(), cp)
         };
 
+        oo_dbg!("nsfw_classify: scores=[{:.3},{:.3},{:.3},{:.3},{:.3}] nsfw_sum={:.3} threshold={:.3} top={}",
+            class_probs[0], class_probs[1], class_probs[2], class_probs[3], class_probs[4],
+            nsfw_score, self.threshold, top_class);
+
         Ok(ClassifierResult {
             is_nsfw: nsfw_score >= self.threshold,
             nsfw_score,

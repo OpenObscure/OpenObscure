@@ -22,6 +22,7 @@ PROFILE="debug"
 BUILD_FLAG=""
 ALL_ABIS=false
 API_LEVEL="${ANDROID_API_LEVEL:-28}"
+FEATURES="mobile"
 
 for arg in "$@"; do
     case "$arg" in
@@ -32,11 +33,14 @@ for arg in "$@"; do
         --all-abis)
             ALL_ABIS=true
             ;;
+        --debug-logs)
+            FEATURES="mobile,debug-logs"
+            ;;
     esac
 done
 
 echo "=== OpenObscure Android Build ==="
-echo "Profile: $PROFILE"
+echo "Profile: $PROFILE, Features: $FEATURES"
 echo "API Level: $API_LEVEL"
 
 # Check cargo-ndk is installed
@@ -66,7 +70,7 @@ for target in "${TARGETS[@]}"; do
     (cd "$PROXY_DIR" && cargo ndk \
         --target "$target" \
         --platform "$API_LEVEL" \
-        -- build $BUILD_FLAG --lib --no-default-features --features mobile)
+        -- build $BUILD_FLAG --lib --no-default-features --features "$FEATURES")
 done
 
 echo ""

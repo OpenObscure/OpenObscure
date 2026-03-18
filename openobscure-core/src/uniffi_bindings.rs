@@ -104,8 +104,9 @@ pub fn sanitize_text(
 /// Sanitize a full conversation history in one call.
 ///
 /// User and system messages are sanitized; assistant messages pass through
-/// unchanged (they were already sanitized on their original turn). The same
-/// plaintext value gets the same token across all messages in the batch.
+/// unchanged (they already contain FPE tokens from DB). The same plaintext
+/// value gets the same token across turns — pass `existingMappingJson` from
+/// the previous call's `mappingJson` output (or `"[]"` for the first call).
 ///
 /// Use this instead of calling `sanitize_text()` per user message.
 #[cfg(feature = "mobile")]
@@ -113,6 +114,7 @@ pub fn sanitize_text(
 pub fn sanitize_messages(
     handle: &Arc<OpenObscureHandle>,
     messages: Vec<ChatMessageFfi>,
+    existing_mapping_json: String,
 ) -> Result<SanitizeMessagesResultFfi, MobileBindingError> {
     let input: Vec<crate::lib_mobile::ChatMessage> = messages
         .into_iter()
@@ -124,7 +126,7 @@ pub fn sanitize_messages(
 
     let result = handle
         .inner
-        .sanitize_messages(&input)
+        .sanitize_messages(&input, &existing_mapping_json)
         .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
 
     Ok(SanitizeMessagesResultFfi {

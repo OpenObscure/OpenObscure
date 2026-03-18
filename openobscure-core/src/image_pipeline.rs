@@ -310,6 +310,7 @@ impl ImageModelManager {
         let start = Instant::now();
         let mut stats = ImageStats::default();
         let (orig_w, orig_h) = img.dimensions();
+        oo_dbg!("image_pipeline: input={}x{}", orig_w, orig_h);
         let mut meta = PipelineMeta {
             image_size: (orig_w, orig_h),
             ..PipelineMeta::default()
@@ -429,6 +430,12 @@ impl ImageModelManager {
             }
         }
         stats.nsfw_ms = nsfw_start.elapsed().as_millis() as u64;
+        oo_dbg!(
+            "  nsfw: detected={}, skipped_faces={}, ms={}",
+            stats.nsfw_detected,
+            stats.faces_skipped_nsfw,
+            stats.nsfw_ms
+        );
 
         // Resize to max_dimension *after* NSFW phase so the classifier always
         // sees the original resolution (avoids double-downscale for tall images).
@@ -448,10 +455,26 @@ impl ImageModelManager {
 
                 meta.faces = faces.iter().map(|f| f.to_bbox_meta(img_w, img_h)).collect();
 
-                for face in &faces {
+                #[cfg(feature = "debug-logs")]
+                let mut fi = 0usize;
+                for face in faces.iter() {
                     let face_w = face.x_max - face.x_min;
                     let face_h = face.y_max - face.y_min;
                     let face_area = face_w * face_h;
+                    oo_dbg!(
+                        "  face[{}]: bbox=[{:.0},{:.0},{:.0},{:.0}], conf={:.2}, area_pct={:.1}%",
+                        fi,
+                        face.x_min,
+                        face.y_min,
+                        face.x_max,
+                        face.y_max,
+                        face.confidence,
+                        (face_area / img_area) * 100.0
+                    );
+                    #[cfg(feature = "debug-logs")]
+                    {
+                        fi += 1;
+                    }
 
                     // WARN level: oo_info! is filtered from the ring buffer in release builds.
                     oo_warn!(
@@ -505,10 +528,20 @@ impl ImageModelManager {
             }
         }
         stats.face_ms = face_start.elapsed().as_millis() as u64;
+        oo_dbg!(
+            "  face: redacted={}, ms={}",
+            stats.faces_redacted,
+            stats.face_ms
+        );
 
         // Phase 2: OCR detection + redaction
+        // Pre-filter: skip OCR if image is unlikely to contain text (saves ~5s on photos)
         let ocr_start = Instant::now();
-        if self.config.ocr_enabled {
+        let text_likely = crate::ocr_engine::has_text_likelihood(
+            &DynamicImage::ImageRgb8(rgb.clone()),
+            stats.is_screenshot,
+        );
+        if self.config.ocr_enabled && text_likely {
             if let Some(ref dir) = self.config.ocr_model_dir {
                 let tier = OcrTier::from_config(&self.config.ocr_tier);
                 let det_arc = {
@@ -689,8 +722,14 @@ impl ImageModelManager {
             }
         }
         stats.ocr_ms = ocr_start.elapsed().as_millis() as u64;
+        oo_dbg!(
+            "  ocr: regions={}, ms={}",
+            stats.text_regions_found,
+            stats.ocr_ms
+        );
 
         stats.processing_ms = start.elapsed().as_millis() as u64;
+        oo_dbg!("  image_pipeline: total_ms={}", stats.processing_ms);
         Ok((DynamicImage::ImageRgb8(rgb), stats, meta))
     }
 

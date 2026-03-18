@@ -350,13 +350,13 @@ OpenObscure uses **hardware capability detection** (`device_profile` module) to 
 
 | Device RAM | Tier | Key Features | Max RAM |
 |------------|------|-------------|---------|
-| 8GB+ | **Full** | NER + CRF + ensemble + image + cognitive firewall | 275MB |
-| 4–8GB | **Standard** | NER + CRF + image + cognitive firewall (R1 only) | 200MB |
-| <4GB | **Lite** | NER + CRF + image (shorter timeouts) | 80MB |
+| ≥4GB | **Full** | NER + CRF + ensemble + image + cognitive firewall | 275MB |
+| 2–4GB | **Standard** | NER + CRF + image + cognitive firewall (R1 only) | 200MB |
+| <2GB | **Lite** | NER + CRF + image (shorter timeouts) | 80MB |
 
 ### Embedded Model (in-process library)
 
-Budget is **20% of device RAM, clamped to [12MB, 275MB]**. The same tier thresholds apply — a phone with 6GB RAM runs Standard tier at a ~200MB ceiling; a phone with 3GB RAM runs Lite at ~80MB. No separate proxy process — the library shares the host app's memory space.
+Budget is **20% of device RAM, clamped to [12MB, 275MB]**. The same tier thresholds apply — a phone with 3GB RAM runs Standard tier at a ~200MB ceiling; a phone with 1.5GB RAM runs Lite at ~80MB. No separate proxy process — the library shares the host app's memory space.
 
 See `openobscure-core/src/device_profile.rs` for full tier logic and per-component breakdown.
 

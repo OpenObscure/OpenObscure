@@ -315,13 +315,20 @@ let rawMessages = conversation.messages
     .sorted { $0.createdAt < $1.createdAt }
     .map { (role: $0.role, content: $0.content) }
 
-// sanitizeMessages pre-restores non-user messages to resolve stale tokens from
-// prior turns before re-tokenizing, ensuring the LLM sees consistent tokens.
-let sanitizedPairs = oo.sanitizeMessages(rawMessages)
-let messageHistory = sanitizedPairs.map { msg -> OKChatRequestData.Message in
-    let role = OKChatRequestData.Message.Role(rawValue: msg.role) ?? .assistant
-    return OKChatRequestData.Message(role: role, content: msg.content)
+// Use cached sanitizedContent for prior user messages (no NER re-scan).
+// Only the new user message is scanned via sanitize().
+// Assistant messages have raw FPE tokens from DB — pass through as-is.
+for msg in sortedMsgs {
+    if let cached = msg.sanitizedContent {
+        // Prior user message — use cached (no NER cost)
+    } else if msg.role != "assistant" && !msg.content.isEmpty {
+        // New user message — sanitize via NER
+        let (sanitized, _) = oo.sanitize(msg.content)
+        msg.sanitizedContent = sanitized
+    }
+    // Assistant messages pass through with raw tokens from DB
 }
+conversation.mappingJson = oo.getMappingsJson()
 ```
 
 **2. Inbound responses** — `ConversationStore.swift`, `handleComplete()` method:
@@ -342,12 +349,21 @@ private func handleComplete() {
     }
 
     lastMesasge.done = true
-    // ...
-    Task(priority: .background) {
-        let restored = OpenObscureManager.shared.restore(lastMesasge.content)
-        OpenObscureManager.shared.scanResponse(restored)
-        await MainActor.run { lastMesasge.content = restored }
-        try? await swiftDataService.updateMessage(lastMesasge)
+    conversationState = .completed
+
+    // Save raw FPE tokens to DB FIRST, then restore for display only.
+    // displayContent is @Transient — SwiftData autosave never persists it.
+    let messageToUpdate = lastMesasge
+    Task(priority: .userInitiated) {
+        let rawText = messageToUpdate.content
+        try? await swiftDataService.updateMessage(messageToUpdate) // DB keeps tokens
+        let restored = OpenObscureManager.shared.restore(rawText)
+        let riReport = OpenObscureManager.shared.scanResponse(restored)
+        await MainActor.run {
+            var finalContent = restored
+            if let report = riReport { /* prepend RI warning */ }
+            messageToUpdate.displayContent = finalContent  // UI-only, not persisted
+        }
     }
 }
 ```
@@ -398,15 +414,22 @@ if let image = image?.render() {
 
 Six issues were identified during the Enchanted integration. Any streaming chat app embedding OpenObscure should account for all six.
 
-**1. Use `sanitizeMessages` for multi-turn conversations**
+**1. Store raw FPE tokens in DB, restore only for display**
 
-Each call to `sanitize_messages` generates fresh random FPE tokens. Calling `sanitizeText` per user message means turn 1 assigns `Angela Martinez → PER_7neo` and turn 2 assigns `Angela Martinez → PER_u426` — two different tokens for the same entity. The LLM then sees inconsistent context across turns.
+The most critical integration requirement. The DB must always contain raw FPE tokens (e.g. `PER_ax2f`) in assistant messages — never restored plaintext (e.g. `Angela Martinez`). Use a `@Transient` display property that SwiftData autosave ignores:
 
-Use `sanitizeMessages` instead, passing the full conversation history (all roles). It sanitizes user and system messages in one pass so every mention of the same entity gets the same token. Assistant messages pass through unchanged — they were already sanitized on their original turn.
+```swift
+// MessageSD.swift
+@Transient var displayContent: String? = nil  // UI reads: displayContent ?? content
+```
 
-**2. Pre-restore non-user messages before re-sanitizing**
+In `handleComplete`: save raw tokens to DB via `updateMessage()` first, then set `displayContent` for the UI. On conversation load, call `restore()` into `displayContent` for historical messages. This prevents SwiftData autosave from overwriting tokens with plaintext on the next `createMessage` call.
 
-`sanitizeMessages` in `OpenObscureManager.swift` pre-restores prior assistant and system messages before calling the FFI. This is necessary because the SwiftData store holds the *restored* plaintext (e.g. `"Angela Martinez"`) after `handleComplete` restores the previous response. If those messages were sent through `sanitize_messages` as-is, the plaintext would get a fresh token (the same token inconsistency problem but in the other direction — PII present in context). Pre-restoring is a no-op on messages that are already plaintext; it only matters when a message contains stale tokens from a prior turn.
+**2. Cache sanitized user messages to avoid growing latency**
+
+Add `var sanitizedContent: String?` to user messages. On the first sanitize, store the result. On subsequent turns, use the cached version — zero NER cost. Only the new user message goes through NER scanning. This keeps latency constant (~80-100ms) regardless of conversation length.
+
+Edge cases: clear `sanitizedContent` when the user edits a prior message (trim operation). FPE key rotation invalidates cached tokens — acceptable since rotation is an explicit admin action, not mid-conversation.
 
 **3. Flush the streaming throttler buffer before calling `restore`**
 
@@ -414,33 +437,17 @@ Enchanted batches streaming tokens through a `Throttler` before updating the Swi
 
 Fix: check and flush `currentMessageBuffer` at the top of `handleComplete`, before any restore call.
 
-**4. Run leak scan before restore, not after**
+**4. Persist mappings per conversation**
 
-`leakedTokenCount` must be called on the raw LLM response **before** `restore()`. If called after, known tokens have already been replaced with plaintext and won't be detected. The function also includes a regex fallback (`[A-Z]{2,4}_[a-z0-9]{4}`) that catches token-shaped strings the LLM may have hallucinated — these are never in the mapping and would be invisible to a map-only check.
+Add `var mappingJson: String?` to the conversation model. Save `oo.getMappingsJson()` after each sanitize. On conversation switch, call `oo.resetMappings()` then `oo.loadMappings(json:)` from the stored value. This ensures stable tokens survive app restarts and conversation switches.
 
-```swift
-func handleComplete(newResponse: String) {
-    // 1. Leak scan FIRST — on raw LLM text, before any restoration
-    let leaks = OpenObscureManager.shared.leakedTokenCount(in: newResponse)
-    if leaks > 0 {
-        print("[OO] WARNING: \(leaks) leaked token(s) in response")
-    }
+**5. Pass accumulated mappings to `sanitizeMessages`**
 
-    // 2. Restore PII tokens → plaintext
-    let restored = OpenObscureManager.shared.restore(newResponse)
+When using the batch `sanitizeMessages` API, pass the accumulated mapping JSON as `existingMappingJson` so the same PII value always gets the same token across turns. For the cached approach (item 2), the single-message `sanitize()` API accumulates mappings automatically via `OpenObscureManager`.
 
-    // 3. Append only the restored response to display history
-    conversationHistory.append(Message(role: .assistant, content: restored))
-}
-```
+**6. Move sanitize off the main thread**
 
-**5. Isolate display history from request context**
-
-The conversation history backing the UI must only receive the singular new assistant response after `restore()`. Never read from the `requestMessages` array (the sanitized context sent to the LLM) for display. Rebuild `requestMessages` fresh from `conversationHistory` at each `sendPrompt` call — it is ephemeral, not persisted.
-
-**6. Move `sanitizeMessages` off the main thread**
-
-`sanitizeMessages` cost grows linearly with conversation length (~80-90ms per message). By turn 6-8 this exceeds 500ms on the main thread, causing visible UI jank. Wrap the call in `Task {}` or `DispatchQueue.global().async`:
+NER inference (~80ms per message with DistilBERT) must not block `@MainActor`. Use `Task.detached` or `DispatchQueue.global().async`:
 
 ```swift
 Task {
@@ -769,9 +776,9 @@ val handle = createOpenobscure(configJson = config, fpeKeyHex = key)
 
 | Device RAM | Tier | NER | Face | OCR | NSFW | R2 |
 |-----------|------|-----|------|-----|------|----|
-| ≥8 GB | Full | DistilBERT (or TinyBERT) | SCRFD | Full recognition | Yes | Yes |
-| 4–8 GB | Standard | TinyBERT | SCRFD | Detect + fill | Yes (if budget ≥150 MB) | Yes |
-| <4 GB | Lite | TinyBERT | BlazeFace | Detect + fill | No | No |
+| ≥4 GB | Full | DistilBERT (or TinyBERT) | SCRFD | Full recognition | Yes | Yes |
+| 2–4 GB | Standard | TinyBERT or DistilBERT (if budget ≥120 MB) | SCRFD | Detect + fill | Yes (if budget ≥150 MB) | Yes |
+| <2 GB | Lite | TinyBERT (if budget ≥25 MB) | UltraLight RFB-320 | Detect + fill | No | No |
 
 Models are loaded **on-demand** when first needed and **evicted after idle timeout** (60–300s depending on tier) to free RAM. EXIF metadata is always stripped from images regardless of which models are loaded.
 
@@ -809,7 +816,7 @@ NER adds detection of **person names**, **locations**, and **organizations** —
 | Model | File | Size | Latency (p50) | F1 Score | Device Tier |
 |-------|------|------|---------------|----------|-------------|
 | TinyBERT 4L INT8 | `ner-lite/model_int8.onnx` | ~14 MB | 0.8 ms | 85.6% | Standard, Lite (4GB+) |
-| DistilBERT 6L INT8 | `ner/model_int8.onnx` | ~64 MB | 4.3 ms | ≥93% | Full (8GB+) |
+| DistilBERT 6L INT8 | `ner/model_int8.onnx` | ~64 MB | 4.3 ms | ≥93% | Full (≥4GB) |
 
 ### Step 1: Copy Model Files
 
@@ -884,9 +891,9 @@ Change `scanner_mode` and provide the model path:
 When `models_base_dir` is set, OpenObscure auto-resolves `ner_model_dir` from `<base>/ner/`, `ner_model_dir_lite` from `<base>/ner_lite/`, and so on for all model directories. Only subdirectories that exist on disk are used. Explicit per-model paths (e.g., `"ner_model_dir": "/custom/path"`) always override auto-resolved paths.
 
 In auto mode:
-- **Full tier (≥8 GB RAM):** Uses DistilBERT from `ner_model_dir`
-- **Standard tier (4–8 GB):** Uses TinyBERT from `ner_model_dir_lite`
-- **Lite tier (<4 GB):** Falls back to regex-only (no NER model loaded)
+- **Full tier (≥4 GB RAM):** Uses DistilBERT from `ner_model_dir`
+- **Standard tier (2–4 GB):** Uses DistilBERT (if budget ≥120 MB) or TinyBERT from `ner_model_dir_lite`
+- **Lite tier (<2 GB):** Uses TinyBERT (if budget ≥25 MB), falls back to regex+keywords if budget is too low
 
 If only `ner_model_dir` is set (no `_lite` variant), all tiers that enable NER use that single model. If only `ner_model_dir_lite` is set, the TinyBERT path is used as fallback for all tiers. The NER loader has automatic fallback: if the budget-selected model directory is missing, it tries the other variant before giving up.
 
@@ -1189,6 +1196,7 @@ cargo test --manifest-path openobscure-core/Cargo.toml --lib --all-features
 | CoreML Conv padding warnings on iOS | MLProgram format incompatible with CNN models | Already fixed in OpenObscure — iOS uses NeuralNetwork format + CPUAndGPU. If you see these warnings, rebuild with the latest `.a` file and clear Xcode DerivedData: `rm -rf ~/Library/Developer/Xcode/DerivedData/YourApp-*` |
 | NER model fails to load on iOS | CoreML can't handle transformer architectures | Already fixed — NER uses CPU-only inference on all platforms. Check `getDebugLog()` for `"NER model load FAILED"` messages. |
 | Xcode links stale binary after rebuild | DerivedData caching | Delete DerivedData: `rm -rf ~/Library/Developer/Xcode/DerivedData/YourApp-*`, then rebuild. Also re-resolve packages: `xcodebuild -resolvePackageDependencies` |
+| Need verbose pipeline logs | Default build has no diagnostic output | Rebuild with `./build/build_ios.sh --debug-logs` (or `build_android.sh --debug-logs`). Logs device profile, tier, per-message scan timing, FPE encrypt/decrypt, image pipeline phases with before/after sizes, and RI scan details. Logs appear in Xcode console (iOS/macOS) or logcat (Android). |
 | No Rust debug output on iOS device | `stderr` goes to `/dev/null` on iOS | Use `getDebugLog()` to retrieve Rust-side diagnostics. Call after `createOpenobscure()` or after operations that may fail. |
 
 ---

@@ -19,9 +19,9 @@ object OpenObscureManager {
         val key = getOrCreateKey(context)
         // Bundle all models under assets/models/. Copy to internal storage at first launch.
         // The tier system auto-detects device RAM and loads only what fits:
-        //   Full (≥8 GB) → DistilBERT NER, SCRFD, full OCR, NSFW, RI
-        //   Standard (4–8 GB) → TinyBERT NER, SCRFD, detect-only OCR
-        //   Lite (<4 GB) → TinyBERT NER, BlazeFace, minimal pipeline
+        //   Full (≥4 GB) → DistilBERT NER, SCRFD, full OCR, NSFW, RI
+        //   Standard (2–4 GB) → TinyBERT or DistilBERT NER, SCRFD, detect-only OCR
+        //   Lite (<2 GB) → TinyBERT NER, UltraLight face, minimal pipeline
         // EXIF metadata is always stripped from images regardless of tier.
         val modelsDir = copyAssetsDir(context, "models")
         _handle = createOpenobscure(
@@ -52,7 +52,7 @@ object OpenObscureManager {
     fun restore(text: String): String {
         val json = try {
             org.json.JSONArray(accumulatedMappings.map { org.json.JSONArray(it) }).toString()
-        } catch (_: Exception) { "{}" }
+        } catch (_: Exception) { "[]" }
         return restoreText(handle, text, json)
     }
 
@@ -61,9 +61,44 @@ object OpenObscureManager {
         return uniffi.openobscure_core.scanResponse(handle, text)
     }
 
+    /** Sanitize a full conversation history — pass accumulated mappings for stable tokens. */
+    fun sanitizeMessages(messages: List<ChatMessageFfi>): SanitizeMessagesResultFfi {
+        val mappingJson = try {
+            org.json.JSONArray(accumulatedMappings.map { org.json.JSONArray(it) }).toString()
+        } catch (_: Exception) { "[]" }
+        val result = uniffi.openobscure_core.sanitizeMessages(handle, messages, mappingJson)
+        if (result.piiCount > 0u) {
+            mergeMappings(result.mappingJson)
+        }
+        return result
+    }
+
     /** Reset mappings when starting a new conversation. */
     fun resetMappings() {
         accumulatedMappings.clear()
+    }
+
+    /** Serialize current mappings for persistent storage (e.g., alongside conversation in DB). */
+    fun getMappingsJson(): String {
+        return try {
+            org.json.JSONArray(accumulatedMappings.map { org.json.JSONArray(it) }).toString()
+        } catch (_: Exception) { "[]" }
+    }
+
+    /** Load previously saved mappings (e.g., when switching to a conversation from DB). */
+    fun loadMappings(json: String) {
+        accumulatedMappings.clear()
+        try {
+            val arr = org.json.JSONArray(json)
+            for (i in 0 until arr.length()) {
+                val pair = arr.getJSONArray(i)
+                val list = mutableListOf<String>()
+                for (j in 0 until pair.length()) {
+                    list.add(pair.getString(j))
+                }
+                accumulatedMappings.add(list)
+            }
+        } catch (_: Exception) { /* ignore parse errors */ }
     }
 
     private fun mergeMappings(json: String) {

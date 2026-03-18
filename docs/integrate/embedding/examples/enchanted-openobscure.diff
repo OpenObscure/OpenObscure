@@ -177,8 +177,21 @@ index c6bed16..f5e0f31 100644
        }
      },
      {
+diff --git a/Enchanted/Info.plist b/Enchanted/Info.plist
+index c67d59a..d2f52fa 100644
+--- a/Enchanted/Info.plist
++++ b/Enchanted/Info.plist
+@@ -2,8 +2,6 @@
+ <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+ <plist version="1.0">
+ <dict>
+-	<key>NSSpeechRecognitionUsageDescription</key>
+-	<string>You can speak with enchanted with your voice.</string>
+ 	<key>NSAccessibilityUsageDescription</key>
+ 	<string>Enchanted can perform operatios on selected text such as fixing grammar, extending texts as well as custom commands.</string>
+ 	<key>NSAppTransportSecurity</key>
 diff --git a/Enchanted/Stores/ConversationStore.swift b/Enchanted/Stores/ConversationStore.swift
-index c9043ea..878d87f 100644
+index c9043ea..f4c1c13 100644
 --- a/Enchanted/Stores/ConversationStore.swift
 +++ b/Enchanted/Stores/ConversationStore.swift
 @@ -10,17 +10,29 @@ import SwiftData
@@ -212,7 +225,7 @@ index c9043ea..878d87f 100644
  #if os(macOS)
      private let throttler = Throttler(delay: 0.1)
  #else
-@@ -78,15 +90,33 @@ final class ConversationStore: Sendable {
+@@ -78,15 +90,39 @@ final class ConversationStore: Sendable {
              swiftDataService.fetchMessages(conversation.id),
              swiftDataService.getConversation(conversation.id)
          )
@@ -246,12 +259,41 @@ index c9043ea..878d87f 100644
 +    }
 +
      func selectConversation(_ conversation: ConversationSD) async throws {
++        // Reset and reload mappings for this conversation
++        let oo = OpenObscureManager.shared
++        oo.resetMappings()
++        if let json = conversation.mappingJson {
++            oo.loadMappings(json: json)
++        }
          try await reloadConversation(conversation)
 +        await restoreMessagesForDisplay()
      }
      
      func delete(_ conversation: ConversationSD) async throws {
-@@ -134,38 +164,80 @@ final class ConversationStore: Sendable {
+@@ -117,11 +153,20 @@ final class ConversationStore: Sendable {
+         print("model", model.name)
+         print("conversation", conversation.name)
+         
+-        /// trim conversation if on edit mode
++        /// trim conversation if on edit mode — clear cached sanitized content
++        /// since the conversation context changes and tokens may need regenerating.
+         if let trimmingMessageId = trimmingMessageId {
+-            conversation.messages = conversation.messages
++            let trimmed = conversation.messages
+                 .sorted{$0.createdAt < $1.createdAt}
+                 .prefix(while: {$0.id.uuidString != trimmingMessageId})
++            // Clear sanitizedContent on remaining msgs — context changed
++            for msg in trimmed where msg.role == "user" {
++                msg.sanitizedContent = nil
++            }
++            conversation.messages = Array(trimmed)
++            // Reset mappings since we're rebuilding from a different point
++            OpenObscureManager.shared.resetMappings()
++            conversation.mappingJson = nil
+         }
+         
+         /// add system prompt to very first message in the conversation
+@@ -134,38 +179,101 @@ final class ConversationStore: Sendable {
          let userMessage = MessageSD(content: userPrompt, role: "user", image: image?.render()?.compressImageData())
          userMessage.conversation = conversation
          
@@ -301,23 +343,44 @@ index c9043ea..878d87f 100644
              try? await loadConversations()
 -            
 +
-+            // Capture rawMessages BEFORE restoring for display. After reload,
-+            // assistant message content has raw FPE tokens from DB.
-+            let rawMessages = self.messages
-+                .sorted { $0.createdAt < $1.createdAt }
-+                .map { (role: $0.role, content: $0.content) }
-+
 +            // Restore assistant messages for UI display (sets displayContent, not content)
 +            await self.restoreMessagesForDisplay()
 +
-+            /// sanitizeMessages() runs NER ONNX inference — must NOT block @MainActor.
-+            let sanitizedPairs = await Task.detached(priority: .userInitiated) {
-+                oo.sanitizeMessages(rawMessages)
-+            }.value
-+            var messageHistory = sanitizedPairs.map { msg -> OKChatRequestData.Message in
++            // Build LLM message history using cached sanitized content where available.
++            // Only the new user message (no sanitizedContent yet) goes through NER.
++            // This keeps latency constant (~100ms) regardless of conversation length.
++            //
++            // Edge cases:
++            // - First turn: no cached results, new message sanitized via sanitize()
++            // - Message edit: sanitizedContent cleared to nil in trim block above
++            // - App restart: mappings loaded from conversation.mappingJson in selectConversation
++            let sortedMsgs = self.messages.sorted { $0.createdAt < $1.createdAt }
++            var messageHistory: [OKChatRequestData.Message] = []
++
++            for msg in sortedMsgs {
 +                let role = OKChatRequestData.Message.Role(rawValue: msg.role) ?? .assistant
-+                return OKChatRequestData.Message(role: role, content: msg.content)
++                if msg.role == "assistant" {
++                    // Assistant messages have raw tokens from DB — pass through
++                    messageHistory.append(OKChatRequestData.Message(role: role, content: msg.content))
++                } else if let cached = msg.sanitizedContent {
++                    // Prior user message — use cached sanitized text (no NER)
++                    messageHistory.append(OKChatRequestData.Message(role: role, content: cached))
++                } else if !msg.content.isEmpty {
++                    // New user message — sanitize via NER (off main thread)
++                    let content = msg.content
++                    let (sanitized, _) = await Task.detached(priority: .userInitiated) {
++                        oo.sanitize(content)
++                    }.value
++                    msg.sanitizedContent = sanitized
++                    messageHistory.append(OKChatRequestData.Message(role: role, content: sanitized))
++                } else {
++                    // Empty assistant placeholder — pass through
++                    messageHistory.append(OKChatRequestData.Message(role: role, content: msg.content))
++                }
 +            }
++
++            // Persist updated mappings so they survive app restarts and conversation switches
++            conversation.mappingJson = oo.getMappingsJson()
 +
 +            print(messageHistory.map({$0.content}))
 +
@@ -351,7 +414,7 @@ index c9043ea..878d87f 100644
                      request.options = OKCompletionOptions(temperature: 0)
                      
                      self.generation = OllamaService.shared.ollamaKit.chat(data: request)
-@@ -187,13 +259,38 @@ final class ConversationStore: Sendable {
+@@ -187,13 +295,38 @@ final class ConversationStore: Sendable {
          }
      }
      
@@ -392,7 +455,7 @@ index c9043ea..878d87f 100644
              throttler.throttle { [weak self] in
                  guard let self = self else { return }
                  let lastIndex = self.messages.count - 1
-@@ -202,7 +299,7 @@ final class ConversationStore: Sendable {
+@@ -202,7 +335,7 @@ final class ConversationStore: Sendable {
              }
          }
      }
@@ -401,7 +464,7 @@ index c9043ea..878d87f 100644
      @MainActor
      private func handleError(_ errorMessage: String) {
          guard let lastMesasge = messages.last else { return }
-@@ -220,16 +317,61 @@ final class ConversationStore: Sendable {
+@@ -220,16 +353,61 @@ final class ConversationStore: Sendable {
      
      @MainActor
      private func handleComplete() {
@@ -470,11 +533,28 @@ index c9043ea..878d87f 100644
          }
      }
  }
+diff --git a/Enchanted/SwiftData/Models/ConversationSD.swift b/Enchanted/SwiftData/Models/ConversationSD.swift
+index 54c7fdb..450f490 100644
+--- a/Enchanted/SwiftData/Models/ConversationSD.swift
++++ b/Enchanted/SwiftData/Models/ConversationSD.swift
+@@ -21,7 +21,11 @@ final class ConversationSD: Identifiable {
+ 
+     @Relationship(deleteRule: .cascade, inverse: \MessageSD.conversation)
+     var messages: [MessageSD] = []
+-    
++
++    /// Serialized FPE token→plaintext mappings for this conversation.
++    /// Persisted so mappings survive app restarts and conversation switches.
++    var mappingJson: String?
++
+     init(name: String, updatedAt: Date = Date.now) {
+         self.name = name
+         self.updatedAt = updatedAt
 diff --git a/Enchanted/SwiftData/Models/MessageSD.swift b/Enchanted/SwiftData/Models/MessageSD.swift
-index c3d6d9a..4868ff9 100644
+index c3d6d9a..f99cbbe 100644
 --- a/Enchanted/SwiftData/Models/MessageSD.swift
 +++ b/Enchanted/SwiftData/Models/MessageSD.swift
-@@ -12,44 +12,42 @@ import SwiftData
+@@ -12,45 +12,52 @@ import SwiftData
  final class MessageSD: Identifiable {
      @Attribute(.unique) var id: UUID = UUID()
      
@@ -534,8 +614,18 @@ index c3d6d9a..4868ff9 100644
 -        return content
 +        return displayText
      }
++    /// Cached sanitized text for user messages. Persisted so subsequent turns
++    /// skip NER re-scanning of unchanged messages. Nil until first sanitize.
++    ///
++    /// Edge cases:
++    /// - Message edit (trimmingMessageId): must clear to nil so re-scan occurs.
++    /// - FPE key rotation: cached tokens become stale. Acceptable since rotation
++    ///   only happens via explicit CLI command, not mid-conversation.
++    /// - App migration: old messages get nil, will be re-sanitized on first use.
++    var sanitizedContent: String?
      var role: String
      var done: Bool = false
+     var error: Bool = false
 diff --git a/Enchanted/UI/Shared/ApplicationEntry.swift b/Enchanted/UI/Shared/ApplicationEntry.swift
 index 34c6f32..a4ca52d 100644
 --- a/Enchanted/UI/Shared/ApplicationEntry.swift

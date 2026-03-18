@@ -97,6 +97,39 @@ macro_rules! oo_trace {
     };
 }
 
+/// Verbose diagnostic log. Compiles to nothing without `debug-logs` feature.
+/// Uses standard format string syntax: `oo_dbg!("msg: x={}, y={}", x, y);`
+///
+/// Platform routing (all handled inside the macro — call sites never change):
+///   - Android: `__android_log_write` via FFI → logcat (tag: "OpenObscure")
+///   - iOS/macOS/Windows/Linux: `eprintln!` → stderr (Xcode console / terminal)
+#[cfg(feature = "debug-logs")]
+#[macro_export]
+macro_rules! oo_dbg {
+    ($($arg:tt)*) => {{
+        let msg = format!($($arg)*);
+        #[cfg(target_os = "android")]
+        {
+            extern "C" {
+                fn __android_log_write(prio: i32, tag: *const u8, text: *const u8) -> i32;
+            }
+            let tag = b"OpenObscure\0";
+            let text = std::ffi::CString::new(format!("[OO] {}", msg)).unwrap_or_default();
+            unsafe { __android_log_write(3, tag.as_ptr(), text.as_ptr() as *const u8); }
+        }
+        #[cfg(not(target_os = "android"))]
+        {
+            eprintln!("[OO] {}", msg);
+        }
+    }};
+}
+
+#[cfg(not(feature = "debug-logs"))]
+#[macro_export]
+macro_rules! oo_dbg {
+    ($($arg:tt)*) => {};
+}
+
 /// GDPR audit log entry — tagged with `oo_audit = true` so only
 /// the audit log Layer captures it.
 #[macro_export]

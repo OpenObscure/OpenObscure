@@ -157,7 +157,7 @@ Example output on an Apple Silicon Mac:
 
 ```
 Hardware:  16384 MB RAM  ·  12 CPU cores
-Tier:      full (≥8 GB — full feature set)
+Tier:      full (≥4 GB — full feature set)
 
 Feature Budget:
   RAM cap:          275 MB
@@ -177,9 +177,9 @@ Feature Budget:
 
 | Tier | RAM | NER Model | Face Model | Image Pipeline |
 |------|-----|-----------|------------|----------------|
-| **Full** | ≥8 GB | DistilBERT (higher accuracy) | SCRFD-2.5GF | Full OCR |
-| **Standard** | 4–8 GB | TinyBERT (fast) | SCRFD-2.5GF | Full OCR |
-| **Lite** | <4 GB | TinyBERT (fast) | UltraLight | Detect-and-fill |
+| **Full** | ≥4 GB | DistilBERT (higher accuracy) | SCRFD-2.5GF | Full OCR |
+| **Standard** | 2–4 GB | TinyBERT (fast) | SCRFD-2.5GF | Full OCR |
+| **Lite** | <2 GB | TinyBERT (fast) | UltraLight | Detect-and-fill |
 
 No server is started — the command exits immediately after printing.
 

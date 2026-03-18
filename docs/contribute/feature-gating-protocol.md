@@ -2,7 +2,7 @@
 
 > **Internal process** — every feature MUST be tier-gated via `FeatureBudget` in `device_profile.rs`. No exceptions.
 
-The system auto-detects device RAM, classifies a tier (Full ≥ 8GB, Standard 4–8GB, Lite < 4GB), and derives a `FeatureBudget` that controls which features activate. Features use a dual-gate pattern: `config.<feature>.enabled && budget.<feature>_enabled` — config is the operator's intent, budget is the hardware gate. Both must be true.
+The system auto-detects device RAM, classifies a tier (Full ≥ 4GB, Standard 2–4GB, Lite < 2GB), and derives a `FeatureBudget` that controls which features activate. Features use a dual-gate pattern: `config.<feature>.enabled && budget.<feature>_enabled` — config is the operator's intent, budget is the hardware gate. Both must be true.
 
 For tier definitions and hardware detection, see [Deployment Tiers](../get-started/deployment-tiers.md).
 
