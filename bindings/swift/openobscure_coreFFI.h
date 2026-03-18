@@ -299,7 +299,7 @@ RustBuffer uniffi_openobscure_core_fn_func_sanitize_image(void*_Nonnull handle, 
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_SANITIZE_MESSAGES
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_SANITIZE_MESSAGES
-RustBuffer uniffi_openobscure_core_fn_func_sanitize_messages(void*_Nonnull handle, RustBuffer messages, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_openobscure_core_fn_func_sanitize_messages(void*_Nonnull handle, RustBuffer messages, RustBuffer existing_mapping_json, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_SANITIZE_TEXT

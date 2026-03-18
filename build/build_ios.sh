@@ -16,6 +16,7 @@ PROXY_DIR="$PROJECT_DIR/openobscure-core"
 PROFILE="debug"
 BUILD_FLAG=""
 CREATE_XCFRAMEWORK=false
+FEATURES="mobile"
 
 for arg in "$@"; do
     case "$arg" in
@@ -26,11 +27,14 @@ for arg in "$@"; do
         --xcframework)
             CREATE_XCFRAMEWORK=true
             ;;
+        --debug-logs)
+            FEATURES="mobile,debug-logs"
+            ;;
     esac
 done
 
 echo "=== OpenObscure iOS Build ==="
-echo "Profile: $PROFILE"
+echo "Profile: $PROFILE, Features: $FEATURES"
 
 # Verify targets are installed
 for target in aarch64-apple-ios aarch64-apple-ios-sim; do
@@ -44,13 +48,13 @@ done
 echo ""
 echo "--- Building for iOS device (aarch64-apple-ios) ---"
 cargo build --manifest-path "$PROXY_DIR/Cargo.toml" \
-    --target aarch64-apple-ios $BUILD_FLAG --lib --no-default-features --features mobile
+    --target aarch64-apple-ios $BUILD_FLAG --lib --no-default-features --features "$FEATURES"
 
 # Build for simulator (ARM64 — runs natively on Apple Silicon)
 echo ""
 echo "--- Building for iOS Simulator (aarch64-apple-ios-sim) ---"
 cargo build --manifest-path "$PROXY_DIR/Cargo.toml" \
-    --target aarch64-apple-ios-sim $BUILD_FLAG --lib --no-default-features --features mobile
+    --target aarch64-apple-ios-sim $BUILD_FLAG --lib --no-default-features --features "$FEATURES"
 
 DEVICE_LIB="$PROXY_DIR/target/aarch64-apple-ios/$PROFILE/libopenobscure_core.a"
 SIM_LIB="$PROXY_DIR/target/aarch64-apple-ios-sim/$PROFILE/libopenobscure_core.a"

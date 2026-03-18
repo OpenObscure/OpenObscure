@@ -17,9 +17,9 @@ L0 (proxy) does — it sits in the HTTP path and encrypts PII before the request
 
 **How much RAM does OpenObscure actually use?**
 It depends on the hardware tier. OpenObscure detects RAM at startup and selects features automatically:
-- Lite (<4GB RAM): ~12–80MB
-- Standard (4–8GB): ~67–200MB
-- Full (8GB+): up to 224MB peak, 275MB hard ceiling
+- Lite (<2GB RAM): ~12–80MB
+- Standard (2–4GB): ~67–200MB
+- Full (≥4GB): up to 224MB peak, 275MB hard ceiling
 
 On mobile, the budget is 20% of device RAM (capped at 275MB). See [Deployment Tiers](deployment-tiers.md) for the full breakdown.
 

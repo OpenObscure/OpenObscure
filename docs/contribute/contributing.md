@@ -69,7 +69,7 @@ You need Rust (stable), Node.js 20+, and a working build of the proxy. If you ha
 > Gating Protocol is mandatory — read it before writing any code.
 > **Bug fix or test improvement?** You can skip this section.
 
-Every new capability must be tier-gated via `FeatureBudget` in `device_profile.rs`. This ensures OpenObscure runs correctly across Full (8GB+), Standard (4–8GB), and Lite (<4GB) devices.
+Every new capability must be tier-gated via `FeatureBudget` in `device_profile.rs`. This ensures OpenObscure runs correctly across Full (≥4GB), Standard (2–4GB), and Lite (<2GB) devices.
 
 The full protocol — including the 6-step checklist, enforcement layers, and code template — lives in [Feature Gating Protocol](feature-gating-protocol.md).
 

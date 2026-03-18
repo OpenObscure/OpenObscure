@@ -31,6 +31,9 @@ mobile = ["uniffi"]
 voice = ["sherpa-rs", "sherpa-rs-sys", "symphonia", "symphonia-format-ogg", "symphonia-codec-vorbis"]
 # Enable CLI for uniffi-bindgen binary (not needed for the library itself)
 bindgen = ["mobile", "uniffi/cli"]
+# Verbose pipeline diagnostics via eprintln! — zero cost when disabled.
+# Build with: cargo build --features debug-logs
+debug-logs = []
 
 [dependencies]
 # HTTP stack (behind `server` feature — not needed for mobile library)

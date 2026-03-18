@@ -31,11 +31,11 @@ pub struct DeviceProfile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CapabilityTier {
-    /// ≥8 GB RAM — full feature set: NER (DistilBERT), SCRFD face, PP-OCRv4, NSFW, ensemble voting.
+    /// ≥4 GB physical RAM — full feature set: NER (DistilBERT), SCRFD face, PP-OCRv4, NSFW, ensemble voting.
     Full,
-    /// 4–8 GB RAM — NER (TinyBERT), SCRFD face, PP-OCRv4 full recognition, NSFW; shorter idle eviction.
+    /// 2–4 GB physical RAM — budget-gated features; DistilBERT if budget ≥120 MB, else TinyBERT.
     Standard,
-    /// <4 GB RAM — CRF + regex only; no image pipeline; conservative memory budget.
+    /// <2 GB physical RAM — TinyBERT + basic image pipeline; no NSFW, voice, or RI.
     Lite,
 }
 
@@ -231,11 +231,14 @@ pub fn detect(embedded: bool) -> DeviceProfile {
 }
 
 /// Classify a device profile into a capability tier based on total RAM.
+///
+/// Thresholds use reported RAM (not physical) — iOS/Android reserve 200–500 MB
+/// for the kernel/GPU, so a physical 4 GB device reports ~3.5 GB.
 pub fn tier_for_profile(profile: &DeviceProfile) -> CapabilityTier {
     match profile.total_ram_mb {
-        ram if ram >= 8192 => CapabilityTier::Full,
-        ram if ram >= 4096 => CapabilityTier::Standard,
-        _ => CapabilityTier::Lite,
+        ram if ram >= 3584 => CapabilityTier::Full, // physical ≥4 GB
+        ram if ram >= 1536 => CapabilityTier::Standard, // physical ≥2 GB
+        _ => CapabilityTier::Lite,                  // physical <2 GB
     }
 }
 
@@ -459,26 +462,40 @@ mod tests {
     }
 
     #[test]
-    fn test_tier_full_boundary_8gb() {
+    fn test_tier_full_8gb() {
         let p = profile_with_ram(8192, false);
         assert_eq!(tier_for_profile(&p), CapabilityTier::Full);
     }
 
     #[test]
-    fn test_tier_standard_6gb() {
+    fn test_tier_full_4gb_reported_as_3584() {
+        // Physical 4 GB device reports ~3.5 GB after OS reservation
+        let p = profile_with_ram(3584, false);
+        assert_eq!(tier_for_profile(&p), CapabilityTier::Full);
+    }
+
+    #[test]
+    fn test_tier_full_6gb() {
         let p = profile_with_ram(6144, false);
-        assert_eq!(tier_for_profile(&p), CapabilityTier::Standard);
+        assert_eq!(tier_for_profile(&p), CapabilityTier::Full);
     }
 
     #[test]
-    fn test_tier_standard_boundary_4gb() {
-        let p = profile_with_ram(4096, false);
-        assert_eq!(tier_for_profile(&p), CapabilityTier::Standard);
-    }
-
-    #[test]
-    fn test_tier_lite_3gb() {
+    fn test_tier_standard_3gb() {
         let p = profile_with_ram(3072, false);
+        assert_eq!(tier_for_profile(&p), CapabilityTier::Standard);
+    }
+
+    #[test]
+    fn test_tier_standard_2gb_reported_as_1536() {
+        // Physical 2 GB device reports ~1.5 GB after OS reservation
+        let p = profile_with_ram(1536, false);
+        assert_eq!(tier_for_profile(&p), CapabilityTier::Standard);
+    }
+
+    #[test]
+    fn test_tier_lite_1gb() {
+        let p = profile_with_ram(1024, false);
         assert_eq!(tier_for_profile(&p), CapabilityTier::Lite);
     }
 
@@ -512,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_budget_gateway_standard() {
-        let p = profile_with_ram(6144, false);
+        let p = profile_with_ram(2048, false);
         let tier = tier_for_profile(&p);
         let b = budget_for_tier(tier, &p);
         assert_eq!(b.max_ram_mb, 200);
@@ -532,7 +549,7 @@ mod tests {
 
     #[test]
     fn test_budget_gateway_lite() {
-        let p = profile_with_ram(2048, false);
+        let p = profile_with_ram(1024, false);
         let tier = tier_for_profile(&p);
         let b = budget_for_tier(tier, &p);
         assert_eq!(b.max_ram_mb, 80);
@@ -573,11 +590,11 @@ mod tests {
     }
 
     #[test]
-    fn test_budget_embedded_standard_6gb() {
-        let p = profile_with_ram(6144, true);
+    fn test_budget_embedded_standard_2gb() {
+        let p = profile_with_ram(2048, true);
         let tier = tier_for_profile(&p);
         let b = budget_for_tier(tier, &p);
-        // 20% of 6144 = 1228, capped at 275
+        // 20% of 2048 = 409, capped at 275
         assert_eq!(b.max_ram_mb, 275);
         assert!(b.ner_enabled); // 275 >= 80
         assert_eq!(b.ner_model, "distilbert"); // 275 >= 120
@@ -595,12 +612,12 @@ mod tests {
 
     #[test]
     fn test_budget_embedded_lite_small_device() {
-        let p = profile_with_ram(512, true);
+        let p = profile_with_ram(1024, true);
         let tier = tier_for_profile(&p);
         let b = budget_for_tier(tier, &p);
-        // 20% of 512 = 102, capped at 275 → 102
-        assert_eq!(b.max_ram_mb, 102);
-        assert!(b.ner_enabled); // 102 >= 25
+        // 20% of 1024 = 204, capped at 275 → 204
+        assert_eq!(b.max_ram_mb, 204);
+        assert!(b.ner_enabled); // 204 >= 25
         assert_eq!(b.ner_model, "tinybert");
         assert!(b.crf_enabled); // 102 >= 25
         assert!(!b.ensemble_enabled);
@@ -707,7 +724,7 @@ mod tests {
 
     #[test]
     fn test_cross_platform_windows_4gb_low_end() {
-        // Simulates a low-end Windows device with 4GB RAM
+        // Simulates a low-end Windows device with 4GB RAM — now Full tier
         let profile = DeviceProfile {
             total_ram_mb: 4096,
             available_ram_mb: Some(1500),
@@ -715,11 +732,11 @@ mod tests {
             embedded: false,
         };
         let tier = tier_for_profile(&profile);
-        assert_eq!(tier, CapabilityTier::Standard);
+        assert_eq!(tier, CapabilityTier::Full);
         let budget = budget_for_tier(tier, &profile);
         assert!(budget.ner_enabled);
-        assert!(!budget.ensemble_enabled);
-        assert_eq!(budget.model_idle_timeout_secs, 120);
+        assert!(budget.ensemble_enabled);
+        assert_eq!(budget.model_idle_timeout_secs, 300);
     }
 
     #[test]
@@ -810,7 +827,7 @@ mod tests {
 
         // --- Gateway: Full vs Lite must differ on TIER_DIFFERENTIATED ---
         let full_profile = profile_with_ram(16384, false);
-        let lite_profile = profile_with_ram(2048, false);
+        let lite_profile = profile_with_ram(1024, false);
         let full_budget = budget_for_tier(tier_for_profile(&full_profile), &full_profile);
         let lite_budget = budget_for_tier(tier_for_profile(&lite_profile), &lite_profile);
         let full_json = serde_json::to_value(&full_budget).unwrap();

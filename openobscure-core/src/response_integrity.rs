@@ -218,6 +218,14 @@ impl ResponseIntegrityScanner {
             flags.iter().map(|m| m.category).collect();
         let categories: Vec<PersuasionCategory> = r1_category_set.into_iter().collect();
 
+        oo_dbg!(
+            "ri_scan: text_len={}, r1_us={}, r1_flagged={}, r1_categories={}",
+            text.len(),
+            r1_time_us,
+            r1_flagged,
+            categories.len()
+        );
+
         // --- R2: Conditional model inference ---
         let has_r2 = self
             .r2_model
@@ -227,11 +235,19 @@ impl ResponseIntegrityScanner {
         let should_run_r2 = has_r2 && self.should_invoke_r2(r1_flagged);
 
         let r1_cat_count = categories.len();
+        #[cfg(feature = "debug-logs")]
+        let r2_start = Instant::now();
         let (r2_prediction, r2_role, r2_categories) = if should_run_r2 {
             self.run_r2_cascade(text, r1_flagged, r1_cat_count)
         } else {
             (None, R2Role::NotUsed, Vec::new())
         };
+        oo_dbg!(
+            "ri_scan: r2_invoked={}, r2_role={:?}, r2_ms={:.1}",
+            should_run_r2,
+            r2_role,
+            r2_start.elapsed().as_micros() as f64 / 1000.0
+        );
 
         // --- Merge R1 + R2 results ---
 

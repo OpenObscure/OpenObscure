@@ -104,6 +104,7 @@ The proxy has dual entry points — `main.rs` (binary, owns all modules) and `li
 - `voice` (default) — sherpa-onnx KWS keyword spotting + symphonia audio decoding.
 - `mobile` — UniFFI bindings for Swift/Kotlin. Enables `uniffi_bindings.rs`.
 - `bindgen` — UniFFI CLI tool for generating bindings.
+- `debug-logs` — Verbose pipeline diagnostics via `oo_dbg!()`. Zero cost when disabled. Build with `./build/build_ios.sh --debug-logs` or `./build/build_android.sh --debug-logs`. Logs to stderr (Xcode console) on iOS/macOS, logcat on Android.
 
 ## Guardrails
 

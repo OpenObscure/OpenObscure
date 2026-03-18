@@ -68,14 +68,14 @@ In addition to the [common prerequisites](README.md):
 Set these once in your terminal session. All copy commands in Parts 2–5 use them:
 
 ```bash
-# Path to this OpenObscure repo
-export OO_REPO=~/Code/OpenObscure
+# Path to this OpenObscure repo (adjust to your local checkout)
+export OO_REPO=/path/to/your/OpenObscure
 
 # Path to your cloned Enchanted fork (iOS / macOS)
-export FORK_SWIFT=~/Test/enchanted-openobscure
+export FORK_SWIFT=/path/to/your/enchanted-openobscure
 
 # Path to your cloned RikkaHub fork (Android)
-export FORK_KOTLIN=~/Test/rikkahub-openobscure
+export FORK_KOTLIN=/path/to/your/rikkahub-openobscure
 ```
 
 > Adjust the paths to match where you cloned each repo.
@@ -145,6 +145,9 @@ openobscure-core/target/release/libopenobscure_core.a       (~150 MB, includes O
 
 # Optional: create XCFramework for Xcode / SPM distribution
 ./build/build_ios.sh --release --xcframework
+
+# Optional: enable verbose pipeline diagnostics (logs to Xcode console)
+./build/build_ios.sh --debug-logs
 ```
 
 Expected output:
@@ -168,6 +171,9 @@ openobscure-core/target/OpenObscure.xcframework/
 
 # Optional: all ABIs
 ./build/build_android.sh --release --all-abis
+
+# Optional: enable verbose pipeline diagnostics (logs to logcat)
+./build/build_android.sh --debug-logs
 ```
 
 Expected output:
@@ -457,16 +463,28 @@ curl http://$(ipconfig getifaddr en0):11434
 - Open Enchanted → tap the gear icon → **Server URL**
 - Enter `http://<your-mac-ip>:11434` (e.g. `http://10.0.0.216:11434`)
 - Tap **Save** — Enchanted will test the connection
+- Force-quit and relaunch Enchanted so the new server URL takes effect for all requests
 
 ### Step 6 — Verify PII sanitization
 
-Send a message containing a known PII value, e.g.:
+**Turn 1 — Send a message with personal information:**
 
 ```
-What is 2+2? (ignore this: 123-45-6789)
+My patient Angela Martinez has SSN 412-55-8823 and her phone is (305) 555-0188. What type of information is this?
 ```
 
-The LLM's reply in the Enchanted UI should show `123-45-6789` — not an FPE ciphertext like `382-91-4750`. If the restored value appears correctly, sanitization and restoration are both working.
+**What to check:**
+- The LLM should reply using the real name "Angela Martinez" (not a token like `PER_4dd3`). This confirms restoration is working — the UI shows original values.
+- In the Xcode console, look for the sanitized message array. You should see the name replaced with a token (e.g. `PER_4dd3`), the SSN replaced with different digits (e.g. `932-68-1514`), and the phone number changed. This confirms sanitization is working — the LLM never sees real PII.
+
+**Turn 2 — Verify multi-turn protection:**
+
+```
+Spell the patient's last name character by character separated by comma
+```
+
+**What to check:**
+- The LLM should spell out **token characters** (e.g. `P, E, R, _, 4, d, d, 3`) — not the real name `M, a, r, t, i, n, e, z`. This confirms that previous conversation history does not leak real names to the LLM on follow-up questions.
 
 ---
 
@@ -511,7 +529,7 @@ cp docs/integrate/embedding/templates/OpenObscureManager.kt \
 
 # 4. Model files
 mkdir -p $FORK_KOTLIN/app/src/main/assets
-./build/bundle_models.sh --android $FORK_KOTLIN/app/src/main/assets/models
+./build/bundle_models.sh $FORK_KOTLIN/app/src/main/assets/models
 ```
 
 > For x86_64 (emulator) support also copy: `openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so` → `jniLibs/x86_64/`.

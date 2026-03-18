@@ -486,7 +486,7 @@ Ensemble voting (the agreement bonus) is only enabled on the Full tier. On Stand
 
 ### Gateway
 
-| Feature | Full (8GB+) | Standard (4–8GB) | Lite (<4GB) |
+| Feature | Full (≥4GB) | Standard (2–4GB) | Lite (<2GB) |
 |---------|-------------|-------------------|-------------|
 | **Regex** | Yes | Yes | Yes |
 | **Keywords** | Yes | Yes | Yes |

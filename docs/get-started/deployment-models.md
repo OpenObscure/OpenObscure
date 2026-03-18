@@ -106,7 +106,7 @@ flowchart TB
 **Key differences from Gateway Model:**
 - No HTTP server (axum/tokio not compiled in)
 - FPE key passed from host app (no OS keychain access on mobile)
-- Hardware auto-detection (`auto_detect: true` default) profiles device RAM and selects features automatically — phones with 8GB+ RAM get full NER + ensemble + image pipeline + cognitive firewall, matching gateway efficacy
+- Hardware auto-detection (`auto_detect: true` default) profiles device RAM and selects features automatically — phones with 4GB+ RAM get full NER + ensemble + image pipeline + cognitive firewall, matching gateway efficacy
 - `models_base_dir` config field simplifies model path setup — point to a single directory and individual `*_model_dir` fields are auto-resolved from standard subdirectories (`ner/`, `ner_lite/`, `crf/`, `scrfd/`, `blazeface/`, `ocr/`, `nsfw/`, `ri/`)
 - Image pipeline and cognitive firewall default to enabled; device budget gates actual activation — without model files on disk these are no-ops
 - All features tier-gated via `FeatureBudget` — config is the operator's intent, budget is the hardware gate

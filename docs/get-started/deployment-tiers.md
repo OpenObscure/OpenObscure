@@ -17,13 +17,13 @@ OpenObscure detects device hardware at startup and automatically selects which f
 
 Tier classification uses **total physical RAM** — a stable device indicator that doesn't fluctuate with app usage.
 
-| Total RAM | Tier |
-|-----------|------|
-| ≥8GB | **Full** |
-| ≥4GB and <8GB | **Standard** |
-| <4GB | **Lite** |
+| Physical RAM | Tier |
+|--------------|------|
+| ≥4GB | **Full** |
+| ≥2GB and <4GB | **Standard** |
+| <2GB | **Lite** |
 
-**Boundary devices are inclusive on the upper tier.** A device with exactly 8192MB (8GB) is classified as Full; a device with exactly 4096MB (4GB) is classified as Standard. The classification uses `>=` comparisons (`device_profile.rs:233–234`), confirmed by tests `test_tier_full_boundary_8gb` and `test_tier_standard_boundary_4gb`.
+**Thresholds use reported RAM, not physical.** iOS and Android reserve 200–500MB for the kernel/GPU, so a physical 4GB device reports ~3.5GB. The thresholds account for this: Full ≥3584MB, Standard ≥1536MB (`device_profile.rs`). Tests `test_tier_full_4gb_reported_as_3584` and `test_tier_standard_2gb_reported_as_1536` confirm the boundaries.
 
 RAM detection is platform-native:
 
@@ -39,7 +39,7 @@ RAM detection is platform-native:
 
 ### Gateway (Desktop / Server)
 
-| Feature | Full (8GB+) | Standard (4–8GB) | Lite (<4GB) |
+| Feature | Full (≥4GB) | Standard (2–4GB) | Lite (<2GB) |
 |---------|:-----------:|:-----------------:|:-----------:|
 | **Max RAM budget** | 275MB | 200MB | 80MB |
 | **NER model** | DistilBERT | TinyBERT | TinyBERT |
@@ -63,13 +63,13 @@ RAM detection is platform-native:
 
 ### Embedded (Mobile / Library)
 
-Embedded budgets are **20% of total device RAM**, clamped to a 12–275MB range. A 12GB phone gets 275MB (capped). A 3GB phone gets 3072MB/5 = 614MB → clamped to 122MB.
+Embedded budgets are **20% of total device RAM**, clamped to a 12–275MB range. A 12GB phone gets 275MB (capped). A 3GB phone gets 3072/5 = 614 → clamped to 275MB.
 
-> **Embedded Lite ≠ Gateway Lite.** Gateway Lite has a fixed 80MB budget. Embedded Lite uses 20% of device RAM (minimum 12MB), so a 3GB phone gets a 122MB embedded budget — sufficient for features that Gateway Lite cannot run (e.g., NER when budget ≥25MB, image pipeline when budget ≥40MB). The tier label is the same but the capability ceiling differs between deployment models.
+> **Embedded Lite ≠ Gateway Lite.** Gateway Lite has a fixed 80MB budget. Embedded Lite uses 20% of device RAM (minimum 12MB), so a 1GB phone gets a ~204MB embedded budget — sufficient for features that Gateway Lite cannot run (e.g., NER when budget ≥25MB, image pipeline when budget ≥40MB). The tier label is the same but the capability ceiling differs between deployment models.
 
 Feature availability on embedded also depends on whether the budget can fit each model:
 
-| Feature | Full (8GB+) | Standard (4–8GB) | Lite (<4GB) |
+| Feature | Full (≥4GB) | Standard (2–4GB) | Lite (<2GB) |
 |---------|:-----------:|:-----------------:|:-----------:|
 | **Max RAM budget** | 275MB (cap) | 20% of RAM | 20% of RAM |
 | **NER model** | DistilBERT | DistilBERT if ≥120MB, else TinyBERT | TinyBERT (if ≥25MB) |

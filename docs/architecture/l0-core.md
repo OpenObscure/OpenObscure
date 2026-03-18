@@ -503,9 +503,9 @@ OpenObscure detects device hardware at startup via the `device_profile` module a
 
 | Tier | Max RAM | Scanners | Image | Model Timeout |
 |------|---------|----------|-------|---------------|
-| **Full** (8GB+) | 275MB | NER + CRF + ensemble | Yes | 300s |
-| **Standard** (4–8GB) | 200MB | NER + CRF | Yes | 120s |
-| **Lite** (<4GB) | 80MB | TinyBERT + CRF + regex | Yes | 60s |
+| **Full** (≥4GB) | 275MB | NER + CRF + ensemble | Yes | 300s |
+| **Standard** (2–4GB) | 200MB | NER + CRF | Yes | 120s |
+| **Lite** (<2GB) | 80MB | TinyBERT + CRF + regex | Yes | 60s |
 
 On embedded (mobile), budget = 20% of total RAM clamped to [12MB, 275MB].
 

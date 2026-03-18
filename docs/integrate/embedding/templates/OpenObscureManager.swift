@@ -15,9 +15,9 @@ final class OpenObscureManager {
         let key = OpenObscureManager.getOrCreateKey()
         // Bundle all models under an "OpenObscureModels" folder reference in Xcode.
         // The tier system auto-detects device RAM and loads only what fits:
-        //   Full (≥8 GB) → DistilBERT NER, SCRFD, full OCR, NSFW, RI
-        //   Standard (4–8 GB) → TinyBERT NER, SCRFD, detect-only OCR
-        //   Lite (<4 GB) → TinyBERT NER, BlazeFace, minimal pipeline
+        //   Full (≥4 GB) → DistilBERT NER, SCRFD, full OCR, NSFW, RI
+        //   Standard (2–4 GB) → TinyBERT or DistilBERT NER, SCRFD, detect-only OCR
+        //   Lite (<2 GB) → TinyBERT NER, UltraLight face, minimal pipeline
         // EXIF metadata is always stripped from images regardless of tier.
         let modelsDir = Bundle.main.resourcePath.map { $0 + "/OpenObscureModels" }
             ?? Bundle.main.bundlePath + "/Contents/Resources/OpenObscureModels"
@@ -43,8 +43,10 @@ final class OpenObscureManager {
     /// not restored plaintext. Use `restore()` only for display. This ensures assistant
     /// messages in history never leak plaintext PII to the LLM on subsequent turns.
     func sanitizeMessages(_ messages: [(role: String, content: String)]) -> [(role: String, content: String)] {
+        let mappingJson = (try? JSONSerialization.data(withJSONObject: accumulatedMappings))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         let ffiMessages = messages.map { ChatMessageFfi(role: $0.role, content: $0.content) }
-        let result = try! OpenObscureLib.sanitizeMessages(handle: handle, messages: ffiMessages)
+        let result = try! OpenObscureLib.sanitizeMessages(handle: handle, messages: ffiMessages, existingMappingJson: mappingJson)
         if result.piiCount > 0 {
             mergeMappings(result.mappingJson)
         }
@@ -63,8 +65,8 @@ final class OpenObscureManager {
 
     /// Restore PII in LLM response text using accumulated mappings.
     func restore(_ text: String) -> String {
-        let json = (try? JSONSerialization.data(withJSONObject: accumulatedMappings)) ?? Data("{}".utf8)
-        return restoreText(handle: handle, text: text, mappingJson: String(data: json, encoding: .utf8) ?? "{}")
+        let json = (try? JSONSerialization.data(withJSONObject: accumulatedMappings)) ?? Data("[]".utf8)
+        return restoreText(handle: handle, text: text, mappingJson: String(data: json, encoding: .utf8) ?? "[]")
     }
 
     /// Scan LLM response for persuasion/manipulation (cognitive firewall).
@@ -86,6 +88,19 @@ final class OpenObscureManager {
     /// Reset mappings when starting a new conversation.
     func resetMappings() {
         accumulatedMappings = []
+    }
+
+    /// Serialize current mappings for persistent storage (e.g., alongside conversation in DB).
+    func getMappingsJson() -> String {
+        (try? JSONSerialization.data(withJSONObject: accumulatedMappings))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+    }
+
+    /// Load previously saved mappings (e.g., when switching to a conversation from DB).
+    func loadMappings(json: String) {
+        guard let data = json.data(using: .utf8),
+              let pairs = try? JSONSerialization.jsonObject(with: data) as? [[String]] else { return }
+        accumulatedMappings = pairs
     }
 
     /// Merge new mappings into the accumulated set. New tokens overwrite existing ones.

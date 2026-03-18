@@ -302,6 +302,8 @@ impl HybridScanner {
         results.sort_by_key(|m| (m.start, std::cmp::Reverse(m.end)));
 
         timing.total_us = total_start.elapsed().as_micros() as u64;
+        oo_dbg!("hybrid_scan: len={}, matches={}, regex_us={}, keyword_us={}, semantic_us={}, total_us={}",
+            text.len(), results.len(), timing.regex_us, timing.keyword_us, timing.semantic_us, timing.total_us);
         (results, timing)
     }
 

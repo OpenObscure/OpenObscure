@@ -836,7 +836,7 @@ fun uniffi_openobscure_core_fn_func_sanitize_audio_transcript(`handle`: Pointer,
 ): RustBuffer.ByValue
 fun uniffi_openobscure_core_fn_func_sanitize_image(`handle`: Pointer,`imageBytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun uniffi_openobscure_core_fn_func_sanitize_messages(`handle`: Pointer,`messages`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+fun uniffi_openobscure_core_fn_func_sanitize_messages(`handle`: Pointer,`messages`: RustBuffer.ByValue,`existingMappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 fun uniffi_openobscure_core_fn_func_sanitize_text(`handle`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
@@ -989,7 +989,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_openobscure_core_checksum_func_sanitize_image() != 37545.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_openobscure_core_checksum_func_sanitize_messages() != 7398.toShort()) {
+    if (lib.uniffi_openobscure_core_checksum_func_sanitize_messages() != 1616.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_core_checksum_func_sanitize_text() != 58388.toShort()) {
@@ -2074,16 +2074,17 @@ public object FfiConverterSequenceTypeChatMessageFfi: FfiConverterRustBuffer<Lis
          * Sanitize a full conversation history in one call.
          *
          * User and system messages are sanitized; assistant messages pass through
-         * unchanged (they were already sanitized on their original turn). The same
-         * plaintext value gets the same token across all messages in the batch.
+         * unchanged (they already contain FPE tokens from DB). The same plaintext
+         * value gets the same token across turns — pass `existingMappingJson` from
+         * the previous call's `mappingJson` output (or `"[]"` for the first call).
          *
          * Use this instead of calling `sanitize_text()` per user message.
          */
-    @Throws(MobileBindingException::class) fun `sanitizeMessages`(`handle`: OpenObscureHandle, `messages`: List<ChatMessageFfi>): SanitizeMessagesResultFfi {
+    @Throws(MobileBindingException::class) fun `sanitizeMessages`(`handle`: OpenObscureHandle, `messages`: List<ChatMessageFfi>, `existingMappingJson`: kotlin.String): SanitizeMessagesResultFfi {
             return FfiConverterTypeSanitizeMessagesResultFfi.lift(
     uniffiRustCallWithError(MobileBindingException) { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_core_fn_func_sanitize_messages(
-        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterSequenceTypeChatMessageFfi.lower(`messages`),_status)
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterSequenceTypeChatMessageFfi.lower(`messages`),FfiConverterString.lower(`existingMappingJson`),_status)
 }
     )
     }

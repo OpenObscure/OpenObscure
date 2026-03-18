@@ -12,8 +12,8 @@ The semantic subsystem has two backends selected by device capability:
 
 | Backend | Model | RAM | Latency | Accuracy | When Used |
 |---------|-------|-----|---------|----------|-----------|
-| **NER** (TinyBERT INT8) | ONNX, ~15MB on disk | ~55MB loaded | ~8–15ms/sentence | ~97% recall | Full + Standard tiers (4GB+ RAM) |
-| **CRF** (hand-crafted features) | JSON, <5MB on disk | <10MB loaded | ~2ms/sentence | ~80–85% recall | Lite tier (<4GB RAM) |
+| **NER** (TinyBERT INT8) | ONNX, ~15MB on disk | ~55MB loaded | ~8–15ms/sentence | ~97% recall | Full + Standard tiers (2GB+ RAM) |
+| **CRF** (hand-crafted features) | JSON, <5MB on disk | <10MB loaded | ~2ms/sentence | ~80–85% recall | Lite tier (<2GB RAM) |
 
 Both backends produce the same output type (`Vec<PiiMatch>`) and use the same 11-label BIO schema. The `HybridScanner` orchestrates them alongside regex and keyword scanners, resolving overlaps via **ensemble confidence voting**.
 
@@ -307,9 +307,9 @@ The `FeatureBudget` determines which semantic backend loads at startup:
 
 | Tier | Device RAM | NER | CRF | Ensemble Voting | Max RAM |
 |------|------------|-----|-----|-----------------|---------|
-| **Full** | 8GB+ | Yes | Yes | Yes (+0.15 bonus) | 275MB |
-| **Standard** | 4–8GB | Yes | Yes | No | 200MB |
-| **Lite** | <4GB | No | Yes | No | 80MB |
+| **Full** | ≥4GB | Yes | Yes | Yes (+0.15 bonus) | 275MB |
+| **Standard** | 2–4GB | Yes | Yes | No | 200MB |
+| **Lite** | <2GB | No | Yes | No | 80MB |
 
 ### Embedded Mode (mobile, proportional to device RAM)
 
@@ -318,8 +318,8 @@ Budget = 20% of total RAM, clamped to [12MB, 275MB].
 | Tier | NER | CRF | Condition |
 |------|-----|-----|-----------|
 | Full | Yes | Yes | budget ≥ 275MB (capped) |
-| Standard | Yes (if budget ≥ 80MB) | Yes | 4–8GB device |
-| Lite | No | Yes (if budget ≥ 25MB) | <4GB device |
+| Standard | Yes (if budget ≥ 80MB) | Yes | 2–4GB device |
+| Lite | No | Yes (if budget ≥ 25MB) | <2GB device |
 
 ### Scanner Selection Flow
 
