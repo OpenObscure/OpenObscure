@@ -65,6 +65,11 @@ node --import tsx --test src/foo.test.ts     # Run a single test file
 # NAPI addon (native bridge for L1)
 cd openobscure-napi && npm run build
 
+# UniFFI bindings (must regenerate after changing uniffi_bindings.rs or lib_mobile.rs exports)
+./build/generate_bindings.sh              # Regenerate Swift + Kotlin bindings
+./build/generate_bindings.sh --swift-only # Swift only
+./build/generate_bindings.sh --kotlin-only # Kotlin only
+
 # Run the gateway
 ./openobscure-core/target/release/openobscure serve
 ```
