@@ -36,6 +36,21 @@ final class OpenObscureManager {
         }
     }
 
+    /// Sanitize a full conversation history — user + system messages are sanitized,
+    /// assistant messages pass through unchanged (they already contain FPE tokens from DB).
+    ///
+    /// **Important:** The caller must store raw LLM responses (with FPE tokens) in the DB,
+    /// not restored plaintext. Use `restore()` only for display. This ensures assistant
+    /// messages in history never leak plaintext PII to the LLM on subsequent turns.
+    func sanitizeMessages(_ messages: [(role: String, content: String)]) -> [(role: String, content: String)] {
+        let ffiMessages = messages.map { ChatMessageFfi(role: $0.role, content: $0.content) }
+        let result = try! OpenObscureLib.sanitizeMessages(handle: handle, messages: ffiMessages)
+        if result.piiCount > 0 {
+            mergeMappings(result.mappingJson)
+        }
+        return result.messages.map { ($0.role, $0.content) }
+    }
+
     /// Sanitize text — returns (sanitized text, PII count).
     /// Mappings are accumulated across calls for the current conversation.
     func sanitize(_ text: String) -> (sanitizedText: String, piiCount: UInt32) {

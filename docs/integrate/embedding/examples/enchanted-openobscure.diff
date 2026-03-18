@@ -155,11 +155,33 @@ index 5c0de75..7ace99c 100644
  		FF0611E92C04A11800443B33 /* Magnet */ = {
  			isa = XCSwiftPackageProductDependency;
  			package = FF0611E82C04A11800443B33 /* XCRemoteSwiftPackageReference "Magnet" */;
+diff --git a/Enchanted.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved b/Enchanted.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+index c6bed16..f5e0f31 100644
+--- a/Enchanted.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
++++ b/Enchanted.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+@@ -1,5 +1,5 @@
+ {
+-  "originHash" : "3fe20c6c704d04e2f924250b1ce019f513915d235cdd9aedc57f51a0a1a94763",
++  "originHash" : "9928da09a440262e7b2138adeb3454abec93652b19eafce389b3743dd1d085f7",
+   "pins" : [
+     {
+       "identity" : "activityindicatorview",
+@@ -87,8 +87,8 @@
+       "kind" : "remoteSourceControl",
+       "location" : "https://github.com/swiftlang/swift-cmark",
+       "state" : {
+-        "revision" : "3ccff77b2dc5b96b77db3da0d68d28068593fa53",
+-        "version" : "0.5.0"
++        "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
++        "version" : "0.7.1"
+       }
+     },
+     {
 diff --git a/Enchanted/Stores/ConversationStore.swift b/Enchanted/Stores/ConversationStore.swift
-index c9043ea..d7dccd4 100644
+index c9043ea..878d87f 100644
 --- a/Enchanted/Stores/ConversationStore.swift
 +++ b/Enchanted/Stores/ConversationStore.swift
-@@ -10,6 +10,7 @@ import SwiftData
+@@ -10,17 +10,29 @@ import SwiftData
  import OllamaKit
  import Combine
  import SwiftUI
@@ -167,74 +189,480 @@ index c9043ea..d7dccd4 100644
  
  @Observable
  final class ConversationStore: Sendable {
-@@ -134,19 +135,41 @@ final class ConversationStore: Sendable {
+     static let shared = ConversationStore(swiftDataService: SwiftDataService.shared)
+     
+     private var swiftDataService: SwiftDataService
+-    private var generation: AnyCancellable?
++    // @ObservationIgnored: generation is written from a background GCD thread (inside
++    // DispatchQueue.global.async when starting the Ollama Combine subscription).
++    // Without this, @Observable's generated setter calls withMutation() off the main
++    // actor, racing with Chat.body reading the registrar on @MainActor. The data race
++    // corrupts the registrar's tracking state, silently breaking observation for all
++    // other properties — including conversationState — so the spinner never stops.
++    @ObservationIgnored private var generation: AnyCancellable?
+     
+     /// For some reason (SwiftUI bug / too frequent UI updates) updating UI for each stream message sometimes freezes the UI.
+     /// Throttling UI updates seem to fix the issue.
+     private var currentMessageBuffer: String = ""
++    /// Guard against double handleComplete — the Ollama accumulator timeout can fire
++    /// a premature .finished, then the real stream completion fires a second time.
++    /// Without this flag the second call leaves conversationState in an inconsistent
++    /// state (send button disappears).
++    private var didComplete = false
+ #if os(macOS)
+     private let throttler = Throttler(delay: 0.1)
+ #else
+@@ -78,15 +90,33 @@ final class ConversationStore: Sendable {
+             swiftDataService.fetchMessages(conversation.id),
+             swiftDataService.getConversation(conversation.id)
+         )
+-        
+-        DispatchQueue.main.async {
+-                self.messages = messages
+-                self.selectedConversation = selectedConversation
++
++        await MainActor.run {
++            self.messages = messages
++            self.selectedConversation = selectedConversation
+         }
+     }
+-    
++
++    /// Restore assistant messages for display — DB has raw FPE tokens,
++    /// UI needs restored plaintext. Call AFTER capturing rawMessages for sanitize.
++    /// Runs restore() off-main, then assigns on MainActor.
++    private func restoreMessagesForDisplay() async {
++        let msgs = await MainActor.run {
++            messages.filter { $0.role == "assistant" && !$0.content.isEmpty }
++                .map { ($0, $0.content) }
++        }
++        let oo = OpenObscureManager.shared
++        let restored = msgs.map { (msg, raw) in (msg, oo.restore(raw)) }
++        await MainActor.run {
++            for (msg, text) in restored {
++                msg.displayContent = text
++            }
++        }
++    }
++
+     func selectConversation(_ conversation: ConversationSD) async throws {
+         try await reloadConversation(conversation)
++        await restoreMessagesForDisplay()
+     }
+     
+     func delete(_ conversation: ConversationSD) async throws {
+@@ -134,38 +164,80 @@ final class ConversationStore: Sendable {
          let userMessage = MessageSD(content: userPrompt, role: "user", image: image?.render()?.compressImageData())
          userMessage.conversation = conversation
          
 -        /// prepare message history for Ollama
-+        /// prepare message history for Ollama — sanitize user messages via OpenObscure
-+        let oo = OpenObscureManager.shared
-         var messageHistory = conversation.messages
-             .sorted{$0.createdAt < $1.createdAt}
+-        var messageHistory = conversation.messages
+-            .sorted{$0.createdAt < $1.createdAt}
 -            .map{OKChatRequestData.Message(role: OKChatRequestData.Message.Role(rawValue: $0.role) ?? .assistant, content: $0.content)}
-+            .map { msg -> OKChatRequestData.Message in
-+                let role = OKChatRequestData.Message.Role(rawValue: msg.role) ?? .assistant
-+                if role == .user {
-+                    let (sanitized, _) = oo.sanitize(msg.content)
-+                    return OKChatRequestData.Message(role: role, content: sanitized)
-+                }
-+                return OKChatRequestData.Message(role: role, content: msg.content)
-+            }
-         
-         
-         print(messageHistory.map({$0.content}))
-         
+-        
+-        
+-        print(messageHistory.map({$0.content}))
+-        
 -        /// attach selected image to the last Message
-+        /// attach selected image to the last Message — sanitize via OpenObscure
-         if let image = image?.render() {
-             if let lastMessage = messageHistory.popLast() {
+-        if let image = image?.render() {
+-            if let lastMessage = messageHistory.popLast() {
 -                let imagesBase64: [String] = [image.convertImageToBase64String()]
 -                let messageWithImage = OKChatRequestData.Message(role: lastMessage.role, content: lastMessage.content, images: imagesBase64)
-+                var base64String: String
-+                if let imageData = image.compressImageData() {
-+                    do {
-+                        let sanitized = try sanitizeImage(
-+                            handle: oo.handle,
-+                            imageBytes: imageData
-+                        )
-+                        base64String = sanitized.base64EncodedString()
-+                    } catch {
-+                        // Fail-open: use original image if sanitization fails
-+                        base64String = image.convertImageToBase64String()
-+                    }
-+                } else {
-+                    base64String = image.convertImageToBase64String()
-+                }
-+                let messageWithImage = OKChatRequestData.Message(role: lastMessage.role, content: lastMessage.content, images: [base64String])
-                 messageHistory.append(messageWithImage)
+-                messageHistory.append(messageWithImage)
++        /// Grab compressed image bytes on main thread (UIImage ops must stay here).
++        /// sanitizeMessages() + sanitizeImage() FFI run on background threads below.
++        let oo = OpenObscureManager.shared
++        var rawImageData: Data? = nil
++        var rawImageBase64: String? = nil
++        let hasImage = image != nil
++        if let img = image?.render() {
++            if let compressed = img.compressImageData() {
++                rawImageData = compressed
++            } else {
++                rawImageBase64 = img.convertImageToBase64String()
              }
          }
-@@ -223,7 +246,17 @@ final class ConversationStore: Sendable {
+-        
++
+         let assistantMessage = MessageSD(content: "", role: "assistant")
+         assistantMessage.conversation = conversation
+-        
++
+         conversationState = .loading
+-        
++        didComplete = false
++
+         Task {
+             try await swiftDataService.updateConversation(conversation)
+             try await swiftDataService.createMessage(userMessage)
+             try await swiftDataService.createMessage(assistantMessage)
++
+             try await reloadConversation(conversation)
+             try? await loadConversations()
+-            
++
++            // Capture rawMessages BEFORE restoring for display. After reload,
++            // assistant message content has raw FPE tokens from DB.
++            let rawMessages = self.messages
++                .sorted { $0.createdAt < $1.createdAt }
++                .map { (role: $0.role, content: $0.content) }
++
++            // Restore assistant messages for UI display (sets displayContent, not content)
++            await self.restoreMessagesForDisplay()
++
++            /// sanitizeMessages() runs NER ONNX inference — must NOT block @MainActor.
++            let sanitizedPairs = await Task.detached(priority: .userInitiated) {
++                oo.sanitizeMessages(rawMessages)
++            }.value
++            var messageHistory = sanitizedPairs.map { msg -> OKChatRequestData.Message in
++                let role = OKChatRequestData.Message.Role(rawValue: msg.role) ?? .assistant
++                return OKChatRequestData.Message(role: role, content: msg.content)
++            }
++
++            print(messageHistory.map({$0.content}))
++
++            var imagePayload: (Data, OKChatRequestData.Message)?
++            if hasImage {
++                if let imageData = rawImageData, let lastMessage = messageHistory.popLast() {
++                    imagePayload = (imageData, lastMessage)
++                } else if let base64 = rawImageBase64, let lastMessage = messageHistory.popLast() {
++                    messageHistory.append(OKChatRequestData.Message(role: lastMessage.role, content: lastMessage.content, images: [base64]))
++                }
++            }
++
+             if await OllamaService.shared.ollamaKit.reachable() {
+                 DispatchQueue.global(qos: .background).async {
+-                    var request = OKChatRequestData(model: model.name, messages: messageHistory)
++                    /// Sanitize image on background thread — NSFW+face+OCR pipeline
++                    /// can take 200–500 ms and must not block the main thread.
++                    var requestMessages = messageHistory
++                    if let (imageData, lastMessage) = imagePayload {
++                        let base64String: String
++                        do {
++                            let sanitized = try sanitizeImage(handle: oo.handle, imageBytes: imageData)
++                            base64String = sanitized.base64EncodedString()
++                        } catch {
++                            base64String = imageData.base64EncodedString()
++                        }
++                        requestMessages.append(OKChatRequestData.Message(role: lastMessage.role, content: lastMessage.content, images: [base64String]))
++                    }
++
++                    var request = OKChatRequestData(model: model.name, messages: requestMessages)
+                     request.options = OKCompletionOptions(temperature: 0)
+                     
+                     self.generation = OllamaService.shared.ollamaKit.chat(data: request)
+@@ -187,13 +259,38 @@ final class ConversationStore: Sendable {
+         }
+     }
+     
++    // MARK: - P4 helper: format RI warning label for embedded mode
++
++    /// Format a concise warning banner to prepend to assistant message content
++    /// when the cognitive firewall detects manipulation patterns.
++    private func riWarningLabel(severity: String, categories: [String]) -> String {
++        let cats = categories.map { cat -> String in
++            switch cat {
++            case "Art_5_1_a_Deceptive": return "Deceptive Practices"
++            case "Art_5_1_b_Age":       return "Age-Based Targeting"
++            case "Art_5_1_b_SocioEcon": return "Socioeconomic Targeting"
++            case "Art_5_1_c_Social_Scoring": return "Social Scoring"
++            default:
++                return cat
++            }
++        }
++        let tactics = cats.isEmpty ? severity : cats.joined(separator: " • ")
++        switch severity {
++        case "Caution":
++            return "--- OpenObscure WARNING ---\nDetected: \(tactics)\nRecommendation: Pause and verify with objective evidence before acting.\n---\n\n"
++        case "Warning":
++            return "--- OpenObscure WARNING ---\nDetected: \(tactics)\nThis response contains language patterns associated with influence tactics.\n---\n\n"
++        default:
++            return "--- OpenObscure WARNING ---\nDetected: \(tactics)\n---\n\n"
++        }
++    }
++
+     @MainActor
+     private func handleReceive(_ response: OKChatResponse)  {
+         if messages.isEmpty { return }
+-        
+         if let responseContent = response.message?.content {
+             currentMessageBuffer = currentMessageBuffer + responseContent
+-            
++
+             throttler.throttle { [weak self] in
+                 guard let self = self else { return }
+                 let lastIndex = self.messages.count - 1
+@@ -202,7 +299,7 @@ final class ConversationStore: Sendable {
+             }
+         }
+     }
+-    
++
+     @MainActor
+     private func handleError(_ errorMessage: String) {
          guard let lastMesasge = messages.last else { return }
+@@ -220,16 +317,61 @@ final class ConversationStore: Sendable {
+     
+     @MainActor
+     private func handleComplete() {
++        // Guard against double invocation — the Ollama accumulator timeout can fire
++        // a premature .finished, then the real stream completion fires again. The
++        // second call would leave conversationState stuck (send button disappears).
++        guard !didComplete else { return }
++        didComplete = true
++
+         guard let lastMesasge = messages.last else { return }
++
++        // STREAMING BUFFER FLUSH — must happen before restore.
++        if !currentMessageBuffer.isEmpty {
++            let lastIndex = messages.count - 1
++            messages[lastIndex].content.append(currentMessageBuffer)
++            currentMessageBuffer = ""
++        }
++
          lastMesasge.error = false
          lastMesasge.done = true
 -        
+-        Task(priority: .background) {
+-            try await self.swiftDataService.updateMessage(lastMesasge)
+-        }
+-        
+-        withAnimation {
+-            conversationState = .completed
 +
-+        // Restore FPE-encrypted tokens on the full assembled response — streaming
-+        // delivers tokens one-by-one so per-chunk restore never matches.
-+        lastMesasge.content = OpenObscureManager.shared.restore(lastMesasge.content)
++        // Set .completed SYNCHRONOUSLY on MainActor so SwiftUI re-renders the
++        // send button immediately. Previously this was deferred inside an async
++        // Task → MainActor.run → withAnimation, but SwiftUI's observation tracking
++        // could miss the state change from a non-structured task, leaving the send
++        // button stuck as a stop button.
++        self.conversationState = .completed
 +
-+        // Cognitive firewall: scan full assembled response once, off the hot path
-+        let fullResponse = lastMesasge.content
-+        Task(priority: .background) {
-+            OpenObscureManager.shared.scanResponse(fullResponse)
-+        }
++        // Restore FPE tokens + cognitive firewall on a background Task.
++        // The message content briefly shows raw tokens (<100ms) before the
++        // restored text replaces it. This is acceptable because:
++        //   - The user sees the response appear (streaming was already visible)
++        //   - Restore typically completes in <10ms
++        //   - The alternative (async .completed) caused the send button to vanish
++        // Save raw token text to DB FIRST — assistant messages in conversation
++        // history must retain FPE tokens so they're never sent as plaintext to the
++        // LLM on subsequent turns. Restore is display-only.
++        let messageToUpdate = lastMesasge
++        Task(priority: .userInitiated) {
++            let rawText = messageToUpdate.content
++            // Persist raw tokens to DB before restoring for display
++            try? await self.swiftDataService.updateMessage(messageToUpdate)
 +
-         Task(priority: .background) {
-             try await self.swiftDataService.updateMessage(lastMesasge)
++            let restored = OpenObscureManager.shared.restore(rawText)
++            let riReport = OpenObscureManager.shared.scanResponse(restored)
++
++            await MainActor.run {
++                var finalContent = restored
++
++                // P4: prepend RI warning label if manipulation detected
++                if let report = riReport {
++                    let label = riWarningLabel(severity: report.severity, categories: report.r2Categories)
++                    finalContent = label + finalContent
++                }
++
++                // Set displayContent (transient) — autosave-safe, content stays as tokens.
++                messageToUpdate.displayContent = finalContent
++            }
          }
+     }
+ }
+diff --git a/Enchanted/SwiftData/Models/MessageSD.swift b/Enchanted/SwiftData/Models/MessageSD.swift
+index c3d6d9a..4868ff9 100644
+--- a/Enchanted/SwiftData/Models/MessageSD.swift
++++ b/Enchanted/SwiftData/Models/MessageSD.swift
+@@ -12,44 +12,42 @@ import SwiftData
+ final class MessageSD: Identifiable {
+     @Attribute(.unique) var id: UUID = UUID()
+     
++    var content: String
++    /// Display-only restored plaintext. Never persisted — SwiftData autosave ignores
++    /// @Transient properties entirely. Nil during streaming or when not yet restored.
++    /// UI reads: displayContent ?? content
++    @Transient var displayContent: String? = nil
++    /// What the UI should render — restored plaintext if available, raw tokens otherwise.
++    private var displayText: String { displayContent ?? content }
+     var think: String? {
+-        if content.contains("<think>") {
+-            if content.contains("</think>") {
+-                let tmps = content.components(separatedBy: "</think>")
++        if displayText.contains("<think>") {
++            if displayText.contains("</think>") {
++                let tmps = displayText.components(separatedBy: "</think>")
+                 if tmps.count > 1 {
+                     return tmps[0].replacingOccurrences(of: "<think>", with: "")
+                 }
+             }
+-            return content.replacingOccurrences(of: "<think>", with: "")
++            return displayText.replacingOccurrences(of: "<think>", with: "")
+         }
+         return nil
+     }
+     var hasThink: Bool {
+-        if content.contains("<think>") {
+-            return true
+-        }
+-        return false
++        displayText.contains("<think>")
+     }
+     var thinkComplete: Bool {
+-        if content.contains("<think>") {
+-            if content.contains("</think>") {
+-                return true
+-            }
+-        }
+-        return false
++        displayText.contains("<think>") && displayText.contains("</think>")
+     }
+-    var content: String
+     var realContent: String? {
+-        if content.contains("<think>") {
+-            if content.contains("</think>") {
+-                let tmps = content.components(separatedBy: "</think>")
++        if displayText.contains("<think>") {
++            if displayText.contains("</think>") {
++                let tmps = displayText.components(separatedBy: "</think>")
+                 if tmps.count > 1 {
+                     return tmps[1]
+                 }
+             }
+             return nil
+         }
+-        return content
++        return displayText
+     }
+     var role: String
+     var done: Bool = false
+diff --git a/Enchanted/UI/Shared/ApplicationEntry.swift b/Enchanted/UI/Shared/ApplicationEntry.swift
+index 34c6f32..a4ca52d 100644
+--- a/Enchanted/UI/Shared/ApplicationEntry.swift
++++ b/Enchanted/UI/Shared/ApplicationEntry.swift
+@@ -7,6 +7,7 @@
+ 
+ import SwiftUI
+ import SwiftData
++import OpenObscureLib
+ 
+ struct ApplicationEntry: View {
+     @AppStorage("colorScheme") private var colorScheme: AppColorScheme = .system
+@@ -36,7 +37,11 @@ struct ApplicationEntry: View {
+                 async let loadModels: () = languageModelStore.loadModels()
+                 async let loadConversations: () = conversationStore.loadConversations()
+                 async let loadCompletions: () = completionsStore.load()
+-                
++                // Warm up OpenObscure in parallel with other startup work.
++                // Without this, the first sendPrompt triggers lazy init on @MainActor,
++                // loading 7 ONNX models synchronously on the main thread → UI freeze.
++                let _ = OpenObscureManager.shared
++
+                 do {
+                     _ = try await loadModels
+                     _ = try await loadConversations
+diff --git a/Enchanted/UI/Shared/Chat/Chat.swift b/Enchanted/UI/Shared/Chat/Chat.swift
+index bc9b864..1e1b116 100644
+--- a/Enchanted/UI/Shared/Chat/Chat.swift
++++ b/Enchanted/UI/Shared/Chat/Chat.swift
+@@ -105,7 +105,7 @@ struct Chat: View, Sendable {
+                 let jsonArray = messages.map { message in
+                     return [
+                         "role": message.role,
+-                        "content": message.content
++                        "content": message.displayContent ?? message.content
+                     ]
+                 }
+                 let jsonEncoder = JSONEncoder()
+diff --git a/Enchanted/UI/Shared/Chat/Components/ChatMessages/ChatMessageView.swift b/Enchanted/UI/Shared/Chat/Components/ChatMessages/ChatMessageView.swift
+index 9edfdae..8191237 100644
+--- a/Enchanted/UI/Shared/Chat/Components/ChatMessages/ChatMessageView.swift
++++ b/Enchanted/UI/Shared/Chat/Components/ChatMessages/ChatMessageView.swift
+@@ -118,7 +118,7 @@ struct ChatMessageView: View {
+ #if os(macOS)
+             HStack(spacing: 0) {
+                 /// Copy button
+-                Button(action: {Clipboard.shared.setString(message.content)}) {
++                Button(action: {Clipboard.shared.setString(message.displayContent ?? message.content)}) {
+                     Image(systemName: "doc.on.doc")
+                         .padding(8)
+                 }
+@@ -129,7 +129,7 @@ struct ChatMessageView: View {
+                 Button(action: {
+                     Task {
+                         await speechSynthesizer.stopSpeaking()
+-                        await speechSynthesizer.speak(text: message.content, onFinished: { isSpeaking = false })
++                        await speechSynthesizer.speak(text: message.displayContent ?? message.content, onFinished: { isSpeaking = false })
+                         DispatchQueue.main.asyncAfter(deadline: .now()+0.1) {
+                             isSpeaking = true
+                         }
+diff --git a/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift b/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift
+index a743aab..124f0de 100644
+--- a/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift
++++ b/Enchanted/UI/Shared/Chat/Components/MessageListVIew.swift
+@@ -13,7 +13,20 @@ import AppKit
+ 
+ struct MessageListView: View {
+     var messages: [MessageSD]
+-    var conversationState: ConversationState
++    // Observe ConversationStore directly rather than receiving conversationState as a
++    // value parameter from a parent view.
++    //
++    // Root cause: Chat.body's @Observable tracking of conversationStore.conversationState
++    // fires for the .completed→.loading transition but NOT for .loading→.completed when
++    // the change originates inside a Task body (Swift concurrency / @MainActor var
++    // interaction with SwiftUI's observation engine). By the time SwiftUI re-renders
++    // the parent and passes a new conversationState parameter down to MessageListView,
++    // conversationState is already stale (.loading) and showLoader stays true forever.
++    //
++    // Owning the observation here means MessageListView directly tracks
++    // conversationStore.conversationState via @Observable and is invalidated as soon as
++    // the store changes — regardless of whether any ancestor view re-renders.
++    @State private var conversationStore = ConversationStore.shared
+     var userInitials: String
+     @Binding var editMessage: MessageSD?
+     @State private var messageSelected: MessageSD?
+@@ -44,17 +57,17 @@ struct MessageListView: View {
+                     VStack {
+                         ForEach(messages) { message in
+                             let contextMenu = ContextMenu(menuItems: {
+-                                Button(action: {Clipboard.shared.setString(message.content)}) {
++                                Button(action: {Clipboard.shared.setString(message.displayContent ?? message.content)}) {
+                                     Label("Copy", systemImage: "doc.on.doc")
+                                 }
+-                                
++
+ #if os(iOS) || os(visionOS)
+                                 Button(action: { messageSelected = message }) {
+                                     Label("Select Text", systemImage: "selection.pin.in.out")
+                                 }
+-                                
++
+                                 Button(action: {
+-                                    onReadAloud(message.content)
++                                    onReadAloud(message.displayContent ?? message.content)
+                                 }) {
+                                     Label("Read Aloud", systemImage: "speaker.wave.3.fill")
+                                 }
+@@ -79,7 +92,7 @@ struct MessageListView: View {
+                             
+                             ChatMessageView(
+                                 message: message,
+-                                showLoader: conversationState == .loading && messages.last == message,
++                                showLoader: conversationStore.conversationState == .loading && messages.last == message,
+                                 userInitials: userInitials,
+                                 editMessage: $editMessage
+                             )
+@@ -124,7 +137,6 @@ struct MessageListView: View {
+ #Preview {
+     MessageListView(
+         messages: MessageSD.sample,
+-        conversationState: .loading,
+         userInitials: "AM",
+         editMessage: .constant(MessageSD.sample[0])
+     )
 diff --git a/Enchanted/UI/iOS/ChatView_iOS.swift b/Enchanted/UI/iOS/ChatView_iOS.swift
-index 95e8b07..1c7d6db 100644
+index 95e8b07..dfc7369 100644
 --- a/Enchanted/UI/iOS/ChatView_iOS.swift
 +++ b/Enchanted/UI/iOS/ChatView_iOS.swift
 @@ -147,7 +147,7 @@ struct ChatView: View {
@@ -246,6 +674,39 @@ index 95e8b07..1c7d6db 100644
                  }
              }
              .onChange(of: isFocusedInput, { oldValue, newValue in
+@@ -188,7 +188,6 @@ struct ChatView: View {
+             if conversation != nil {
+                 MessageListView(
+                     messages: messages,
+-                    conversationState: conversationState,
+                     userInitials: userInitials,
+                     editMessage: $editMessage
+                 )
+diff --git a/Enchanted/UI/iOS/Components/SelectTextSheet.swift b/Enchanted/UI/iOS/Components/SelectTextSheet.swift
+index 953ee36..7b749dc 100644
+--- a/Enchanted/UI/iOS/Components/SelectTextSheet.swift
++++ b/Enchanted/UI/iOS/Components/SelectTextSheet.swift
+@@ -32,7 +32,7 @@ struct SelectTextSheet: View {
+                 .padding()
+             }
+             
+-            TextEditor(text: .constant(message.content))
++            TextEditor(text: .constant(message.displayContent ?? message.content))
+                 .focusable()
+                 .focused($isTextEditorFocused)
+                 .onReceive(NotificationCenter.default.publisher(for: UITextField.textDidBeginEditingNotification)) { obj in
+diff --git a/Enchanted/UI/macOS/Chat/ChatView_macOS.swift b/Enchanted/UI/macOS/Chat/ChatView_macOS.swift
+index 1446225..8f810dc 100644
+--- a/Enchanted/UI/macOS/Chat/ChatView_macOS.swift
++++ b/Enchanted/UI/macOS/Chat/ChatView_macOS.swift
+@@ -64,7 +64,6 @@ struct ChatView: View {
+                 if selectedConversation != nil {
+                     MessageListView(
+                         messages: messages,
+-                        conversationState: conversationState,
+                         userInitials: userInitials,
+                         editMessage: $editMessage
+                     )
 diff --git a/Enchanted/UI/macOS/Chat/Components/InputFields_macOS.swift b/Enchanted/UI/macOS/Chat/Components/InputFields_macOS.swift
 index bca42bf..1232661 100644
 --- a/Enchanted/UI/macOS/Chat/Components/InputFields_macOS.swift

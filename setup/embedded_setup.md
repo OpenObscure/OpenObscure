@@ -211,19 +211,29 @@ cp openobscure-core/target/x86_64-linux-android/release/libopenobscure_core.so \
 Expected output:
 ```
 bindings/swift/openobscure_core.swift
+bindings/swift/openobscure_coreFFI.h
 bindings/swift/openobscure_coreFFI.modulemap
 ```
 
-Copy both files from the OpenObscure repo root into your iOS/macOS app (run from the repo root):
+> **How `generate_bindings.sh` works:** It compiles a macOS debug dylib internally (independent of `build_ios.sh`) and uses it to generate the binding files. The iOS static library (`.a`) is a separate build artifact — both are required for an iOS integration.
+
+Copy the two binding files into the local SPM package (run from the repo root):
 
 ```bash
-cp bindings/swift/openobscure_core.swift $FORK_SWIFT/Enchanted/openobscure_core.swift
-cp bindings/swift/openobscure_coreFFI.modulemap $FORK_SWIFT/Enchanted/openobscure_coreFFI.modulemap
+# Swift API surface → SPM Swift module
+cp bindings/swift/openobscure_core.swift \
+   $FORK_SWIFT/OpenObscureLib/Sources/OpenObscureLib/openobscure_core.swift
+
+# C header → SPM C module include directory
+cp bindings/swift/openobscure_coreFFI.h \
+   $FORK_SWIFT/OpenObscureLib/Sources/COpenObscure/include/openobscure_coreFFI.h
 ```
 
-Then add both files to the app target in Xcode (drag from the Finder into the `Enchanted/` group, or use **File → Add Files**). The `.swift` file is the generated API surface; the `.modulemap` exposes the underlying C header to Swift.
+> The `.modulemap` is handled by `Package.swift` — do not copy it separately. Do **not** add these files to the app target directly; they belong in the `OpenObscureLib` SPM package.
 
 > **Note:** If you are integrating into Enchanted, do this after **Part 5A Step 1** (clone the fork) when the destination directory exists.
+
+> **After updating bindings:** Do a Clean Build Folder in Xcode (**⇧⌘K**) before rebuilding. Stale compiled Swift interfaces will otherwise cause "cannot find … in scope" errors even if the source files are correct.
 
 ```bash
 # Kotlin (Android)
@@ -304,7 +314,11 @@ git checkout 2f82ee2518c63fa7347c9e8e8e5a131ee0b75cbe
 
 ### Step 2 — Copy the OpenObscure artifacts
 
-> **Prerequisite:** Complete the **iOS** build in Part 2 (`./build/build_ios.sh --release`) before running this step. The commands below copy the iOS device library. If you only ran the macOS build, see the commented-out alternative in step 3 below.
+> **Prerequisites (run in this order):**
+> 1. `./build/build_ios.sh --release` (Part 2 — produces `libopenobscure_core.a`)
+> 2. `./build/generate_bindings.sh --swift-only` (Part 3 — produces `openobscure_core.swift` + `openobscure_coreFFI.h`)
+>
+> Three files must be copied to two different locations. The commands below do this in one pass. If you only ran the macOS build, see the commented-out alternative for the `.a` line.
 
 Run these commands from the OpenObscure **repo root** (the directory containing `openobscure-core/` and `build/`):
 

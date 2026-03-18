@@ -49,6 +49,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 |----------|-----------|-------------|
 | `createOpenobscure` | `(configJson: String, fpeKeyHex: String) -> OpenObscureHandle` | Initialize with config JSON and 32-byte FPE key (64 hex chars) |
 | `sanitizeText` | `(handle, text) -> SanitizeResult` | Scan text for PII, return sanitized text + mapping JSON |
+| `sanitizeMessages` | `(handle, messages: [ChatMessageFfi]) -> SanitizeMessagesResult` | Sanitize all roles (user + assistant + system) in one pass with shared token registry — preferred for multi-turn conversations |
 | `restoreText` | `(handle, text, mappingJson) -> String` | Decrypt FPE tokens in LLM response using saved mapping |
 | `sanitizeImage` | `(handle, imageBytes) -> Data` | EXIF strip (always) + face/OCR/NSFW redaction (model-dependent) on image bytes (JPEG/PNG) |
 | `sanitizeAudioTranscript` | `(handle, transcript) -> SanitizeResult` | Scan speech transcript for PII |
@@ -56,7 +57,7 @@ The embedded API is identical across Swift, Kotlin, and Rust:
 | `scanResponse` | `(handle, responseText) -> RiReportFFI?` | Scan LLM response for persuasion/manipulation (cognitive firewall) |
 | `rotateKey` | `(handle, newKeyHex: String)` | Rotate FPE key with 30s overlap window for in-flight mappings |
 | `getStats` | `(handle) -> MobileStats` | Device tier, total PII found, image count |
-| `getDebugLog` | `() -> String` | Drain accumulated Rust-side debug log (model loading, errors, verification) |
+| `getDebugLog` | `() -> String` | Drain accumulated Rust-side debug log (model loading, errors, verification). Call after restore to surface token match/miss diagnostics. |
 
 ### SanitizeResult
 
@@ -303,42 +304,51 @@ final class OpenObscureManager {
 
 Enchanted (Ollama-compatible iOS/macOS chat app) has four integration points:
 
-**1. Outbound messages** — `ConversationStore.swift`, `sendPrompt()` method:
+**1. Outbound messages (all roles)** — `ConversationStore.swift`, `sendPrompt()` method:
+
+Use `sanitizeMessages` (not `sanitizeText`) so the full conversation history — including prior assistant messages — is sanitized in a single pass with consistent tokens across all roles. Sanitizing only user messages leaves restored plaintext PII in assistant history, which the LLM would see on the next turn.
 
 ```swift
-// After building messageHistory (line ~140), before creating OKChatRequestData:
-var lastMappingJson: String = "{}"
+// Build raw message history from SwiftData (all roles: user, assistant, system)
+let oo = OpenObscureManager.shared
+let rawMessages = conversation.messages
+    .sorted { $0.createdAt < $1.createdAt }
+    .map { (role: $0.role, content: $0.content) }
 
-messageHistory = messageHistory.map { msg in
-    if msg.role == .user {
-        let result = try! sanitizeText(
-            handle: OpenObscureManager.shared.handle,
-            text: msg.content
-        )
-        if result.piiCount > 0 {
-            lastMappingJson = result.mappingJson
-        }
-        return OKChatRequestData.Message(
-            role: msg.role,
-            content: result.sanitizedText,
-            images: msg.images
-        )
-    }
-    return msg
+// sanitizeMessages pre-restores non-user messages to resolve stale tokens from
+// prior turns before re-tokenizing, ensuring the LLM sees consistent tokens.
+let sanitizedPairs = oo.sanitizeMessages(rawMessages)
+let messageHistory = sanitizedPairs.map { msg -> OKChatRequestData.Message in
+    let role = OKChatRequestData.Message.Role(rawValue: msg.role) ?? .assistant
+    return OKChatRequestData.Message(role: role, content: msg.content)
 }
 ```
 
-**2. Inbound responses** — `ConversationStore.swift`, `handleReceive()` method:
+**2. Inbound responses** — `ConversationStore.swift`, `handleComplete()` method:
+
+Restore is done once when the stream ends, not per-chunk. **Critical:** flush the streaming throttler buffer before calling `restore` — the final batch of tokens may still be in `currentMessageBuffer` when the stream completion fires. Without the flush, `restore` receives a truncated response and the FPE token is never seen, so the original PII value is never restored in the UI.
 
 ```swift
-// In handleReceive(), after extracting responseContent (line ~194):
-if let responseContent = response.message?.content {
-    let restored = restoreText(
-        handle: OpenObscureManager.shared.handle,
-        text: responseContent,
-        mappingJson: lastMappingJson
-    )
-    currentMessageBuffer = currentMessageBuffer + restored
+@MainActor
+private func handleComplete() {
+    guard let lastMesasge = messages.last else { return }
+
+    // Flush any tokens still buffered by the throttler before restore.
+    // Without this, restore() sees a truncated response (missing final chunk).
+    if !currentMessageBuffer.isEmpty {
+        let lastIndex = messages.count - 1
+        messages[lastIndex].content.append(currentMessageBuffer)
+        currentMessageBuffer = ""
+    }
+
+    lastMesasge.done = true
+    // ...
+    Task(priority: .background) {
+        let restored = OpenObscureManager.shared.restore(lastMesasge.content)
+        OpenObscureManager.shared.scanResponse(restored)
+        await MainActor.run { lastMesasge.content = restored }
+        try? await swiftDataService.updateMessage(lastMesasge)
+    }
 }
 ```
 
@@ -383,6 +393,67 @@ if let image = image?.render() {
     }
 }
 ```
+
+### LLM Response Handling — Key Implementation Notes
+
+Six issues were identified during the Enchanted integration. Any streaming chat app embedding OpenObscure should account for all six.
+
+**1. Use `sanitizeMessages` for multi-turn conversations**
+
+Each call to `sanitize_messages` generates fresh random FPE tokens. Calling `sanitizeText` per user message means turn 1 assigns `Angela Martinez → PER_7neo` and turn 2 assigns `Angela Martinez → PER_u426` — two different tokens for the same entity. The LLM then sees inconsistent context across turns.
+
+Use `sanitizeMessages` instead, passing the full conversation history (all roles). It sanitizes user and system messages in one pass so every mention of the same entity gets the same token. Assistant messages pass through unchanged — they were already sanitized on their original turn.
+
+**2. Pre-restore non-user messages before re-sanitizing**
+
+`sanitizeMessages` in `OpenObscureManager.swift` pre-restores prior assistant and system messages before calling the FFI. This is necessary because the SwiftData store holds the *restored* plaintext (e.g. `"Angela Martinez"`) after `handleComplete` restores the previous response. If those messages were sent through `sanitize_messages` as-is, the plaintext would get a fresh token (the same token inconsistency problem but in the other direction — PII present in context). Pre-restoring is a no-op on messages that are already plaintext; it only matters when a message contains stale tokens from a prior turn.
+
+**3. Flush the streaming throttler buffer before calling `restore`**
+
+Enchanted batches streaming tokens through a `Throttler` before updating the SwiftUI view. The throttler fires on a timer, so the final batch can still be sitting in `currentMessageBuffer` when the stream `.finished` completion fires. If `handleComplete` calls `restore(lastMesasge.content)` before flushing that buffer, `restore` receives a truncated response — e.g. `"The name in the record"` instead of `"The name in the record is \"PER_ud6c\"."` — and the FPE token is never seen, so the original PII value is never restored.
+
+Fix: check and flush `currentMessageBuffer` at the top of `handleComplete`, before any restore call.
+
+**4. Run leak scan before restore, not after**
+
+`leakedTokenCount` must be called on the raw LLM response **before** `restore()`. If called after, known tokens have already been replaced with plaintext and won't be detected. The function also includes a regex fallback (`[A-Z]{2,4}_[a-z0-9]{4}`) that catches token-shaped strings the LLM may have hallucinated — these are never in the mapping and would be invisible to a map-only check.
+
+```swift
+func handleComplete(newResponse: String) {
+    // 1. Leak scan FIRST — on raw LLM text, before any restoration
+    let leaks = OpenObscureManager.shared.leakedTokenCount(in: newResponse)
+    if leaks > 0 {
+        print("[OO] WARNING: \(leaks) leaked token(s) in response")
+    }
+
+    // 2. Restore PII tokens → plaintext
+    let restored = OpenObscureManager.shared.restore(newResponse)
+
+    // 3. Append only the restored response to display history
+    conversationHistory.append(Message(role: .assistant, content: restored))
+}
+```
+
+**5. Isolate display history from request context**
+
+The conversation history backing the UI must only receive the singular new assistant response after `restore()`. Never read from the `requestMessages` array (the sanitized context sent to the LLM) for display. Rebuild `requestMessages` fresh from `conversationHistory` at each `sendPrompt` call — it is ephemeral, not persisted.
+
+**6. Move `sanitizeMessages` off the main thread**
+
+`sanitizeMessages` cost grows linearly with conversation length (~80-90ms per message). By turn 6-8 this exceeds 500ms on the main thread, causing visible UI jank. Wrap the call in `Task {}` or `DispatchQueue.global().async`:
+
+```swift
+Task {
+    let sanitized = OpenObscureManager.shared.sanitizeMessages(messages)
+    await MainActor.run {
+        // Send sanitized messages to Ollama
+    }
+}
+```
+
+**Diagnostic tip — draining the Rust debug log after `restore`**
+
+`restore_text` in Rust logs match/unmatch counts via `oo_warn!` into an in-process ring buffer. On iOS, stderr goes to `/dev/null`, so these logs are invisible unless explicitly drained. Call `getDebugLog()` immediately after `restoreText(...)` and print the result to surface token match diagnostics during development.
 
 ---
 

@@ -643,6 +643,79 @@ public func FfiConverterTypeOpenObscureHandle_lower(_ value: OpenObscureHandle) 
 
 
 /**
+ * A single chat message for multi-message sanitization.
+ */
+public struct ChatMessageFfi {
+    public var role: String
+    public var content: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(role: String, content: String) {
+        self.role = role
+        self.content = content
+    }
+}
+
+#if compiler(>=6)
+extension ChatMessageFfi: Sendable {}
+#endif
+
+
+extension ChatMessageFfi: Equatable, Hashable {
+    public static func ==(lhs: ChatMessageFfi, rhs: ChatMessageFfi) -> Bool {
+        if lhs.role != rhs.role {
+            return false
+        }
+        if lhs.content != rhs.content {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(role)
+        hasher.combine(content)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeChatMessageFfi: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> ChatMessageFfi {
+        return
+            try ChatMessageFfi(
+                role: FfiConverterString.read(from: &buf),
+                content: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: ChatMessageFfi, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.role, into: &buf)
+        FfiConverterString.write(value.content, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatMessageFfi_lift(_ buf: RustBuffer) throws -> ChatMessageFfi {
+    return try FfiConverterTypeChatMessageFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeChatMessageFfi_lower(_ value: ChatMessageFfi) -> RustBuffer {
+    return FfiConverterTypeChatMessageFfi.lower(value)
+}
+
+
+/**
  * Statistics exposed to Swift/Kotlin via UniFFI.
  */
 public struct MobileStatsFfi {
@@ -869,6 +942,87 @@ public func FfiConverterTypeRiReportFFI_lift(_ buf: RustBuffer) throws -> RiRepo
 #endif
 public func FfiConverterTypeRiReportFFI_lower(_ value: RiReportFfi) -> RustBuffer {
     return FfiConverterTypeRiReportFFI.lower(value)
+}
+
+
+/**
+ * Result of sanitizing a full conversation history.
+ */
+public struct SanitizeMessagesResultFfi {
+    public var messages: [ChatMessageFfi]
+    public var piiCount: UInt32
+    public var mappingJson: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(messages: [ChatMessageFfi], piiCount: UInt32, mappingJson: String) {
+        self.messages = messages
+        self.piiCount = piiCount
+        self.mappingJson = mappingJson
+    }
+}
+
+#if compiler(>=6)
+extension SanitizeMessagesResultFfi: Sendable {}
+#endif
+
+
+extension SanitizeMessagesResultFfi: Equatable, Hashable {
+    public static func ==(lhs: SanitizeMessagesResultFfi, rhs: SanitizeMessagesResultFfi) -> Bool {
+        if lhs.messages != rhs.messages {
+            return false
+        }
+        if lhs.piiCount != rhs.piiCount {
+            return false
+        }
+        if lhs.mappingJson != rhs.mappingJson {
+            return false
+        }
+        return true
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(messages)
+        hasher.combine(piiCount)
+        hasher.combine(mappingJson)
+    }
+}
+
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeSanitizeMessagesResultFfi: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> SanitizeMessagesResultFfi {
+        return
+            try SanitizeMessagesResultFfi(
+                messages: FfiConverterSequenceTypeChatMessageFfi.read(from: &buf),
+                piiCount: FfiConverterUInt32.read(from: &buf),
+                mappingJson: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: SanitizeMessagesResultFfi, into buf: inout [UInt8]) {
+        FfiConverterSequenceTypeChatMessageFfi.write(value.messages, into: &buf)
+        FfiConverterUInt32.write(value.piiCount, into: &buf)
+        FfiConverterString.write(value.mappingJson, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSanitizeMessagesResultFfi_lift(_ buf: RustBuffer) throws -> SanitizeMessagesResultFfi {
+    return try FfiConverterTypeSanitizeMessagesResultFfi.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeSanitizeMessagesResultFfi_lower(_ value: SanitizeMessagesResultFfi) -> RustBuffer {
+    return FfiConverterTypeSanitizeMessagesResultFfi.lower(value)
 }
 
 
@@ -1117,6 +1271,31 @@ fileprivate struct FfiConverterSequenceString: FfiConverterRustBuffer {
         return seq
     }
 }
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+fileprivate struct FfiConverterSequenceTypeChatMessageFfi: FfiConverterRustBuffer {
+    typealias SwiftType = [ChatMessageFfi]
+
+    public static func write(_ value: [ChatMessageFfi], into buf: inout [UInt8]) {
+        let len = Int32(value.count)
+        writeInt(&buf, len)
+        for item in value {
+            FfiConverterTypeChatMessageFfi.write(item, into: &buf)
+        }
+    }
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> [ChatMessageFfi] {
+        let len: Int32 = try readInt(&buf)
+        var seq = [ChatMessageFfi]()
+        seq.reserveCapacity(Int(len))
+        for _ in 0 ..< len {
+            seq.append(try FfiConverterTypeChatMessageFfi.read(from: &buf))
+        }
+        return seq
+    }
+}
 /**
  * Check if a transcript contains PII without encrypting.
  *
@@ -1211,6 +1390,23 @@ public func sanitizeImage(handle: OpenObscureHandle, imageBytes: Data)throws  ->
 })
 }
 /**
+ * Sanitize a full conversation history in one call.
+ *
+ * User and system messages are sanitized; assistant messages pass through
+ * unchanged (they were already sanitized on their original turn). The same
+ * plaintext value gets the same token across all messages in the batch.
+ *
+ * Use this instead of calling `sanitize_text()` per user message.
+ */
+public func sanitizeMessages(handle: OpenObscureHandle, messages: [ChatMessageFfi])throws  -> SanitizeMessagesResultFfi  {
+    return try  FfiConverterTypeSanitizeMessagesResultFfi_lift(try rustCallWithError(FfiConverterTypeMobileBindingError_lift) {
+    uniffi_openobscure_core_fn_func_sanitize_messages(
+        FfiConverterTypeOpenObscureHandle_lower(handle),
+        FfiConverterSequenceTypeChatMessageFfi.lower(messages),$0
+    )
+})
+}
+/**
  * Scan text for PII and encrypt matches with FF1 FPE.
  *
  * Returns a result with sanitized text and mapping data for later restoration.
@@ -1271,6 +1467,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_openobscure_core_checksum_func_sanitize_image() != 37545) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_openobscure_core_checksum_func_sanitize_messages() != 7398) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_openobscure_core_checksum_func_sanitize_text() != 58388) {

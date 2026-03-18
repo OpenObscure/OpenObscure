@@ -775,6 +775,8 @@ mod tests {
         assert_eq!(severity, SeverityTier::Warning);
     }
 
+    // --- P4: Token fragmentation tests ---
+
     #[test]
     fn test_compute_severity_r2_high_confidence_multi() {
         // R2 has 2+ categories at >0.90 → Caution

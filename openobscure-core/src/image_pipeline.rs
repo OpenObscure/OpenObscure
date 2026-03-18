@@ -120,6 +120,8 @@ pub struct ImageStats {
     pub from_url: bool,
     /// URL fetch time in milliseconds (0 for base64 images).
     pub fetch_ms: u64,
+    /// Face/OCR phases were skipped because NSFW detection triggered full-image redaction.
+    pub faces_skipped_nsfw: bool,
 }
 
 /// On-demand image model manager.
@@ -393,6 +395,7 @@ impl ImageModelManager {
 
                             if result.is_nsfw {
                                 stats.nsfw_detected = true;
+                                stats.faces_skipped_nsfw = true;
                                 oo_info!(crate::oo_log::modules::IMAGE,
                                     "NSFW content detected — redacting entire image",
                                     nsfw_score = result.nsfw_score,
@@ -450,8 +453,8 @@ impl ImageModelManager {
                     let face_h = face.y_max - face.y_min;
                     let face_area = face_w * face_h;
 
-                    // Always log bbox so we can verify redaction coordinates via getDebugLog().
-                    oo_info!(
+                    // WARN level: oo_info! is filtered from the ring buffer in release builds.
+                    oo_warn!(
                         crate::oo_log::modules::FACE,
                         "Face bbox (pixels)",
                         img_w = img_w,
