@@ -407,6 +407,12 @@ git apply $OO_REPO/docs/integrate/embedding/examples/enchanted-openobscure.diff
 
 The diff already wires everything into `project.pbxproj`: the `OpenObscureLib` local SPM package reference, `OpenObscureManager.swift` in the Sources build phase, and `OpenObscureModels` as a folder reference in the Resources build phase. No manual Xcode project editing required.
 
+> **Code signing:** The diff contains `DEVELOPMENT_TEAM` and `PRODUCT_BUNDLE_IDENTIFIER`
+> values from the author's test environment. You must change these to your own values in
+> Step 4.3 below — the build will fail otherwise. See the
+> [examples README](../docs/integrate/embedding/examples/README.md#enchanted-iosmacos--ollama-client)
+> for full details on what the diff includes.
+
 1. Open `Enchanted.xcodeproj` in Xcode 15+.
 2. Set the run destination to your connected iPhone (top of the Xcode window, next to the scheme selector). Enchanted is an iOS-first app and the library copied in Step 2 is an iOS device binary.
 

@@ -10,15 +10,24 @@ These diffs are provided as reference — adapt the patterns to your own app.
 - **Diff**: [enchanted-openobscure.diff](enchanted-openobscure.diff)
 
 **What the diff covers:**
-- `ConversationStore.swift` — outbound message sanitization, inbound response restoration, image sanitization via `sanitizeImage()`, cognitive firewall via `scanResponse()`
-- `ChatView_iOS.swift` — speech transcript sanitization on iOS
+- `project.pbxproj` — wires `OpenObscureLib` (local SPM package), `OpenObscureManager.swift` (Sources), and `OpenObscureModels` (Resources) into the Xcode project
+- `ConversationStore.swift` — batch `sanitizeMessages()`, streaming buffer flush, `@Transient displayContent` (DB stores FPE tokens, UI shows restored text), `restoreMessagesForDisplay()`, image sanitization via `sanitizeImage()`, cognitive firewall via `scanResponse()`
+- `MessageListVIew.swift` — direct `@Observable` tracking of `conversationState` (fixes SwiftUI observation miss on `.loading→.completed`)
+- `ApplicationEntry.swift` — eager `OpenObscureManager.shared` init to avoid main-thread model loading stall
+- `ChatView_iOS.swift` — speech transcript sanitization on iOS, `conversationState` parameter removal
+- `ChatView_macOS.swift` — `conversationState` parameter removal
 - `InputFields_macOS.swift` — speech transcript sanitization on macOS
 
+> **Code signing note:** The diff includes `DEVELOPMENT_TEAM` and `PRODUCT_BUNDLE_IDENTIFIER`
+> values specific to the author's environment. After applying the diff, you **must** change
+> these to match your own Apple Developer team and bundle identifier. See
+> [Embedded Setup — Step 4](../../../setup/embedded_setup.md#step-4--open-in-xcode-and-build)
+> for instructions.
+
 **Not included in the diff** (must be set up separately):
-- `OpenObscureManager.swift` — see [templates/](../templates/OpenObscureManager.swift) (includes accumulated mappings, `scanResponse()`, `resetMappings()`, and `getDebugLog()` diagnostics)
-- Local SPM package (`OpenObscureLib`) wrapping UniFFI bindings + static library
-- Xcode project changes (`.pbxproj`) — add the local package dependency manually
-- `models/` folder reference in Xcode (add as folder reference → Copy Bundle Resources) — use `build/bundle_models.sh` to prepare, see [Integration Guide Part 6a](../embedded_integration.md#part-6a-bundling-all-models-recommended)
+- `OpenObscureManager.swift` — see [templates/](../templates/OpenObscureManager.swift) (copied into `Enchanted/` by the setup guide)
+- Local SPM package (`OpenObscureLib/`) wrapping UniFFI bindings + static library (created by the setup guide)
+- `OpenObscureModels/` folder with ONNX models — use `build/bundle_models.sh` to prepare, see [Integration Guide Part 6a](../embedded_integration.md#part-6a-bundling-all-models-recommended)
 
 ## RikkaHub (Android — multi-provider LLM client)
 
