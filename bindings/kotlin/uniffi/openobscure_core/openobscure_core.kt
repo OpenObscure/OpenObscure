@@ -734,8 +734,6 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
-
-
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is
 // rather `InterfaceTooLargeException`, caused by too many methods
@@ -758,8 +756,6 @@ fun uniffi_openobscure_core_checksum_func_create_openobscure(
 fun uniffi_openobscure_core_checksum_func_get_debug_log(
 ): Short
 fun uniffi_openobscure_core_checksum_func_get_stats(
-): Short
-fun uniffi_openobscure_core_checksum_func_leaked_token_count(
 ): Short
 fun uniffi_openobscure_core_checksum_func_restore_text(
 ): Short
@@ -834,8 +830,6 @@ fun uniffi_openobscure_core_fn_func_get_debug_log(uniffi_out_err: UniffiRustCall
 ): RustBuffer.ByValue
 fun uniffi_openobscure_core_fn_func_get_stats(`handle`: Pointer,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
-fun uniffi_openobscure_core_fn_func_leaked_token_count(`handle`: Pointer,`text`: RustBuffer.ByValue,`mappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
-): Int
 fun uniffi_openobscure_core_fn_func_restore_text(`handle`: Pointer,`text`: RustBuffer.ByValue,`mappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 fun uniffi_openobscure_core_fn_func_sanitize_audio_transcript(`handle`: Pointer,`transcript`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
@@ -984,9 +978,6 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_core_checksum_func_get_stats() != 12072.toShort()) {
-        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
-    }
-    if (lib.uniffi_openobscure_core_checksum_func_leaked_token_count() != 38738.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_core_checksum_func_restore_text() != 27100.toShort()) {
@@ -2031,22 +2022,6 @@ public object FfiConverterSequenceTypeChatMessageFfi: FfiConverterRustBuffer<Lis
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_core_fn_func_get_stats(
         FfiConverterTypeOpenObscureHandle.lower(`handle`),_status)
-}
-    )
-    }
-
-
-        /**
-         * Count leaked FPE tokens in raw LLM response text.
-         *
-         * Call this **before** `restore_text()` — after restore, known tokens are
-         * replaced with plaintext and won't be detected. Uses both the session
-         * token map and a regex fallback for LLM-hallucinated token-shaped strings.
-         */ fun `leakedTokenCount`(`handle`: OpenObscureHandle, `text`: kotlin.String, `mappingJson`: kotlin.String): kotlin.UInt {
-            return FfiConverterUInt.lift(
-    uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_openobscure_core_fn_func_leaked_token_count(
-        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`text`),FfiConverterString.lower(`mappingJson`),_status)
 }
     )
     }
