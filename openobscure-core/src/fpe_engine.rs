@@ -115,6 +115,39 @@ impl FpeEngine {
         })
     }
 
+    /// Encrypt a PII match with stable-token semantics.
+    ///
+    /// Before generating a fresh FPE token, checks `existing_map` (a value→token
+    /// reverse index built from the caller's accumulated mapping). If the plaintext
+    /// value is already known, the existing token is returned unchanged — regardless
+    /// of the tweak supplied — ensuring the same entity always maps to the same
+    /// placeholder within a session even when tweaks differ across turns.
+    ///
+    /// When the value is not yet in `existing_map`, falls through to normal
+    /// `encrypt_match` so a fresh deterministic token is generated.
+    ///
+    /// # Parameters
+    /// - `pii_match` — the detected PII span to encrypt
+    /// - `tweak`     — per-request tweak (used only for new values)
+    /// - `existing_map` — caller-maintained `plaintext_value → token` index
+    pub fn encrypt_match_stable(
+        &self,
+        pii_match: &PiiMatch,
+        tweak: &[u8],
+        existing_map: &HashMap<String, String>,
+    ) -> Result<FpeResult, FpeError> {
+        // Return the already-assigned token if this plaintext was seen before
+        if let Some(existing_token) = existing_map.get(&pii_match.raw_value) {
+            return Ok(FpeResult {
+                original: pii_match.clone(),
+                encrypted: existing_token.clone(),
+                tweak: tweak.to_vec(),
+            });
+        }
+        // New value — generate a fresh FPE token
+        self.encrypt_match(pii_match, tweak)
+    }
+
     /// Decrypt a single encrypted PII value back to plaintext.
     pub fn decrypt_value(
         &self,
@@ -662,6 +695,125 @@ mod tests {
             .filter(|c| c.is_ascii_digit())
             .collect();
         assert_eq!(dec_digits, orig_digits);
+    }
+
+    // --- P5: Stable token map tests ---
+
+    #[test]
+    fn test_stable_map_returns_existing_token() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let pii_match = PiiMatch {
+            pii_type: PiiType::Ssn,
+            start: 0,
+            end: 11,
+            raw_value: "123-45-6789".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        // First encryption — generate initial token with tweak-A
+        let result1 = engine.encrypt_match(&pii_match, b"tweak-A").unwrap();
+
+        // Build the stable map: value → token
+        let mut stable: HashMap<String, String> = HashMap::new();
+        stable.insert("123-45-6789".to_string(), result1.encrypted.clone());
+
+        // Same plaintext with a DIFFERENT tweak — stable map must return the same token
+        let result2 = engine
+            .encrypt_match_stable(&pii_match, b"tweak-B", &stable)
+            .unwrap();
+        assert_eq!(
+            result2.encrypted, result1.encrypted,
+            "stable map must return existing token regardless of tweak"
+        );
+    }
+
+    #[test]
+    fn test_stable_map_new_value_generates_fresh_token() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let stable: HashMap<String, String> = HashMap::new(); // empty — nothing pre-known
+
+        let pii_match = PiiMatch {
+            pii_type: PiiType::Ssn,
+            start: 0,
+            end: 11,
+            raw_value: "999-88-7777".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let result = engine
+            .encrypt_match_stable(&pii_match, b"test-tweak", &stable)
+            .unwrap();
+        assert!(!result.encrypted.is_empty());
+        assert_ne!(
+            result.encrypted, pii_match.raw_value,
+            "must produce a different ciphertext"
+        );
+    }
+
+    #[test]
+    fn test_stable_map_different_values_get_different_tokens() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let stable: HashMap<String, String> = HashMap::new();
+
+        let ssn1 = PiiMatch {
+            pii_type: PiiType::Ssn,
+            start: 0,
+            end: 11,
+            raw_value: "123-45-6789".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+        let ssn2 = PiiMatch {
+            pii_type: PiiType::Ssn,
+            start: 0,
+            end: 11,
+            raw_value: "987-65-4321".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        let r1 = engine
+            .encrypt_match_stable(&ssn1, b"tweak", &stable)
+            .unwrap();
+        let r2 = engine
+            .encrypt_match_stable(&ssn2, b"tweak", &stable)
+            .unwrap();
+        assert_ne!(
+            r1.encrypted, r2.encrypted,
+            "distinct plaintexts must produce distinct tokens"
+        );
+    }
+
+    #[test]
+    fn test_stable_map_existing_token_survives_roundtrip() {
+        let engine = FpeEngine::new(&test_key()).unwrap();
+        let pii_match = PiiMatch {
+            pii_type: PiiType::Ssn,
+            start: 0,
+            end: 11,
+            raw_value: "123-45-6789".to_string(),
+            json_path: None,
+            confidence: 1.0,
+        };
+
+        // Establish the mapping on turn 1
+        let t1 = engine.encrypt_match(&pii_match, b"turn-1-tweak").unwrap();
+        let mut stable: HashMap<String, String> = HashMap::new();
+        stable.insert("123-45-6789".to_string(), t1.encrypted.clone());
+
+        // Turn 2 uses a different tweak but must return the turn-1 token
+        let t2 = engine
+            .encrypt_match_stable(&pii_match, b"turn-2-tweak", &stable)
+            .unwrap();
+        assert_eq!(t2.encrypted, t1.encrypted);
+
+        // Decrypting the stable token with the original tweak must still work
+        let decrypted = engine
+            .decrypt_value(&t1.encrypted, PiiType::Ssn, b"turn-1-tweak")
+            .unwrap();
+        assert_eq!(decrypted, "123-45-6789");
     }
 
     #[test]

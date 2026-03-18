@@ -287,6 +287,24 @@ impl Default for MobileConfig {
     }
 }
 
+/// A single chat message (role + content) for multi-message sanitization.
+#[derive(Debug, Clone)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+/// Result of sanitizing a full conversation history.
+#[derive(Debug, Clone)]
+pub struct SanitizeMessagesResult {
+    /// Sanitized messages in the same order as the input.
+    pub messages: Vec<ChatMessage>,
+    /// Total PII matches found across all messages.
+    pub pii_count: u32,
+    /// Combined mapping for all messages — pass to `restore_text()` for LLM responses.
+    pub mapping_json: String,
+}
+
 /// Result of sanitizing text for PII.
 #[derive(Debug, Clone)]
 pub struct SanitizeResult {
@@ -756,6 +774,120 @@ impl OpenObscureMobile {
         })
     }
 
+    /// Sanitize a full conversation history in one call.
+    ///
+    /// Scans user and system messages for PII; assistant messages are passed
+    /// through unchanged. The caller must ensure assistant messages already
+    /// contain FPE tokens (stored in DB after the LLM response), not restored
+    /// plaintext — otherwise PII leaks to the LLM on subsequent turns.
+    ///
+    /// Token reuse: the same plaintext value gets the same token across all
+    /// messages in the batch, so the LLM sees a consistent identifier.
+    ///
+    /// Returns sanitized messages in the same order as input, plus a combined
+    /// `mapping_json` to pass to `restore_text()` for each LLM response.
+    pub fn sanitize_messages(
+        &self,
+        messages: &[ChatMessage],
+    ) -> Result<SanitizeMessagesResult, MobileError> {
+        let request_id = uuid::Uuid::new_v4();
+        let fpe = self.key_manager.current();
+        let mut token_gen = TokenGenerator::new(request_id);
+
+        // Plaintext → ciphertext registry: ensures same plaintext → same token
+        // across all messages in this batch.
+        let mut plaintext_registry: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        // Ordered mapping entries (no duplicates — registry prevents re-adding).
+        let mut mapping_data: Vec<(String, String, String)> = Vec::new();
+
+        let mut total_pii_count = 0u32;
+        let mut sanitized: Vec<ChatMessage> = Vec::with_capacity(messages.len());
+
+        for msg in messages {
+            // Assistant messages already contain FPE tokens from DB (the caller stores
+            // raw tokens, not restored plaintext). Re-scanning them causes ghost tokens:
+            // the NER engine sees token-shaped strings (e.g. HLT_lgb6) as health entities
+            // and creates phantom mappings-of-mappings. Pass them through as-is.
+            if msg.role == "assistant" {
+                sanitized.push(msg.clone());
+                continue;
+            }
+
+            let matches = self.scanner.scan_text(&msg.content);
+
+            if matches.is_empty() {
+                sanitized.push(msg.clone());
+                continue;
+            }
+
+            total_pii_count += matches.len() as u32;
+            let mut replacements: Vec<(usize, usize, String)> = Vec::new();
+
+            for m in &matches {
+                let type_str = m.pii_type.to_string();
+
+                let ciphertext = if let Some(existing) = plaintext_registry.get(&m.raw_value) {
+                    // Same plaintext seen before — reuse token, skip mapping entry.
+                    existing.clone()
+                } else if m.pii_type.is_fpe_eligible() {
+                    let tweak = TweakGenerator::generate(&request_id, &format!("m:{}", m.start));
+                    match fpe.encrypt_match(m, &tweak) {
+                        Ok(result) => {
+                            plaintext_registry
+                                .insert(m.raw_value.clone(), result.encrypted.clone());
+                            mapping_data.push((
+                                result.encrypted.clone(),
+                                m.raw_value.clone(),
+                                type_str,
+                            ));
+                            result.encrypted
+                        }
+                        Err(_) => {
+                            let token = token_gen.generate(m.pii_type, &m.raw_value);
+                            plaintext_registry.insert(m.raw_value.clone(), token.clone());
+                            mapping_data.push((token.clone(), m.raw_value.clone(), type_str));
+                            token
+                        }
+                    }
+                } else {
+                    let token = token_gen.generate(m.pii_type, &m.raw_value);
+                    plaintext_registry.insert(m.raw_value.clone(), token.clone());
+                    mapping_data.push((token.clone(), m.raw_value.clone(), type_str));
+                    token
+                };
+
+                replacements.push((m.start, m.end, ciphertext));
+            }
+
+            let mut result = msg.content.clone();
+            replacements.sort_by(|a, b| b.0.cmp(&a.0));
+            for (start, end, replacement) in &replacements {
+                if *start <= result.len() && *end <= result.len() {
+                    result.replace_range(*start..*end, replacement);
+                }
+            }
+
+            sanitized.push(ChatMessage {
+                role: msg.role.clone(),
+                content: result,
+            });
+        }
+
+        let mapping_json = serde_json::to_string(&mapping_data)
+            .map_err(|e| MobileError::Serialization(e.to_string()))?;
+
+        if let Ok(mut stats) = self.stats.lock() {
+            stats.total_pii_found += total_pii_count as u64;
+        }
+
+        Ok(SanitizeMessagesResult {
+            messages: sanitized,
+            pii_count: total_pii_count,
+            mapping_json,
+        })
+    }
+
     /// Restore original PII values in a response text using saved mappings.
     ///
     /// The `mapping_json` should be the value from a previous `sanitize_text()` call.
@@ -783,11 +915,21 @@ impl OpenObscureMobile {
         let mut sorted = mappings;
         sorted.sort_by(|a, b| b.0.len().cmp(&a.0.len()));
 
+        let mapping_count = sorted.len();
+        oo_warn!(
+            crate::oo_log::modules::VAULT,
+            "restore_text start",
+            mapping_tokens = mapping_count,
+            text_len = text.len()
+        );
+
         // Phase 1: Exact match (fast path)
+        let mut matched_count = 0usize;
         let mut unmatched_numeric: Vec<&(String, String, Option<String>)> = Vec::new();
         for entry in &sorted {
             if result.contains(&entry.0) {
                 result = result.replace(&entry.0, &entry.1);
+                matched_count += 1;
             } else if let Some(ref t) = entry.2 {
                 if matches!(t.as_str(), "credit_card" | "ssn" | "phone" | "iban") {
                     unmatched_numeric.push(entry);
@@ -796,6 +938,7 @@ impl OpenObscureMobile {
         }
 
         // Phase 2: Fuzzy regex match for unmatched numeric PII (handles LLM reformatting)
+        let mut fuzzy_matched = 0usize;
         for (ciphertext, plaintext, type_str) in &unmatched_numeric {
             let pii_type = match type_str.as_deref() {
                 Some("phone") => crate::pii_types::PiiType::PhoneNumber,
@@ -805,10 +948,33 @@ impl OpenObscureMobile {
                 _ => continue,
             };
             if let Some(re) = crate::mapping::build_fpe_fuzzy_regex(ciphertext, &pii_type) {
+                let before = result.clone();
                 result = re
                     .replace_all(&result, regex::NoExpand(plaintext))
                     .to_string();
+                if result != before {
+                    fuzzy_matched += 1;
+                }
             }
+        }
+
+        let total_matched = matched_count + fuzzy_matched;
+        let unmatched = mapping_count.saturating_sub(total_matched);
+        if unmatched > 0 {
+            oo_warn!(
+                crate::oo_log::modules::VAULT,
+                "restore_text: unmatched tokens",
+                total = mapping_count,
+                matched = total_matched,
+                unmatched = unmatched
+            );
+        } else {
+            oo_warn!(
+                crate::oo_log::modules::VAULT,
+                "restore_text complete",
+                total = mapping_count,
+                matched = total_matched
+            );
         }
 
         result
@@ -842,9 +1008,9 @@ impl OpenObscureMobile {
                 .process_image(img, screen_result.as_ref(), Some(&self.scanner))
                 .map_err(|e| MobileError::ImageError(e.to_string()))?;
             debug_log(format!(
-                "image_pipeline: nsfw_detected={}, faces_redacted={}, text_regions={}, nsfw_ms={}ms, total_ms={}ms",
+                "image_pipeline: nsfw_detected={}, faces_redacted={}, text_regions={}, faces_skipped_nsfw={}, nsfw_ms={}ms, total_ms={}ms",
                 stats.nsfw_detected, stats.faces_redacted, stats.text_regions_found,
-                stats.nsfw_ms, stats.processing_ms
+                stats.faces_skipped_nsfw, stats.nsfw_ms, stats.processing_ms
             ));
             if let Some(ref nsfw) = meta.nsfw {
                 debug_log(format!(
@@ -961,6 +1127,124 @@ mod tests {
 
     fn make_test_key() -> [u8; 32] {
         [0x42u8; 32]
+    }
+
+    #[test]
+    fn test_sanitize_messages_user_sanitized_assistant_passthrough() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let messages = vec![
+            ChatMessage {
+                role: "user".into(),
+                content: "My SSN is 412-55-8823".into(),
+            },
+            ChatMessage {
+                role: "assistant".into(),
+                content: "Your SSN is 412-55-8823".into(),
+            },
+            ChatMessage {
+                role: "user".into(),
+                content: "Thanks".into(),
+            },
+        ];
+        let result = mobile.sanitize_messages(&messages).unwrap();
+        assert!(
+            result.pii_count >= 1,
+            "Expected at least 1 SSN detection from user msg"
+        );
+        assert!(
+            !result.messages[0].content.contains("412-55-8823"),
+            "User msg must be sanitized"
+        );
+        // Assistant messages pass through unchanged — they were sanitized on their original turn
+        assert_eq!(
+            result.messages[1].content, "Your SSN is 412-55-8823",
+            "Assistant msg must pass through unchanged"
+        );
+        assert_eq!(result.messages[2].content, "Thanks");
+    }
+
+    #[test]
+    fn test_sanitize_messages_assistant_ghost_tokens_prevented() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        // Simulate an assistant message containing token-shaped strings the LLM invented.
+        // These must NOT generate new mappings (ghost tokens).
+        let messages = vec![
+            ChatMessage {
+                role: "user".into(),
+                content: "My SSN is 412-55-8823".into(),
+            },
+            ChatMessage {
+                role: "assistant".into(),
+                content: "Found HLT_lgb6 and HLT_havf in the record".into(),
+            },
+        ];
+        let result = mobile.sanitize_messages(&messages).unwrap();
+        // Only the user message SSN should generate a mapping — not the assistant's HLT_ strings
+        assert!(result.pii_count >= 1, "User SSN must be detected");
+        assert_eq!(
+            result.messages[1].content, "Found HLT_lgb6 and HLT_havf in the record",
+            "Assistant msg must not be re-sanitized"
+        );
+        // Verify no mappings were created for the fake tokens
+        assert!(
+            !result.mapping_json.contains("HLT_lgb6"),
+            "Ghost token HLT_lgb6 must not appear in mappings"
+        );
+        assert!(
+            !result.mapping_json.contains("HLT_havf"),
+            "Ghost token HLT_havf must not appear in mappings"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_messages_token_reuse_across_user_messages() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        // Same SSN in two user messages must produce the same token.
+        let messages = vec![
+            ChatMessage {
+                role: "user".into(),
+                content: "SSN: 412-55-8823".into(),
+            },
+            ChatMessage {
+                role: "assistant".into(),
+                content: "Noted.".into(),
+            },
+            ChatMessage {
+                role: "user".into(),
+                content: "Repeat SSN: 412-55-8823".into(),
+            },
+        ];
+        let result = mobile.sanitize_messages(&messages).unwrap();
+        let token_in_first = result.messages[0].content.replace("SSN: ", "");
+        let token_in_second = result.messages[2].content.replace("Repeat SSN: ", "");
+        assert_eq!(
+            token_in_first.trim(),
+            token_in_second.trim(),
+            "Same plaintext must produce same token across user messages"
+        );
+    }
+
+    #[test]
+    fn test_sanitize_messages_mapping_restores() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let messages = vec![
+            ChatMessage {
+                role: "user".into(),
+                content: "My card is 4111-1111-1111-1111".into(),
+            },
+            ChatMessage {
+                role: "assistant".into(),
+                content: "Card noted".into(),
+            },
+        ];
+        let result = mobile.sanitize_messages(&messages).unwrap();
+        let token = &result.messages[0].content;
+        let response = format!("I see token {}", token);
+        let restored = mobile.restore_text(&response, &result.mapping_json);
+        assert!(
+            restored.contains("4111-1111-1111-1111"),
+            "Mapping must restore card from combined mapping"
+        );
     }
 
     #[test]

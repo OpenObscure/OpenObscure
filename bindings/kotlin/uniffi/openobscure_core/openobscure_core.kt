@@ -732,6 +732,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // For large crates we prevent `MethodTooLargeException` (see #2340)
 // N.B. the name of the extension is very misleading, since it is
 // rather `InterfaceTooLargeException`, caused by too many methods
@@ -755,11 +759,15 @@ fun uniffi_openobscure_core_checksum_func_get_debug_log(
 ): Short
 fun uniffi_openobscure_core_checksum_func_get_stats(
 ): Short
+fun uniffi_openobscure_core_checksum_func_leaked_token_count(
+): Short
 fun uniffi_openobscure_core_checksum_func_restore_text(
 ): Short
 fun uniffi_openobscure_core_checksum_func_sanitize_audio_transcript(
 ): Short
 fun uniffi_openobscure_core_checksum_func_sanitize_image(
+): Short
+fun uniffi_openobscure_core_checksum_func_sanitize_messages(
 ): Short
 fun uniffi_openobscure_core_checksum_func_sanitize_text(
 ): Short
@@ -826,11 +834,15 @@ fun uniffi_openobscure_core_fn_func_get_debug_log(uniffi_out_err: UniffiRustCall
 ): RustBuffer.ByValue
 fun uniffi_openobscure_core_fn_func_get_stats(`handle`: Pointer,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
+fun uniffi_openobscure_core_fn_func_leaked_token_count(`handle`: Pointer,`text`: RustBuffer.ByValue,`mappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+): Int
 fun uniffi_openobscure_core_fn_func_restore_text(`handle`: Pointer,`text`: RustBuffer.ByValue,`mappingJson`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 fun uniffi_openobscure_core_fn_func_sanitize_audio_transcript(`handle`: Pointer,`transcript`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 fun uniffi_openobscure_core_fn_func_sanitize_image(`handle`: Pointer,`imageBytes`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+): RustBuffer.ByValue
+fun uniffi_openobscure_core_fn_func_sanitize_messages(`handle`: Pointer,`messages`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
 fun uniffi_openobscure_core_fn_func_sanitize_text(`handle`: Pointer,`text`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
 ): RustBuffer.ByValue
@@ -974,6 +986,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if (lib.uniffi_openobscure_core_checksum_func_get_stats() != 12072.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_openobscure_core_checksum_func_leaked_token_count() != 38738.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_openobscure_core_checksum_func_restore_text() != 27100.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -981,6 +996,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_core_checksum_func_sanitize_image() != 37545.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_openobscure_core_checksum_func_sanitize_messages() != 7398.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_openobscure_core_checksum_func_sanitize_text() != 58388.toShort()) {
@@ -1518,6 +1536,41 @@ public object FfiConverterTypeOpenObscureHandle: FfiConverter<OpenObscureHandle,
 
 
 /**
+ * A single chat message for multi-message sanitization.
+ */
+data class ChatMessageFfi (
+    var `role`: kotlin.String,
+    var `content`: kotlin.String
+) {
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeChatMessageFfi: FfiConverterRustBuffer<ChatMessageFfi> {
+    override fun read(buf: ByteBuffer): ChatMessageFfi {
+        return ChatMessageFfi(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ChatMessageFfi) = (
+            FfiConverterString.allocationSize(value.`role`) +
+            FfiConverterString.allocationSize(value.`content`)
+    )
+
+    override fun write(value: ChatMessageFfi, buf: ByteBuffer) {
+            FfiConverterString.write(value.`role`, buf)
+            FfiConverterString.write(value.`content`, buf)
+    }
+}
+
+
+
+/**
  * Statistics exposed to Swift/Kotlin via UniFFI.
  */
 data class MobileStatsFfi (
@@ -1624,6 +1677,45 @@ public object FfiConverterTypeRiReportFFI: FfiConverterRustBuffer<RiReportFfi> {
             FfiConverterSequenceString.write(value.`flags`, buf)
             FfiConverterSequenceString.write(value.`r2Categories`, buf)
             FfiConverterULong.write(value.`scanTimeUs`, buf)
+    }
+}
+
+
+
+/**
+ * Result of sanitizing a full conversation history.
+ */
+data class SanitizeMessagesResultFfi (
+    var `messages`: List<ChatMessageFfi>,
+    var `piiCount`: kotlin.UInt,
+    var `mappingJson`: kotlin.String
+) {
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSanitizeMessagesResultFfi: FfiConverterRustBuffer<SanitizeMessagesResultFfi> {
+    override fun read(buf: ByteBuffer): SanitizeMessagesResultFfi {
+        return SanitizeMessagesResultFfi(
+            FfiConverterSequenceTypeChatMessageFfi.read(buf),
+            FfiConverterUInt.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SanitizeMessagesResultFfi) = (
+            FfiConverterSequenceTypeChatMessageFfi.allocationSize(value.`messages`) +
+            FfiConverterUInt.allocationSize(value.`piiCount`) +
+            FfiConverterString.allocationSize(value.`mappingJson`)
+    )
+
+    override fun write(value: SanitizeMessagesResultFfi, buf: ByteBuffer) {
+            FfiConverterSequenceTypeChatMessageFfi.write(value.`messages`, buf)
+            FfiConverterUInt.write(value.`piiCount`, buf)
+            FfiConverterString.write(value.`mappingJson`, buf)
     }
 }
 
@@ -1854,6 +1946,34 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
         }
     }
 }
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeChatMessageFfi: FfiConverterRustBuffer<List<ChatMessageFfi>> {
+    override fun read(buf: ByteBuffer): List<ChatMessageFfi> {
+        val len = buf.getInt()
+        return List<ChatMessageFfi>(len) {
+            FfiConverterTypeChatMessageFfi.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<ChatMessageFfi>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeChatMessageFfi.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<ChatMessageFfi>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeChatMessageFfi.write(it, buf)
+        }
+    }
+}
         /**
          * Check if a transcript contains PII without encrypting.
          *
@@ -1917,6 +2037,22 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
 
 
         /**
+         * Count leaked FPE tokens in raw LLM response text.
+         *
+         * Call this **before** `restore_text()` — after restore, known tokens are
+         * replaced with plaintext and won't be detected. Uses both the session
+         * token map and a regex fallback for LLM-hallucinated token-shaped strings.
+         */ fun `leakedTokenCount`(`handle`: OpenObscureHandle, `text`: kotlin.String, `mappingJson`: kotlin.String): kotlin.UInt {
+            return FfiConverterUInt.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_openobscure_core_fn_func_leaked_token_count(
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterString.lower(`text`),FfiConverterString.lower(`mappingJson`),_status)
+}
+    )
+    }
+
+
+        /**
          * Restore original PII values in response text using saved mappings.
          */ fun `restoreText`(`handle`: OpenObscureHandle, `text`: kotlin.String, `mappingJson`: kotlin.String): kotlin.String {
             return FfiConverterString.lift(
@@ -1954,6 +2090,25 @@ public object FfiConverterSequenceString: FfiConverterRustBuffer<List<kotlin.Str
     uniffiRustCallWithError(MobileBindingException) { _status ->
     UniffiLib.INSTANCE.uniffi_openobscure_core_fn_func_sanitize_image(
         FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterByteArray.lower(`imageBytes`),_status)
+}
+    )
+    }
+
+
+        /**
+         * Sanitize a full conversation history in one call.
+         *
+         * User and system messages are sanitized; assistant messages pass through
+         * unchanged (they were already sanitized on their original turn). The same
+         * plaintext value gets the same token across all messages in the batch.
+         *
+         * Use this instead of calling `sanitize_text()` per user message.
+         */
+    @Throws(MobileBindingException::class) fun `sanitizeMessages`(`handle`: OpenObscureHandle, `messages`: List<ChatMessageFfi>): SanitizeMessagesResultFfi {
+            return FfiConverterTypeSanitizeMessagesResultFfi.lift(
+    uniffiRustCallWithError(MobileBindingException) { _status ->
+    UniffiLib.INSTANCE.uniffi_openobscure_core_fn_func_sanitize_messages(
+        FfiConverterTypeOpenObscureHandle.lower(`handle`),FfiConverterSequenceTypeChatMessageFfi.lower(`messages`),_status)
 }
     )
     }

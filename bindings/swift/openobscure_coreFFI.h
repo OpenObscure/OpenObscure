@@ -297,6 +297,11 @@ RustBuffer uniffi_openobscure_core_fn_func_sanitize_audio_transcript(void*_Nonnu
 RustBuffer uniffi_openobscure_core_fn_func_sanitize_image(void*_Nonnull handle, RustBuffer image_bytes, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_SANITIZE_MESSAGES
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_SANITIZE_MESSAGES
+RustBuffer uniffi_openobscure_core_fn_func_sanitize_messages(void*_Nonnull handle, RustBuffer messages, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_SANITIZE_TEXT
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_FN_FUNC_SANITIZE_TEXT
 RustBuffer uniffi_openobscure_core_fn_func_sanitize_text(void*_Nonnull handle, RustBuffer text, RustCallStatus *_Nonnull out_status
@@ -626,6 +631,12 @@ uint16_t uniffi_openobscure_core_checksum_func_sanitize_audio_transcript(void
 #ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_IMAGE
 #define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_IMAGE
 uint16_t uniffi_openobscure_core_checksum_func_sanitize_image(void
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_MESSAGES
+#define UNIFFI_FFIDEF_UNIFFI_OPENOBSCURE_CORE_CHECKSUM_FUNC_SANITIZE_MESSAGES
+uint16_t uniffi_openobscure_core_checksum_func_sanitize_messages(void
 
 );
 #endif

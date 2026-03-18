@@ -101,6 +101,46 @@ pub fn sanitize_text(
     })
 }
 
+/// Sanitize a full conversation history in one call.
+///
+/// User and system messages are sanitized; assistant messages pass through
+/// unchanged (they were already sanitized on their original turn). The same
+/// plaintext value gets the same token across all messages in the batch.
+///
+/// Use this instead of calling `sanitize_text()` per user message.
+#[cfg(feature = "mobile")]
+#[uniffi::export]
+pub fn sanitize_messages(
+    handle: &Arc<OpenObscureHandle>,
+    messages: Vec<ChatMessageFfi>,
+) -> Result<SanitizeMessagesResultFfi, MobileBindingError> {
+    let input: Vec<crate::lib_mobile::ChatMessage> = messages
+        .into_iter()
+        .map(|m| crate::lib_mobile::ChatMessage {
+            role: m.role,
+            content: m.content,
+        })
+        .collect();
+
+    let result = handle
+        .inner
+        .sanitize_messages(&input)
+        .map_err(|e| MobileBindingError::Processing(e.to_string()))?;
+
+    Ok(SanitizeMessagesResultFfi {
+        messages: result
+            .messages
+            .into_iter()
+            .map(|m| ChatMessageFfi {
+                role: m.role,
+                content: m.content,
+            })
+            .collect(),
+        pii_count: result.pii_count,
+        mapping_json: result.mapping_json,
+    })
+}
+
 /// Restore original PII values in response text using saved mappings.
 #[cfg(feature = "mobile")]
 #[uniffi::export]
@@ -200,6 +240,23 @@ pub fn get_debug_log() -> String {
 }
 
 // ---- FFI-safe types for UniFFI ----
+
+/// A single chat message for multi-message sanitization.
+#[cfg(feature = "mobile")]
+#[derive(uniffi::Record)]
+pub struct ChatMessageFfi {
+    pub role: String,
+    pub content: String,
+}
+
+/// Result of sanitizing a full conversation history.
+#[cfg(feature = "mobile")]
+#[derive(uniffi::Record)]
+pub struct SanitizeMessagesResultFfi {
+    pub messages: Vec<ChatMessageFfi>,
+    pub pii_count: u32,
+    pub mapping_json: String,
+}
 
 /// Result of sanitizing text, exposed to Swift/Kotlin via UniFFI.
 #[cfg(feature = "mobile")]
