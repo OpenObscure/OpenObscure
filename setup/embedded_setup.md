@@ -538,7 +538,7 @@ mkdir -p $FORK_KOTLIN/app/src/main/assets
 
 ```bash
 cd $FORK_KOTLIN
-git apply /path/to/openobscure-repo/docs/integrate/embedding/examples/rikkahub-openobscure.diff
+git apply $OO_REPO/docs/integrate/embedding/examples/rikkahub-openobscure.diff
 ```
 
 The diff adds:
@@ -551,23 +551,68 @@ The diff adds:
 ### Step 4 — Open in Android Studio and build
 
 1. Open the `rikkahub-openobscure/` directory in Android Studio Hedgehog (2023.1.1) or later.
-2. **File → Sync Project with Gradle Files**. The JNA dependency downloads automatically.
-3. Confirm `libopenobscure_core.so` is visible under `app/src/main/jniLibs/arm64-v8a/` in the Project view.
-4. **Build → Make Project** (⌃F9). Fix any unresolved reference errors — ensure `uniffi.openobscure_core` package is on the source path.
-5. **Run → Run 'app'** on a connected device or an ARM64 emulator (API 27+).
+2. **google-services.json:** RikkaHub uses Firebase, which requires this file. If you don't have a Firebase project, create a dummy file to unblock the build:
+   ```bash
+   cat > $FORK_KOTLIN/app/google-services.json << 'EOF'
+   {"project_info":{"project_number":"000000000000","project_id":"dummy","storage_bucket":"dummy.appspot.com"},"client":[{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000000","android_client_info":{"package_name":"me.rerere.rikkahub"}},"api_key":[{"current_key":"dummy"}]},{"client_info":{"mobilesdk_app_id":"1:000000000000:android:0000000000000001","android_client_info":{"package_name":"me.rerere.rikkahub.debug"}},"api_key":[{"current_key":"dummy"}]}],"configuration_version":"1"}
+   EOF
+   ```
+   Firebase features (crash reporting, analytics) won't work but the app will build and run.
+3. **File → Sync Project with Gradle Files**. The JNA dependency downloads automatically.
+4. Confirm `libopenobscure_core.so` is visible under `app/jniLibs/arm64-v8a/` in the Project view (this maps to `app/src/main/jniLibs/arm64-v8a/` on disk).
+5. **Build → Assemble 'app' Run Configuration** (⌘F9). Fix any unresolved reference errors — ensure `uniffi.openobscure_core` package is on the source path.
+6. **Run → Run 'app'** on a connected device or an ARM64 emulator (API 27+).
 
 > **x86_64 emulators:** Standard AVD images are x86_64. Either use an ARM64 image (slower) or add the x86_64 `.so` as described in Step 2.
 
-### Step 5 — Verify
+### Step 5 — Configure RikkaHub
 
-Send a chat message containing a test PII value. Open Logcat and filter by tag `OpenObscure`:
+RikkaHub connects to LLM providers via API. You need to set up a provider and select a model before testing.
+
+**1. Launch the app** on your device. On first run, model assets are copied from the APK to internal storage (this may take 10–20 seconds).
+
+**2. Add a provider with an API key:**
+
+- Tap the **gear icon** (Settings) → **Providers**
+- Tap **+** to add a provider (e.g., OpenRouter, OpenAI, Anthropic, or a local Ollama server)
+- Enter:
+  - **Name**: e.g. `OpenRouter`
+  - **API Base URL**: the provider's endpoint (e.g. `https://openrouter.ai/api/v1` for OpenRouter, `http://<your-ip>:11434/v1` for local Ollama)
+  - **API Key**: your provider API key
+- Tap **Save**
+
+> **Local Ollama:** If using Ollama on your dev machine, the Android device must be on the same network. Start Ollama with `OLLAMA_HOST=0.0.0.0 ollama serve` and use your machine's LAN IP (find with `ipconfig getifaddr en0` on macOS).
+
+**3. Select a model:**
+
+- Go back to the main chat screen
+- Tap the **model selector** (top of screen or in the chat input area)
+- Choose a model from your configured provider (e.g. `llama3.2`, `claude-3-haiku`, etc.)
+
+**4. Start a new conversation** — you're ready to test.
+
+### Step 6 — Verify PII sanitization
+
+**Turn 1 — Send a message with personal information:**
 
 ```
-D OpenObscure: sanitized 1 PII item(s) in 3ms
-D OpenObscure: response restored, 1 token(s) decrypted
+My patient Angela Martinez has SSN 412-55-8823 and her phone is (305) 555-0188. What type of information is this?
 ```
 
-The response text shown in the RikkaHub UI should display the original value, not the FPE ciphertext.
+**What to check:**
+- Open **Logcat** in Android Studio and filter by tag `OO-Interceptor` or `OpenObscure`
+- You should see sanitized message content with FPE tokens (e.g. `PER_ax2f` replacing "Angela Martinez")
+- The response in the RikkaHub UI should show the original name — confirming restore works
+
+**Turn 2 — Verify multi-turn protection:**
+
+```
+Spell the patient's last name character by character separated by comma
+```
+
+**What to check:**
+- The LLM should spell out **token characters** (e.g. `P, E, R, _, a, x, 2, f`) — not the real name `M, a, r, t, i, n, e, z`
+- This confirms assistant messages in the conversation history do not leak real PII to the LLM
 
 ---
 
