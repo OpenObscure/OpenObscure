@@ -2,7 +2,7 @@
 //!
 //! Conditionally registers hardware-accelerated EPs:
 //! - **Apple (iOS/macOS)**: CoreML → Neural Engine / GPU / CPU
-//! - **Android**: NNAPI → NPU / GPU / CPU
+//! - **Android**: CPU only (NNAPI tested — slower and crashes on some models)
 //! - **Other**: CPU only (default)
 //!
 //! Falls back gracefully — if the EP feature isn't compiled in or the
@@ -12,6 +12,9 @@ use std::path::Path;
 
 use ort::ep::ExecutionProviderDispatch;
 use ort::session::Session;
+
+#[allow(unused_imports)]
+use crate::oo_dbg;
 
 /// Returns platform-appropriate execution providers.
 ///
@@ -47,9 +50,9 @@ pub fn platform_eps() -> Vec<ExecutionProviderDispatch> {
         eps.push(ort::ep::CoreML::default().build());
     }
 
-    // Android: we ship ORT as a runtime-loaded `.so` via the `alternative-backend`
-    // mechanism, which does not support NNAPI. NNAPI also requires direct symbol
-    // linking at compile time — incompatible with dynamic loading. CPU-only.
+    // Android: CPU-only. NNAPI was tested and found to be slower than ORT's
+    // optimized MLAS CPU kernels for INT8 transformers on tested devices, and
+    // crashes the NNAPI driver for SCRFD face detection on some SoCs.
 
     eps
 }
@@ -63,6 +66,11 @@ pub fn build_session(model_path: &Path) -> ort::Result<Session> {
 
     let eps = platform_eps();
     if !eps.is_empty() {
+        oo_dbg!(
+            "build_session: {} EP(s) registered for {}",
+            eps.len(),
+            ep_name()
+        );
         builder = builder.with_execution_providers(eps)?;
     }
 
@@ -144,7 +152,7 @@ mod tests {
     #[test]
     fn test_platform_eps_returns_vec() {
         let eps = platform_eps();
-        // Apple (macOS + iOS): CoreML EP; Android: CPU only (alternative-backend); other: CPU only
+        // Apple: CoreML EP; Android + other: CPU only (empty)
         #[cfg(target_vendor = "apple")]
         assert_eq!(eps.len(), 1);
         #[cfg(not(target_vendor = "apple"))]

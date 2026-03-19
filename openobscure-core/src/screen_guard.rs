@@ -10,6 +10,9 @@
 
 use image::{DynamicImage, GenericImageView};
 
+#[allow(unused_imports)]
+use crate::oo_dbg;
+
 /// Common screen resolutions (width, height) at 1x and 2x (Retina) scaling.
 const SCREEN_RESOLUTIONS: &[(u32, u32)] = &[
     // 1x desktop
@@ -251,6 +254,24 @@ pub fn detect_screenshot(raw_bytes: &[u8], img: &DynamicImage) -> ScreenGuardRes
     // Decision: explicit EXIF match → screenshot.
     // Otherwise, need ≥2 heuristics matching.
     let is_screenshot = has_exif_software_match || reasons.len() >= 2;
+
+    oo_dbg!(
+        "screen_guard: {}x{}, is_screenshot={}, reasons={} [{}]",
+        width,
+        height,
+        is_screenshot,
+        reasons.len(),
+        reasons
+            .iter()
+            .map(|r| match r {
+                ScreenGuardReason::ExifSoftware(s) => format!("exif:{}", s),
+                ScreenGuardReason::ScreenResolution(w, h) => format!("res:{}x{}", w, h),
+                ScreenGuardReason::StatusBar => "statusbar".to_string(),
+                _ => format!("{:?}", r),
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
 
     if is_screenshot {
         oo_info!(

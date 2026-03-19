@@ -968,11 +968,7 @@ impl OpenObscureMobile {
                 i,
                 m.role,
                 m.content.len(),
-                if m.content.len() > 200 {
-                    format!("{}…", &m.content[..200])
-                } else {
-                    m.content.clone()
-                }
+                truncate_safe(&m.content, 200)
             );
         }
 
@@ -997,11 +993,7 @@ impl OpenObscureMobile {
         oo_dbg!(
             "← LLM raw ({} chars): \"{}\"",
             text.len(),
-            if text.len() > 300 {
-                format!("{}…", &text[..300])
-            } else {
-                text.to_string()
-            }
+            truncate_safe(text, 300)
         );
         // Accept both 2-tuple (legacy) and 3-tuple (with PII type) formats
         let mappings: Vec<(String, String, Option<String>)> =
@@ -1094,11 +1086,7 @@ impl OpenObscureMobile {
         oo_dbg!(
             "→ UI restored ({} chars): \"{}\"",
             result.len(),
-            if result.len() > 300 {
-                format!("{}…", &result[..300])
-            } else {
-                result.clone()
-            }
+            truncate_safe(&result, 300)
         );
 
         result
@@ -1119,6 +1107,26 @@ impl OpenObscureMobile {
         // because the `image` crate only loads pixel data.
         let img = crate::image_pipeline::decode_image(image_bytes)
             .map_err(|e| MobileError::ImageError(e.to_string()))?;
+
+        // Check if input had EXIF data (GPS, device info) — stripped by decode.
+        // Uses kamadak-exif to peek at raw bytes before they were discarded.
+        #[cfg(feature = "debug-logs")]
+        {
+            let has_exif = image_bytes.len() > 4
+                && (image_bytes[0..2] == [0xFF, 0xD8]  // JPEG SOI
+                    && image_bytes.windows(4).any(|w| w[0..2] == [0xFF, 0xE1])); // APP1 (EXIF)
+            oo_dbg!(
+                "exif_strip: input_had_exif={}, format={}",
+                has_exif,
+                if image_bytes.starts_with(&[0xFF, 0xD8]) {
+                    "jpeg"
+                } else if image_bytes.starts_with(&[0x89, 0x50]) {
+                    "png"
+                } else {
+                    "other"
+                }
+            );
+        }
 
         let result_img = if let Some(ref manager) = self.image_manager {
             // Full pipeline: screenshot detection → resize → face/OCR/NSFW
@@ -1254,6 +1262,22 @@ impl OpenObscureMobile {
             manager.force_evict();
         }
     }
+}
+
+/// Truncate a string to at most `max_bytes` bytes, snapping to a valid UTF-8
+/// char boundary. Appends "…" if truncated. Safe for strings containing
+/// multi-byte Unicode (emojis, CJK, accented chars).
+#[allow(dead_code)] // only called from oo_dbg! (compiled out without debug-logs)
+fn truncate_safe(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        return s.to_string();
+    }
+    // Walk backward from max_bytes to find a char boundary
+    let mut end = max_bytes;
+    while end > 0 && !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…", &s[..end])
 }
 
 #[cfg(test)]
@@ -2249,5 +2273,50 @@ mod tests {
         let response = "Patient HLT_test treated by PER_abcd";
         let restored = mobile.restore_text(response, legacy_mapping);
         assert_eq!(restored, "Patient hypertension treated by John Smith");
+    }
+
+    #[test]
+    fn test_mobile_restore_with_emoji_in_response() {
+        // Regression: GPT-4o responses contain emojis (4-byte UTF-8).
+        // restore_text must not panic on multi-byte char boundaries.
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let mapping = r#"[["PER_abcd","John Smith"]]"#;
+        let response = "🎉 Hello PER_abcd! 🕒 Time is ticking!";
+        let restored = mobile.restore_text(response, mapping);
+        assert_eq!(restored, "🎉 Hello John Smith! 🕒 Time is ticking!");
+    }
+
+    #[test]
+    fn test_mobile_restore_emoji_between_tokens() {
+        let mobile = OpenObscureMobile::new(MobileConfig::default(), make_test_key()).unwrap();
+        let mapping = r#"[["PER_abcd","Alice"],["PER_efgh","Bob"]]"#;
+        let response = "PER_abcd 🚀 café ☕ PER_efgh";
+        let restored = mobile.restore_text(response, mapping);
+        assert_eq!(restored, "Alice 🚀 café ☕ Bob");
+    }
+
+    #[test]
+    fn test_truncate_safe_ascii() {
+        let s = "Hello, world!";
+        assert_eq!(truncate_safe(s, 5), "Hello…");
+        assert_eq!(truncate_safe(s, 100), "Hello, world!");
+    }
+
+    #[test]
+    fn test_truncate_safe_emoji_boundary() {
+        // 🎉 is 4 bytes (F0 9F 8E 89). Truncating at byte 2 must snap back to 0.
+        let s = "🎉Hello";
+        assert_eq!(truncate_safe(s, 2), "…"); // can't fit the emoji, snap to 0
+        assert_eq!(truncate_safe(s, 4), "🎉…"); // exactly the emoji
+        assert_eq!(truncate_safe(s, 5), "🎉H…");
+    }
+
+    #[test]
+    fn test_truncate_safe_multibyte_mixed() {
+        // café: c(1) a(1) f(1) é(2) = 5 bytes
+        let s = "café!";
+        assert_eq!(truncate_safe(s, 4), "caf…"); // byte 4 is inside é, snaps to 3
+        assert_eq!(truncate_safe(s, 5), "café…");
+        assert_eq!(truncate_safe(s, 6), "café!");
     }
 }

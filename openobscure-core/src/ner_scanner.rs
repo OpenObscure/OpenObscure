@@ -8,6 +8,9 @@
 use std::path::Path;
 use std::sync::{Condvar, Mutex};
 
+#[allow(unused_imports)]
+use crate::oo_dbg;
+
 use ndarray::Array2;
 use ort::session::Session;
 
@@ -108,9 +111,10 @@ impl NerScanner {
         let label_map = build_label_map(&label_map_path)?;
         let num_labels = label_map.len();
 
-        // CPU-only for NER — CoreML NeuralNetwork format works for CNN models (SCRFD,
-        // OCR, NSFW) but fails to load TinyBERT/DistilBERT transformers on iOS.
-        // At 0.8ms p50 on CPU, there's no meaningful latency difference for NER.
+        // CPU-only for NER — CoreML NeuralNetwork format fails to load transformers
+        // on iOS. Android NNAPI was tested and found slower than ORT's MLAS CPU
+        // kernels for INT8 transformers, and crashes on some SoCs. CPU is correct
+        // for all platforms.
         let session = crate::ort_ep::build_session_cpu(&model_path)
             .map_err(|e| NerError::OnnxRuntime(e.to_string()))?;
 
@@ -313,6 +317,13 @@ impl NerScanner {
 
         // 5. Decode BIO tags into entity spans, using word_ids alignment
         let entities = self.decode_bio_tags(&token_labels, &encoded.word_ids, &encoded.words, text);
+
+        oo_dbg!(
+            "ner: tokens={}, entities={}, threshold={:.2}",
+            seq_len,
+            entities.len(),
+            self.confidence_threshold
+        );
 
         // 6. Log NER entities at debug level, then filter by threshold
         for e in &entities {
