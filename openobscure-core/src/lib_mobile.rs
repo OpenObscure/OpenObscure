@@ -444,6 +444,9 @@ impl OpenObscureMobile {
         // explicit initialization with the path to `libonnxruntime.so` before any
         // Session API calls. This must happen before verify_models/resolve_model_dirs
         // because those may trigger ORT session creation downstream.
+        // On Android, ORT is loaded dynamically via dlopen. The app must ship
+        // libonnxruntime.so in jniLibs/<abi>/ alongside libopenobscure_core.so.
+        // init_from() tells ORT where to find the dylib.
         #[cfg(target_os = "android")]
         if let Some(ref dylib_path) = config.ort_dylib_path {
             debug_log(format!("ort_init_from: {}", dylib_path));
@@ -454,12 +457,11 @@ impl OpenObscureMobile {
                 }
                 Err(e) => {
                     debug_log(format!("ort_init_from: error: {}", e));
-                    // Don't fail — scanner will fall back to regex-only if ORT unavailable
                 }
             }
         } else {
             #[cfg(target_os = "android")]
-            debug_log("ort_dylib_path not set — ORT models will be unavailable".to_string());
+            debug_log("ort_dylib_path not set — using system libonnxruntime.so".to_string());
         }
 
         // Resolve model paths from base directory before anything else

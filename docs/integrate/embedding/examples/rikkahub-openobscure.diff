@@ -11,9 +11,9 @@ index ce233a7f..13a47bf0 100644
 +    implementation("net.java.dev.jna:jna:5.15.0@aar")
      implementation(libs.retrofit)
      implementation(libs.retrofit.serialization.json)
-
+ 
 diff --git a/app/proguard-rules.pro b/app/proguard-rules.pro
-index 33fbee7c..60cad710 100644
+index 33fbee7c..c8263a79 100644
 --- a/app/proguard-rules.pro
 +++ b/app/proguard-rules.pro
 @@ -45,3 +45,7 @@
@@ -24,6 +24,402 @@ index 33fbee7c..60cad710 100644
 +# OpenObscure UniFFI bindings + JNA
 +-keep class uniffi.openobscure_core.** { *; }
 +-keep class com.sun.jna.** { *; }
+diff --git a/app/schemas/me.rerere.rikkahub.data.db.AppDatabase/18.json b/app/schemas/me.rerere.rikkahub.data.db.AppDatabase/18.json
+new file mode 100644
+index 00000000..88dfd3a0
+--- /dev/null
++++ b/app/schemas/me.rerere.rikkahub.data.db.AppDatabase/18.json
+@@ -0,0 +1,389 @@
++{
++  "formatVersion": 1,
++  "database": {
++    "version": 18,
++    "identityHash": "610d89048ec6488745a54541a99070b1",
++    "entities": [
++      {
++        "tableName": "ConversationEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `assistant_id` TEXT NOT NULL DEFAULT '0950e2dc-9bd5-4801-afa3-aa887aa36b4e', `title` TEXT NOT NULL, `nodes` TEXT NOT NULL, `create_at` INTEGER NOT NULL, `update_at` INTEGER NOT NULL, `suggestions` TEXT NOT NULL DEFAULT '[]', `is_pinned` INTEGER NOT NULL DEFAULT 0, `oo_mapping_json` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "assistantId",
++            "columnName": "assistant_id",
++            "affinity": "TEXT",
++            "notNull": true,
++            "defaultValue": "'0950e2dc-9bd5-4801-afa3-aa887aa36b4e'"
++          },
++          {
++            "fieldPath": "title",
++            "columnName": "title",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "nodes",
++            "columnName": "nodes",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "createAt",
++            "columnName": "create_at",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "updateAt",
++            "columnName": "update_at",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "chatSuggestions",
++            "columnName": "suggestions",
++            "affinity": "TEXT",
++            "notNull": true,
++            "defaultValue": "'[]'"
++          },
++          {
++            "fieldPath": "isPinned",
++            "columnName": "is_pinned",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "0"
++          },
++          {
++            "fieldPath": "ooMappingJson",
++            "columnName": "oo_mapping_json",
++            "affinity": "TEXT",
++            "notNull": true,
++            "defaultValue": "''"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "MemoryEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `assistant_id` TEXT NOT NULL, `content` TEXT NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "assistantId",
++            "columnName": "assistant_id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "content",
++            "columnName": "content",
++            "affinity": "TEXT",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "GenMediaEntity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `path` TEXT NOT NULL, `model_id` TEXT NOT NULL, `prompt` TEXT NOT NULL, `create_at` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "path",
++            "columnName": "path",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "modelId",
++            "columnName": "model_id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "prompt",
++            "columnName": "prompt",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "createAt",
++            "columnName": "create_at",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "message_node",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `conversation_id` TEXT NOT NULL, `node_index` INTEGER NOT NULL, `messages` TEXT NOT NULL, `select_index` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`conversation_id`) REFERENCES `ConversationEntity`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "conversationId",
++            "columnName": "conversation_id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "nodeIndex",
++            "columnName": "node_index",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "messages",
++            "columnName": "messages",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "selectIndex",
++            "columnName": "select_index",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_message_node_conversation_id",
++            "unique": false,
++            "columnNames": [
++              "conversation_id"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_message_node_conversation_id` ON `${TABLE_NAME}` (`conversation_id`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "ConversationEntity",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "conversation_id"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "managed_files",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `folder` TEXT NOT NULL, `relative_path` TEXT NOT NULL, `display_name` TEXT NOT NULL, `mime_type` TEXT NOT NULL, `size_bytes` INTEGER NOT NULL, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "folder",
++            "columnName": "folder",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "relativePath",
++            "columnName": "relative_path",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "displayName",
++            "columnName": "display_name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "mimeType",
++            "columnName": "mime_type",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "sizeBytes",
++            "columnName": "size_bytes",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "createdAt",
++            "columnName": "created_at",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "updatedAt",
++            "columnName": "updated_at",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_managed_files_relative_path",
++            "unique": true,
++            "columnNames": [
++              "relative_path"
++            ],
++            "orders": [],
++            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_managed_files_relative_path` ON `${TABLE_NAME}` (`relative_path`)"
++          },
++          {
++            "name": "index_managed_files_folder",
++            "unique": false,
++            "columnNames": [
++              "folder"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_managed_files_folder` ON `${TABLE_NAME}` (`folder`)"
++          }
++        ]
++      },
++      {
++        "tableName": "favorites",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, `ref_key` TEXT NOT NULL, `ref_json` TEXT NOT NULL, `snapshot_json` TEXT NOT NULL, `meta_json` TEXT, `created_at` INTEGER NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "type",
++            "columnName": "type",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "refKey",
++            "columnName": "ref_key",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "refJson",
++            "columnName": "ref_json",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "snapshotJson",
++            "columnName": "snapshot_json",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "metaJson",
++            "columnName": "meta_json",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "createdAt",
++            "columnName": "created_at",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "updatedAt",
++            "columnName": "updated_at",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_favorites_ref_key",
++            "unique": true,
++            "columnNames": [
++              "ref_key"
++            ],
++            "orders": [],
++            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_favorites_ref_key` ON `${TABLE_NAME}` (`ref_key`)"
++          },
++          {
++            "name": "index_favorites_type",
++            "unique": false,
++            "columnNames": [
++              "type"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_favorites_type` ON `${TABLE_NAME}` (`type`)"
++          },
++          {
++            "name": "index_favorites_created_at",
++            "unique": false,
++            "columnNames": [
++              "created_at"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_favorites_created_at` ON `${TABLE_NAME}` (`created_at`)"
++          }
++        ]
++      }
++    ],
++    "setupQueries": [
++      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
++      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '610d89048ec6488745a54541a99070b1')"
++    ]
++  }
++}
+\ No newline at end of file
 diff --git a/app/src/main/java/me/rerere/rikkahub/RikkaHubApp.kt b/app/src/main/java/me/rerere/rikkahub/RikkaHubApp.kt
 index 88e97f95..ba05112e 100644
 --- a/app/src/main/java/me/rerere/rikkahub/RikkaHubApp.kt
@@ -39,6 +435,458 @@ index 88e97f95..ba05112e 100644
          startKoin {
              androidLogger()
              androidContext(this@RikkaHubApp)
+diff --git a/app/src/main/java/me/rerere/rikkahub/data/ai/OpenObscureInterceptor.kt b/app/src/main/java/me/rerere/rikkahub/data/ai/OpenObscureInterceptor.kt
+new file mode 100644
+index 00000000..0766272a
+--- /dev/null
++++ b/app/src/main/java/me/rerere/rikkahub/data/ai/OpenObscureInterceptor.kt
+@@ -0,0 +1,110 @@
++// OpenObscureInterceptor.kt — OkHttp interceptor for Android (outbound-only)
++// Sanitizes user messages in outbound chat requests. Response handling
++// (restore + cognitive firewall) happens in ChatService after stream completes.
++//
++// Auto-generated requests (title generation, suggestion generation) are detected
++// by model="auto" or stream=false with msg_count=1. These use isolated mappings
++// so their disposable tokens don't pollute the conversation's mapping pool.
++
++package me.rerere.rikkahub.data.ai
++
++import kotlinx.serialization.json.*
++import okhttp3.Interceptor
++import okhttp3.RequestBody.Companion.toRequestBody
++import okhttp3.Response
++import okio.Buffer
++import uniffi.openobscure_core.*
++
++class OpenObscureInterceptor : Interceptor {
++    override fun intercept(chain: Interceptor.Chain): Response {
++        val request = chain.request()
++
++        val body = request.body ?: return chain.proceed(request)
++        val contentType = body.contentType()
++        if (contentType?.subtype != "json") return chain.proceed(request)
++
++        val buffer = Buffer()
++        body.writeTo(buffer)
++        val bodyStr = buffer.readUtf8()
++
++        val root = try {
++            Json.parseToJsonElement(bodyStr).jsonObject
++        } catch (_: Exception) {
++            return chain.proceed(request)
++        }
++
++        val model = root["model"]?.jsonPrimitive?.contentOrNull ?: "unknown"
++        val stream = root["stream"]?.jsonPrimitive?.booleanOrNull ?: false
++        val msgCount = root["messages"]?.jsonArray?.size ?: 0
++
++        // Auto-generated requests: title gen and suggestion gen use model="auto",
++        // stream=false, and msg_count=1. These get isolated (disposable) mappings.
++        val isAutoGenerated = model == "auto" || (!stream && msgCount == 1)
++
++        val sanitizedBody = sanitizeRequestJson(root, isAutoGenerated)
++        val newRequest = request.newBuilder()
++            .method(request.method, sanitizedBody.toRequestBody(contentType))
++            .build()
++
++        return chain.proceed(newRequest)
++    }
++
++    private fun sanitizeRequestJson(root: JsonObject, isAutoGenerated: Boolean): String {
++        val mutableRoot = root.toMutableMap()
++        val messages = root["messages"]?.jsonArray ?: return root.toString()
++        val mgr = OpenObscureManager
++
++        // Build ChatMessageFfi list for batch sanitization.
++        // Multimodal messages (content is JsonArray) are passed through unsanitized —
++        // image data is not modified by the text sanitizer.
++        val ffiMessages = mutableListOf<ChatMessageFfi>()
++        val multimodalIndices = mutableSetOf<Int>()
++
++        messages.forEachIndexed { idx, msg ->
++            val obj = msg.jsonObject
++            val role = obj["role"]?.jsonPrimitive?.contentOrNull ?: "user"
++            val contentElement = obj["content"]
++
++            val content: String
++            if (contentElement == null) {
++                multimodalIndices.add(idx)
++                content = ""
++            } else if (contentElement is JsonArray) {
++                // Multimodal content (array of text + image parts) — passthrough
++                multimodalIndices.add(idx)
++                content = ""
++            } else {
++                content = try {
++                    contentElement.jsonPrimitive.contentOrNull ?: ""
++                } catch (_: Exception) {
++                    multimodalIndices.add(idx)
++                    ""
++                }
++            }
++            ffiMessages.add(ChatMessageFfi(role = role, content = content))
++        }
++
++        // Auto-generated requests use isolated mappings — PII is still sanitized
++        // but tokens are disposable and not merged into the conversation pool.
++        val result = if (isAutoGenerated) {
++            mgr.sanitizeMessagesIsolated(ffiMessages)
++        } else {
++            mgr.sanitizeMessages(ffiMessages)
++        }
++
++        // Rebuild JSON messages — use sanitized content, keep multimodal originals
++        val sanitizedMessages = messages.mapIndexed { idx, msg ->
++            if (idx in multimodalIndices) {
++                msg
++            } else {
++                val sanitizedContent = result.messages[idx].content
++                val obj = msg.jsonObject
++                JsonObject(obj.toMutableMap().apply {
++                    put("content", JsonPrimitive(sanitizedContent))
++                })
++            }
++        }
++        mutableRoot["messages"] = JsonArray(sanitizedMessages)
++        return JsonObject(mutableRoot).toString()
++    }
++}
+diff --git a/app/src/main/java/me/rerere/rikkahub/data/ai/OpenObscureManager.kt b/app/src/main/java/me/rerere/rikkahub/data/ai/OpenObscureManager.kt
+new file mode 100644
+index 00000000..bb6c11a0
+--- /dev/null
++++ b/app/src/main/java/me/rerere/rikkahub/data/ai/OpenObscureManager.kt
+@@ -0,0 +1,262 @@
++// OpenObscureManager.kt — Template for Android integration
++// Copy this file into your app's source tree and adjust the package name.
++
++package me.rerere.rikkahub.data.ai
++
++import android.content.Context
++import android.util.Log
++import uniffi.openobscure_core.*
++import java.io.File
++
++object OpenObscureManager {
++    private var _handle: OpenObscureHandle? = null
++    private val accumulatedMappings = mutableListOf<List<String>>()
++    private const val TAG = "OpenObscure"
++
++    // In-memory cache: hash(originalText) → sanitizedText.
++    // Avoids re-scanning prior user messages through NER on every turn.
++    // Cleared on resetMappings() (conversation switch).
++    private val sanitizeCache = mutableMapOf<Int, String>()
++
++    /** Call once from Application.onCreate(). */
++    fun init(context: Context) {
++        if (_handle != null) return
++        val key = getOrCreateKey(context)
++        val modelsDir = copyAssetsDir(context, "models")
++        Log.d(TAG, "[INIT] models_dir=$modelsDir")
++        _handle = createOpenobscure(
++            configJson = """{"scanner_mode": "auto", "models_base_dir": "$modelsDir"}""",
++            fpeKeyHex = key
++        )
++
++        // Drain Rust-side debug log — model loading, device profile, tier, etc.
++        val debugLog = getDebugLog()
++        if (debugLog.isNotEmpty()) {
++            Log.d(TAG, "[INIT] $debugLog")
++        }
++        Log.d(TAG, "[INIT] handle=${_handle != null}, mappings=${accumulatedMappings.size}")
++    }
++
++    val handle: OpenObscureHandle
++        get() = _handle ?: throw IllegalStateException("OpenObscureManager not initialized")
++
++    /** Sanitize text — accumulates mappings across calls for the current conversation. */
++    fun sanitize(text: String): SanitizeResultFfi {
++        val startMs = System.currentTimeMillis()
++        val result = sanitizeText(handle, text)
++        val elapsed = System.currentTimeMillis() - startMs
++        Log.d(TAG, "[SANITIZE] len=${text.length}, pii=${result.piiCount}, ms=$elapsed")
++        if (result.piiCount > 0u) {
++            mergeMappings(result.mappingJson)
++            Log.d(TAG, "[SANITIZE] mappings_total=${accumulatedMappings.size}")
++        }
++        return result
++    }
++
++    /** Restore PII in LLM response text using accumulated mappings. */
++    fun restore(text: String): String {
++        val json = try {
++            org.json.JSONArray(accumulatedMappings.map { org.json.JSONArray(it) }).toString()
++        } catch (_: Exception) { "[]" }
++        val startMs = System.currentTimeMillis()
++        val restored = restoreText(handle, text, json)
++        val elapsed = System.currentTimeMillis() - startMs
++        Log.d(TAG, "[RESTORE] len=${text.length}, mappings=${accumulatedMappings.size}, ms=$elapsed")
++        return restored
++    }
++
++    /** Scan LLM response for persuasion/manipulation (cognitive firewall). */
++    fun scanResponse(text: String): RiReportFfi? {
++        val startMs = System.currentTimeMillis()
++        val report = uniffi.openobscure_core.scanResponse(handle, text)
++        val elapsed = System.currentTimeMillis() - startMs
++        Log.d(TAG, "[RI] len=${text.length}, flagged=${report != null}, ms=$elapsed")
++        return report
++    }
++
++    /**
++     * Sanitize a full conversation history with caching.
++     * Messages whose content matches a cached sanitized version skip NER entirely.
++     * Only new/changed user messages go through the Rust sanitize() pipeline.
++     * Assistant messages pass through unchanged (they have tokens from DB).
++     */
++    fun sanitizeMessages(messages: List<ChatMessageFfi>): SanitizeMessagesResultFfi {
++        val startMs = System.currentTimeMillis()
++        val resultMessages = mutableListOf<ChatMessageFfi>()
++        var totalPii = 0u
++
++        for ((idx, msg) in messages.withIndex()) {
++            if (msg.role == "assistant" || msg.content.isEmpty()) {
++                // Pass through unchanged
++                resultMessages.add(msg)
++                continue
++            }
++
++            // Check cache
++            val cacheKey = msg.content.hashCode()
++            val cached = sanitizeCache[cacheKey]
++            if (cached != null) {
++                Log.d(TAG, "[CACHE] msg[$idx] hit (${msg.content.length} chars)")
++                resultMessages.add(ChatMessageFfi(role = msg.role, content = cached))
++                continue
++            }
++
++            // New user message — run NER via single-message sanitize()
++            val result = sanitize(msg.content)
++            totalPii += result.piiCount
++            val sanitizedContent = result.sanitizedText
++            sanitizeCache[cacheKey] = sanitizedContent
++            Log.d(TAG, "[CACHE] msg[$idx] miss, scanned (${msg.content.length} chars, pii=${result.piiCount})")
++            resultMessages.add(ChatMessageFfi(role = msg.role, content = sanitizedContent))
++        }
++
++        val elapsed = System.currentTimeMillis() - startMs
++        Log.d(TAG, "[SANITIZE] cached batch: ${messages.size} msgs, pii=$totalPii, ms=$elapsed")
++
++        // Return in the same format as the Rust batch API
++        val mappingJson = getMappingsJson()
++        return SanitizeMessagesResultFfi(
++            messages = resultMessages,
++            piiCount = totalPii,
++            mappingJson = mappingJson
++        )
++    }
++
++    /**
++     * Sanitize messages with isolated (disposable) mappings.
++     * Used for auto-generated requests (title gen, suggestion gen) that should
++     * not pollute the conversation's mapping pool. PII is still sanitized —
++     * the LLM never sees real data — but the tokens are disposable and not
++     * merged into accumulatedMappings.
++     */
++    fun sanitizeMessagesIsolated(messages: List<ChatMessageFfi>): SanitizeMessagesResultFfi {
++        val startMs = System.currentTimeMillis()
++        val resultMessages = mutableListOf<ChatMessageFfi>()
++        var totalPii = 0u
++
++        for ((idx, msg) in messages.withIndex()) {
++            if (msg.role == "assistant" || msg.content.isEmpty()) {
++                resultMessages.add(msg)
++                continue
++            }
++
++            // Sanitize without accumulating — use the Rust single-message API directly
++            val result = sanitizeText(handle, msg.content)
++            totalPii += result.piiCount
++            Log.d(TAG, "[SANITIZE-ISO] msg[$idx] len=${msg.content.length}, pii=${result.piiCount}")
++            resultMessages.add(ChatMessageFfi(role = msg.role, content = result.sanitizedText))
++            // NOTE: result.mappingJson is intentionally NOT merged into accumulatedMappings
++        }
++
++        val elapsed = System.currentTimeMillis() - startMs
++        Log.d(TAG, "[SANITIZE-ISO] isolated batch: ${messages.size} msgs, pii=$totalPii, ms=$elapsed")
++
++        return SanitizeMessagesResultFfi(
++            messages = resultMessages,
++            piiCount = totalPii,
++            mappingJson = "[]"  // disposable — not persisted
++        )
++    }
++
++    /** Reset mappings when starting a new conversation. */
++    fun resetMappings() {
++        Log.d(TAG, "[RESET] clearing ${accumulatedMappings.size} mappings, ${sanitizeCache.size} cached")
++        accumulatedMappings.clear()
++        sanitizeCache.clear()
++    }
++
++    /** Serialize current mappings for persistent storage (e.g., alongside conversation in DB). */
++    fun getMappingsJson(): String {
++        return try {
++            org.json.JSONArray(accumulatedMappings.map { org.json.JSONArray(it) }).toString()
++        } catch (_: Exception) { "[]" }
++    }
++
++    /** Load previously saved mappings (e.g., when switching to a conversation from DB). */
++    fun loadMappings(json: String) {
++        accumulatedMappings.clear()
++        try {
++            val arr = org.json.JSONArray(json)
++            for (i in 0 until arr.length()) {
++                val pair = arr.getJSONArray(i)
++                val list = mutableListOf<String>()
++                for (j in 0 until pair.length()) {
++                    list.add(pair.getString(j))
++                }
++                accumulatedMappings.add(list)
++            }
++        } catch (_: Exception) { /* ignore parse errors */ }
++    }
++
++    private fun mergeMappings(json: String) {
++        try {
++            val arr = org.json.JSONArray(json)
++            val tokenIndex = mutableMapOf<String, Int>()
++            accumulatedMappings.forEachIndexed { i, pair ->
++                if (pair.size >= 2) tokenIndex[pair[0]] = i
++            }
++            for (i in 0 until arr.length()) {
++                val pair = arr.getJSONArray(i)
++                if (pair.length() >= 2) {
++                    val token = pair.getString(0)
++                    val value = pair.getString(1)
++                    val existing = tokenIndex[token]
++                    if (existing != null) {
++                        accumulatedMappings[existing] = listOf(token, value)
++                    } else {
++                        tokenIndex[token] = accumulatedMappings.size
++                        accumulatedMappings.add(listOf(token, value))
++                    }
++                }
++            }
++        } catch (_: Exception) { }
++    }
++
++    // --- Asset copying ---
++
++    /** Copy an assets directory to internal storage (ONNX Runtime needs file paths). */
++    private fun copyAssetsDir(context: Context, assetDir: String): String {
++        val outDir = File(context.filesDir, assetDir)
++        if (!outDir.exists()) {
++            outDir.mkdirs()
++            copyAssetsDirRecursive(context, assetDir, outDir)
++        }
++        return outDir.absolutePath
++    }
++
++    private fun copyAssetsDirRecursive(context: Context, assetPath: String, outDir: File) {
++        val entries = context.assets.list(assetPath) ?: return
++        for (entry in entries) {
++            val subAssetPath = "$assetPath/$entry"
++            val subEntries = context.assets.list(subAssetPath)
++            if (subEntries != null && subEntries.isNotEmpty()) {
++                // It's a subdirectory — recurse
++                val subDir = File(outDir, entry)
++                subDir.mkdirs()
++                copyAssetsDirRecursive(context, subAssetPath, subDir)
++            } else {
++                // It's a file — copy
++                context.assets.open(subAssetPath).use { input ->
++                    File(outDir, entry).outputStream().use { output ->
++                        input.copyTo(output)
++                    }
++                }
++            }
++        }
++    }
++
++    // --- Key storage via SharedPreferences ---
++
++    private fun getOrCreateKey(context: Context): String {
++        val prefs = context.getSharedPreferences("openobscure", Context.MODE_PRIVATE)
++        prefs.getString("fpe_key", null)?.let { return it }
++
++        val bytes = ByteArray(32)
++        java.security.SecureRandom().nextBytes(bytes)
++        val hex = bytes.joinToString("") { "%02x".format(it) }
++
++        // In production: use Android Keystore instead of SharedPreferences
++        prefs.edit().putString("fpe_key", hex).apply()
++        return hex
++    }
++}
+diff --git a/app/src/main/java/me/rerere/rikkahub/data/db/AppDatabase.kt b/app/src/main/java/me/rerere/rikkahub/data/db/AppDatabase.kt
+index f039b41d..77efeb5c 100644
+--- a/app/src/main/java/me/rerere/rikkahub/data/db/AppDatabase.kt
++++ b/app/src/main/java/me/rerere/rikkahub/data/db/AppDatabase.kt
+@@ -31,7 +31,7 @@ import me.rerere.rikkahub.utils.JsonInstant
+         ManagedFileEntity::class,
+         FavoriteEntity::class
+     ],
+-    version = 17,
++    version = 18,
+     autoMigrations = [
+         AutoMigration(from = 1, to = 2),
+         AutoMigration(from = 2, to = 3),
+@@ -44,6 +44,7 @@ import me.rerere.rikkahub.utils.JsonInstant
+         AutoMigration(from = 10, to = 11),
+         AutoMigration(from = 12, to = 13),
+         AutoMigration(from = 16, to = 17, spec = Migration_16_17::class),
++        AutoMigration(from = 17, to = 18),
+     ]
+ )
+ @TypeConverters(TokenUsageConverter::class)
+diff --git a/app/src/main/java/me/rerere/rikkahub/data/db/dao/ConversationDAO.kt b/app/src/main/java/me/rerere/rikkahub/data/db/dao/ConversationDAO.kt
+index 4b92d7ac..5404f215 100644
+--- a/app/src/main/java/me/rerere/rikkahub/data/db/dao/ConversationDAO.kt
++++ b/app/src/main/java/me/rerere/rikkahub/data/db/dao/ConversationDAO.kt
+@@ -75,6 +75,12 @@ interface ConversationDAO {
+     @Query("UPDATE conversationentity SET is_pinned = :isPinned WHERE id = :id")
+     suspend fun updatePinStatus(id: String, isPinned: Boolean)
+ 
++    @Query("UPDATE conversationentity SET oo_mapping_json = :mappingJson WHERE id = :id")
++    suspend fun updateMappingJson(id: String, mappingJson: String)
++
++    @Query("SELECT oo_mapping_json FROM conversationentity WHERE id = :id")
++    suspend fun getMappingJson(id: String): String?
++
+     @Query("SELECT COUNT(*) FROM conversationentity")
+     suspend fun countAll(): Int
+ 
+diff --git a/app/src/main/java/me/rerere/rikkahub/data/db/entity/ConversationEntity.kt b/app/src/main/java/me/rerere/rikkahub/data/db/entity/ConversationEntity.kt
+index 8753244a..5ef2aa02 100644
+--- a/app/src/main/java/me/rerere/rikkahub/data/db/entity/ConversationEntity.kt
++++ b/app/src/main/java/me/rerere/rikkahub/data/db/entity/ConversationEntity.kt
+@@ -22,4 +22,6 @@ data class ConversationEntity(
+     val chatSuggestions: String,
+     @ColumnInfo("is_pinned", defaultValue = "0")
+     val isPinned: Boolean,
++    @ColumnInfo("oo_mapping_json", defaultValue = "")
++    val ooMappingJson: String = "",
+ )
+diff --git a/app/src/main/java/me/rerere/rikkahub/data/repository/ConversationRepository.kt b/app/src/main/java/me/rerere/rikkahub/data/repository/ConversationRepository.kt
+index a66c63b4..2e7cb62e 100644
+--- a/app/src/main/java/me/rerere/rikkahub/data/repository/ConversationRepository.kt
++++ b/app/src/main/java/me/rerere/rikkahub/data/repository/ConversationRepository.kt
+@@ -358,6 +358,14 @@ class ConversationRepository(
+         }
+     }
+ 
++    suspend fun saveMappingJson(conversationId: String, mappingJson: String) {
++        conversationDAO.updateMappingJson(conversationId, mappingJson)
++    }
++
++    suspend fun loadMappingJson(conversationId: String): String? {
++        return conversationDAO.getMappingJson(conversationId)
++    }
++
+     private suspend fun saveMessageNodes(conversationId: String, nodes: List<MessageNode>) {
+         val entities = nodes.mapIndexed { index, node ->
+             MessageNodeEntity(
 diff --git a/app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt b/app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt
 index 768b146c..4cfe9560 100644
 --- a/app/src/main/java/me/rerere/rikkahub/di/DataSourceModule.kt
@@ -59,11 +907,241 @@ index 768b146c..4cfe9560 100644
              .addInterceptor(HttpLoggingInterceptor().apply {
                  level = HttpLoggingInterceptor.Level.HEADERS
              })
+diff --git a/app/src/main/java/me/rerere/rikkahub/service/ChatService.kt b/app/src/main/java/me/rerere/rikkahub/service/ChatService.kt
+index 2563ecad..d059b2e1 100644
+--- a/app/src/main/java/me/rerere/rikkahub/service/ChatService.kt
++++ b/app/src/main/java/me/rerere/rikkahub/service/ChatService.kt
+@@ -546,8 +546,19 @@ class ChatService(
+             Logging.log(TAG, it.stackTraceToString())
+         }.onSuccess {
+             val finalConversation = getConversationFlow(conversationId).value
++
++            // Save raw FPE tokens to DB — assistant messages retain tokens.
++            // Do NOT restore into the shared Conversation StateFlow — that would
++            // corrupt the in-memory state with plaintext, leaking PII on the next
++            // request. Restore happens at the Compose rendering layer only.
+             saveConversation(conversationId, finalConversation)
+ 
++            // Persist mappings for this conversation
++            val oo = me.rerere.rikkahub.data.ai.OpenObscureManager
++            val mappingJson = oo.getMappingsJson()
++            conversationRepo.saveMappingJson(conversationId.toString(), mappingJson)
++            Log.d("OO-Chat", "[SAVE] raw tokens saved, mappings (${mappingJson.length} chars) for $conversationId")
++
+             launchWithConversationReference(conversationId) {
+                 generateTitle(conversationId, finalConversation)
+             }
+@@ -932,6 +943,47 @@ class ChatService(
+         }
+     }
+ 
++    /**
++     * Restore FPE tokens in assistant messages for UI display.
++     * Returns a new Conversation with restored text in assistant message parts.
++     * The original conversation (with raw tokens) should be saved to DB first.
++     */
++    fun restoreConversationForDisplay(
++        conversation: Conversation,
++        oo: me.rerere.rikkahub.data.ai.OpenObscureManager
++    ): Conversation {
++        val restoredNodes = conversation.messageNodes.map { node ->
++            val restoredMessages = node.messages.map { msg ->
++                if (msg.role == me.rerere.ai.core.MessageRole.ASSISTANT) {
++                    val restoredParts = msg.parts.map { part ->
++                        when (part) {
++                            is me.rerere.ai.ui.UIMessagePart.Text -> {
++                                val rawText = part.text
++                                val restored = oo.restore(rawText)
++                                // RI scan on restored text
++                                val riReport = oo.scanResponse(restored)
++                                val finalText = if (riReport != null) {
++                                    Log.d("OO-Chat", "[RI] flagged: severity=${riReport.severity}")
++                                    "--- OpenObscure WARNING ---\nDetected: ${riReport.severity}\n---\n\n$restored"
++                                } else {
++                                    restored
++                                }
++                                Log.d("OO-Chat", "[RESTORE] raw=${rawText.take(80)} → restored=${finalText.take(80)}")
++                                part.copy(text = finalText)
++                            }
++                            else -> part
++                        }
++                    }
++                    msg.copy(parts = restoredParts)
++                } else {
++                    msg
++                }
++            }
++            node.copy(messages = restoredMessages)
++        }
++        return conversation.copy(messageNodes = restoredNodes)
++    }
++
+     suspend fun saveConversation(conversationId: Uuid, conversation: Conversation) {
+         val exists = conversationRepo.existsConversationById(conversation.id)
+         if (!exists && conversation.title.isBlank() && conversation.messageNodes.isEmpty()) {
+diff --git a/app/src/main/java/me/rerere/rikkahub/ui/components/message/ChatMessage.kt b/app/src/main/java/me/rerere/rikkahub/ui/components/message/ChatMessage.kt
+index 35beb966..83dd600a 100644
+--- a/app/src/main/java/me/rerere/rikkahub/ui/components/message/ChatMessage.kt
++++ b/app/src/main/java/me/rerere/rikkahub/ui/components/message/ChatMessage.kt
+@@ -90,9 +90,26 @@ import me.rerere.rikkahub.utils.JsonInstant
+ import me.rerere.rikkahub.utils.base64Encode
+ import me.rerere.rikkahub.utils.openUrl
+ import me.rerere.rikkahub.utils.urlDecode
++import me.rerere.rikkahub.data.ai.OpenObscureManager
+ import java.util.Locale
+ import kotlin.time.Duration.Companion.milliseconds
+ 
++/**
++ * Restore FPE tokens in text for display. Called at render time so the
++ * shared Conversation state always retains raw tokens (for LLM requests).
++ * Cached via `remember` so restore() is only called when text changes.
++ */
++@Composable
++private fun rememberRestoredText(text: String, role: MessageRole): String {
++    return remember(text) {
++        if (role == MessageRole.ASSISTANT) {
++            OpenObscureManager.restore(text)
++        } else {
++            text
++        }
++    }
++}
++
+ @Composable
+ fun ChatMessage(
+     node: MessageNode,
+@@ -341,6 +358,8 @@ private fun MessagePartsBlock(
+             is MessagePartBlock.ContentBlock -> key(block.index) {
+                 when (val part = block.part) {
+                     is UIMessagePart.Text -> {
++                        // Restore FPE tokens for display only — shared state keeps raw tokens
++                        val displayText = rememberRestoredText(part.text, role)
+                         SelectionContainer {
+                             if (role == MessageRole.USER) {
+                                 Surface(
+@@ -351,7 +370,7 @@ private fun MessagePartsBlock(
+                                 ) {
+                                     Column(modifier = Modifier.padding(8.dp)) {
+                                         MarkdownBlock(
+-                                            content = part.text.replaceRegexes(
++                                            content = displayText.replaceRegexes(
+                                                 assistant = assistant,
+                                                 scope = AssistantAffectScope.USER,
+                                                 visual = true,
+@@ -369,7 +388,7 @@ private fun MessagePartsBlock(
+                                     ) {
+                                         Column(modifier = Modifier.padding(8.dp)) {
+                                             MarkdownBlock(
+-                                                content = part.text.replaceRegexes(
++                                                content = displayText.replaceRegexes(
+                                                     assistant = assistant,
+                                                     scope = AssistantAffectScope.ASSISTANT,
+                                                     visual = true,
+@@ -380,7 +399,7 @@ private fun MessagePartsBlock(
+                                     }
+                                 } else {
+                                     MarkdownBlock(
+-                                        content = part.text.replaceRegexes(
++                                        content = displayText.replaceRegexes(
+                                             assistant = assistant,
+                                             scope = AssistantAffectScope.ASSISTANT,
+                                             visual = true,
+diff --git a/app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt b/app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt
+index 33978312..6113fd33 100644
+--- a/app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt
++++ b/app/src/main/java/me/rerere/rikkahub/ui/pages/chat/ChatVM.kt
+@@ -2,6 +2,7 @@ package me.rerere.rikkahub.ui.pages.chat
+ 
+ import android.app.Application
+ import android.content.Context
++import android.util.Log
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+@@ -88,9 +89,21 @@ class ChatVM(
+         // 添加对话引用
+         chatService.addConversationReference(_conversationId)
+ 
+-        // 初始化对话
++        // 初始化对话 + OpenObscure mapping reset/load
+         viewModelScope.launch {
+             chatService.initializeConversation(_conversationId)
++
++            // Reset and reload OpenObscure mappings for this conversation.
++            // Restore happens at the Compose rendering layer, not here.
++            val oo = me.rerere.rikkahub.data.ai.OpenObscureManager
++            oo.resetMappings()
++            val savedMappings = conversationRepo.loadMappingJson(_conversationId.toString())
++            if (!savedMappings.isNullOrEmpty()) {
++                oo.loadMappings(savedMappings)
++                Log.d(TAG, "[OO] loaded mappings (${savedMappings.length} chars) for $_conversationId")
++            } else {
++                Log.d(TAG, "[OO] no saved mappings for $_conversationId (new conversation)")
++            }
+         }
+ 
+         // 记住对话ID, 方便下次启动恢复
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index cc373363..fbc87b2d 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -1,5 +1,5 @@
+ [versions]
+-agp = "9.0.1"
++agp = "9.1.0"
+ barcodeScanning = "17.3.0"
+ cameraCore = "1.5.3"
+ dom4j = "2.2.0"
+diff --git a/gradle/wrapper/gradle-wrapper.properties b/gradle/wrapper/gradle-wrapper.properties
+index 3884f7bf..c5cabb42 100644
+--- a/gradle/wrapper/gradle-wrapper.properties
++++ b/gradle/wrapper/gradle-wrapper.properties
+@@ -1,8 +1,8 @@
+ #Sat Jan 17 11:26:11 CST 2026
+ distributionBase=GRADLE_USER_HOME
+ distributionPath=wrapper/dists
+-distributionSha256Sum=a17ddd85a26b6a7f5ddb71ff8b05fc5104c0202c6e64782429790c933686c806
+-distributionUrl=https\://services.gradle.org/distributions/gradle-9.1.0-bin.zip
++distributionSha256Sum=b266d5ff6b90eada6dc3b20cb090e3731302e553a27c5d3e4df1f0d76beaff06
++distributionUrl=https\://services.gradle.org/distributions/gradle-9.3.1-bin.zip
+ networkTimeout=10000
+ validateDistributionUrl=true
+ zipStoreBase=GRADLE_USER_HOME
+diff --git a/highlight/src/test/java/me/rerere/highlight/ExampleUnitTest.kt b/highlight/src/test/java/me/rerere/highlight/ExampleUnitTest.kt
+deleted file mode 100644
+index 4f07cb0b..00000000
+--- a/highlight/src/test/java/me/rerere/highlight/ExampleUnitTest.kt
++++ /dev/null
+@@ -1,16 +0,0 @@
+-package me.rerere.highlight
+-
+-import org.junit.Assert.*
+-import org.junit.Test
+-
+-/**
+- * Example local unit test, which will execute on the development machine (host).
+- *
+- * See [testing documentation](http://d.android.com/tools/testing).
+- */
+-class ExampleUnitTest {
+-    @Test
+-    fun addition_isCorrect() {
+-        assertEquals(4, 2 + 2)
+-    }
+-}
 diff --git a/settings.gradle.kts b/settings.gradle.kts
-index 04bf4b11..34489023 100644
+index 04bf4b11..aa514287 100644
 --- a/settings.gradle.kts
 +++ b/settings.gradle.kts
-@@ -24,8 +24,8 @@ dependencyResolutionManagement {
+@@ -19,13 +19,16 @@ pluginManagement {
+         }
+     }
+ }
++plugins {
++    id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
++}
+ dependencyResolutionManagement {
+     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
      repositories {
          google()
          mavenCentral()
@@ -72,3 +1150,4 @@ index 04bf4b11..34489023 100644
 +        maven("https://jitpack.io")
      }
  }
+ 
