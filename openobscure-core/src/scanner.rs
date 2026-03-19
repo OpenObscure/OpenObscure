@@ -9,6 +9,9 @@
 use regex::{Regex, RegexSet};
 use serde_json::Value;
 
+#[allow(unused_imports)]
+use crate::oo_dbg;
+
 use crate::pii_types::PiiType;
 
 /// A single detected PII match within a text body.
@@ -131,6 +134,8 @@ impl PiiScanner {
 
         // Deduplicate overlapping matches (prefer longer match)
         matches.sort_by_key(|m| (m.start, std::cmp::Reverse(m.end)));
+        #[cfg(feature = "debug-logs")]
+        let raw_count = matches.len();
         let mut deduped = Vec::new();
         let mut last_end = 0;
         for m in matches {
@@ -139,6 +144,14 @@ impl PiiScanner {
                 deduped.push(m);
             }
         }
+
+        oo_dbg!(
+            "regex_scan: len={}, patterns_hit={}, raw_matches={}, after_dedup={}",
+            text.len(),
+            matching_indices.len(),
+            raw_count,
+            deduped.len()
+        );
 
         deduped
     }
