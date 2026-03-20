@@ -410,6 +410,22 @@ Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/
 
 ---
 
+## Performance Characteristics
+
+> Measured with `--debug-logs` enabled (debug builds). Release builds will be faster. See [Performance Reference](docs/reference/performance.md) for full per-phase breakdown and methodology.
+
+| Operation | iPhone 17 (8 GB) | Samsung Galaxy (11 GB) | Budget Android (8 GB) |
+|-----------|-----------------|----------------------|----------------------|
+| NER scan (per new msg) | 80 ms | 140 ms | 560 ms |
+| Image pipeline (warm) | 4,503 ms | 1,072 ms | 2,575 ms |
+| R2 cognitive firewall | 50 ms | 13 ms | 250 ms |
+| Cache hit (turns 3+) | 0 ms | 0 ms | 0 ms |
+| Restore (per response) | 0.5 ms | 0.1 ms | 0.1 ms |
+
+The sanitize cache eliminates NER cost after turn 2 — latency is constant regardless of conversation length. Image pipeline latency scales with resolution; numbers above are for a 720x960 image through NSFW + face + OCR pre-filter.
+
+---
+
 ## Further Reading
 
 [System Overview](docs/architecture/system-overview.md) — two-layer defense diagram, roadmap, key design decisions, threat model, and a full index of architecture deep-dives.
