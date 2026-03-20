@@ -117,6 +117,7 @@ Add providers in `config/openobscure.toml`. See [Integration Reference](docs/int
 | **Look up API types** | [API Reference](docs/reference/api-reference.md) — FFI types, PII coverage, fail behavior |
 | **Run the test suite** | [test/README.md](test/README.md) — PII corpus, gateway + L1 plugin tests, validation scripts |
 | **Contribute** | [Contributing](docs/contribute/contributing.md) — dev setup, conventions, testing |
+| **Roadmap** | [Roadmap](docs/get-started/roadmap.md) — current capabilities, v0.2 plans, community-driven items |
 
 ## Prerequisites
 

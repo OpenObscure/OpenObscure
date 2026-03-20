@@ -25,6 +25,17 @@
 
 ## Next Up (0.2.0)
 
+### Embedded Integration Refinements
+
+These improvements address architectural feedback from the v0.1 review. The current implementations are correct and secure; these refinements improve the integration boundary for new adopters.
+
+- **Persistence delegate protocol** — Replace the `mappingJson` column on the host app's conversation entity with a `OpenObscurePersistenceDelegate` protocol. The host app implements `save(state, conversationId)` and `load(conversationId)` on its existing persistence layer. OO owns the serialization format. No new DB columns, no OO internals visible to the integrator.
+- **OO-owned sanitize cache** — Move `sanitizedContent` from the host's data model (iOS `MessageSD`) to an internal OO-managed cache keyed by content hash. The host app shouldn't know this cache exists. Android already uses this pattern (`sanitizeCache` on `OpenObscureManager`); iOS should follow.
+- **Unified `RestoredContent` return type** — `restore_text()` currently returns a plain `String`. Change to a struct: `RestoredContent { text: String, ri_warning: Option<String>, severity: Option<String> }`. The host app renders whatever OO gives it, matching the Gateway model's behavior. Eliminates the split RI warning assembly (iOS `riWarningLabel()` vs Android `setRiWarning()` + `riVersion` recompose).
+- **Android NNAPI / XNNPACK acceleration** — NER latency is 7x slower on Android (580ms) vs iOS (80ms). Evaluate XNNPACK (CPU-optimized SIMD, all devices) and QNN (Qualcomm NPU, Snapdragon-only) as post-launch acceleration paths. See [review notes](../../review-notes/embedded_integration_review_2026-03-19.md#post-launch-android-acceleration-options).
+
+### Gateway & Platform
+
 - **Protection status header** — `X-OpenObscure-Protection` response header so UI clients can display a real-time privacy indicator
 - **Real-time breach monitoring** — Rolling window anomaly detection in the live proxy path
 - **Streaming redaction** — Incremental redaction for large tool results (requires asynchronous hook support in the host agent)
