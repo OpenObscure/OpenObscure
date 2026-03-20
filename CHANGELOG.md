@@ -19,7 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Cognitive firewall: R1 dictionary (250 phrases across 7 persuasion categories) and R2 TinyBERT classifier cascade (EU AI Act Article 5 alignment)
 - Gateway deployment model: sidecar HTTP proxy on 127.0.0.1:18790 (axum/hyper)
 - Embedded deployment model: iOS/Android native library via UniFFI Swift/Kotlin bindings
-- Hardware tier auto-detection (Full ≥8GB, Standard 4–8GB, Lite <4GB) with `FeatureBudget` struct — compile error if any tier field is omitted
+- Hardware tier auto-detection (Full ≥4GB, Standard 2–4GB, Lite <2GB) with `FeatureBudget` struct — compile error if any tier field is omitted
 - SSE streaming support for real-time LLM responses
 - 4 built-in LLM provider routes: OpenAI, Anthropic, OpenRouter, Ollama; configurable custom providers via `config/openobscure.toml`
 - CLI subcommands: `serve`, `key-rotate`, `passthrough`, service install/uninstall

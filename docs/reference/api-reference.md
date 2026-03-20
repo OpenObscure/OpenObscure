@@ -232,7 +232,7 @@ Configuration passed as JSON to [create_openobscure](#create_openobscure). All f
 | `ner_pool_size` | `int` | `1` | Concurrent NER model instances |
 | `crf_model_dir` | `string?` | `null` | Path to CRF model directory |
 | `image_enabled` | `bool` | `true` | Enable image pipeline (device budget gates actual activation) |
-| `face_model_dir` | `string?` | `null` | Path to BlazeFace model directory (Lite tier) |
+| `face_model_dir` | `string?` | `null` | Path to Ultra-Light RFB-320 face model directory (Lite tier) |
 | `scrfd_model_dir` | `string?` | `null` | Path to SCRFD model directory (Full/Standard tier) |
 | `ocr_model_dir` | `string?` | `null` | Path to PaddleOCR model directory |
 | `nsfw_model_dir` | `string?` | `null` | Path to ViT-base NSFW classifier model directory |
