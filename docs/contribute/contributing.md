@@ -2,6 +2,36 @@
 
 Thank you for your interest in contributing. This guide covers everything you need to go from zero to merged PR.
 
+## Code of Conduct
+
+This project follows the [Contributor Covenant Code of Conduct](../../CODE_OF_CONDUCT.md). By participating, you agree to uphold a welcoming, harassment-free environment for everyone. Report unacceptable behavior via [GitHub's private reporting](https://github.com/openobscure/openobscure/security).
+
+## Security Vulnerabilities
+
+Found a security issue? **Do not open a public issue.** Use GitHub's private vulnerability reporting — see [SECURITY.md](../../SECURITY.md) for the full process, what qualifies, and response expectations.
+
+## How to Contribute
+
+| I want to... | Do this |
+|---|---|
+| **Fix a bug** | Open a PR directly. Include a regression test. |
+| **Improve docs or tests** | Open a PR directly. Always welcome. |
+| **Add a new feature** | Open a [GitHub Discussion](https://github.com/openobscure/openobscure/discussions) first to align on scope and approach before investing in implementation. |
+| **Report a bug** | Open a [GitHub Issue](https://github.com/openobscure/openobscure/issues) with reproduction steps. |
+| **Ask a question** | Open a [GitHub Discussion](https://github.com/openobscure/openobscure/discussions) in the Q&A category. |
+| **Report a security vulnerability** | See [SECURITY.md](../../SECURITY.md) — never open a public issue. |
+
+## AI-Assisted Contributions
+
+AI-assisted contributions (Claude, ChatGPT, Copilot, etc.) are welcome under these conditions:
+
+1. **Test it.** AI-generated code must pass the full test suite. "It compiled" is not sufficient.
+2. **Understand it.** You must be able to explain every line in your PR during review. If you can't explain why a particular approach was chosen, don't submit it.
+3. **Mark it.** Add `Co-Authored-By:` to your commit message if an AI tool contributed substantially to the implementation (not just autocomplete).
+4. **Own it.** You are responsible for the correctness, security, and maintainability of your contribution regardless of how it was produced.
+
+This project was built with [Claude Code](https://claude.ai/code) as an AI development assistant — see [Acknowledgements](../../README.md#acknowledgements). We practice what we ask of contributors.
+
 ---
 
 ## Prerequisites
