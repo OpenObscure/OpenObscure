@@ -6,15 +6,16 @@
 
 ## Versioning Policy
 
-OpenObscure follows [Semantic Versioning](https://semver.org) (`MAJOR.MINOR.PATCH`):
+OpenObscure follows [Semantic Versioning](https://semver.org) (`MAJOR.MINOR.PATCH`).
+
+**Current status: v0.1 (pre-1.0).** The public API (UniFFI bindings, config keys, CLI flags) is not yet stable. Minor version bumps may include breaking changes. Each release's CHANGELOG entry will explicitly call out any breaking changes.
 
 | Change type | Version bump | Example |
 |-------------|-------------|---------|
-| Breaking change to public API (UniFFI bindings, config keys, CLI flags) | **Major** | 0.x.y → 1.0.0 |
 | New capability, new detection type, new deployment model | **Minor** | 0.1.x → 0.2.0 |
 | Bug fix, test addition, doc improvement, performance improvement | **Patch** | 0.1.0 → 0.1.1 |
 
-Pre-1.0: minor version bumps may include breaking changes. Each release's CHANGELOG entry will explicitly call out any breaking changes.
+The 1.0.0 release will be tagged when the UniFFI API, config schema, and CLI flags are considered stable. Until then, expect breaking changes between minor versions.
 
 ---
 
