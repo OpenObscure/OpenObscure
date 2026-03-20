@@ -98,7 +98,7 @@ For face redaction, OCR, NSFW filtering, NER, and cognitive firewall (requires m
 |---|---|---|
 | `/openai` | OpenAI | api.openai.com |
 | `/anthropic` | Anthropic | api.anthropic.com |
-| `/openrouter` | OpenRouter | openrouter.ai |
+| `/openrouter` | OpenRouter | openrouter.ai/api |
 | `/ollama` | Ollama | localhost:11434 |
 | `/custom` | Any OpenAI-compatible API | configurable |
 
