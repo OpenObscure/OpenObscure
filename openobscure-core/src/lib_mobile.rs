@@ -1175,6 +1175,16 @@ impl OpenObscureMobile {
             .map_err(|e| MobileError::ImageError(e.to_string()))?;
 
         let output = buf.into_inner();
+
+        // Verify output has no EXIF — confirms stripping regardless of who did it
+        #[cfg(feature = "debug-logs")]
+        {
+            let output_has_exif = output.len() > 4
+                && (output[0..2] == [0xFF, 0xD8]
+                    && output.windows(4).any(|w| w[0..2] == [0xFF, 0xE1]));
+            oo_dbg!("exif_strip: output_has_exif={}", output_has_exif);
+        }
+
         oo_dbg!(
             "sanitize_image: input_bytes={}, output_bytes={}, total_ms={:.1}",
             image_bytes.len(),
