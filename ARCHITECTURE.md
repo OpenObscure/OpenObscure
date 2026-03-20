@@ -19,6 +19,7 @@
 - [Host Agent Constraints (OpenClaw Reference)](#host-agent-constraints-openclaw-reference)
 - [Health Monitoring & User Experience](#health-monitoring--user-experience)
 - [Logging](#logging)
+- [Performance Characteristics](#performance-characteristics)
 - [Further Reading](#further-reading)
 - [FAQ](#faq)
 
@@ -412,7 +413,7 @@ Both L0 and L1 use unified facade APIs (`oo_info!`/`oo_warn!` in Rust, `ooInfo`/
 
 ## Performance Characteristics
 
-> Measured with `--debug-logs` enabled (debug builds). Release builds will be faster. See [Performance Reference](docs/reference/performance.md) for full per-phase breakdown and methodology.
+> Measured with `--debug-logs` enabled (debug builds, CPU-only inference — no GPU/NPU acceleration). Release builds will be faster. See [Performance Reference](docs/reference/performance.md) for full per-phase breakdown and methodology.
 
 | Operation | iPhone 17 (8 GB) | Samsung Galaxy (11 GB) | Budget Android (8 GB) |
 |-----------|-----------------|----------------------|----------------------|
