@@ -136,3 +136,13 @@ ONNX Runtime is auto-downloaded at build time by the `ort` crate — no manual i
 ## License
 
 Dual-licensed under [MIT or Apache-2.0](LICENSE), at your option.
+
+## Acknowledgements
+
+OpenObscure was developed using [Claude Code](https://claude.ai/code) (Anthropic) as an
+AI development assistant. All architecture, security design, cryptographic decisions,
+threat modeling, and technical judgment are the author's own.
+
+This project is also a research artifact: building a privacy firewall for AI agents
+*using* an AI agent creates a feedback loop that directly informed the design —
+particularly the cognitive firewall and data flow boundaries.
