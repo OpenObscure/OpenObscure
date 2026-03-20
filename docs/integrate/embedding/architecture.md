@@ -4,6 +4,9 @@ How OpenObscure integrates into third-party chat apps via the embedded model.
 This document covers the data flow for both iOS (Enchanted) and Android (RikkaHub)
 reference implementations.
 
+Before reading this document, review the [What Your App Must Provide](embedded_integration.md#what-your-app-must-provide)
+checklist — it lists the four integration points your app must implement.
+
 ## Core Principle
 
 **The LLM never sees real PII.** All sensitive data is encrypted/tokenized before

@@ -6,8 +6,52 @@ A step-by-step guide for integrating OpenObscure as a **native library** (embedd
 
 ---
 
+## What Your App Must Provide
+
+OpenObscure is a library, not a framework — it cannot enforce security invariants inside your app's data layer. Your app must implement these four integration points to maintain the guarantee that **the LLM never sees real PII**.
+
+### 1. Persistence Hook (Mapping Storage)
+
+Your app must save and load FPE token mappings per conversation. Without this, switching conversations or restarting the app loses the ability to restore tokens to plaintext.
+
+| What | Where | Why |
+|------|-------|-----|
+| Save `getMappingsJson()` after each sanitize | Your conversation entity/table | Mappings must survive app restart |
+| Load `loadMappings(json)` when switching conversations | Conversation selection handler | Each conversation has its own token pool |
+| Call `resetMappings()` before loading | Same handler | Prevents cross-conversation token leaks |
+
+### 2. Lifecycle Hook (Conversation Switch)
+
+Call `resetMappings()` whenever the user switches to a different conversation. This is a hard security boundary — without it, conversation A's token pool bleeds into conversation B's context window, and restore may produce incorrect results.
+
+**iOS:** In `selectConversation()` before `reloadConversation()`.
+**Android:** In the ViewModel's conversation observer (`ChatVM.init` or equivalent).
+
+### 3. Restore at UI Layer Only
+
+**Never persist restored plaintext.** The database must always contain raw FPE tokens. Restore happens ephemerally at the rendering layer:
+
+- **iOS:** Use `@Transient displayContent` on your SwiftData model. SwiftData's auto-save fires on any `saveChanges()` call — without `@Transient`, it silently persists restored plaintext to SQLite, leaking PII to the LLM on the next turn.
+- **Android:** Use a Compose `remember` block (e.g., `rememberRestoredText()`) that calls `restore()` at render time. Never set restored text back into the shared `StateFlow` or Room entity.
+
+This is the most critical integration point. See [Architecture: Why @Transient](architecture.md#why-transient-displaycontent-on-ios) for the full explanation.
+
+### 4. Image Sanitization Call Site
+
+If your app sends images to the LLM, call `sanitizeImage(imageBytes)` before attaching the image to the request. The pipeline runs NSFW detection, face redaction, and OCR text redaction on-device.
+
+- **iOS:** Call in the request builder (e.g., `sendPrompt()`) before constructing the LLM request body.
+- **Android:** Call in the OkHttp interceptor when processing multimodal `image_url` parts (base64 or external URL).
+
+Fail-open: if sanitization throws, forward the original image. The pipeline error should not block the user's message.
+
+For detailed sequence diagrams of both platforms, see [Embedded Architecture](architecture.md).
+
+---
+
 **Contents**
 
+- [What Your App Must Provide](#what-your-app-must-provide)
 - [Prerequisites](#prerequisites)
 - [Part 3: API Reference (All Platforms)](#part-3-api-reference-all-platforms)
 - [Part 3a: Reference API Usage](#part-3a-reference-api-usage)

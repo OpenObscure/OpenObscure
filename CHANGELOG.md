@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
-## [1.0.0] - 2026-03-15
+## [0.1.0] - 2026-03-20
 
 ### Added
 
@@ -61,5 +61,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 - musl (Alpine) and macOS Intel platform packages are deferred — `ort` 2.0 provides no prebuilt binaries for musl targets. Installs on those platforms continue to use the JS regex fallback (5 PII types).
 
-[Unreleased]: https://github.com/openobscure/openobscure/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/openobscure/openobscure/releases/tag/v1.0.0
+[Unreleased]: https://github.com/openobscure/openobscure/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/openobscure/openobscure/releases/tag/v0.1.0
