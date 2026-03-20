@@ -253,7 +253,7 @@ Named Entity Recognition identifies semantic PII that regex cannot catch. The pr
 scanner_mode = "auto"   # "auto" | "ner" | "crf" | "regex"
 ```
 
-- **auto** (default): hardware profiler detects device tier — Full (8GB+) enables NER + ensemble, Standard (4–8GB) enables NER, Lite (<4GB) uses CRF/regex
+- **auto** (default): hardware profiler detects device tier — Full (≥4GB) enables NER + ensemble, Standard (2–4GB) enables NER, Lite (<2GB) uses CRF/regex
 - **ner**: Force TinyBERT INT8 NER model
 - **crf**: Force CRF (lighter-weight)
 - **regex**: Regex + keywords only
@@ -483,7 +483,7 @@ The script sends each `test/data/input/Cognitive_Firewall/*.txt` file through th
 
 ## Feature Parity
 
-NER and ensemble voting are available on capable mobile devices (8GB+ RAM) via the L0 Embedded model. The following features remain **Gateway-only**:
+NER and ensemble voting are available on capable mobile devices (≥4GB RAM) via the L0 Embedded model. The following features remain **Gateway-only**:
 
 | Feature | Why Gateway-only |
 |---------|-----------------|
@@ -495,8 +495,8 @@ The following features are **tier-dependent** (available on both Gateway and Emb
 
 | Feature | Required Tier | RAM Needed |
 |---------|--------------|------------|
-| NER — TinyBERT INT8 | Standard+ (4GB+) | ~55MB |
-| Ensemble confidence voting | Full (8GB+) | NER + CRF + agreement bonus |
+| NER — TinyBERT INT8 | Standard+ (≥2GB) | ~55MB |
+| Ensemble confidence voting | Full (≥4GB) | NER + CRF + agreement bonus |
 | Image pipeline | All tiers | ~8–35MB on-demand |
 
 See [EMBEDDED_TEST.md](EMBEDDED_TEST.md) for mobile-specific features (UniFFI bindings, image sanitization, auto-detection).

@@ -47,13 +47,13 @@ use openobscure_core::lib_mobile::{MobileConfig, OpenObscureMobile};
 let fpe_key = [0x42u8; 32];
 
 // auto_detect: true (default) — detects device hardware and selects features
-// A phone with 8GB+ RAM gets NER + ensemble + image pipeline (Full tier)
+// A phone with 4GB+ RAM gets NER + ensemble + image pipeline (Full tier)
 let mobile = OpenObscureMobile::new(MobileConfig::default(), fpe_key).unwrap();
 
 // Check what tier the device was classified as
 let stats = mobile.stats();
 println!("Device tier: {}", stats.device_tier);
-// Output: "full" (8GB+ RAM), "standard" (4-8GB), or "lite" (<4GB)
+// Output: "full" (≥4GB RAM), "standard" (2-4GB), or "lite" (<2GB)
 
 // Sanitize outbound text — scan for PII and encrypt matches
 let result = mobile.sanitize_text(
@@ -118,7 +118,7 @@ let config = MobileConfig {
 
 ## 3. Hardware Auto-Detection & NER on Mobile
 
-By default, `auto_detect: true` detects device RAM and CPU cores at initialization. On a device with 8GB+ RAM, NER (TinyBERT INT8) and ensemble voting are automatically enabled — matching gateway-level PII detection efficacy.
+By default, `auto_detect: true` detects device RAM and CPU cores at initialization. On a device with ≥4GB RAM, NER (DistilBERT INT8 on Full, TinyBERT INT8 on Standard) and ensemble voting are automatically enabled — matching gateway-level PII detection efficacy.
 
 ```rust
 // Default: auto-detect hardware, select features by tier
@@ -151,9 +151,9 @@ let config = MobileConfig {
 
 | Device RAM | Tier | Scanners | Image Pipeline |
 |------------|------|----------|----------------|
-| 8GB+ | **Full** | NER + CRF + ensemble | Yes |
-| 4–8GB | **Standard** | NER + CRF | Yes |
-| <4GB | **Lite** | CRF + regex | Yes (if budget allows) |
+| ≥4GB | **Full** | NER + CRF + ensemble | Yes |
+| 2–4GB | **Standard** | NER + CRF | Yes |
+| <2GB | **Lite** | CRF + regex | Yes (if budget allows) |
 
 ---
 
@@ -164,7 +164,7 @@ Process images for visual PII: face redaction, OCR text redaction, EXIF metadata
 ```rust
 let config = MobileConfig {
     image_enabled: true,
-    face_model_dir: Some("/path/to/blazeface".to_string()),
+    face_model_dir: Some("/path/to/scrfd".to_string()),
     ocr_model_dir: Some("/path/to/paddleocr".to_string()),
     max_dimension: 960,  // resize if larger
     ..MobileConfig::default()
