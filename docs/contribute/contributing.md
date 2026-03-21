@@ -128,6 +128,30 @@ Each component has a dedicated architecture page under [docs/architecture/](../a
 
 ---
 
+## First-Time Contributors
+
+New to the project? Look for issues labeled [`good-first-issue`](https://github.com/openobscure/openobscure/labels/good-first-issue). These are scoped, well-defined tasks that don't require deep knowledge of the codebase. If you're unsure where to start, open a discussion or comment on an issue — we're happy to point you in the right direction.
+
+---
+
+## AI-Generated Code Policy
+
+AI tools (Claude, Copilot, ChatGPT, etc.) are welcome for writing code, tests, and documentation. Requirements:
+
+- **You are the author.** You must understand every line you submit. "The AI wrote it" is not an explanation during review.
+- **You must test it.** AI-generated code must pass the same CI checks and review standards as hand-written code.
+- **Security-sensitive code** (FPE, scanner, image pipeline, cognitive firewall) receives extra scrutiny regardless of how it was written.
+
+The project itself was developed with AI assistance — see the [Acknowledgements](../../README.md#acknowledgements) section in the README.
+
+---
+
+## Becoming a Maintainer
+
+OpenObscure has a contributor ladder: Contributor → Reviewer → Maintainer. The full path, requirements, and what maintainers can and cannot do unilaterally is documented in [Maintainer Guide](maintainer-guide.md).
+
+---
+
 ## Export Control
 
 OpenObscure includes cryptographic functionality subject to export regulations. See [EXPORT_CONTROL_NOTICE.md](../../EXPORT_CONTROL_NOTICE.md) for details.
