@@ -23,6 +23,8 @@ What the LLM receives — FF1 Format-Preserving Encryption, same structure, encr
 
 After the LLM responds, values are automatically decrypted before reaching your agent. Your real PII never leaves your device.
 
+**[Watch the demo](https://youtu.be/wVy_6CIHT7A)** — PII sanitization, image pipeline, and cognitive firewall in action.
+
 ## What It Does
 
 - **PII encryption** — detects 15+ PII types (regex + CRF + TinyBERT NER ensemble + multilingual national IDs), encrypts each with FF1 FPE so the LLM sees realistic-looking fake data instead of `[REDACTED]` tokens
