@@ -6,6 +6,10 @@ rust-version = "1.75"
 default-run = "openobscure"
 description = "OpenObscure L0 Core — Rust PII detection and encryption layer (gateway proxy + embedded library)"
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/openobscure/openobscure"
+homepage = "https://github.com/openobscure/openobscure"
+keywords = ["pii", "privacy", "format-preserving-encryption", "ai-security", "data-anonymization"]
+categories = ["cryptography", "network-programming"]
 
 [lib]
 name = "openobscure_core"

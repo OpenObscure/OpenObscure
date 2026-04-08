@@ -6,6 +6,8 @@ On-device privacy firewall for AI agents: encrypts PII with FF1 Format-Preservin
 [![CI](https://github.com/openobscure/openobscure/actions/workflows/ci.yml/badge.svg)](https://github.com/openobscure/openobscure/actions/workflows/ci.yml)
 ![Tests](https://img.shields.io/badge/tests-1%2C801%20passing-brightgreen)
 ![PII Recall](https://img.shields.io/badge/PII%20recall-99.7%25-brightgreen)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20iOS%20%7C%20Android-lightgrey)
+![Rust](https://img.shields.io/badge/rust-stable-orange)
 
 ## Before / After
 
@@ -135,6 +137,12 @@ Add providers in `config/openobscure.toml`. See [Integration Reference](docs/int
 ONNX Runtime is auto-downloaded at build time by the `ort` crate — no manual installation needed.
 
 **Platform support:** macOS (Apple Silicon, x86_64), Linux (x64, ARM64), Windows (x64), iOS, Android.
+
+## Community
+
+- [GitHub Discussions](https://github.com/openobscure/openobscure/discussions) — questions, ideas, show & tell
+- [Issues](https://github.com/openobscure/openobscure/issues) — bug reports and feature requests
+- [Contributing](docs/contribute/contributing.md) — dev setup, conventions, testing
 
 ## License
 
