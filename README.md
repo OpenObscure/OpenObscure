@@ -114,6 +114,7 @@ Add providers in `config/openobscure.toml`. See [Integration Reference](docs/int
 |---|---|
 | **Install as an end user** | [Setup](setup/README.md) — install with OpenClaw (Gateway) or as a mobile library (Embedded) |
 | **Try it as a developer** | [Gateway Quick Start](docs/get-started/gateway-quick-start.md) — build, run, and verify in 5 minutes |
+| **Browse all docs** | [Documentation Index](docs/README.md) — docs grouped by getting started, configuration, integration, architecture, reference, and contribution |
 | **Run as a container** | [Docker Quick Start](docs/get-started/docker-quick-start.md) — pull and run in 2 commands |
 | **Understand the architecture** | [Architecture](ARCHITECTURE.md) — system overview, data flow, design decisions |
 | **Review the threat model** | [Threat Model](docs/architecture/threat-model.md) — trust boundaries, attack scope, design rationale |
