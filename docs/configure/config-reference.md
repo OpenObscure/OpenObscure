@@ -215,7 +215,7 @@ Voice PII detection via keyword spotting. Requires the `voice` Cargo feature.
 | `file_path` | string? | (none) | Log file path. If unset, logs to stderr only. |
 | `max_file_size` | int | `10485760` (10MB) | Max log file size before rotation (bytes) |
 | `max_files` | int | `3` | Number of rotated log files to keep |
-| `audit_log_path` | string? | (none) | GDPR audit log path (append-only JSONL) |
+| `audit_log_path` | string? | (none) | GDPR audit log path (append-only JSONL). See [Audit Log Schema](../reference/audit-log-schema.md). |
 | `pii_scrub` | bool | `true` | Scrub PII from log output (defense-in-depth) |
 | `crash_buffer` | bool | `false` | Enable mmap crash buffer for post-mortem debugging |
 | `crash_buffer_size` | int | `2097152` (2MB) | Crash buffer size (bytes) |
